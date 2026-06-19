@@ -1,0 +1,106 @@
+/* Properties search & filters — premium B&W toolbar */
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Josefin+Sans:wght@400;500;600&display=swap');
+
+.properties-toolbar {
+  font-family: 'Josefin Sans', system-ui, sans-serif;
+}
+
+.properties-toolbar-heading {
+  font-family: 'Cinzel', Georgia, serif;
+}
+
+.prop-search-shell {
+  @apply flex min-h-[44px] items-center gap-1.5 overflow-hidden rounded-2xl border bg-white pl-11 pr-2 shadow-sm transition-all duration-200;
+}
+
+.prop-search-shell-active {
+  @apply border-black shadow-md shadow-black/5 ring-2 ring-black/5;
+}
+
+.prop-search-shell-idle {
+  @apply border-gray-200 hover:border-gray-300;
+}
+
+.prop-search-input {
+  @apply min-h-[44px] min-w-0 flex-1 border-0 bg-transparent text-base text-black outline-none placeholder:text-gray-400 sm:text-[15px];
+}
+
+.prop-tool-btn {
+  @apply relative flex h-11 min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-gray-800 shadow-sm transition-all duration-200 active:scale-[0.98] hover:border-black hover:bg-gray-50 sm:px-4;
+}
+
+.prop-tool-btn-icon {
+  @apply prop-tool-btn w-11 px-0 sm:w-auto sm:px-4;
+}
+
+.prop-filter-section {
+  @apply rounded-2xl border border-gray-100 bg-gray-50/50 p-4 sm:p-5;
+}
+
+.prop-filter-section-title {
+  @apply mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500;
+}
+
+.prop-type-grid {
+  @apply grid grid-cols-2 gap-2;
+}
+
+.prop-type-pill {
+  @apply flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] font-medium transition-all duration-200 active:scale-[0.98];
+}
+
+.prop-type-pill-active {
+  @apply border-black bg-black text-white shadow-sm;
+}
+
+.prop-type-pill-idle {
+  @apply border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50;
+}
+
+.prop-budget-grid {
+  @apply grid grid-cols-2 gap-2 sm:grid-cols-3;
+}
+
+.prop-budget-chip {
+  @apply min-h-[40px] rounded-xl border px-2 py-2 text-center text-[11px] font-semibold leading-tight transition-all duration-200 active:scale-[0.97] sm:text-[12px];
+}
+
+.prop-budget-chip-active {
+  @apply border-black bg-black text-white;
+}
+
+.prop-budget-chip-idle {
+  @apply border-gray-200 bg-white text-gray-700 hover:border-gray-400;
+}
+
+.prop-sheet {
+  @apply fixed inset-x-0 bottom-0 z-[100] flex max-h-[min(92dvh,720px)] flex-col rounded-t-3xl bg-white shadow-2xl;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.prop-sheet-handle {
+  @apply mx-auto mt-3 h-1 w-10 shrink-0 rounded-full bg-gray-300;
+}
+
+.prop-active-bar {
+  @apply flex gap-2 overflow-x-auto border-t border-gray-100 bg-white/95 px-3 py-2.5 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden;
+}
+
+.prop-active-chip {
+  @apply inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 py-1 pl-3 pr-1.5 text-[11px] font-medium text-gray-800;
+}
+
+.prop-loc-chip {
+  @apply inline-flex shrink-0 items-center gap-0.5 rounded-full bg-black py-1 pl-2.5 pr-1 text-[11px] font-medium text-white;
+}
+
+.prop-apply-btn {
+  @apply flex min-h-[48px] w-full items-center justify-center rounded-xl bg-black text-[13px] font-semibold uppercase tracking-[0.1em] text-white transition-all duration-200 hover:bg-gray-900 active:scale-[0.99];
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .properties-toolbar * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

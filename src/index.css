@@ -1,0 +1,366 @@
+@import 'react-day-picker/dist/style.css';
+@import './styles/admin.css';
+@import './styles/properties-toolbar.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --card: #ffffff;
+    --ring: #d4d4d8;
+    --input: #d4d4d8;
+    --muted: #f4f4f5;
+    --accent: #f4f4f5;
+    --border: #e4e4e7;
+    --radius: 0.625rem;
+    --chart-1: #ea580c;
+    --chart-2: #0d9488;
+    --chart-3: #164e63;
+    --chart-4: #fbbf24;
+    --chart-5: #f59e0b;
+    --popover: #ffffff;
+    --primary: #18181b;
+    --sidebar: #fafafa;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --secondary: #f4f4f5;
+    --background: #ffffff;
+    --font-serif: 'Libre Baskerville', Georgia, 'Times New Roman', Times, serif;
+    --foreground: #0a0a0a;
+    --destructive: #ef4444;
+    --sidebar-ring: #d4d4d8;
+    --sidebar-accent: #f4f4f5;
+    --sidebar-border: #e4e4e7;
+    --card-foreground: #0a0a0a;
+    --sidebar-primary: #18181b;
+    --muted-foreground: #71717a;
+    --accent-foreground: #18181b;
+    --popover-foreground: #0a0a0a;
+    --primary-foreground: #fafafa;
+    --sidebar-foreground: #0a0a0a;
+    --secondary-foreground: #18181b;
+    --destructive-foreground: #ef4444;
+    --sidebar-accent-foreground: #18181b;
+    --sidebar-primary-foreground: #fafafa;
+  }
+
+  .dark {
+    --card: #0a0a0a;
+    --ring: #52525b;
+    --input: #27272a;
+    --muted: #18181b;
+    --accent: #18181b;
+    --border: #27272a;
+    --radius: 0.625rem;
+    --chart-1: #1d4ed8;
+    --chart-2: #10b981;
+    --chart-3: #f59e0b;
+    --chart-4: #8b5cf6;
+    --chart-5: #f43f5e;
+    --popover: #0a0a0a;
+    --primary: #fafafa;
+    --sidebar: #171717;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --secondary: #27272a;
+    --background: #0a0a0a;
+    --font-serif: 'Libre Baskerville', Georgia, 'Times New Roman', Times, serif;
+    --foreground: #fafafa;
+    --destructive: #7f1d1d;
+    --sidebar-ring: #52525b;
+    --sidebar-accent: #262626;
+    --sidebar-border: #27272a;
+    --card-foreground: #fafafa;
+    --sidebar-primary: #1d4ed8;
+    --muted-foreground: #a1a1aa;
+    --accent-foreground: #fafafa;
+    --popover-foreground: #fafafa;
+    --primary-foreground: #18181b;
+    --sidebar-foreground: #fafafa;
+    --secondary-foreground: #fafafa;
+    --destructive-foreground: #ef4444;
+    --sidebar-accent-foreground: #fafafa;
+    --sidebar-primary-foreground: #fafafa;
+  }
+
+  * {
+    @apply border-border;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--background);
+    color: var(--foreground);
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+
+  .font-serif.font-light,
+  .font-display.font-light {
+    font-weight: 400;
+  }
+
+  .font-serif.font-medium,
+  .font-display.font-medium {
+    font-weight: 400;
+  }
+
+  .font-serif.font-semibold,
+  .font-display.font-semibold {
+    font-weight: 700;
+  }
+}
+
+@layer utilities {
+  .font-numeric {
+    font-family: var(--font-sans);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: 'tnum' 1, 'lnum' 1;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--muted);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--primary);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--foreground);
+}
+
+.nav-link {
+  position: relative;
+  display: inline-block;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background-color: #FFFFFF;
+  transition: width 0.3s ease;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+}
+
+.image-placeholder {
+  background: linear-gradient(135deg, var(--border) 0%, var(--muted) 100%);
+}
+
+@keyframes scrollDown {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(8px);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+}
+
+.scroll-indicator {
+  animation: scrollDown 1.5s ease-in-out infinite;
+}
+
+.card-lift {
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.hero-pattern {
+  background-image:
+    linear-gradient(135deg, transparent 40%, rgba(17, 17, 17, 0.3) 40%, rgba(17, 17, 17, 0.3) 42%, transparent 42%),
+    linear-gradient(135deg, transparent 60%, rgba(17, 17, 17, 0.2) 60%, rgba(17, 17, 17, 0.2) 62%, transparent 62%);
+  background-size: 60px 60px;
+}
+
+.quote-mark {
+  font-family: var(--font-serif);
+  font-size: 200px;
+  line-height: 0;
+  color: var(--border);
+}
+
+.mobile-menu-overlay {
+  backdrop-filter: blur(8px);
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 2px;
+  background: var(--border);
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--primary);
+  cursor: pointer;
+  border-radius: var(--radius);
+  border: none;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.tag-remove {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+
+.tag-remove:hover {
+  opacity: 1;
+}
+
+.floating-input {
+  position: relative;
+}
+
+.floating-input input,
+.floating-input textarea {
+  width: 100%;
+  padding: 20px 0 8px;
+  border: none;
+  border-bottom: 1px solid var(--input);
+  background: transparent;
+  font-size: 16px;
+  font-family: var(--font-sans);
+  color: var(--foreground);
+}
+
+.floating-input label {
+  position: absolute;
+  top: 20px;
+  left: 0;
+  font-size: 16px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+  transition: all 0.3s ease;
+  font-family: var(--font-sans);
+}
+
+.floating-input input:focus ~ label,
+.floating-input input:not(:placeholder-shown) ~ label,
+.floating-input textarea:focus ~ label,
+.floating-input textarea:not(:placeholder-shown) ~ label {
+  top: 0;
+  font-size: 11px;
+  color: var(--foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.stat-divider {
+  width: 1px;
+  height: 68px;
+  background: var(--border);
+}
+
+.roman-numeral {
+  font-family: var(--font-serif);
+  font-size: 68px;
+  color: var(--foreground);
+  line-height: 1;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 6px 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  font-family: var(--font-sans);
+  border-radius: var(--radius);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 200px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: var(--accent);
+}

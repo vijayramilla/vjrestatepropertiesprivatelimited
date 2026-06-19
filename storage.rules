@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == 'AhaNy8oyMHOFsB3u0dQhG0E0by43' ||
+        request.auth.token.email == 'vijayramv229@gmail.com'
+      );
+    }
+
+    match /properties/{propertyId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

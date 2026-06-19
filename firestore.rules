@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.uid == 'AhaNy8oyMHOFsB3u0dQhG0E0by43' ||
+        request.auth.token.email == 'vijayramv229@gmail.com'
+      );
+    }
+
+    function isValidLead() {
+      return request.resource.data.keys().hasAll([
+          'propertyId', 'propertyTitle', 'leadType', 'message', 'createdAt'
+        ])
+        && request.resource.data.propertyId is string
+        && request.resource.data.propertyId.size() > 0
+        && request.resource.data.propertyId.size() <= 128
+        && request.resource.data.propertyTitle is string
+        && request.resource.data.propertyTitle.size() <= 500
+        && request.resource.data.message is string
+        && request.resource.data.message.size() > 0
+        && request.resource.data.message.size() <= 2000
+        && request.resource.data.leadType in ['whatsapp', 'book_visit'];
+    }
+
+    match /properties/{propertyId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /property_leads/{leadId} {
+      allow create: if isValidLead();
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}
