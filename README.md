@@ -1,3 +1,28 @@
-# vjrwebsite
+# VJR Estate
 
-[![Open in Bolt](https://bolt.new/static/open-in-bolt.svg)](https://bolt.new/~/sb1-qyhnsrdq)
+Premium rental income property website for Bangalore — listings, locality search, admin panel, and lead capture.
+
+## Stack
+
+- React + Vite + TypeScript
+- Firebase (Auth, Firestore, Storage)
+- Tailwind CSS
+
+## Setup
+
+```bash
+npm install
+cp .env.example .env
+# Fill VITE_FIREBASE_* values in .env
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Environment
+
+Copy `.env.example` to `.env` and set all `VITE_FIREBASE_*` variables. Never commit `.env`.

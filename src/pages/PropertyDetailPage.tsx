@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/formatPrice';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
 import { siteContact } from '@/data/siteContact';
 import { shareProperty } from '@/utils/shareProperty';
+import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
 import {
@@ -323,6 +324,18 @@ export default function PropertyDetailPage() {
 
     fetchProperty();
   }, [id]);
+
+  useEffect(() => {
+    if (!property) return;
+    setPropertyShareMeta({
+      title: property.title,
+      area: property.area,
+      type: property.type,
+      priceLabel: formatPrice(property.price),
+      imageUrl: property.images?.[0],
+    });
+    return () => setDefaultSiteMeta();
+  }, [property]);
 
   if (loading) {
     return (

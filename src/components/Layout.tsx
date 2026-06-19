@@ -1,10 +1,18 @@
 import { Outlet, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Navbar from './Navbar';
 import Footer from '@/components/ui/footer';
+import { setDefaultSiteMeta } from '@/lib/siteMeta';
 
 export default function Layout() {
   const location = useLocation();
+
+  useEffect(() => {
+    const isPropertyDetail = /^\/properties\/[^/]+$/.test(location.pathname);
+    if (!isPropertyDetail) setDefaultSiteMeta();
+  }, [location.pathname]);
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navbar />
