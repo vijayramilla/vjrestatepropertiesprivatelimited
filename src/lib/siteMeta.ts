@@ -1,3 +1,5 @@
+import { getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
+
 const SITE_NAME = 'VJR Estate';
 const DEFAULT_TITLE = 'VJR Estate | Buy Rental Income Properties in Bangalore';
 const DEFAULT_DESCRIPTION =
@@ -15,17 +17,22 @@ function setMeta(name: string, content: string, property = false) {
 }
 
 export function setDefaultSiteMeta() {
+  const origin = getSiteOrigin();
   document.title = DEFAULT_TITLE;
   setMeta('description', DEFAULT_DESCRIPTION);
   setMeta('og:title', DEFAULT_TITLE, true);
   setMeta('og:description', DEFAULT_DESCRIPTION, true);
   setMeta('og:site_name', SITE_NAME, true);
   setMeta('og:type', 'website', true);
+  setMeta('og:url', `${origin}/`, true);
+  setMeta('og:image', `${origin}/og-image.png`, true);
   setMeta('twitter:title', DEFAULT_TITLE);
   setMeta('twitter:description', DEFAULT_DESCRIPTION);
+  setMeta('twitter:image', `${origin}/og-image.png`);
 }
 
 export function setPropertyShareMeta(property: {
+  id: string;
   title: string;
   area: string;
   type: string;
@@ -34,8 +41,9 @@ export function setPropertyShareMeta(property: {
 }) {
   const title = `${property.title} — ${SITE_NAME}`;
   const description = `${property.type} in ${property.area}, Bangalore · ${property.priceLabel}`;
-  const url = window.location.href;
-  const image = property.imageUrl ?? `${window.location.origin}/og-image.png`;
+  const origin = getSiteOrigin();
+  const url = getPropertyShareUrl(property.id);
+  const image = property.imageUrl ?? `${origin}/og-image.png`;
 
   document.title = title;
   setMeta('description', description);

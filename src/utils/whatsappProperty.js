@@ -1,4 +1,5 @@
 import { savePropertyLead } from '@/lib/propertyLeads';
+import { getPropertyShareUrl } from '@/lib/siteUrl';
 
 import { siteContact } from '@/data/siteContact';
 
@@ -6,7 +7,7 @@ const WA_NUMBER = siteContact.phoneTel.replace('+', '');
 
 export function buildWhatsAppMessage(property, extra = {}) {
   const { visitDate, visitTime } = extra;
-  const url = `${window.location.origin}/properties/${property.id}`;
+  const url = getPropertyShareUrl(property.id);
   const monthlyLabel = property.monthly_rental_label ?? property.monthly_rental;
   const lines = [
     "Hi VJR Estate, I'm interested in this property:",
@@ -44,7 +45,7 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
   } = options;
 
   const message = buildWhatsAppMessage(property, { visitDate, visitTime });
-  const propertyUrl = `${window.location.origin}/properties/${property.id}`;
+  const propertyUrl = getPropertyShareUrl(property.id);
 
   try {
     await savePropertyLead({

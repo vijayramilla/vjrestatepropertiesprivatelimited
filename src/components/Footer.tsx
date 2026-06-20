@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
+import { siteContact } from '@/data/siteContact';
 
 const quickLinks = [
   { name: 'Home', path: '/' },
@@ -35,7 +36,7 @@ export default function Footer() {
             <div className="space-y-4 text-[14px] text-white">
               <p>Koramangala 7th Block<br />Bangalore, Karnataka 560095</p>
               <p>WhatsApp: <a href="https://wa.me/918088905957" target="_blank" rel="noopener noreferrer" className="hoverable transition-colors hover:text-gray-400">+91 8088905957</a></p>
-              <p>Email: <a href="mailto:info@vjrestate.com" className="hoverable transition-colors hover:text-gray-400">info@vjrestate.com</a></p>
+              <p>Email: <a href={`mailto:${siteContact.email}`} className="hoverable transition-colors hover:text-gray-400">{siteContact.email}</a></p>
             </div>
           </div>
         </div>

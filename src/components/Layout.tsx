@@ -8,10 +8,11 @@ import { setDefaultSiteMeta } from '@/lib/siteMeta';
 export default function Layout() {
   const location = useLocation();
 
+  const isPropertyDetail = /^\/properties\/[^/]+$/.test(location.pathname);
+
   useEffect(() => {
-    const isPropertyDetail = /^\/properties\/[^/]+$/.test(location.pathname);
     if (!isPropertyDetail) setDefaultSiteMeta();
-  }, [location.pathname]);
+  }, [location.pathname, isPropertyDetail]);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
@@ -23,7 +24,9 @@ export default function Layout() {
           </motion.div>
         </AnimatePresence>
       </main>
-      <Footer />
+      <div className={isPropertyDetail ? 'hidden lg:block' : undefined}>
+        <Footer />
+      </div>
     </div>
   );
 }

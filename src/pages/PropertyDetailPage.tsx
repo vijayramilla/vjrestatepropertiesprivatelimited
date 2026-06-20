@@ -10,6 +10,7 @@ import { shareProperty } from '@/utils/shareProperty';
 import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
+import PgBuildingDetailsCard from '../components/PgBuildingDetailsCard';
 import {
   Buildings,
   HouseLine,
@@ -133,7 +134,6 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Plot Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Rooms', value: String(property.total_units) },
-      { label: 'Available Rooms', value: String(property.available_units) },
       { label: 'Occupancy %', value: `${property.occupancy_percent}%` },
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
@@ -328,6 +328,7 @@ export default function PropertyDetailPage() {
   useEffect(() => {
     if (!property) return;
     setPropertyShareMeta({
+      id: property.id,
       title: property.title,
       area: property.area,
       type: property.type,
@@ -441,7 +442,7 @@ export default function PropertyDetailPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="bg-[#fff] min-h-screen pb-[68px] lg:pb-0"
+      className="bg-[#fff] min-h-screen pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
     >
       {/* Top nav */}
       <nav
@@ -574,28 +575,32 @@ export default function PropertyDetailPage() {
             </div>
 
             {/* Property details */}
-            <div className="mt-9" >
+            <div className="mt-9">
               <SectionLabel>Property Details</SectionLabel>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 mt-4">
-                {detailRows.map((row, i) => (
-                  <div
-                    key={row.label}
-                    className={`flex justify-between items-center py-3 border-b border-[#f2f2f2] ${
-                      i === detailRows.length - 1 ? 'border-b-0' : ''
-                    }`}
-                  >
-                    <span className="text-[12px] text-[#aaa]" style={fontUI}>
-                      {row.label}
-                    </span>
-                    <span
-                      className="text-[13px] text-[#000] font-medium text-right"
-                      style={fontUI}
-                    >
-                      {row.value}
-                    </span>
+              {property.type === 'PG Building' ? (
+                <PgBuildingDetailsCard property={property} />
+              ) : (
+                <div className="mt-4 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-sm">
+                  <div className="divide-y divide-[#f2f2f2]">
+                    {detailRows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="flex min-h-[52px] flex-col justify-center gap-1 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5"
+                      >
+                        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[#aaa]" style={fontUI}>
+                          {row.label}
+                        </span>
+                        <span
+                          className="text-[14px] font-medium leading-snug text-[#000] sm:max-w-[58%] sm:text-right"
+                          style={fontUI}
+                        >
+                          {row.value}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
 
             {/* Amenities */}
@@ -651,34 +656,34 @@ export default function PropertyDetailPage() {
             {showRental && (
               <div className="mt-9" >
                 <SectionLabel>Rental Income Snapshot</SectionLabel>
-                <div className="mt-3.5 bg-[#f9f9f9] border border-[#ebebeb] p-7">
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="border-r border-[#e0e0e0] pr-4" >
+                <div className="mt-3.5 overflow-hidden rounded-xl border border-[#ebebeb] bg-[#f9f9f9]">
+                  <div className="grid grid-cols-1 gap-px bg-[#e0e0e0] sm:grid-cols-3">
+                    <div className="bg-[#f9f9f9] px-4 py-5 sm:border-r sm:border-[#e0e0e0]">
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Monthly
                       </p>
-                      <p className="text-[34px] text-[#000] font-medium leading-none mt-2" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
                         {property.monthly_rental ?? '—'}
                       </p>
                     </div>
-                    <div className="border-r border-[#e0e0e0] pr-4" >
+                    <div className="bg-[#f9f9f9] px-4 py-5 sm:border-r sm:border-[#e0e0e0]">
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Annual
                       </p>
-                      <p className="text-[34px] text-[#000] font-medium leading-none mt-2" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
                         {property.annual_income ?? '—'}
                       </p>
                     </div>
-                    <div >
+                    <div className="bg-white px-4 py-5">
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Est. Yield
                       </p>
-                      <p className="text-[34px] text-[#000] font-medium leading-none mt-2" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
                         {property.rental_yield ? `${property.rental_yield}%` : '—'}
                       </p>
                     </div>
                   </div>
-                  <p className="text-[11px] text-[#bbb] mt-4" style={fontUI}>
+                  <p className="border-t border-[#ebebeb] px-4 py-3 text-[11px] text-[#bbb]" style={fontUI}>
                     Based on current occupancy. Actual returns may vary.
                   </p>
                 </div>
@@ -797,38 +802,60 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      {/* Mobile sticky bottom bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex h-[68px] items-center gap-2 border-t border-[#e8e8e8] bg-[#fff] px-3 lg:hidden">
-        <div className="min-w-0 flex-1">
-          <p className="text-[22px] font-medium leading-none tracking-tight text-[#000] sm:text-[26px]" style={fontPrice}>
-            {formatPrice(property.price)}
-          </p>
-          <p className="mt-0.5 truncate text-[10px] text-[#888] sm:text-[11px]" style={fontUI}>
-            {showRental
-              ? `Monthly Income · ${property.monthly_rental ?? '—'}`
-              : `Total Area · ${property.area_sqft.toLocaleString('en-IN')} sq.ft`}
-          </p>
+      {/* Mobile sticky bottom bar — safe-area aware, full-width grid */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e8e8e8] bg-white/95 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+      >
+        <div className="mx-auto grid max-w-[1320px] grid-cols-[minmax(0,1fr)_auto_auto] items-stretch gap-2 px-3 py-2.5">
+          <div className="flex min-h-[48px] min-w-0 flex-col justify-center pr-1">
+            <p
+              className="truncate text-[20px] font-medium leading-none tracking-tight text-[#000] sm:text-[22px]"
+              style={fontPrice}
+            >
+              {formatPrice(property.price)}
+            </p>
+            <p className="mt-1 truncate text-[10px] leading-tight text-[#888] sm:text-[11px]" style={fontUI}>
+              {showRental
+                ? `Monthly · ${property.monthly_rental ?? '—'}`
+                : `${property.area_sqft.toLocaleString('en-IN')} sq.ft`}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Share property"
+            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-gray-900 bg-white px-3 active:scale-[0.98] sm:min-w-[80px]"
+          >
+            <ShareNetwork size={18} weight="duotone" color="#111" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-900" style={fontUI}>
+              Share
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowBooking(true)}
+            className="flex min-h-[48px] min-w-[96px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#000] px-4 active:scale-[0.98] sm:min-w-[108px]"
+            style={fontUI}
+          >
+            <CalendarBlank size={18} weight="regular" color="#fff" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-white">
+              Book Now
+            </span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={handleShare}
-          aria-label="Share property"
-          className="flex h-10 min-h-[44px] shrink-0 touch-manipulation items-center justify-center gap-1 rounded-lg border-2 border-gray-900 bg-white px-2.5 active:scale-[0.98]"
-        >
-          <ShareNetwork size={16} weight="duotone" color="#111" />
-          <span className="text-[11px] font-semibold text-gray-900" style={fontUI}>Share</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowBooking(true)}
-          className="flex h-[42px] min-h-[44px] max-w-[120px] flex-1 touch-manipulation items-center justify-center bg-[#000] text-[11px] font-semibold uppercase tracking-[0.06em] text-[#fff] active:scale-[0.98] sm:max-w-[140px] sm:text-[12px]"
-          style={fontUI}
-        >
-          Book Now
-        </button>
       </div>
+
       {shareFeedback && (
-        <div className="fixed bottom-[72px] left-1/2 z-[55] -translate-x-1/2 rounded-lg bg-gray-900 px-4 py-2 text-[12px] text-white lg:hidden" style={fontUI}>
+        <div
+          className="fixed left-1/2 z-[55] -translate-x-1/2 rounded-lg bg-gray-900 px-4 py-2 text-[12px] text-white lg:hidden"
+          style={{
+            ...fontUI,
+            bottom: 'calc(5.75rem + env(safe-area-inset-bottom, 0px))',
+          }}
+        >
           {shareFeedback}
         </div>
       )}
@@ -853,7 +880,11 @@ export default function PropertyDetailPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="absolute inset-x-0 bottom-[68px] max-h-[calc(100vh-68px)] overflow-y-auto bg-[#fff] border-t border-[#e8e8e8]"
+              className="absolute inset-x-0 overflow-y-auto overscroll-contain bg-[#fff] border-t border-[#e8e8e8]"
+              style={{
+                bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
+                maxHeight: 'calc(100dvh - 4.5rem - env(safe-area-inset-bottom, 0px))',
+              }}
             >
               <BookVisitCalendar
                 property={bookProperty}

@@ -1,4 +1,5 @@
 import { siteContact } from '@/data/siteContact';
+import { getPropertyShareUrl } from '@/lib/siteUrl';
 
 async function copyTextToClipboard(text) {
   if (navigator.clipboard?.writeText) {
@@ -30,7 +31,11 @@ async function copyTextToClipboard(text) {
 }
 
 function buildShareContent(property) {
-  const url = `${window.location.origin}/properties/${property.id}`;
+  if (!property?.id) {
+    return null;
+  }
+
+  const url = getPropertyShareUrl(property.id);
   const title = `${property.title} — VJR Estate`;
   const monthlyLabel = property.monthly_rental_label ?? property.monthly_rental;
   const text = `${property.type} in ${property.area}, Bangalore\nPrice: ${property.price_label}${
@@ -65,7 +70,10 @@ async function trySharePayload(payload) {
  * @returns {'shared' | 'whatsapp' | 'copied' | 'cancelled' | 'failed'}
  */
 export async function shareProperty(property) {
-  const { url, title, text } = buildShareContent(property);
+  const content = buildShareContent(property);
+  if (!content) return 'failed';
+
+  const { url, title, text } = content;
   const mobile = isMobileDevice();
 
   if (typeof navigator.share === 'function') {

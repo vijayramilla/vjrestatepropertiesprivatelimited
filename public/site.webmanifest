@@ -2,7 +2,7 @@
   "name": "VJR Estate",
   "short_name": "VJR Estate",
   "description": "Buy rental income properties in Bangalore",
-  "start_url": "/",
+  "start_url": "https://vjrestate.in/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0a0a0a",

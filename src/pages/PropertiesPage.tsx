@@ -12,6 +12,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
+import { PropertyPagination, PROPERTIES_PAGE_SIZE } from '@/components/ui/the-pagination';
 import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import { formatPrice } from '@/lib/formatPrice';
@@ -184,6 +185,7 @@ export default function PropertiesPage() {
   const [budgetMode, setBudgetMode] = useState<BudgetMode>('price');
   const [plotSubtype, setPlotSubtype] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -198,6 +200,7 @@ export default function PropertiesPage() {
 
   const sortRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const listingsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -315,6 +318,32 @@ export default function PropertiesPage() {
     }
     return filtered;
   }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, plotSubtype, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
+
+  const paginatedProperties = useMemo(() => {
+    const start = (page - 1) * PROPERTIES_PAGE_SIZE;
+    return filteredProperties.slice(start, start + PROPERTIES_PAGE_SIZE);
+  }, [filteredProperties, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selectedTypes, selectedLocations, priceRange, rentalRange, plotSubtype, sortBy]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(nextPage);
+    window.requestAnimationFrame(() => {
+      listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const resultStart =
+    filteredProperties.length === 0 ? 0 : (page - 1) * PROPERTIES_PAGE_SIZE + 1;
+  const resultEnd = Math.min(page * PROPERTIES_PAGE_SIZE, filteredProperties.length);
 
   const clearAllFilters = () => {
     setSelectedTypes([]);
@@ -931,7 +960,7 @@ export default function PropertiesPage() {
       <AnimatePresence>{sortOpen && isMobile && sortSheet}</AnimatePresence>
 
       {/* Listings */}
-      <div className="mx-auto max-w-7xl px-3 py-6 sm:px-6">
+      <div ref={listingsRef} className="mx-auto max-w-7xl scroll-mt-24 px-3 py-6 sm:px-6">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -939,8 +968,18 @@ export default function PropertiesPage() {
           className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="text-[15px] text-gray-600">
-            Showing <span className="font-semibold text-black">{filteredProperties.length}</span>{' '}
-            {filteredProperties.length === 1 ? 'property' : 'properties'}
+            {filteredProperties.length === 0 ? (
+              <>Showing <span className="font-semibold text-black">0</span> properties</>
+            ) : (
+              <>
+                Showing{' '}
+                <span className="font-semibold text-black">
+                  {resultStart}-{resultEnd}
+                </span>{' '}
+                of <span className="font-semibold text-black">{filteredProperties.length}</span>{' '}
+                {filteredProperties.length === 1 ? 'property' : 'properties'}
+              </>
+            )}
           </p>
           <p className="text-[12px] text-gray-400">{SORT_LABELS[sortBy]}</p>
         </motion.div>
@@ -952,18 +991,29 @@ export default function PropertiesPage() {
             ))}
           </div>
         ) : filteredProperties.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
-            {filteredProperties.map((property, index) => (
-              <motion.div
-                key={property.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-              >
-                <PropertyCard property={property} index={index} />
-              </motion.div>
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+              {paginatedProperties.map((property, index) => (
+                <motion.div
+                  key={property.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: index * 0.05 }}
+                >
+                  <PropertyCard property={property} index={index} />
+                </motion.div>
+              ))}
+            </div>
+
+            <PropertyPagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={filteredProperties.length}
+              pageSize={PROPERTIES_PAGE_SIZE}
+              onPageChange={handlePageChange}
+              className="mt-8"
+            />
+          </>
         ) : (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
