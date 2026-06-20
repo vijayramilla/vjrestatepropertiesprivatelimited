@@ -134,7 +134,6 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Plot Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Rooms', value: String(property.total_units) },
-      { label: 'Occupancy %', value: `${property.occupancy_percent}%` },
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
       { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },

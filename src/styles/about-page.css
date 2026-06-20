@@ -1,0 +1,30 @@
+.about-scroll-page {
+  scroll-behavior: smooth;
+}
+
+.about-snap-section {
+  scroll-margin-top: 4.5rem;
+}
+
+@media (min-width: 1024px) {
+  .about-snap-section {
+    min-height: min(100vh, 920px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+}
+
+.about-slide-panel {
+  will-change: transform, opacity;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-scroll-page {
+    scroll-behavior: auto;
+  }
+
+  .about-slide-panel {
+    will-change: auto;
+  }
+}

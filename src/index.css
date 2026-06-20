@@ -1,6 +1,7 @@
 @import 'react-day-picker/dist/style.css';
 @import './styles/admin.css';
 @import './styles/properties-toolbar.css';
+@import './styles/about-page.css';
 
 @tailwind base;
 @tailwind components;

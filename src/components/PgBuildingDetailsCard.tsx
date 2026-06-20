@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { Buildings, Bed, ChartLineUp } from '@phosphor-icons/react';
+import { Buildings, Bed } from '@phosphor-icons/react';
 import type { Property } from '@/data/properties';
 
 const fontUI: CSSProperties = { fontFamily: "'DM Sans', system-ui, sans-serif" };
@@ -10,36 +10,20 @@ function HeroMetric({
   label,
   value,
   icon: Icon,
-  accent = false,
 }: {
   label: string;
   value: string;
   icon: typeof Buildings;
-  accent?: boolean;
 }) {
   return (
-    <div
-      className={`flex min-h-[72px] flex-col justify-center px-4 py-3.5 sm:min-h-[80px] sm:px-5 ${
-        accent ? 'bg-[#0a0a0a] text-white' : 'bg-white'
-      }`}
-    >
+    <div className="flex min-h-[72px] flex-col justify-center bg-white px-4 py-3.5 sm:min-h-[80px] sm:px-5">
       <div className="mb-1.5 flex items-center gap-1.5">
-        <Icon size={13} weight="duotone" className={accent ? 'text-[#888]' : 'text-[#bbb]'} />
-        <p
-          className={`text-[9px] font-medium uppercase tracking-[0.14em] ${
-            accent ? 'text-[#888]' : 'text-[#aaa]'
-          }`}
-          style={fontUI}
-        >
+        <Icon size={13} weight="duotone" className="text-[#bbb]" />
+        <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-[#aaa]" style={fontUI}>
           {label}
         </p>
       </div>
-      <p
-        className={`font-numeric text-[18px] font-semibold leading-none sm:text-[20px] ${
-          accent ? 'text-white' : 'text-[#000]'
-        }`}
-        style={fontUI}
-      >
+      <p className="font-numeric text-[18px] font-semibold leading-none text-[#000] sm:text-[20px]" style={fontUI}>
         {value}
       </p>
     </div>
@@ -64,8 +48,6 @@ function SpecCell({ label, value }: SpecRow) {
 
 export default function PgBuildingDetailsCard({ property }: { property: Property }) {
   const totalRooms = property.total_units > 0 ? String(property.total_units) : '—';
-  const occupancy =
-    property.occupancy_percent > 0 ? `${property.occupancy_percent}%` : '—';
   const floors = property.floor_count > 0 ? String(property.floor_count) : '—';
 
   const specRows: SpecRow[] = [
@@ -97,9 +79,8 @@ export default function PgBuildingDetailsCard({ property }: { property: Property
         </div>
       </header>
 
-      <div className="grid grid-cols-3 gap-px bg-[#e8e8e8]">
+      <div className="grid grid-cols-2 gap-px bg-[#e8e8e8]">
         <HeroMetric label="Total Rooms" value={totalRooms} icon={Bed} />
-        <HeroMetric label="Occupancy" value={occupancy} icon={ChartLineUp} accent />
         <HeroMetric label="Floors" value={floors} icon={Buildings} />
       </div>
 
