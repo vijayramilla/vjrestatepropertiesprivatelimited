@@ -18,16 +18,16 @@ export default function ContactPage() {
 
   return (
     <div className="bg-white min-h-screen pt-[72px]">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-[55px] px-8">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-gray-400 text-[11px] uppercase tracking-[0.15em] mb-3">GET IN TOUCH</p>
-          <h1 className="font-display text-white" style={{ fontSize: '42px', lineHeight: '1.1' }}>Contact Us</h1>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-10 md:py-14 px-4 md:px-8 lg:px-16">
+        <div className="max-w-[1440px] mx-auto">
+          <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mb-3">GET IN TOUCH</p>
+          <h1 className="font-display text-white text-3xl md:text-5xl lg:text-6xl leading-tight">Contact Us</h1>
         </div>
       </motion.div>
-      <div className="max-w-7xl mx-auto px-8 py-[89px]">
-        <div className="flex flex-col lg:flex-row gap-[55px]">
+      <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 py-10 md:py-16 lg:py-24">
+        <div className="flex flex-col lg:flex-row gap-10 lg:gap-14">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="lg:w-[61.8%]">
-            <h2 className="font-display text-black" style={{ fontSize: '68px', lineHeight: '1.1', letterSpacing: '-0.03em' }}>Let's Talk</h2>
+            <h2 className="font-display text-black text-3xl md:text-5xl lg:text-6xl leading-tight tracking-[-0.03em]">Let's Talk</h2>
             <div className="mt-[34px] space-y-6">
               <div className="flex items-start gap-4">
                 <MapPin size={20} className="text-black mt-1 flex-shrink-0" />

@@ -24,6 +24,12 @@ import {
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
 import { BANGALORE_AREAS } from '@/data/properties';
+import {
+  canonicalPropertyType,
+  extractLocalityFromText,
+  normalizeLocalityInput,
+  normalizePropertyLocationFields,
+} from '@/lib/propertyFilters';
 
 interface FormData {
   title: string;
@@ -187,7 +193,16 @@ export default function AdminPropertyForm() {
           const docSnap = await getDoc(doc(db, 'properties', id));
           if (docSnap.exists()) {
             const data = docSnap.data() as FormData;
-            setFormData(data);
+            const { area, location } = normalizePropertyLocationFields(
+              data.area ?? '',
+              data.location ?? '',
+            );
+            setFormData({
+              ...data,
+              type: canonicalPropertyType(data.type ?? ''),
+              area,
+              location,
+            });
             setImageUrls(data.images ?? []);
           }
         } catch (error) {
@@ -203,6 +218,15 @@ export default function AdminPropertyForm() {
   const updateFormData = (key: string, value: any) => {
     setFormData((prev) => {
       const updated = { ...prev, [key]: value };
+
+      // Keep area canonical and location searchable when area changes
+      if (key === 'area') {
+        const normalizedArea = normalizeLocalityInput(String(value));
+        updated.area = normalizedArea || String(value).trim();
+        if (!updated.location.trim() && updated.area) {
+          updated.location = updated.area;
+        }
+      }
 
       // Auto-format price label
       if (key === 'price') {
@@ -237,7 +261,11 @@ export default function AdminPropertyForm() {
     const newErrors: Record<string, string> = {};
 
     if (!formData.title.trim()) newErrors.title = 'Title is required';
-    if (!formData.area.trim()) newErrors.area = 'Area is required';
+    const resolvedArea =
+      formData.area.trim() ||
+      extractLocalityFromText(formData.location) ||
+      extractLocalityFromText(formData.title);
+    if (!resolvedArea) newErrors.area = 'Area is required';
     if (!formData.price) newErrors.price = 'Price is required';
 
     setErrors(newErrors);
@@ -252,8 +280,19 @@ export default function AdminPropertyForm() {
     setSaving(true);
 
     try {
+      const inferredArea =
+        formData.area.trim() ||
+        extractLocalityFromText(formData.location) ||
+        extractLocalityFromText(formData.title);
+      const { area, location } = normalizePropertyLocationFields(
+        inferredArea,
+        formData.location || formData.title,
+      );
       const payload = sanitizeForFirestore({
         ...formData,
+        type: canonicalPropertyType(formData.type),
+        area,
+        location,
         images: imageUrls,
       });
 

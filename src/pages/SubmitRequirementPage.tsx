@@ -30,13 +30,13 @@ export default function SubmitRequirementPage() {
 
   return (
     <div className="bg-white min-h-screen pt-[72px]">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-[55px] px-8">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-gray-400 text-[11px] uppercase tracking-[0.15em] mb-3">INVESTMENT REQUIREMENTS</p>
-          <h1 className="font-display text-white" style={{ fontSize: '42px', lineHeight: '1.1' }}>Submit Your Requirement</h1>
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-10 md:py-14 px-4 md:px-8 lg:px-16">
+        <div className="max-w-[1440px] mx-auto">
+          <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mb-3">INVESTMENT REQUIREMENTS</p>
+          <h1 className="font-display text-white text-3xl md:text-5xl lg:text-6xl leading-tight">Submit Your Requirement</h1>
         </div>
       </motion.div>
-      <div className="max-w-[680px] mx-auto px-8 py-[89px]">
+      <div className="max-w-[680px] mx-auto px-4 md:px-8 py-10 md:py-16 lg:py-24">
         {!submitted ? (
           <motion.form initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} onSubmit={handleSubmit} className="space-y-6">
             <p className="text-gray-600 text-[16px] mb-[34px]">Tell us what you're looking for. Our team will match you with rental income properties in Bangalore.</p>
@@ -108,8 +108,8 @@ export default function SubmitRequirementPage() {
             <div className="w-16 h-16 mx-auto mb-[34px] border-2 border-black rounded-full flex items-center justify-center">
               <CheckCircle size={32} className="text-black" />
             </div>
-            <h2 className="font-display text-[42px] text-black mb-[21px]" style={{ lineHeight: '1.1' }}>Requirement Received</h2>
-            <p className="text-gray-600 text-[16px] leading-relaxed max-w-[400px] mx-auto">Thank you for submitting your requirement. Our team will review your preferences and reach out within 24 hours with matching properties.</p>
+            <h2 className="font-display text-2xl md:text-3xl lg:text-4xl text-black mb-5 leading-tight">Requirement Received</h2>
+            <p className="text-gray-600 text-sm md:text-base leading-relaxed max-w-md mx-auto">Thank you for submitting your requirement. Our team will review your preferences and reach out within 24 hours with matching properties.</p>
           </motion.div>
         )}
       </div>

@@ -97,39 +97,36 @@ export default function HomePage() {
 
       <HomeCircularReveal />
 
-      <section ref={counterRef} className="bg-black py-[89px] lg:py-[144px]">
-        <div className="max-w-7xl mx-auto px-8">
-          <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-center mb-[89px]" style={{ fontSize: 'clamp(42px, 6vw, 68px)', lineHeight: '1.1' }}>Why Investors Choose VJR Estate</motion.h2>
-          <div className="flex flex-col lg:flex-row items-center justify-center gap-[34px] lg:gap-0">
-            {stats.map((stat, index) => (
-              <div key={stat.label} className="flex items-center">
-                <div className="text-center px-[55px]">
-                  <AnimatedStatNumber
-                    value={stat.number}
-                    suffix={stat.suffix}
-                    active={counterStarted}
-                    className="text-white font-numeric text-[68px] font-semibold leading-none tracking-tight"
-                    duration={400}
-                    blur={14}
-                  />
-                  <p className="text-gray-400 text-[13px] uppercase tracking-[0.15em] mt-[13px]">{stat.label}</p>
-                </div>
-                {index < stats.length - 1 && <div className="stat-divider hidden lg:block" />}
+      <section ref={counterRef} className="bg-black py-10 md:py-16 lg:py-24">
+        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16">
+          <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-center mb-10 md:mb-16 text-2xl md:text-3xl lg:text-4xl leading-tight">Why Investors Choose VJR Estate</motion.h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
+            {stats.map((stat) => (
+              <div key={stat.label} className="text-center py-6 md:py-10">
+                <AnimatedStatNumber
+                  value={stat.number}
+                  suffix={stat.suffix}
+                  active={counterStarted}
+                  className="text-white font-numeric text-3xl md:text-4xl lg:text-5xl font-bold leading-none tracking-tight"
+                  duration={400}
+                  blur={14}
+                />
+                <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mt-3 md:mt-4">{stat.label}</p>
               </div>
             ))}
           </div>
-          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-gray-300 text-[18px] text-center max-w-[560px] mx-auto mt-[55px] leading-relaxed">
+          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-gray-300 text-sm md:text-base text-center max-w-xl mx-auto mt-10 md:mt-14 leading-relaxed">
             Every property on VJR Estate is reviewed by our team for legal clarity, rental income accuracy, and investment potential.
           </motion.p>
         </div>
       </section>
 
-      <section className="bg-black py-[89px] lg:py-[144px]">
-        <div className="max-w-7xl mx-auto px-8 text-center">
-          <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white" style={{ fontSize: 'clamp(42px, 6vw, 68px)', lineHeight: '1.1' }}>Ready to Build Wealth Through Rental Income?</motion.h2>
-          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }} className="text-gray-300 text-[18px] mt-[21px]">Browse rental income properties exclusively in Bangalore.</motion.p>
-          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.4 }} className="mt-[55px]">
-            <Link to="/properties" className="hoverable inline-flex items-center justify-center px-10 py-5 bg-white text-black text-[13px] uppercase tracking-[0.1em] font-medium transition-colors hover:bg-gray-100">
+      <section className="bg-black py-10 md:py-16 lg:py-24">
+        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 text-center">
+          <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-2xl md:text-3xl lg:text-4xl leading-tight">Ready to Build Wealth Through Rental Income?</motion.h2>
+          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }} className="text-gray-300 text-sm md:text-base mt-4 md:mt-6">Browse rental income properties exclusively in Bangalore.</motion.p>
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.4 }} className="mt-8 md:mt-12">
+            <Link to="/properties" className="hoverable inline-flex w-full md:w-auto items-center justify-center px-8 py-4 md:py-5 bg-white text-black text-xs md:text-sm uppercase tracking-[0.1em] font-medium transition-all duration-200 hover:bg-gray-100 hover:scale-[1.02] active:scale-[0.98]">
               Explore All Properties <ArrowRight size={16} className="ml-2" />
             </Link>
           </motion.div>

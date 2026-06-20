@@ -10,11 +10,11 @@
 }
 
 .prop-search-shell {
-  @apply flex min-h-[44px] items-center gap-1.5 overflow-hidden rounded-2xl border bg-white pl-11 pr-2 shadow-sm transition-all duration-200;
+  @apply flex min-h-[38px] items-center gap-1 overflow-hidden rounded-xl border bg-white pl-9 pr-1.5 shadow-sm transition-all duration-200;
 }
 
 .prop-search-shell-active {
-  @apply border-black shadow-md shadow-black/5 ring-2 ring-black/5;
+  @apply border-black shadow-md shadow-black/5 ring-1 ring-black/5;
 }
 
 .prop-search-shell-idle {
@@ -22,15 +22,15 @@
 }
 
 .prop-search-input {
-  @apply min-h-[44px] min-w-0 flex-1 border-0 bg-transparent text-base text-black outline-none placeholder:text-gray-400 sm:text-[15px];
+  @apply min-h-[38px] min-w-0 flex-1 border-0 bg-transparent text-[13px] text-black outline-none placeholder:text-gray-400 sm:text-[14px];
 }
 
 .prop-tool-btn {
-  @apply relative flex h-11 min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-gray-800 shadow-sm transition-all duration-200 active:scale-[0.98] hover:border-black hover:bg-gray-50 sm:px-4;
+  @apply relative flex h-9 min-h-[36px] shrink-0 items-center justify-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-800 shadow-sm transition-all duration-200 active:scale-[0.98] hover:border-black hover:bg-gray-50 sm:px-3;
 }
 
 .prop-tool-btn-icon {
-  @apply prop-tool-btn w-11 px-0 sm:w-auto sm:px-4;
+  @apply prop-tool-btn w-9 px-0 sm:w-auto sm:px-3;
 }
 
 .prop-filter-section {
@@ -83,15 +83,15 @@
 }
 
 .prop-active-bar {
-  @apply flex gap-2 overflow-x-auto border-t border-gray-100 bg-white/95 px-3 py-2.5 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden;
+  @apply flex gap-1.5 overflow-x-auto border-t border-gray-100 bg-white/95 px-3 py-1.5 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden;
 }
 
 .prop-active-chip {
-  @apply inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 py-1 pl-3 pr-1.5 text-[11px] font-medium text-gray-800;
+  @apply inline-flex shrink-0 items-center gap-1 rounded-full border border-gray-200 bg-gray-50 py-0.5 pl-2.5 pr-1 text-[10px] font-medium text-gray-800;
 }
 
 .prop-loc-chip {
-  @apply inline-flex shrink-0 items-center gap-0.5 rounded-full bg-black py-1 pl-2.5 pr-1 text-[11px] font-medium text-white;
+  @apply inline-flex shrink-0 items-center gap-0.5 rounded-full bg-black py-0.5 pl-2 pr-1 text-[10px] font-medium text-white;
 }
 
 .prop-apply-btn {

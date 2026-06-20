@@ -13,8 +13,16 @@ import {
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
 import { PropertyPagination, PROPERTIES_PAGE_SIZE } from '@/components/ui/the-pagination';
-import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS } from '../data/properties';
+import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
+import {
+  filterProperties,
+  getMonthlyRentalValue,
+  getNumericPrice,
+  isLandOrPlotProperty,
+  normalizeLocalityList,
+  resolveLocalityForSearch,
+} from '@/lib/propertyFilters';
 import { formatPrice } from '@/lib/formatPrice';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { Button } from '@/components/ui/liquid-glass-button';
@@ -37,12 +45,12 @@ const TRENDING_SEARCHES: TrendingItem[] = [
   { label: 'Sarjapur Road' },
   { label: 'Yelahanka' },
   { label: 'Banashankari' },
+  { label: 'BTM Layout' },
 ];
 
 const PRICE_SLIDER_MAX = 100_000_000;
 const RENTAL_SLIDER_MAX = 500_000;
-
-const TOOLBAR_HEIGHT = 52;
+const TOOLBAR_HEIGHT = 44;
 
 const SORT_LABELS: Record<SortOption, string> = {
   newest: 'Newest First',
@@ -52,30 +60,6 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 const RECENT_SEARCHES_KEY = 'vjr-recent-searches';
-
-/** Map public filter labels to Firestore `type` values (admin may use plural variants). */
-const TYPE_FILTER_MATCH: Record<string, string[]> = {
-  'PG Building': ['PG Building', 'PG Buildings'],
-  'Residential Rental Income': ['Residential Rental Income', 'Residential Rental'],
-  'Commercial Properties': ['Commercial Properties', 'Commercial'],
-  'Residential Plot': ['Residential Plot'],
-  'Commercial Plot': ['Commercial Plot'],
-};
-
-function propertyMatchesTypeFilter(propertyType: string | undefined, filterType: string): boolean {
-  const aliases = TYPE_FILTER_MATCH[filterType] ?? [filterType];
-  return aliases.includes(propertyType ?? '');
-}
-
-function getMonthlyRentalValue(p: { monthly_rental?: number | string | null }): number {
-  const raw = p.monthly_rental;
-  if (typeof raw === 'number') return raw;
-  if (typeof raw === 'string') {
-    const digits = raw.replace(/[^\d]/g, '');
-    return digits ? Number(digits) : 0;
-  }
-  return 0;
-}
 
 function budgetToPriceRange(budget: string): [number, number] {
   const preset = PRICE_BUDGET_PRESETS.find((p) => p.label === budget);
@@ -100,15 +84,6 @@ function highlightMatch(text: string, query: string): ReactNode {
       {text.slice(idx + q.length)}
     </>
   );
-}
-
-function isLandOrPlotProperty(p: {
-  type?: string;
-  plot_subtype?: string;
-}): boolean {
-  if (p.plot_subtype === 'Agriculture Land') return true;
-  const type = p.type ?? '';
-  return type.includes('Plot') || type === 'Agriculture Land';
 }
 
 function loadRecentSearches(): string[] {
@@ -181,7 +156,7 @@ export default function PropertiesPage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_SLIDER_MAX]);
-  const [rentalRange, setRentalRange] = useState<[number, number]>([0, RENTAL_SLIDER_MAX]);
+  const [rentalRange, setRentalRange] = useState<[number, number]>([0, UNLIMITED_FILTER_MAX]);
   const [budgetMode, setBudgetMode] = useState<BudgetMode>('price');
   const [plotSubtype, setPlotSubtype] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
@@ -228,6 +203,7 @@ export default function PropertiesPage() {
         setPlotSubtype('Agriculture Land');
         setSelectedTypes(['Residential Plot', 'Commercial Plot']);
       } else {
+        setPlotSubtype('');
         const valid = types.filter((t) => PROPERTY_TYPES.includes(t));
         if (valid.length > 0) setSelectedTypes(valid);
       }
@@ -238,7 +214,9 @@ export default function PropertiesPage() {
       ...(searchParams.get('location') ? [searchParams.get('location')!] : []),
     ].filter(Boolean);
     if (areaParams.length > 0) {
-      setSelectedLocations([...new Set(areaParams)].slice(0, MAX_LOCALITY_SELECTIONS));
+      setSelectedLocations(
+        normalizeLocalityList(areaParams).slice(0, MAX_LOCALITY_SELECTIONS),
+      );
     }
 
     const budgetParam = searchParams.get('budget');
@@ -273,33 +251,16 @@ export default function PropertiesPage() {
   }, [searchOpen, sortOpen, selectedTypes.length, plotSubtype, searchQuery, priceRange, rentalRange]);
 
   const filteredProperties = useMemo(() => {
-    let filtered = [...properties];
-    if (selectedTypes.length > 0) {
-      filtered = filtered.filter((p) =>
-        selectedTypes.some((t) => propertyMatchesTypeFilter(p.type, t)),
-      );
-    }
-    if (selectedTypes.includes('Residential Plot') || selectedTypes.includes('Commercial Plot')) {
-      if (plotSubtype === 'Residential Plot') filtered = filtered.filter((p) => p.type === 'Residential Plot');
-      else if (plotSubtype === 'Commercial Plot') filtered = filtered.filter((p) => p.type === 'Commercial Plot');
-    }
-    if (selectedLocations.length > 0) {
-      filtered = filtered.filter((p) =>
-        selectedLocations.some((loc) => p.location?.includes(loc) || p.area === loc || p.area?.includes(loc)),
-      );
-    }
-    if (plotSubtype === 'Agriculture Land') {
-      filtered = filtered.filter((p) => p.plot_subtype === 'Agriculture Land');
-    }
-    filtered = filtered.filter((p) => p.price >= priceRange[0] && p.price <= priceRange[1]);
-    filtered = filtered.filter((p) => {
-      if (isLandOrPlotProperty(p)) return true;
-      const rental = getMonthlyRentalValue(p);
-      return rental >= rentalRange[0] && rental <= rentalRange[1];
+    let filtered = filterProperties(properties, {
+      types: selectedTypes,
+      localities: selectedLocations,
+      plotSubtype,
+      priceRange,
+      rentalRange,
     });
     switch (sortBy) {
-      case 'price_asc': filtered.sort((a, b) => a.price - b.price); break;
-      case 'price_desc': filtered.sort((a, b) => b.price - a.price); break;
+      case 'price_asc': filtered.sort((a, b) => getNumericPrice(a.price) - getNumericPrice(b.price)); break;
+      case 'price_desc': filtered.sort((a, b) => getNumericPrice(b.price) - getNumericPrice(a.price)); break;
       case 'rental_desc':
         filtered.sort((a, b) => {
           const aLand = isLandOrPlotProperty(a);
@@ -348,7 +309,7 @@ export default function PropertiesPage() {
   const clearAllFilters = () => {
     setSelectedTypes([]);
     setPriceRange([0, PRICE_SLIDER_MAX]);
-    setRentalRange([0, RENTAL_SLIDER_MAX]);
+    setRentalRange([0, UNLIMITED_FILTER_MAX]);
     setPlotSubtype('');
   };
 
@@ -387,7 +348,9 @@ export default function PropertiesPage() {
   const setActiveBudgetRange = budgetMode === 'price' ? setPriceRange : setRentalRange;
 
   const isDefaultPrice = priceRange[0] === 0 && priceRange[1] === PRICE_SLIDER_MAX;
-  const isDefaultRental = rentalRange[0] === 0 && rentalRange[1] === RENTAL_SLIDER_MAX;
+  const isDefaultRental =
+    rentalRange[0] === 0 &&
+    (rentalRange[1] === UNLIMITED_FILTER_MAX || rentalRange[1] >= RENTAL_SLIDER_MAX * 2);
 
   const hasActiveFilters =
     selectedTypes.length > 0 ||
@@ -417,6 +380,11 @@ export default function PropertiesPage() {
   };
 
   const handleSearchSubmit = () => {
+    const resolved = resolveLocalityForSearch(searchQuery);
+    if (resolved) {
+      toggleLocation(resolved);
+      saveRecentSearch(resolved);
+    }
     setSearchQuery('');
     setSearchOpen(false);
   };
@@ -546,7 +514,7 @@ export default function PropertiesPage() {
     activeFilterChips.push({
       key: 'rental',
       label: `Rental ${formatRental(rentalRange[0])} – ${formatRental(rentalRange[1])}`,
-      onRemove: () => setRentalRange([0, RENTAL_SLIDER_MAX]),
+      onRemove: () => setRentalRange([0, UNLIMITED_FILTER_MAX]),
     });
   }
 
@@ -601,9 +569,9 @@ export default function PropertiesPage() {
         ref={toolbarRef}
         className="fixed inset-x-0 top-14 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg md:top-16"
       >
-        <div className="mx-auto flex max-w-7xl items-center gap-2 px-3 py-3 sm:gap-3 sm:px-6">
+        <div className="mx-auto flex max-w-[1440px] items-center gap-1.5 px-4 py-2 sm:gap-2 md:px-8 lg:px-16">
           <div className="relative min-w-0 flex-1">
-            <Search size={18} className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-gray-400" />
             <div
               role="search"
               className={`prop-search-shell ${
@@ -671,10 +639,10 @@ export default function PropertiesPage() {
               setSortOpen(false);
               setSearchOpen(false);
             }}
-            className="prop-tool-btn-icon"
+            className="prop-tool-btn-icon lg:hidden"
             aria-label="Open filters"
           >
-            <SlidersHorizontal size={18} />
+            <SlidersHorizontal size={16} />
             <span className="hidden sm:inline">Filters</span>
             {hasActiveFilters && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-black px-1 text-[9px] font-bold text-white ring-2 ring-white">
@@ -694,7 +662,7 @@ export default function PropertiesPage() {
               aria-label="Sort properties"
               aria-expanded={sortOpen}
             >
-              <ArrowUpDown size={18} />
+              <ArrowUpDown size={16} />
               <span className="hidden sm:inline">Sort</span>
             </button>
 
@@ -909,7 +877,7 @@ export default function PropertiesPage() {
       {/* Spacer for fixed toolbar (includes expanded search panel height) */}
       <div aria-hidden style={{ height: toolbarHeight }} className="shrink-0" />
 
-      {/* Filters panel */}
+      {/* Filters panel — mobile/tablet only; desktop uses sidebar */}
       <AnimatePresence>
         {filtersOpen && (
           <>
@@ -917,7 +885,7 @@ export default function PropertiesPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px]"
+              className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] lg:hidden"
               onClick={() => setFiltersOpen(false)}
             />
             <motion.div
@@ -925,7 +893,7 @@ export default function PropertiesPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 320 }}
-              className="prop-sheet z-[110] lg:inset-x-auto lg:bottom-auto lg:left-1/2 lg:top-[calc(4rem+56px)] lg:max-h-[calc(100dvh-5rem)] lg:w-full lg:max-w-xl lg:-translate-x-1/2 lg:rounded-2xl lg:shadow-2xl"
+              className="prop-sheet z-[110] lg:hidden"
             >
               <div className="prop-sheet-handle lg:hidden" />
               <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -960,7 +928,14 @@ export default function PropertiesPage() {
       <AnimatePresence>{sortOpen && isMobile && sortSheet}</AnimatePresence>
 
       {/* Listings */}
-      <div ref={listingsRef} className="mx-auto max-w-7xl scroll-mt-24 px-3 py-6 sm:px-6">
+      <div ref={listingsRef} className="mx-auto max-w-[1440px] scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:px-16">
+        <div className="flex gap-6 lg:items-start">
+          <aside className="hidden lg:block w-72 shrink-0 sticky top-24 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <p className="properties-toolbar-heading mb-4 text-sm font-medium text-black">Filters</p>
+            {filtersPanelContent}
+          </aside>
+
+          <main className="min-w-0 flex-1">
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -985,14 +960,14 @@ export default function PropertiesPage() {
         </motion.div>
 
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="aspect-square animate-pulse rounded-xl bg-gray-200" />
+              <div key={i} className="aspect-[4/3] animate-pulse rounded-xl bg-gray-200 md:rounded-2xl" />
             ))}
           </div>
         ) : filteredProperties.length > 0 ? (
           <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:gap-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
               {paginatedProperties.map((property, index) => (
                 <motion.div
                   key={property.id}
@@ -1030,6 +1005,8 @@ export default function PropertiesPage() {
             </Button>
           </motion.div>
         )}
+          </main>
+        </div>
       </div>
     </div>
   );

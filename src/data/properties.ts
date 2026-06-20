@@ -192,6 +192,9 @@ export const BANGALORE_AREAS = [
 /** Max localities a user can select in search (properties page & home hero). */
 export const MAX_LOCALITY_SELECTIONS = 4;
 
+/** Max used for "Any budget" presets — no upper cap on listings. */
+export const UNLIMITED_FILTER_MAX = Number.MAX_SAFE_INTEGER;
+
 export const PRICE_BUDGET_PRESETS: { label: string; range: [number, number] }[] = [
   { label: 'Under ₹50L', range: [0, 5_000_000] },
   { label: '₹50L – ₹1Cr', range: [5_000_000, 10_000_000] },
@@ -205,7 +208,7 @@ export const RENTAL_BUDGET_PRESETS: { label: string; range: [number, number] }[]
   { label: '₹50K – ₹1L', range: [50_000, 100_000] },
   { label: '₹1L – ₹2L', range: [100_000, 200_000] },
   { label: '₹2L – ₹5L', range: [200_000, 500_000] },
-  { label: 'Any Rental', range: [0, 500_000] },
+  { label: 'Any Rental', range: [0, UNLIMITED_FILTER_MAX] },
 ];
 
 /** Match localities by name, word-start, or compact spelling (e.g. "hsr" → HSR Layout) */

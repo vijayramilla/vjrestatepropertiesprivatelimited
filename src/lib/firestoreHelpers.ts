@@ -6,6 +6,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { normalizePropertyRecord } from '@/lib/propertyFilters';
 
 export function sanitizeForFirestore<T extends Record<string, unknown>>(data: T): T {
   const result = {} as T;
@@ -36,7 +37,10 @@ export function subscribeProperties(
   return onSnapshot(
     collection(db, 'properties'),
     (snap: QuerySnapshot) => {
-      const docs = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+      const docs = snap.docs.map((d) => ({
+        id: d.id,
+        data: normalizePropertyRecord(d.data()),
+      }));
       onData(sortDocsByNewest(docs));
     },
     (error) => {

@@ -150,17 +150,38 @@ export default function Navbar() {
           backdropFilter: isTransparent ? 'none' : 'blur(12px)',
         }}
       >
-        <div className="max-w-7xl mx-auto px-5 md:px-6 h-full flex items-center justify-between">
+        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 h-full flex items-center justify-between">
           <Link to="/" className="flex-shrink-0 cursor-pointer">
             <span
-              className="font-serif text-xl md:text-[22px] font-normal tracking-[-0.01em]"
+              className="font-serif text-xl md:text-2xl font-normal tracking-[-0.01em]"
               style={{ color: logoColor }}
             >
               VJR Estate
             </span>
           </Link>
 
-          <div className="hidden md:block flex-1" />
+          <div className="hidden md:flex flex-1 items-center justify-center gap-8">
+            {[
+              { label: 'Properties', path: '/properties' },
+              { label: 'About', path: '/about' },
+              { label: 'Contact', path: '/contact' },
+            ].map(({ label, path }) => (
+              <Link
+                key={path}
+                to={path}
+                className="text-[11px] font-medium uppercase tracking-[0.14em] transition-opacity hover:opacity-100"
+                style={{
+                  fontFamily: DM_SANS,
+                  color: location.pathname === path || (path === '/properties' && location.pathname.startsWith('/properties'))
+                    ? iconColor
+                    : labelColor,
+                  opacity: location.pathname === path || (path === '/properties' && location.pathname.startsWith('/properties')) ? 1 : 0.85,
+                }}
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
 
           <div
             className="flex items-center pl-4 md:pl-5"

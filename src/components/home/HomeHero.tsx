@@ -7,12 +7,12 @@ import {
   X,
   Check,
 } from '@phosphor-icons/react';
-import { AnimatedStatNumber } from '@/components/ui/animated-blur-number';
 import {
   BANGALORE_AREAS,
   MAX_LOCALITY_SELECTIONS,
   filterLocalities,
 } from '@/data/properties';
+import { resolveLocalityForSearch } from '@/lib/propertyFilters';
 
 const HERO_BG =
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1800&auto=format&fit=crop&q=80';
@@ -26,18 +26,6 @@ const HERO_TABS = [
   { label: 'Commercial', value: 'Commercial' },
   { label: 'Plot', value: 'Plot' },
   { label: 'Agriculture', value: 'Agriculture' },
-] as const;
-
-const HERO_STATS = [
-  { number: 200, suffix: '+', label: 'Properties Sold' },
-  { number: 500, prefix: '₹', suffix: 'Cr+', label: 'Transaction Value' },
-  {
-    number: 8.5,
-    suffix: '%',
-    label: 'Avg Rental Yield',
-    format: { minimumFractionDigits: 1, maximumFractionDigits: 1 } as Intl.NumberFormatOptions,
-  },
-  { number: 100, suffix: '%', label: 'Curated Listings' },
 ] as const;
 
 const TRENDING_AREAS = [
@@ -70,13 +58,8 @@ export default function HomeHero({
   onTrendingClick,
 }: HomeHeroProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [heroStatsStarted, setHeroStatsStarted] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setHeroStatsStarted(true);
-  }, []);
 
   useEffect(() => {
     const id = 'dm-sans-font';
@@ -227,7 +210,11 @@ export default function HomeHero({
                       }}
                       onFocus={() => setPickerOpen(true)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') onSearch();
+                        if (e.key === 'Enter') {
+                          const resolved = resolveLocalityForSearch(query);
+                          if (resolved) pickLocality(resolved);
+                          onSearch();
+                        }
                       }}
                       disabled={slotsLeft <= 0 && !query}
                       placeholder={
@@ -367,36 +354,6 @@ export default function HomeHero({
             ))}
           </div>
         </motion.div>
-      </div>
-
-      <div
-        className="absolute bottom-0 left-0 right-0 z-[3] border-t border-[rgba(255,255,255,0.08)]"
-        style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(12px)' }}
-      >
-        <div className="mx-auto max-w-5xl px-4 py-4 md:px-6 md:py-5">
-          <div className="grid grid-cols-2 gap-y-4 md:grid-cols-4 md:gap-0">
-            {HERO_STATS.map((stat, i) => (
-              <div
-                key={stat.label}
-                className={`px-2 text-center ${i < HERO_STATS.length - 1 ? 'md:border-r md:border-[rgba(255,255,255,0.12)]' : ''}`}
-              >
-                <AnimatedStatNumber
-                  value={stat.number}
-                  prefix={'prefix' in stat ? stat.prefix : undefined}
-                  suffix={stat.suffix}
-                  format={'format' in stat ? stat.format : undefined}
-                  active={heroStatsStarted}
-                  className="font-numeric text-[24px] font-semibold leading-none text-white sm:text-[30px] md:text-[36px]"
-                  duration={350}
-                  blur={10}
-                />
-                <p className="mt-1 font-sans text-[9px] uppercase tracking-[0.14em] text-[rgba(255,255,255,0.55)] sm:text-[10px]">
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </section>
   );

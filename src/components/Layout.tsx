@@ -17,9 +17,16 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navbar />
-      <main className="flex-1">
+      <main className="flex-1 w-full">
         <AnimatePresence mode="wait">
-          <motion.div key={location.pathname} initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+          <motion.div
+            key={location.pathname}
+            initial={false}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="w-full max-w-[1440px] mx-auto"
+          >
             <Outlet />
           </motion.div>
         </AnimatePresence>

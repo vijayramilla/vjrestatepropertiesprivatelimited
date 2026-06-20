@@ -118,17 +118,17 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
       whileHover={{ y: -2 }}
-      className="group flex w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
+      className="group flex w-full flex-col overflow-hidden rounded-xl md:rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
     >
       <Link to={`/properties/${property.id}`} className="block w-full cursor-pointer">
-        {/* Squareyards-style square thumbnail */}
-        <div className="relative w-full overflow-hidden bg-gray-100" style={{ aspectRatio: '1 / 1' }}>
+        <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100 sm:aspect-square md:aspect-[4/3]">
           {coverImage ? (
             <img
               src={coverImage}
               alt={saleTitle}
-              loading="lazy"
+              loading={index === 0 ? 'eager' : 'lazy'}
               decoding="async"
+              fetchPriority={index === 0 ? 'high' : undefined}
               className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           ) : (
@@ -168,9 +168,9 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
         </div>
 
         {/* Compact content — Squareyards proportions */}
-        <div className="px-3.5 pb-3 pt-3">
+        <div className="px-3.5 pb-3 pt-3 md:p-5">
           <h3
-            className="line-clamp-2 text-[15px] font-semibold leading-snug text-gray-900"
+            className="line-clamp-2 text-base font-semibold leading-snug text-gray-900 md:text-xl"
             style={{ fontFamily: DM_SANS }}
           >
             {saleTitle}
@@ -191,7 +191,7 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
             >
               Price
             </p>
-            <p className="mt-0.5 font-numeric text-[20px] font-bold leading-none text-gray-900">
+            <p className="mt-0.5 font-numeric text-2xl font-bold leading-none text-gray-900 md:text-3xl lg:text-4xl">
               {property.price_label}
             </p>
           </div>
