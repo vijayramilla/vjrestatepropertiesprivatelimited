@@ -22,7 +22,9 @@ import {
   isLandOrPlotProperty,
   normalizeLocalityList,
   resolveLocalityForSearch,
+  type PropertyFilterInput,
 } from '@/lib/propertyFilters';
+import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 import { formatPrice } from '@/lib/formatPrice';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { Button } from '@/components/ui/liquid-glass-button';
@@ -149,9 +151,15 @@ function FilterRadio({
   );
 }
 
+type PropertyListItem = PropertyFilterInput &
+  FirestorePropertyDoc & {
+    id: string;
+    createdAt?: { toDate?: () => Date } | string | number | Date;
+  };
+
 export default function PropertiesPage() {
   const [searchParams] = useSearchParams();
-  const [properties, setProperties] = useState<any[]>([]);
+  const [properties, setProperties] = useState<PropertyListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
@@ -251,18 +259,19 @@ export default function PropertiesPage() {
   }, [searchOpen, sortOpen, selectedTypes.length, plotSubtype, searchQuery, priceRange, rentalRange]);
 
   const filteredProperties = useMemo(() => {
-    let filtered = filterProperties(properties, {
+    const filtered = filterProperties(properties, {
       types: selectedTypes,
       localities: selectedLocations,
       plotSubtype,
       priceRange,
       rentalRange,
     });
+    const sorted = [...filtered];
     switch (sortBy) {
-      case 'price_asc': filtered.sort((a, b) => getNumericPrice(a.price) - getNumericPrice(b.price)); break;
-      case 'price_desc': filtered.sort((a, b) => getNumericPrice(b.price) - getNumericPrice(a.price)); break;
+      case 'price_asc': sorted.sort((a, b) => getNumericPrice(a.price) - getNumericPrice(b.price)); break;
+      case 'price_desc': sorted.sort((a, b) => getNumericPrice(b.price) - getNumericPrice(a.price)); break;
       case 'rental_desc':
-        filtered.sort((a, b) => {
+        sorted.sort((a, b) => {
           const aLand = isLandOrPlotProperty(a);
           const bLand = isLandOrPlotProperty(b);
           if (aLand && bLand) return 0;
@@ -271,13 +280,13 @@ export default function PropertiesPage() {
           return getMonthlyRentalValue(b) - getMonthlyRentalValue(a);
         });
         break;
-      case 'newest': filtered.sort((a, b) => {
-        const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt);
-        const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt);
+      case 'newest': sorted.sort((a, b) => {
+        const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt as string | number | Date);
+        const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt as string | number | Date);
         return bDate.getTime() - aDate.getTime();
       }); break;
     }
-    return filtered;
+    return sorted;
   }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, plotSubtype, sortBy]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
@@ -569,7 +578,7 @@ export default function PropertiesPage() {
         ref={toolbarRef}
         className="fixed inset-x-0 top-14 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg md:top-16"
       >
-        <div className="mx-auto flex max-w-[1440px] items-center gap-1.5 px-4 py-2 sm:gap-2 md:px-8 lg:px-16">
+        <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <div className="relative min-w-0 flex-1">
             <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-gray-400" />
             <div
@@ -928,7 +937,7 @@ export default function PropertiesPage() {
       <AnimatePresence>{sortOpen && isMobile && sortSheet}</AnimatePresence>
 
       {/* Listings */}
-      <div ref={listingsRef} className="mx-auto max-w-[1440px] scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:px-16">
+      <div ref={listingsRef} className="w-full scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:px-12 xl:px-16">
         <div className="flex gap-6 lg:items-start">
           <aside className="hidden lg:block w-72 shrink-0 sticky top-24 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <p className="properties-toolbar-heading mb-4 text-sm font-medium text-black">Filters</p>

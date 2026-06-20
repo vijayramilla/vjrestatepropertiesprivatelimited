@@ -32,11 +32,11 @@ export interface ListingProperty {
 /** Live listings come from Firestore — no mock cards. */
 export const PROPERTIES: ListingProperty[] = [];
 
-export function getPropertyById(_id: string | number): ListingProperty | undefined {
+export function getPropertyById(): ListingProperty | undefined {
   return undefined;
 }
 
-export function getLatestProperties(_count = 3): ListingProperty[] {
+export function getLatestProperties(): ListingProperty[] {
   return [];
 }
 

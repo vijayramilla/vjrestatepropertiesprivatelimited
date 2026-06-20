@@ -290,8 +290,6 @@ export function getMonthlyRentalValue(p: {
   return 0;
 }
 
-const RENTAL_SLIDER_CEILING = 500_000;
-
 function effectiveRentalMax(max: number): number {
   return max >= 999_999_999 ? FILTER_RANGE_UNLIMITED : max;
 }

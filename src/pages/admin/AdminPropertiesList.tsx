@@ -13,7 +13,6 @@ import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
-  AdminFilterChip,
   AdminFilterRow,
   AdminPageHeader,
   AdminPageShell,
@@ -39,7 +38,7 @@ interface Property {
   monthly_rental_label: string;
   featured: boolean;
   status: string;
-  createdAt: any;
+  createdAt?: { toDate?: () => Date };
 }
 
 function FeaturedToggle({
@@ -107,7 +106,7 @@ export default function AdminPropertiesList() {
     })
     .sort((a, b) => {
       if (sortBy === 'Newest')
-        return new Date(b.createdAt?.toDate()).getTime() - new Date(a.createdAt?.toDate()).getTime();
+        return new Date(b.createdAt?.toDate?.() ?? 0).getTime() - new Date(a.createdAt?.toDate?.() ?? 0).getTime();
       if (sortBy === 'Price ↑') return a.price - b.price;
       if (sortBy === 'Price ↓') return b.price - a.price;
       if (sortBy === 'Rental ↓') return (b.monthly_rental || 0) - (a.monthly_rental || 0);

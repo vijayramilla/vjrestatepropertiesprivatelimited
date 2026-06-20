@@ -37,7 +37,7 @@ export default function HomeListingsSection() {
   if (loading) {
     return (
       <section className="border-b border-[#ebebeb] bg-gray-50 py-8 pb-6">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
+        <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <div className="flex flex-col gap-2 max-sm:gap-2 sm:flex-row sm:items-end sm:justify-between mb-6">
             <div>
               <p className="font-sans text-[10px] sm:text-[11px] font-medium text-[#888] uppercase tracking-[0.18em]">
@@ -71,7 +71,7 @@ export default function HomeListingsSection() {
 
   return (
     <section className="border-b border-[#ebebeb] bg-gray-50 py-8 pb-6">
-      <div className="max-w-7xl mx-auto px-6 md:px-8">
+      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
         <div className="flex flex-col gap-2 max-sm:gap-2 sm:flex-row sm:items-end sm:justify-between mb-6">
           <div>
             <p className="font-sans text-[10px] sm:text-[11px] font-medium text-[#888] uppercase tracking-[0.18em]">

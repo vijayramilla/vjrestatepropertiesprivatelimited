@@ -19,12 +19,12 @@ export default function ContactPage() {
   return (
     <div className="bg-white min-h-screen pt-[72px]">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-10 md:py-14 px-4 md:px-8 lg:px-16">
-        <div className="max-w-[1440px] mx-auto">
+        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16">
           <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mb-3">GET IN TOUCH</p>
           <h1 className="font-display text-white text-3xl md:text-5xl lg:text-6xl leading-tight">Contact Us</h1>
         </div>
       </motion.div>
-      <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 py-10 md:py-16 lg:py-24">
+      <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16 py-10 md:py-16 lg:py-24">
         <div className="flex flex-col lg:flex-row gap-10 lg:gap-14">
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="lg:w-[61.8%]">
             <h2 className="font-display text-black text-3xl md:text-5xl lg:text-6xl leading-tight tracking-[-0.03em]">Let's Talk</h2>
@@ -129,7 +129,7 @@ export default function ContactPage() {
         </div>
       </div>
       <section className="bg-black py-[55px]">
-        <div className="max-w-7xl mx-auto px-8 text-center">
+        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16 text-center">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
             <p className="text-white text-[18px] mb-6">Looking to sell your property? We connect sellers with serious buyers.</p>
             <Button asChild variant="outline" className="px-8 py-3 h-auto text-[13px] uppercase tracking-[0.1em] border-white text-white hover:bg-white hover:text-black bg-transparent">

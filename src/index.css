@@ -107,6 +107,7 @@
 
   html {
     scroll-behavior: smooth;
+    width: 100%;
   }
 
   body {
@@ -117,6 +118,13 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
+    width: 100%;
+    min-width: 100%;
+  }
+
+  #root {
+    width: 100%;
+    min-width: 100%;
   }
 
   h1, h2, h3, h4, h5 {

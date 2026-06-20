@@ -215,7 +215,7 @@ export default function AdminPropertyForm() {
     }
   }, [id, isEditMode]);
 
-  const updateFormData = (key: string, value: any) => {
+  const updateFormData = (key: string, value: unknown) => {
     setFormData((prev) => {
       const updated = { ...prev, [key]: value };
 
@@ -230,12 +230,12 @@ export default function AdminPropertyForm() {
 
       // Auto-format price label
       if (key === 'price') {
-        updated.price_label = formatPrice(value);
+        updated.price_label = formatPrice(value as number | null | undefined);
       }
 
       // Auto-format rental label
       if (key === 'monthly_rental') {
-        updated.monthly_rental_label = formatRental(value);
+        updated.monthly_rental_label = formatRental(value as number | null | undefined);
       }
 
       // Auto-calculate rental yield

@@ -2,7 +2,6 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin,
-  MagnifyingGlass,
   ArrowUpRight,
   X,
   Check,

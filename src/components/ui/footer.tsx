@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Linkedin, MessageCircle, Phone, Youtube } from 'lucide-react';
+import { Instagram, Linkedin, MessageCircle, Youtube } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { siteContact } from '@/data/siteContact';
@@ -100,8 +100,8 @@ export default function Footer() {
   const { contact } = footerConfig;
 
   return (
-    <footer className="bg-white text-black px-6 py-14 border-t border-gray-200">
-      <div className="max-w-7xl mx-auto">
+    <footer className="w-full bg-white text-black px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-14 border-t border-gray-200">
+      <div className="w-full">
         <div className="mb-12">
           <Link to="/" className="inline-block mb-6">
             <span className="font-serif text-[28px] text-black tracking-[-0.02em]">VJR Estate</span>

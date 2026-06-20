@@ -31,12 +31,12 @@ export default function SubmitRequirementPage() {
   return (
     <div className="bg-white min-h-screen pt-[72px]">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }} className="bg-black py-10 md:py-14 px-4 md:px-8 lg:px-16">
-        <div className="max-w-[1440px] mx-auto">
+        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16">
           <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mb-3">INVESTMENT REQUIREMENTS</p>
           <h1 className="font-display text-white text-3xl md:text-5xl lg:text-6xl leading-tight">Submit Your Requirement</h1>
         </div>
       </motion.div>
-      <div className="max-w-[680px] mx-auto px-4 md:px-8 py-10 md:py-16 lg:py-24">
+      <div className="w-full max-w-[680px] mx-auto px-4 md:px-8 py-10 md:py-16 lg:py-24">
         {!submitted ? (
           <motion.form initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }} onSubmit={handleSubmit} className="space-y-6">
             <p className="text-gray-600 text-[16px] mb-[34px]">Tell us what you're looking for. Our team will match you with rental income properties in Bangalore.</p>

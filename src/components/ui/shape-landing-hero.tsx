@@ -149,7 +149,7 @@ export function HeroGeometric({
         />
       </div>
 
-      <div className="relative z-10 container mx-auto px-4 md:px-6">
+      <div className="relative z-10 w-full px-4 md:px-8 lg:px-12 xl:px-16">
         <div className="mx-auto max-w-4xl text-center">
           <motion.div
             custom={0}

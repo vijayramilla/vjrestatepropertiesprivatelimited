@@ -98,7 +98,7 @@ export default function HomePage() {
       <HomeCircularReveal />
 
       <section ref={counterRef} className="bg-black py-10 md:py-16 lg:py-24">
-        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16">
+        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16">
           <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-center mb-10 md:mb-16 text-2xl md:text-3xl lg:text-4xl leading-tight">Why Investors Choose VJR Estate</motion.h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
             {stats.map((stat) => (
@@ -122,7 +122,7 @@ export default function HomePage() {
       </section>
 
       <section className="bg-black py-10 md:py-16 lg:py-24">
-        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 text-center">
+        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16 text-center">
           <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-2xl md:text-3xl lg:text-4xl leading-tight">Ready to Build Wealth Through Rental Income?</motion.h2>
           <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.2 }} className="text-gray-300 text-sm md:text-base mt-4 md:mt-6">Browse rental income properties exclusively in Bangalore.</motion.p>
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6, delay: 0.4 }} className="mt-8 md:mt-12">

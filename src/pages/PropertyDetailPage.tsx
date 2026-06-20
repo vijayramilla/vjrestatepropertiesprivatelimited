@@ -447,7 +447,7 @@ export default function PropertyDetailPage() {
       <nav
         className="sticky top-0 z-40 bg-[#fff] border-b border-[#e8e8e8] h-12 lg:h-[52px] flex items-center"
       >
-        <div className="w-full max-w-[1320px] mx-auto px-4 lg:px-16 flex items-center justify-between">
+        <div className="w-full px-4 lg:px-12 xl:px-16 flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate(-1)}
@@ -472,7 +472,7 @@ export default function PropertyDetailPage() {
         </div>
       </nav>
 
-      <div className="max-w-[1320px] mx-auto px-4 lg:px-16 pt-8 lg:pt-10">
+      <div className="w-full px-4 lg:px-12 xl:px-16 pt-8 lg:pt-10">
         <div className="grid grid-cols-1 lg:grid-cols-[61.8fr_38.2fr] gap-10 lg:gap-14">
           {/* Left column */}
           <div >
@@ -806,7 +806,7 @@ export default function PropertyDetailPage() {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e8e8e8] bg-white/95 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="mx-auto grid max-w-[1320px] grid-cols-[minmax(0,1fr)_auto_auto] items-stretch gap-2 px-3 py-2.5">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-stretch gap-2 px-3 py-2.5 lg:px-12 xl:px-16">
           <div className="flex min-h-[48px] min-w-0 flex-col justify-center pr-1">
             <p
               className="truncate text-[20px] font-medium leading-none tracking-tight text-[#000] sm:text-[22px]"

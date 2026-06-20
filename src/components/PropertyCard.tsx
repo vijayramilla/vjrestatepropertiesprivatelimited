@@ -44,7 +44,8 @@ function toFirestoreDoc(property: CardInput): FirestorePropertyDoc {
     };
   }
 
-  const { id: _id, ...rest } = property as FirestorePropertyDoc & { id: string };
+  const rest = { ...(property as FirestorePropertyDoc & { id: string }) };
+  delete (rest as { id?: string }).id;
   return rest;
 }
 

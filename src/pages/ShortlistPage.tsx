@@ -30,7 +30,7 @@ export default function ShortlistPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pt-14 md:pt-[72px]">
-      <div className="max-w-7xl mx-auto px-6 py-10">
+      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-10">
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 border-b border-[#ebebeb] pb-6 mb-8">
           <div>
             <p className="font-sans text-[11px] text-[#888] uppercase tracking-[0.2em]">Saved Properties</p>

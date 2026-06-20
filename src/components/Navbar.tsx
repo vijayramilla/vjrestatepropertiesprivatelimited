@@ -150,7 +150,7 @@ export default function Navbar() {
           backdropFilter: isTransparent ? 'none' : 'blur(12px)',
         }}
       >
-        <div className="max-w-[1440px] mx-auto px-4 md:px-8 lg:px-16 h-full flex items-center justify-between">
+        <div className="w-full h-full flex items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <Link to="/" className="flex-shrink-0 cursor-pointer">
             <span
               className="font-serif text-xl md:text-2xl font-normal tracking-[-0.01em]"

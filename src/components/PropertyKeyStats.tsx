@@ -1,4 +1,4 @@
-import type { ListingProperty, PropertyStatsView } from '@/data/listingProperties';
+import type { PropertyStatsView } from '@/data/listingProperties';
 import { isPlotType } from '@/data/listingProperties';
 
 export function getCardUnitsLabel(property: Pick<PropertyStatsView, 'raw_type'>): string {

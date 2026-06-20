@@ -25,7 +25,7 @@ export default function Layout() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="w-full max-w-[1440px] mx-auto"
+            className="w-full"
           >
             <Outlet />
           </motion.div>

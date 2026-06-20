@@ -279,7 +279,7 @@ export function getRentalYield(price: number, monthlyIncome: number): number | n
   return Math.round(((monthlyIncome * 12) / price) * 1000) / 10;
 }
 
-export function getPropertyById(_id: string): Property | undefined {
+export function getPropertyById(): Property | undefined {
   return undefined;
 }
 

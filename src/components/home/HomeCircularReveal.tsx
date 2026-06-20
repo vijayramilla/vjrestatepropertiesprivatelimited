@@ -11,7 +11,7 @@ const CIRCULAR_ITEMS = [
 export default function HomeCircularReveal() {
   return (
     <section className="bg-[#f5f5f5] py-[89px] lg:py-[120px] border-y border-[#ebebeb]">
-      <div className="max-w-7xl mx-auto px-6 md:px-8">
+      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           whileInView={{ opacity: 1, y: 0 }}
