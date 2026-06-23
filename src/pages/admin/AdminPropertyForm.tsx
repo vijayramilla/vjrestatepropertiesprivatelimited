@@ -865,43 +865,6 @@ export default function AdminPropertyForm() {
                 </details>
               </div>
 
-              {/* Available Units */}
-              {!isPlotType && (
-                <div>
-                  <label className="block font-sans text-xs text-gray-500 mb-2">
-                    Available {formData.type === 'PG Buildings' ? 'Rooms' : 'Units'}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.available_units || ''}
-                    onChange={(e) =>
-                      updateFormData('available_units', Number(e.target.value))
-                    }
-                    className="admin-input-ghost"
-                  />
-                </div>
-              )}
-
-              {/* Occupancy % */}
-              {!isPlotType && (
-                <div>
-                  <label className="block font-sans text-xs text-gray-500 mb-2">
-                    Occupancy %
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    placeholder="0"
-                    value={formData.occupancy_percent || ''}
-                    onChange={(e) =>
-                      updateFormData('occupancy_percent', Number(e.target.value))
-                    }
-                    className="admin-input-ghost"
-                  />
-                </div>
-              )}
             </div>
           </div>
 

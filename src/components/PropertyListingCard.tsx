@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ShareNetwork, WhatsappLogo, MapPin } from '@phosphor-icons/react';
@@ -12,6 +12,7 @@ import {
 import PropertyKeyStats from './PropertyKeyStats';
 import { shareProperty } from '@/utils/shareProperty';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
+import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
@@ -29,6 +30,8 @@ interface PropertyListingCardProps {
 }
 
 export default function PropertyListingCard({ property, index = 0, compact = false }: PropertyListingCardProps) {
+  const navigate = useNavigate();
+  const { showLocationModal } = useLocationPermission();
   const { isShortlisted, toggle } = useShortlist();
   const saved = isShortlisted(property.id);
   const TypeIcon = getTypeIcon(property.type);
@@ -120,7 +123,16 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
       whileHover={{ y: -2 }}
       className="group flex w-full flex-col overflow-hidden rounded-xl md:rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
     >
-      <Link to={`/properties/${property.id}`} className="block w-full cursor-pointer">
+      <Link
+        to={`/properties/${property.id}`}
+        className="block w-full cursor-pointer"
+        onClick={(e) => {
+          e.preventDefault();
+          showLocationModal(() => {
+            navigate(`/properties/${property.id}`);
+          });
+        }}
+      >
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100 sm:aspect-square md:aspect-[4/3]">
           {coverImage ? (
             <img

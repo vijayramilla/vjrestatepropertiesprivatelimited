@@ -12,6 +12,7 @@ import {
   filterLocalities,
 } from '@/data/properties';
 import { resolveLocalityForSearch } from '@/lib/propertyFilters';
+import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 const HERO_BG =
   'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1800&auto=format&fit=crop&q=80';
@@ -59,6 +60,7 @@ export default function HomeHero({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLDivElement>(null);
+  const { showLocationModal } = useLocationPermission();
 
   useEffect(() => {
     const id = 'dm-sans-font';
@@ -207,7 +209,9 @@ export default function HomeHero({
                         setQuery(e.target.value);
                         setPickerOpen(true);
                       }}
-                      onFocus={() => setPickerOpen(true)}
+                      onFocus={() => {
+                        showLocationModal(() => setPickerOpen(true));
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           const resolved = resolveLocalityForSearch(query);

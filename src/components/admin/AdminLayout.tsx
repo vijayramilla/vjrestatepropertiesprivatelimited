@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 
 interface AdminLayoutProps {
@@ -11,6 +11,7 @@ interface AdminLayoutProps {
 
 const navItems = [
   { icon: House, label: 'Properties', path: '/admin/properties', short: 'List' },
+  { icon: Users, label: 'Users', path: '/admin/users', short: 'Users' },
   { icon: ChatCircle, label: 'Enquiries', path: '/admin/enquiries', short: 'Leads' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
 ];
@@ -22,6 +23,9 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
 
   const isNavActive = (path: string) => {
     if (path === '/admin/properties') {
+      return location.pathname === path;
+    }
+    if (path === '/admin/users') {
       return location.pathname === path;
     }
     return location.pathname.startsWith(path);

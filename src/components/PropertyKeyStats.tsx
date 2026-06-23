@@ -1,5 +1,6 @@
 import type { PropertyStatsView } from '@/data/listingProperties';
 import { isPlotType } from '@/data/listingProperties';
+import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
 
 export function getCardUnitsLabel(property: Pick<PropertyStatsView, 'raw_type'>): string {
   return property.raw_type === 'PG Building' ? 'Rooms' : 'Units';
@@ -64,6 +65,7 @@ export default function PropertyKeyStats({
   variant = 'card',
 }: PropertyKeyStatsProps) {
   const unitsLabel = getCardUnitsLabel(property);
+  const areaLabel = getAreaSizeLabel(property.raw_type ?? property.type);
   const containerClass =
     variant === 'detail'
       ? 'grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5'
@@ -72,7 +74,7 @@ export default function PropertyKeyStats({
   return (
     <div className={`${containerClass} ${className}`}>
       <StatCell label="Monthly Income" value={property.monthly_rental} variant={variant} />
-      <StatCell label="Sq.ft" value={getCardSqftValue(property)} variant={variant} />
+      <StatCell label={areaLabel} value={getCardSqftValue(property)} variant={variant} />
       <StatCell label={unitsLabel} value={getCardUnitsValue(property)} variant={variant} />
       <StatCell label="Khata" value={getCardKathaValue(property)} variant={variant} />
     </div>

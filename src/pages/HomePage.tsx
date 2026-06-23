@@ -1,16 +1,27 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, Suspense, lazy } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import HomeHero from '../components/home/HomeHero';
 import HomeListingsSection from '../components/home/HomeListingsSection';
-import HomeScrollShowcase from '../components/home/HomeScrollShowcase';
-import HomeGlobalInvestors from '../components/home/HomeGlobalInvestors';
-import HomeCircularReveal from '../components/home/HomeCircularReveal';
-import HomeVjrSparkles from '../components/home/HomeVjrSparkles';
 import { AnimatedStatNumber } from '@/components/ui/animated-blur-number';
 import { MAX_LOCALITY_SELECTIONS } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
+
+const HomeScrollShowcase = lazy(() => import('../components/home/HomeScrollShowcase'));
+const HomeGlobalInvestors = lazy(() => import('../components/home/HomeGlobalInvestors'));
+const HomeCircularReveal = lazy(() => import('../components/home/HomeCircularReveal'));
+const HomeVjrSparkles = lazy(() => import('../components/home/HomeVjrSparkles'));
+
+function SectionFallback({ minHeight = '16rem' }: { minHeight?: string }) {
+  return (
+    <div
+      className="animate-pulse bg-gray-100"
+      style={{ minHeight }}
+      aria-hidden
+    />
+  );
+}
 
 const stats = [
   { number: 200, label: 'Properties Sold', suffix: '+' },
@@ -91,11 +102,17 @@ export default function HomePage() {
 
       <HomeListingsSection />
 
-      <HomeScrollShowcase />
+      <Suspense fallback={<SectionFallback minHeight="60rem" />}>
+        <HomeScrollShowcase />
+      </Suspense>
 
-      <HomeGlobalInvestors />
+      <Suspense fallback={<SectionFallback minHeight="24rem" />}>
+        <HomeGlobalInvestors />
+      </Suspense>
 
-      <HomeCircularReveal />
+      <Suspense fallback={<SectionFallback minHeight="28rem" />}>
+        <HomeCircularReveal />
+      </Suspense>
 
       <section ref={counterRef} className="bg-black py-10 md:py-16 lg:py-24">
         <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16">
@@ -133,7 +150,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      <HomeVjrSparkles />
+      <Suspense fallback={<SectionFallback minHeight="32rem" />}>
+        <HomeVjrSparkles />
+      </Suspense>
     </div>
   );
 }

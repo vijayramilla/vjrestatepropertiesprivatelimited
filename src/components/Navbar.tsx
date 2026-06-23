@@ -14,6 +14,7 @@ import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import GoogleSignInButton from './GoogleSignInButton';
+import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
@@ -68,6 +69,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const { shortlistedIds } = useShortlist();
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut, clearError } = useAuth();
+  const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
   const shortlistCount = shortlistedIds.length;
@@ -360,6 +362,7 @@ export default function Navbar() {
                       onClick={async () => {
                         await signInWithGoogle();
                         setProfileOpen(false);
+                        showLocationModal();
                       }}
                     />
                     {authError && (

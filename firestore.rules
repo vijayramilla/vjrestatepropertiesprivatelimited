@@ -8,6 +8,10 @@ service cloud.firestore {
       );
     }
 
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
     function isValidLead() {
       return request.resource.data.keys().hasAll([
           'propertyId', 'propertyTitle', 'leadType', 'message', 'createdAt'
@@ -23,6 +27,11 @@ service cloud.firestore {
         && request.resource.data.leadType in ['whatsapp', 'book_visit'];
     }
 
+    function userCannotChangeSuspension() {
+      return !('suspended' in request.resource.data)
+        || request.resource.data.suspended == resource.data.get('suspended', false);
+    }
+
     match /properties/{propertyId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();
@@ -31,6 +40,13 @@ service cloud.firestore {
     match /property_leads/{leadId} {
       allow create: if isValidLead();
       allow read, update, delete: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get, list: if isAdmin() || isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isAdmin() || (isOwner(userId) && userCannotChangeSuspension());
+      allow delete: if isAdmin();
     }
   }
 }

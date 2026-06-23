@@ -1,82 +1,95 @@
+import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { ParticlesProvider } from '@tsparticles/react';
-import { loadSlim } from '@tsparticles/slim';
 import { ShortlistProvider } from './context/ShortlistContext';
 import { AuthProvider } from './context/AuthContext';
+import { LocationPermissionProvider } from './hooks/useLocationPermission';
 import Layout from './components/Layout';
-import HomePage from './pages/HomePage';
-import PropertiesPage from './pages/PropertiesPage';
-import PropertyDetailPage from './pages/PropertyDetailPage';
-import ShortlistPage from './pages/ShortlistPage';
-import AboutPage from './pages/AboutPage';
-import ContactPage from './pages/ContactPage';
-import SubmitRequirementPage from './pages/SubmitRequirementPage';
-import NotFoundPage from './pages/NotFoundPage';
 import AdminRoute from './components/AdminRoute';
-import AdminLogin from './pages/admin/AdminLogin';
-import AdminPropertiesList from './pages/admin/AdminPropertiesList';
-import AdminPropertyForm from './pages/admin/AdminPropertyForm';
-import AdminLeadsList from './pages/admin/AdminLeadsList';
+import PageLoader from './components/PageLoader';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
+const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
+const ShortlistPage = lazy(() => import('./pages/ShortlistPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
+const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
+const AdminPropertyForm = lazy(() => import('./pages/admin/AdminPropertyForm'));
+const AdminLeadsList = lazy(() => import('./pages/admin/AdminLeadsList'));
+const AdminUsersList = lazy(() => import('./pages/admin/AdminUsersList'));
+
+function LazyPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
+}
 
 function App() {
   return (
-    <ParticlesProvider init={loadSlim}>
-      <AuthProvider>
+    <AuthProvider>
+      <LocationPermissionProvider>
         <ShortlistProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Main Site Routes */}
-              <Route element={<Layout />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/properties" element={<PropertiesPage />} />
-                <Route path="/properties/:id" element={<PropertyDetailPage />} />
-                <Route path="/shortlist" element={<ShortlistPage />} />
-                <Route path="/about" element={<AboutPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/submit-requirement" element={<SubmitRequirementPage />} />
-                <Route path="*" element={<NotFoundPage />} />
-              </Route>
+        <BrowserRouter>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route path="/" element={<LazyPage><HomePage /></LazyPage>} />
+              <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
+              <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
+              <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
+              <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
+              <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
+              <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
+              <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
+            </Route>
 
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
-              <Route
-                path="/admin/properties"
-                element={
-                  <AdminRoute>
-                    <AdminPropertiesList />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/enquiries"
-                element={
-                  <AdminRoute>
-                    <AdminLeadsList />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/properties/new"
-                element={
-                  <AdminRoute>
-                    <AdminPropertyForm />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/properties/:id/edit"
-                element={
-                  <AdminRoute>
-                    <AdminPropertyForm />
-                  </AdminRoute>
-                }
-              />
-            </Routes>
-          </BrowserRouter>
+            <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
+            <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
+            <Route
+              path="/admin/properties"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminPropertiesList /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/enquiries"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminLeadsList /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminUsersList /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/properties/new"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminPropertyForm /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/properties/:id/edit"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminPropertyForm /></LazyPage>
+                </AdminRoute>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
         </ShortlistProvider>
-      </AuthProvider>
-    </ParticlesProvider>
+      </LocationPermissionProvider>
+    </AuthProvider>
   );
 }
 

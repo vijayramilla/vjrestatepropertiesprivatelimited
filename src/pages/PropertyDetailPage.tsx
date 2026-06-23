@@ -10,7 +10,10 @@ import { shareProperty } from '@/utils/shareProperty';
 import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
-import PgBuildingDetailsCard from '../components/PgBuildingDetailsCard';
+import PropertyDetailsPanel from '../components/PropertyDetailsPanel';
+import PropertyKeyStats from '../components/PropertyKeyStats';
+import { propertyToStatsView } from '@/data/listingProperties';
+import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
 import {
   Buildings,
   HouseLine,
@@ -116,170 +119,6 @@ function getAmenityIcon(name: string): Icon {
   return map[name] ?? Shield;
 }
 
-type DetailRow = { label: string; value: string };
-
-function str(extra: Record<string, string | number> | undefined, key: string, fallback = '—'): string {
-  const v = extra?.[key];
-  return v !== undefined && v !== '' ? String(v) : fallback;
-}
-
-function buildDetailRows(property: Property): DetailRow[] {
-  const extra = property.extraDetails ?? {};
-  const plotSub = getPlotSubtype(property);
-
-  if (property.type === 'PG Building') {
-    return [
-      { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Plot Dimensions', value: property.dimensions },
-      { label: 'Total Floors', value: String(property.floor_count) },
-      { label: 'Total Rooms', value: String(property.total_units) },
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
-      { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-      { label: 'Facing', value: property.facing },
-      { label: 'Age', value: property.age },
-      { label: 'Amenities', value: property.amenities.join(', ') || '—' },
-    ];
-  }
-
-  if (property.type === 'Residential Rental Income') {
-    return [
-      { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Plot Dimensions', value: property.dimensions },
-      { label: 'Total Floors', value: String(property.floor_count) },
-      { label: 'Total Units', value: String(property.total_units) },
-      { label: 'Available Units', value: String(property.available_units) },
-      { label: 'Occupancy %', value: `${property.occupancy_percent}%` },
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
-      { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'Rental Yield', value: property.rental_yield ? `${property.rental_yield}%` : '—' },
-      { label: 'Facing', value: property.facing },
-      { label: 'Age', value: property.age },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-      { label: 'Loan Eligible', value: str(extra, 'Loan Eligible', 'Yes') },
-    ];
-  }
-
-  if (isCommercialProperty(property.type)) {
-    const sub = property.commercial_subtype ?? 'Office Space';
-    const base: DetailRow[] = [
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
-      { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Total Floors', value: String(property.floor_count) },
-      { label: 'Occupancy %', value: `${property.occupancy_percent}%` },
-      { label: 'Facing', value: property.facing },
-      { label: 'Age', value: property.age },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-    ];
-
-    const subtypeRows: Record<string, DetailRow[]> = {
-      'Office Space': [
-        { label: 'Cabins', value: str(extra, 'Cabins') },
-        { label: 'Meeting Rooms', value: str(extra, 'Meeting Rooms') },
-        { label: 'Car Parking', value: str(extra, 'Car Parking') },
-        { label: 'Power Backup', value: str(extra, 'Power Backup') },
-      ],
-      'Mall / Retail': [
-        { label: 'Total Shops', value: str(extra, 'Shops') },
-        { label: 'Anchor Tenant', value: str(extra, 'Anchor Tenant') },
-        { label: 'Daily Footfall', value: str(extra, 'Footfall/Day') },
-        { label: 'Parking', value: str(extra, 'Parking') },
-      ],
-      'Warehouse / Industrial': [
-        { label: 'Floor Height', value: str(extra, 'Floor Height (ft)', '24 ft') },
-        { label: 'Dock Doors', value: str(extra, 'Dock Doors') },
-        { label: 'Power Load (KVA)', value: str(extra, 'Power Load (KVA)') },
-        { label: 'Water Supply', value: str(extra, 'Water Supply', 'Yes') },
-      ],
-      'Hospital / Clinic': [
-        { label: 'Total Beds', value: str(extra, 'Beds') },
-        { label: 'OPD Rooms', value: str(extra, 'OPD Rooms') },
-        { label: 'ICU', value: str(extra, 'ICU') },
-        { label: 'Parking', value: str(extra, 'Parking') },
-      ],
-      'Hotel / Hospitality': [
-        { label: 'Total Rooms', value: str(extra, 'Rooms') },
-        { label: 'Restaurant', value: str(extra, 'Restaurant') },
-        { label: 'Banquet Hall', value: str(extra, 'Banquet') },
-        { label: 'Occupancy', value: `${property.occupancy_percent}%` },
-      ],
-      'Factory / Manufacturing': [
-        { label: 'Floor Space', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
-        { label: 'Power Load', value: str(extra, 'Power Load') },
-        { label: 'Water Supply', value: str(extra, 'Water Supply', 'Yes') },
-        { label: 'Road Access', value: str(extra, 'Road Access', 'Yes') },
-      ],
-      Showroom: [
-        { label: 'Ground Floor Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
-        { label: 'Frontage (ft)', value: str(extra, 'Frontage (ft)') },
-        { label: 'Height (ft)', value: str(extra, 'Height (ft)') },
-        { label: 'Parking', value: str(extra, 'Parking') },
-      ],
-      'Mixed Use': [
-        { label: 'Commercial Area', value: str(extra, 'Commercial Area') },
-        { label: 'Residential Area', value: str(extra, 'Residential Area') },
-        { label: 'Total Floors', value: String(property.floor_count) },
-      ],
-      'Flex Space': [
-        { label: 'Commercial Area', value: str(extra, 'Commercial Area') },
-        { label: 'Residential Area', value: str(extra, 'Residential Area') },
-        { label: 'Total Floors', value: String(property.floor_count) },
-      ],
-    };
-
-    return [...base, ...(subtypeRows[sub] ?? subtypeRows['Office Space'])];
-  }
-
-  if (plotSub === 'Residential Plot') {
-    return [
-      { label: 'Total Area (sq.ft)', value: property.area_sqft.toLocaleString('en-IN') },
-      { label: 'Dimensions', value: property.dimensions },
-      { label: 'Facing', value: property.facing },
-      { label: 'Road Width', value: str(extra, 'Road Width') },
-      { label: 'Zone', value: str(extra, 'Zone') },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-      { label: 'Electricity', value: str(extra, 'Electricity') },
-      { label: 'Water Source', value: str(extra, 'Water Source') },
-      { label: 'Soil Type', value: str(extra, 'Soil Type') },
-      { label: 'Nearest Landmark', value: str(extra, 'Nearest Landmark') },
-    ];
-  }
-
-  if (plotSub === 'Commercial Plot') {
-    return [
-      { label: 'Total Area (sq.ft)', value: property.area_sqft.toLocaleString('en-IN') },
-      { label: 'Dimensions', value: property.dimensions },
-      { label: 'Facing', value: property.facing },
-      { label: 'Road Width', value: str(extra, 'Road Width') },
-      { label: 'Zone', value: str(extra, 'Zone') },
-      { label: 'FSI / FAR', value: str(extra, 'FSI') },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-      { label: 'Electricity', value: str(extra, 'Electricity') },
-      { label: 'Road Access', value: str(extra, 'Road Access') },
-      { label: 'Nearest Landmark', value: str(extra, 'Nearest Landmark') },
-    ];
-  }
-
-  if (plotSub === 'Agriculture Land') {
-    return [
-      { label: 'Total Area (acres)', value: `${(property.plotSizeSqFt / 43560).toFixed(2)} acres` },
-      { label: 'Survey Number', value: str(extra, 'Survey No.') },
-      { label: 'Facing', value: property.facing },
-      { label: 'Road Access', value: str(extra, 'Road Access') },
-      { label: 'Water Source', value: str(extra, 'Water Source') },
-      { label: 'Soil Type', value: str(extra, 'Soil Type') },
-      { label: 'Crop Suitability', value: str(extra, 'Crop Suitability') },
-      { label: 'Electricity', value: str(extra, 'Electricity') },
-      { label: 'Distance from City', value: str(extra, 'Distance from City') },
-      { label: 'Legal Status', value: str(extra, 'Legal Status', 'Clear Title') },
-    ];
-  }
-
-  return [];
-}
 
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
@@ -376,7 +215,8 @@ export default function PropertyDetailPage() {
   const isLandOrPlot = isLandOrPlotProperty(property);
   const showRental = showsRentalIncome(property);
   const TypeIcon = getCategoryIcon(property);
-  const detailRows = buildDetailRows(property);
+  const statsView = propertyToStatsView(property);
+  const areaLabel = getAreaSizeLabel(property.type);
   const galleryImages = property.images ?? [];
   const activeImage = galleryImages[0];
   const handleHeart = (e: React.MouseEvent) => {
@@ -542,6 +382,7 @@ export default function PropertyDetailPage() {
               <p className="text-[12px] text-[#aaa] mt-2" style={fontUI}>
                 Listed {property.listed_days_ago} days ago
               </p>
+              <PropertyKeyStats property={statsView} variant="detail" className="mt-5" />
             </div>
 
             {/* Investment highlights */}
@@ -576,30 +417,7 @@ export default function PropertyDetailPage() {
             {/* Property details */}
             <div className="mt-9">
               <SectionLabel>Property Details</SectionLabel>
-              {property.type === 'PG Building' ? (
-                <PgBuildingDetailsCard property={property} />
-              ) : (
-                <div className="mt-4 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-sm">
-                  <div className="divide-y divide-[#f2f2f2]">
-                    {detailRows.map((row) => (
-                      <div
-                        key={row.label}
-                        className="flex min-h-[52px] flex-col justify-center gap-1 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5"
-                      >
-                        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[#aaa]" style={fontUI}>
-                          {row.label}
-                        </span>
-                        <span
-                          className="text-[14px] font-medium leading-snug text-[#000] sm:max-w-[58%] sm:text-right"
-                          style={fontUI}
-                        >
-                          {row.value}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              <PropertyDetailsPanel property={property} />
             </div>
 
             {/* Amenities */}
@@ -712,7 +530,7 @@ export default function PropertyDetailPage() {
                     </>
                   ) : (
                     <>
-                      Total Area ·{' '}
+                      {areaLabel} ·{' '}
                       <span className="text-[#ccc]">
                         {property.area_sqft.toLocaleString('en-IN')} sq.ft
                       </span>
