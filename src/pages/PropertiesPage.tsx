@@ -19,8 +19,10 @@ import {
   filterProperties,
   getMonthlyRentalValue,
   getNumericPrice,
+  getPropertyCategory,
   isLandOrPlotProperty,
   normalizeLocalityList,
+  PROPERTY_CATEGORIES,
   resolveLocalityForSearch,
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
@@ -166,7 +168,6 @@ export default function PropertiesPage() {
   const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_SLIDER_MAX]);
   const [rentalRange, setRentalRange] = useState<[number, number]>([0, UNLIMITED_FILTER_MAX]);
   const [budgetMode, setBudgetMode] = useState<BudgetMode>('price');
-  const [plotSubtype, setPlotSubtype] = useState<string>('');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [page, setPage] = useState(1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -207,14 +208,8 @@ export default function PropertiesPage() {
     const typeParam = searchParams.get('type');
     if (typeParam) {
       const types = typeParam.split(',').map((t) => t.trim());
-      if (types.includes('Agriculture Land')) {
-        setPlotSubtype('Agriculture Land');
-        setSelectedTypes(['Residential Plot', 'Commercial Plot']);
-      } else {
-        setPlotSubtype('');
-        const valid = types.filter((t) => PROPERTY_TYPES.includes(t));
-        if (valid.length > 0) setSelectedTypes(valid);
-      }
+      const valid = types.filter((t) => PROPERTY_TYPES.includes(t));
+      if (valid.length > 0) setSelectedTypes(valid);
     }
 
     const areaParams = [
@@ -256,22 +251,38 @@ export default function PropertiesPage() {
     const ro = new ResizeObserver(updateHeight);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [searchOpen, sortOpen, selectedTypes.length, plotSubtype, searchQuery, priceRange, rentalRange]);
+  }, [searchOpen, sortOpen, selectedTypes.length, searchQuery, priceRange, rentalRange]);
 
   const filteredProperties = useMemo(() => {
     const filtered = filterProperties(properties, {
       types: selectedTypes,
       localities: selectedLocations,
-      plotSubtype,
       priceRange,
       rentalRange,
     });
     const sorted = [...filtered];
+    const categoryIndex = (p: PropertyListItem) => {
+      const cat = getPropertyCategory(p);
+      const idx = PROPERTY_CATEGORIES.indexOf(cat as (typeof PROPERTY_CATEGORIES)[number]);
+      return idx >= 0 ? idx : PROPERTY_CATEGORIES.length;
+    };
     switch (sortBy) {
-      case 'price_asc': sorted.sort((a, b) => getNumericPrice(a.price) - getNumericPrice(b.price)); break;
-      case 'price_desc': sorted.sort((a, b) => getNumericPrice(b.price) - getNumericPrice(a.price)); break;
+      case 'price_asc':
+        sorted.sort((a, b) => {
+          const byCat = categoryIndex(a) - categoryIndex(b);
+          return byCat !== 0 ? byCat : getNumericPrice(a.price) - getNumericPrice(b.price);
+        });
+        break;
+      case 'price_desc':
+        sorted.sort((a, b) => {
+          const byCat = categoryIndex(a) - categoryIndex(b);
+          return byCat !== 0 ? byCat : getNumericPrice(b.price) - getNumericPrice(a.price);
+        });
+        break;
       case 'rental_desc':
         sorted.sort((a, b) => {
+          const byCat = categoryIndex(a) - categoryIndex(b);
+          if (byCat !== 0) return byCat;
           const aLand = isLandOrPlotProperty(a);
           const bLand = isLandOrPlotProperty(b);
           if (aLand && bLand) return 0;
@@ -280,16 +291,24 @@ export default function PropertiesPage() {
           return getMonthlyRentalValue(b) - getMonthlyRentalValue(a);
         });
         break;
-      case 'newest': sorted.sort((a, b) => {
-        const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt as string | number | Date);
-        const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt as string | number | Date);
-        return bDate.getTime() - aDate.getTime();
-      }); break;
+      case 'newest':
+        sorted.sort((a, b) => {
+          const byCat = categoryIndex(a) - categoryIndex(b);
+          if (byCat !== 0) return byCat;
+          const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt as string | number | Date);
+          const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt as string | number | Date);
+          return bDate.getTime() - aDate.getTime();
+        });
+        break;
     }
     return sorted;
-  }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, plotSubtype, sortBy]);
+  }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
+  const showCategoryHeaders = selectedTypes.length !== 1;
+
+  const totalPages = showCategoryHeaders
+    ? 1
+    : Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
 
   const paginatedProperties = useMemo(() => {
     const start = (page - 1) * PROPERTIES_PAGE_SIZE;
@@ -298,7 +317,7 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [selectedTypes, selectedLocations, priceRange, rentalRange, plotSubtype, sortBy]);
+  }, [selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -319,7 +338,6 @@ export default function PropertiesPage() {
     setSelectedTypes([]);
     setPriceRange([0, PRICE_SLIDER_MAX]);
     setRentalRange([0, UNLIMITED_FILTER_MAX]);
-    setPlotSubtype('');
   };
 
   const clearEverything = () => {
@@ -330,8 +348,9 @@ export default function PropertiesPage() {
   };
 
   const toggleType = (type: string) => {
-    setSelectedTypes((prev) => prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]);
-    if ((type === 'Residential Plot' || type === 'Commercial Plot') && selectedTypes.includes(type)) setPlotSubtype('');
+    setSelectedTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
+    );
   };
 
   const toggleLocation = (location: string) => {
@@ -350,7 +369,6 @@ export default function PropertiesPage() {
     [searchQuery],
   );
   const isTypingLocality = searchQuery.trim().length > 0;
-  const showPlotSubtype = selectedTypes.includes('Residential Plot') || selectedTypes.includes('Commercial Plot');
 
   const budgetPresets = budgetMode === 'price' ? PRICE_BUDGET_PRESETS : RENTAL_BUDGET_PRESETS;
   const activeBudgetRange = budgetMode === 'price' ? priceRange : rentalRange;
@@ -363,7 +381,6 @@ export default function PropertiesPage() {
 
   const hasActiveFilters =
     selectedTypes.length > 0 ||
-    plotSubtype !== '' ||
     !isDefaultPrice ||
     !isDefaultRental;
 
@@ -432,26 +449,6 @@ export default function PropertiesPage() {
         </div>
       </div>
 
-      {showPlotSubtype && (
-        <div className="prop-filter-section">
-          <h3 className="prop-filter-section-title">Plot Sub-Type</h3>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <FilterRadio
-              name="plotSubtype"
-              checked={plotSubtype === 'Residential Plot'}
-              onChange={() => setPlotSubtype('Residential Plot')}
-              label="Residential Plot"
-            />
-            <FilterRadio
-              name="plotSubtype"
-              checked={plotSubtype === 'Commercial Plot'}
-              onChange={() => setPlotSubtype('Commercial Plot')}
-              label="Commercial Plot"
-            />
-          </div>
-        </div>
-      )}
-
       <div className="prop-filter-section">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="prop-filter-section-title mb-0">Budget</h3>
@@ -505,13 +502,6 @@ export default function PropertiesPage() {
       onRemove: () => toggleType(type),
     });
   });
-  if (plotSubtype) {
-    activeFilterChips.push({
-      key: `plot-${plotSubtype}`,
-      label: plotSubtype,
-      onRemove: () => setPlotSubtype(''),
-    });
-  }
   if (!isDefaultPrice) {
     activeFilterChips.push({
       key: 'price',
@@ -976,27 +966,62 @@ export default function PropertiesPage() {
           </div>
         ) : filteredProperties.length > 0 ? (
           <>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
-              {paginatedProperties.map((property, index) => (
-                <motion.div
-                  key={property.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: index * 0.05 }}
-                >
-                  <PropertyCard property={property} index={index} />
-                </motion.div>
-              ))}
-            </div>
+            {showCategoryHeaders ? (
+              <div className="space-y-10">
+                {PROPERTY_CATEGORIES.map((category) => {
+                  const items = filteredProperties.filter(
+                    (p) => getPropertyCategory(p) === category,
+                  );
+                  if (items.length === 0) return null;
+                  return (
+                    <section key={category}>
+                      <h2 className="properties-toolbar-heading mb-4 border-b border-gray-200 pb-3 text-lg font-medium text-black md:text-xl">
+                        {category}
+                        <span className="ml-2 text-sm font-normal text-gray-400">
+                          ({items.length})
+                        </span>
+                      </h2>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
+                        {items.map((property, index) => (
+                          <motion.div
+                            key={property.id}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: index * 0.05 }}
+                          >
+                            <PropertyCard property={property} index={index} />
+                          </motion.div>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
+                {paginatedProperties.map((property, index) => (
+                  <motion.div
+                    key={property.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: index * 0.05 }}
+                  >
+                    <PropertyCard property={property} index={index} />
+                  </motion.div>
+                ))}
+              </div>
+            )}
 
-            <PropertyPagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={filteredProperties.length}
-              pageSize={PROPERTIES_PAGE_SIZE}
-              onPageChange={handlePageChange}
-              className="mt-8"
-            />
+            {!showCategoryHeaders && (
+              <PropertyPagination
+                page={page}
+                totalPages={totalPages}
+                totalItems={filteredProperties.length}
+                pageSize={PROPERTIES_PAGE_SIZE}
+                onPageChange={handlePageChange}
+                className="mt-8"
+              />
+            )}
           </>
         ) : (
           <motion.div

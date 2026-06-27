@@ -8,8 +8,11 @@ import {
   type ListingProperty,
   getCardSaleTitle,
   getCardCityName,
+  isPlotLandListing,
 } from '../data/listingProperties';
 import PropertyKeyStats from './PropertyKeyStats';
+import PlotLandCardStats from './PlotLandCardStats';
+import { formatINRCompact, formatCardPricePerSqft } from '@/lib/formatPrice';
 import { shareProperty } from '@/utils/shareProperty';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
@@ -39,6 +42,7 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
   const imageCount = property.images?.length ?? 0;
   const saleTitle = getCardSaleTitle(property);
   const cityName = getCardCityName(property);
+  const isPlotOrLand = isPlotLandListing(property);
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared' | 'whatsapp' | 'failed'>('idle');
   const [waLoading, setWaLoading] = useState(false);
@@ -197,18 +201,34 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
           </p>
 
           <div className="mt-2.5 border-t border-gray-100 pt-2.5">
-            <p
-              className="text-[10px] font-medium uppercase tracking-wide text-gray-400"
-              style={{ fontFamily: DM_SANS }}
-            >
-              Price
-            </p>
+            {!isPlotOrLand && (
+              <p
+                className="text-[10px] font-medium uppercase tracking-wide text-gray-400"
+                style={{ fontFamily: DM_SANS }}
+              >
+                Price
+              </p>
+            )}
             <p className="mt-0.5 font-numeric text-2xl font-bold leading-none text-gray-900 md:text-3xl lg:text-4xl">
-              {property.price_label}
+              {isPlotOrLand
+                ? formatINRCompact(property.price)
+                : property.price_label}
             </p>
+            {isPlotOrLand && (property.price_per_sqft ?? 0) > 0 && (
+              <p
+                className="mt-1 font-numeric text-sm text-gray-500 md:text-base"
+                style={{ fontFamily: DM_SANS }}
+              >
+                {formatCardPricePerSqft(property.price_per_sqft)}
+              </p>
+            )}
           </div>
 
-          <PropertyKeyStats property={property} variant="card" />
+          {isPlotOrLand ? (
+            <PlotLandCardStats property={property} variant="card" />
+          ) : (
+            <PropertyKeyStats property={property} variant="card" />
+          )}
         </div>
       </Link>
 

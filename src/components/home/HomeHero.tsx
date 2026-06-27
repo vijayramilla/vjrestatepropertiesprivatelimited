@@ -21,7 +21,7 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 const HERO_TABS = [
   { label: 'All', value: 'All' },
-  { label: 'PG Building', value: 'PG Building' },
+  { label: 'PG Buildings', value: 'PG Buildings' },
   { label: 'Residential', value: 'Residential' },
   { label: 'Commercial', value: 'Commercial' },
   { label: 'Plot', value: 'Plot' },

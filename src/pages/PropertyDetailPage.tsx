@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { formatPrice } from '@/lib/formatPrice';
+import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice, formatINR } from '@/lib/formatPrice';
+import { formatPlotLandAreaDisplay, formatArea } from '@/lib/plotLandForm';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
 import { siteContact } from '@/data/siteContact';
 import { shareProperty } from '@/utils/shareProperty';
@@ -12,8 +13,8 @@ import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
 import PropertyDetailsPanel from '../components/PropertyDetailsPanel';
 import PropertyKeyStats from '../components/PropertyKeyStats';
+import PlotLandCardStats from '../components/PlotLandCardStats';
 import { propertyToStatsView } from '@/data/listingProperties';
-import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
 import {
   Buildings,
   HouseLine,
@@ -216,7 +217,12 @@ export default function PropertyDetailPage() {
   const showRental = showsRentalIncome(property);
   const TypeIcon = getCategoryIcon(property);
   const statsView = propertyToStatsView(property);
-  const areaLabel = getAreaSizeLabel(property.type);
+  const plotAreaDisplay = formatArea(
+    property.area_unit,
+    property.area_sqft,
+    property.area_acres,
+    property.area_guntas,
+  );
   const galleryImages = property.images ?? [];
   const activeImage = galleryImages[0];
   const handleHeart = (e: React.MouseEvent) => {
@@ -382,7 +388,26 @@ export default function PropertyDetailPage() {
               <p className="text-[12px] text-[#aaa] mt-2" style={fontUI}>
                 Listed {property.listed_days_ago} days ago
               </p>
-              <PropertyKeyStats property={statsView} variant="detail" className="mt-5" />
+              {isLandOrPlot && (
+                <div className="mt-5 border border-[#e8e8e8] bg-[#fafafa] px-5 py-4">
+                  <p
+                    className="font-numeric text-[28px] font-medium leading-none text-[#000] lg:text-[32px]"
+                    style={fontPrice}
+                  >
+                    {formatCardTotalPrice(property.price)}
+                  </p>
+                  {(property.price_per_sqft ?? 0) > 0 && (
+                    <p className="mt-1.5 font-numeric text-[15px] font-semibold text-[#555]" style={fontUI}>
+                      {formatCardPricePerSqft(property.price_per_sqft)}
+                    </p>
+                  )}
+                </div>
+              )}
+              {isLandOrPlot ? (
+                <PlotLandCardStats property={statsView} variant="detail" className="mt-4" />
+              ) : (
+                <PropertyKeyStats property={statsView} variant="detail" className="mt-5" />
+              )}
             </div>
 
             {/* Investment highlights */}
@@ -520,7 +545,7 @@ export default function PropertyDetailPage() {
                   className="text-[44px] text-[#fff] font-medium leading-none mt-1 tracking-tight"
                   style={fontPrice}
                 >
-                  {formatPrice(property.price)}
+                  {formatCardTotalPrice(property.price)}
                 </p>
                 <p className="text-[13px] text-[#888] mt-2" style={fontUI}>
                   {showRental ? (
@@ -530,10 +555,15 @@ export default function PropertyDetailPage() {
                     </>
                   ) : (
                     <>
-                      {areaLabel} ·{' '}
-                      <span className="text-[#ccc]">
-                        {property.area_sqft.toLocaleString('en-IN')} sq.ft
-                      </span>
+                      {(property.price_per_sqft ?? 0) > 0 && (
+                        <span className="text-[#ccc]">
+                          {formatCardPricePerSqft(property.price_per_sqft)}
+                        </span>
+                      )}
+                      {(property.price_per_sqft ?? 0) > 0 && plotAreaDisplay !== '—' && ' · '}
+                      {plotAreaDisplay !== '—' && (
+                        <span className="text-[#ccc]">{plotAreaDisplay}</span>
+                      )}
                     </>
                   )}
                 </p>
@@ -630,12 +660,14 @@ export default function PropertyDetailPage() {
               className="truncate text-[20px] font-medium leading-none tracking-tight text-[#000] sm:text-[22px]"
               style={fontPrice}
             >
-              {formatPrice(property.price)}
+              {formatCardTotalPrice(property.price)}
             </p>
             <p className="mt-1 truncate text-[10px] leading-tight text-[#888] sm:text-[11px]" style={fontUI}>
               {showRental
                 ? `Monthly · ${property.monthly_rental ?? '—'}`
-                : `${property.area_sqft.toLocaleString('en-IN')} sq.ft`}
+                : (property.price_per_sqft ?? 0) > 0
+                  ? formatCardPricePerSqft(property.price_per_sqft)
+                  : plotAreaDisplay}
             </p>
           </div>
 

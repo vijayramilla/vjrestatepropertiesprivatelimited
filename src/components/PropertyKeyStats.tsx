@@ -1,6 +1,11 @@
 import type { PropertyStatsView } from '@/data/listingProperties';
 import { isPlotType } from '@/data/listingProperties';
-import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
+import {
+  getCardAreaLabel,
+  getCardAreaValue,
+  isBuildingPropertyType,
+  isPlotOrLandPropertyType,
+} from '@/lib/propertyAreaLabel';
 
 export function getCardUnitsLabel(property: Pick<PropertyStatsView, 'raw_type'>): string {
   return property.raw_type === 'PG Building' ? 'Rooms' : 'Units';
@@ -64,18 +69,38 @@ export default function PropertyKeyStats({
   className = '',
   variant = 'card',
 }: PropertyKeyStatsProps) {
+  const rawType = property.raw_type ?? property.type;
+  const showRentalStats = isBuildingPropertyType(rawType);
+  const showPricePerSqft =
+    isPlotOrLandPropertyType(rawType) && (property.price_per_sqft ?? 0) > 0;
   const unitsLabel = getCardUnitsLabel(property);
-  const areaLabel = getAreaSizeLabel(property.raw_type ?? property.type);
+  const areaLabel = getCardAreaLabel(rawType);
+  const areaValue = getCardAreaValue(property);
+  const pricePerSqftValue =
+    (property.price_per_sqft ?? 0) > 0
+      ? `₹${property.price_per_sqft!.toLocaleString('en-IN')}/sq.ft`
+      : '—';
   const containerClass =
     variant === 'detail'
-      ? 'grid grid-cols-2 sm:grid-cols-4 gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5'
-      : 'grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5';
+      ? `grid gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5 ${
+          showRentalStats ? 'grid-cols-2 sm:grid-cols-4' : showPricePerSqft ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'
+        }`
+      : `grid gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${
+          showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
+        }`;
 
   return (
     <div className={`${containerClass} ${className}`}>
-      <StatCell label="Monthly Income" value={property.monthly_rental} variant={variant} />
-      <StatCell label={areaLabel} value={getCardSqftValue(property)} variant={variant} />
-      <StatCell label={unitsLabel} value={getCardUnitsValue(property)} variant={variant} />
+      {showRentalStats && (
+        <StatCell label="Monthly Income" value={property.monthly_rental} variant={variant} />
+      )}
+      <StatCell label={areaLabel} value={areaValue} variant={variant} />
+      {showPricePerSqft && (
+        <StatCell label="Price / sq.ft" value={pricePerSqftValue} variant={variant} />
+      )}
+      {showRentalStats && (
+        <StatCell label={unitsLabel} value={getCardUnitsValue(property)} variant={variant} />
+      )}
       <StatCell label="Khata" value={getCardKathaValue(property)} variant={variant} />
     </div>
   );

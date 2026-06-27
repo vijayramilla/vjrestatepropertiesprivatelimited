@@ -32,6 +32,38 @@ service cloud.firestore {
         || request.resource.data.suspended == resource.data.get('suspended', false);
     }
 
+    function isValidRequirementCreate() {
+      return request.resource.data.keys().hasAll([
+          'reqId', 'purpose', 'propertyType', 'locations',
+          'budgetMin', 'budgetMax', 'timeline', 'status', 'clickCount',
+          'paymentMode', 'buyerName', 'buyerPhone'
+        ])
+        && request.resource.data.reqId is string
+        && request.resource.data.purpose is string
+        && request.resource.data.propertyType is string
+        && request.resource.data.locations is list
+        && request.resource.data.budgetMin is number
+        && request.resource.data.budgetMax is number
+        && request.resource.data.timeline is string
+        && request.resource.data.status == 'open'
+        && request.resource.data.clickCount == 0
+        && request.resource.data.buyerName is string
+        && request.resource.data.buyerPhone is string
+        && request.resource.data.paymentMode is string;
+    }
+
+    function isValidClickCountIncrement() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clickCount'])
+        && request.resource.data.clickCount == resource.data.clickCount + 1;
+    }
+
+    match /requirements/{requirementId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidRequirementCreate();
+      allow update: if isAdmin() || isValidClickCountIncrement();
+      allow delete: if isAdmin();
+    }
+
     match /properties/{propertyId} {
       allow read: if true;
       allow create, update, delete: if isAdmin();

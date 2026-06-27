@@ -21,6 +21,7 @@ const footerConfig = {
         { label: 'About Us', to: '/about' },
         { label: 'Contact', to: '/contact' },
         { label: 'Submit Requirement', to: '/submit-requirement' },
+        { label: 'Requirements', to: '/requirements' },
         { label: 'Our Team', to: '/about' },
       ],
     },
@@ -28,7 +29,7 @@ const footerConfig = {
       title: 'Properties',
       links: [
         { label: 'All Properties', to: '/properties' },
-        { label: 'PG Buildings', to: '/properties?type=PG%20Building' },
+        { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
         { label: 'Residential', to: '/properties?type=Residential%20Rental%20Income' },
         { label: 'Commercial', to: '/properties?type=Commercial%20Properties' },
         { label: 'Plots', to: '/properties?type=Residential%20Plot' },
@@ -64,6 +65,7 @@ const footerConfig = {
   quickLinks: [
     { label: 'Browse Properties', to: '/properties' },
     { label: 'Submit Requirement', to: '/submit-requirement' },
+    { label: 'Requirements', to: '/requirements' },
     { label: 'About VJR Estate', to: '/about' },
     { label: 'Contact Team', to: '/contact' },
     { label: 'Your Shortlist', to: '/shortlist' },

@@ -32,7 +32,7 @@ const stats = [
 
 const TAB_TO_TYPE_PARAM: Record<string, string | undefined> = {
   All: undefined,
-  'PG Building': 'PG Building',
+  'PG Buildings': 'PG Buildings',
   Residential: 'Residential Rental Income',
   Commercial: 'Commercial Properties',
   Plot: 'Residential Plot,Commercial Plot',

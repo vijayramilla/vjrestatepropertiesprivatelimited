@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   addDoc,
@@ -10,7 +10,14 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { formatPrice, formatRental, formatYield } from '@/lib/formatPrice';
+import { formatPrice, formatRental, formatYield, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
+import {
+  PLOT_LAND_TYPES,
+  type AreaUnit,
+  computePlotLandAreaSqft,
+  sqftToAcresGuntas,
+  GUNTA_SQFT,
+} from '@/lib/plotLandForm';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 import { uploadPropertyImages, deletePropertyImageByUrl } from '@/lib/propertyImages';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -44,6 +51,8 @@ interface FormData {
   monthly_rental_label: string;
   rental_yield: number | null;
   area_sqft: number;
+  area_unit?: AreaUnit;
+  price_per_sqft?: number;
   dimensions: string;
   floor_count: number;
   total_units: number;
@@ -62,7 +71,25 @@ interface FormData {
   listed_days_ago: number;
   katha?: string;
   images?: string[];
+  land_acres?: number;
+  land_guntas?: number;
+  survey_number?: string;
+  water_source?: string;
+  dc_conversion_done?: boolean;
+  extra_details?: Record<string, string | number>;
 }
+
+const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
+const PLOT_TYPES = ['Residential Plot', 'Commercial Plot'];
+
+const WATER_SOURCE_OPTIONS = [
+  'Borewell',
+  'Canal',
+  'Tank',
+  'River',
+  'Rain-fed',
+  'Not Available',
+] as const;
 
 const PROPERTY_TYPES = [
   'PG Buildings',
@@ -166,6 +193,8 @@ export default function AdminPropertyForm() {
     monthly_rental_label: '',
     rental_yield: null,
     area_sqft: 0,
+    area_unit: 'sqft',
+    price_per_sqft: 0,
     dimensions: '',
     floor_count: 0,
     total_units: 0,
@@ -184,7 +213,13 @@ export default function AdminPropertyForm() {
     listed_days_ago: 0,
     katha: '',
     images: [],
+    land_acres: 0,
+    land_guntas: 0,
+    survey_number: '',
+    water_source: '',
+    dc_conversion_done: false,
   });
+  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -192,16 +227,46 @@ export default function AdminPropertyForm() {
         try {
           const docSnap = await getDoc(doc(db, 'properties', id));
           if (docSnap.exists()) {
-            const data = docSnap.data() as FormData;
+            const data = docSnap.data() as FormData & { extra_details?: Record<string, string | number> };
+            const extra = data.extra_details ?? {};
             const { area, location } = normalizePropertyLocationFields(
               data.area ?? '',
               data.location ?? '',
             );
+            const landAcres =
+              Number((data as { area_acres?: number }).area_acres) ||
+              Number(extra['Area in Acres']) ||
+              0;
+            const landGuntas =
+              Number((data as { area_guntas?: number }).area_guntas) ||
+              Number(extra['Area in Guntas']) ||
+              0;
+            const loadedAreaUnit =
+              ((data as { area_unit?: AreaUnit }).area_unit as AreaUnit | undefined) ??
+              (data.type === 'Agriculture Land' && (landAcres > 0 || landGuntas > 0)
+                ? 'acres'
+                : 'sqft');
             setFormData({
               ...data,
               type: canonicalPropertyType(data.type ?? ''),
               area,
               location,
+              area_unit: loadedAreaUnit,
+              price_per_sqft: (data as { price_per_sqft?: number }).price_per_sqft ?? 0,
+              land_acres:
+                landAcres ||
+                (data.area_sqft && loadedAreaUnit === 'acres'
+                  ? Math.floor((data.area_sqft ?? 0) / 43560)
+                  : 0),
+              land_guntas:
+                landGuntas ||
+                (data.area_sqft && loadedAreaUnit === 'acres' && !landAcres
+                  ? Math.round(((data.area_sqft ?? 0) % 43560) / GUNTA_SQFT)
+                  : 0),
+              survey_number: String(extra['Survey No.'] ?? ''),
+              water_source: String(extra['Water Source'] ?? ''),
+              dc_conversion_done: extra['DC Conversion Done'] === 'Yes',
+              extra_details: data.extra_details ?? {},
             });
             setImageUrls(data.images ?? []);
           }
@@ -288,12 +353,77 @@ export default function AdminPropertyForm() {
         inferredArea,
         formData.location || formData.title,
       );
+
+      const isLandType = formData.type === 'Agriculture Land';
+      const isPlotOrLand = PLOT_LAND_TYPES.includes(
+        formData.type as (typeof PLOT_LAND_TYPES)[number],
+      );
+
+      let area_sqft = formData.area_sqft;
+      const landExtra: Record<string, string | number> = {};
+
+      if (isPlotOrLand) {
+        let acres = formData.land_acres ?? 0;
+        let guntas = formData.land_guntas ?? 0;
+        area_sqft = computePlotLandAreaSqft(
+          formData.area_unit ?? 'sqft',
+          formData.area_sqft,
+          acres,
+          guntas,
+        );
+        if ((formData.area_unit ?? 'sqft') === 'sqft' && area_sqft > 0) {
+          const converted = sqftToAcresGuntas(area_sqft);
+          acres = converted.acres;
+          guntas = converted.guntas;
+        }
+        if (isLandType) {
+          if (acres > 0) landExtra['Area in Acres'] = acres;
+          if (guntas > 0) landExtra['Area in Guntas'] = guntas;
+          if (formData.survey_number?.trim()) {
+            landExtra['Survey No.'] = formData.survey_number.trim();
+          }
+          if (formData.water_source) {
+            landExtra['Water Source'] = formData.water_source;
+          }
+          landExtra['DC Conversion Done'] = formData.dc_conversion_done ? 'Yes' : 'No';
+        }
+      }
+
+      const mergedExtraDetails =
+        isLandType && Object.keys(landExtra).length > 0
+          ? { ...(formData.extra_details ?? {}), ...landExtra }
+          : formData.extra_details;
+
+      const {
+        land_acres,
+        land_guntas,
+        survey_number,
+        water_source,
+        dc_conversion_done,
+        area_unit,
+        price_per_sqft,
+        extra_details: _extra,
+        ...restForm
+      } = formData;
+
       const payload = sanitizeForFirestore({
-        ...formData,
+        ...restForm,
         type: canonicalPropertyType(formData.type),
         area,
         location,
+        area_sqft,
+        ...(isPlotOrLand
+          ? {
+              area_unit: area_unit ?? 'sqft',
+              area_acres: land_acres ?? 0,
+              area_guntas: land_guntas ?? 0,
+              price_per_sqft: price_per_sqft ?? 0,
+            }
+          : {}),
         images: imageUrls,
+        ...(mergedExtraDetails && Object.keys(mergedExtraDetails).length > 0
+          ? { extra_details: mergedExtraDetails }
+          : {}),
       });
 
       if (isEditMode && id) {
@@ -406,7 +536,130 @@ export default function AdminPropertyForm() {
   const shouldShowCommercialSubtypeFields =
     formData.type === 'Commercial Properties';
   const shouldShowPlotSubtypeFields = formData.type.includes('Plot') || formData.type === 'Agriculture Land';
-  const isPlotType = formData.type.includes('Plot') || formData.type === 'Agriculture Land';
+
+  const isBuildingType = BUILDING_TYPES.includes(formData.type);
+  const isPlotTypeOnly = PLOT_TYPES.includes(formData.type);
+  const isLandType = formData.type === 'Agriculture Land';
+  const isPlotOrLand = PLOT_LAND_TYPES.includes(
+    formData.type as (typeof PLOT_LAND_TYPES)[number],
+  );
+
+  const getPlotLandAreaSqft = () =>
+    computePlotLandAreaSqft(
+      formData.area_unit ?? 'sqft',
+      formData.area_sqft,
+      formData.land_acres ?? 0,
+      formData.land_guntas ?? 0,
+    );
+
+  const recalcPlotLandPrices = (
+    prev: FormData,
+    areaSqft: number,
+    source: 'area' | 'total' | 'perSqft',
+  ): Partial<Pick<FormData, 'price' | 'price_label' | 'price_per_sqft'>> => {
+    if (areaSqft <= 0) return {};
+
+    if (source === 'total' || (source === 'area' && lastPriceEdited.current === 'total')) {
+      if (prev.price > 0) {
+        return { price_per_sqft: Math.round(prev.price / areaSqft) };
+      }
+    }
+    if (source === 'perSqft' || (source === 'area' && lastPriceEdited.current === 'perSqft')) {
+      if ((prev.price_per_sqft ?? 0) > 0) {
+        const price = Math.round((prev.price_per_sqft ?? 0) * areaSqft);
+        return { price, price_label: formatPrice(price) };
+      }
+    }
+    return {};
+  };
+
+  const handleAreaUnitChange = (unit: AreaUnit) => {
+    setFormData((prev) => {
+      if (unit === prev.area_unit) return prev;
+      if (unit === 'acres') {
+        const { acres, guntas } = sqftToAcresGuntas(prev.area_sqft);
+        return { ...prev, area_unit: unit, land_acres: acres, land_guntas: guntas };
+      }
+      const sqft = computePlotLandAreaSqft(
+        'acres',
+        0,
+        prev.land_acres ?? 0,
+        prev.land_guntas ?? 0,
+      );
+      const next = { ...prev, area_unit: unit, area_sqft: sqft };
+      return { ...next, ...recalcPlotLandPrices(next, sqft, 'area') };
+    });
+  };
+
+  const handlePlotAreaSqftChange = (value: number) => {
+    setFormData((prev) => {
+      const next = { ...prev, area_sqft: value };
+      return { ...next, ...recalcPlotLandPrices(next, value, 'area') };
+    });
+  };
+
+  const handlePlotAcresChange = (value: number) => {
+    setFormData((prev) => {
+      const next = { ...prev, land_acres: value };
+      const area = computePlotLandAreaSqft('acres', 0, value, prev.land_guntas ?? 0);
+      return { ...next, ...recalcPlotLandPrices(next, area, 'area') };
+    });
+  };
+
+  const handlePlotGuntasChange = (value: number) => {
+    setFormData((prev) => {
+      const next = { ...prev, land_guntas: value };
+      const area = computePlotLandAreaSqft('acres', 0, prev.land_acres ?? 0, value);
+      return { ...next, ...recalcPlotLandPrices(next, area, 'area') };
+    });
+  };
+
+  const handlePlotTotalPriceChange = (value: number) => {
+    lastPriceEdited.current = 'total';
+    setFormData((prev) => {
+      const area = computePlotLandAreaSqft(
+        prev.area_unit ?? 'sqft',
+        prev.area_sqft,
+        prev.land_acres ?? 0,
+        prev.land_guntas ?? 0,
+      );
+      const next = { ...prev, price: value, price_label: formatPrice(value) };
+      if (area > 0 && value > 0) {
+        next.price_per_sqft = Math.round(value / area);
+      }
+      return next;
+    });
+  };
+
+  const handlePlotPricePerSqftChange = (value: number) => {
+    lastPriceEdited.current = 'perSqft';
+    setFormData((prev) => {
+      const area = computePlotLandAreaSqft(
+        prev.area_unit ?? 'sqft',
+        prev.area_sqft,
+        prev.land_acres ?? 0,
+        prev.land_guntas ?? 0,
+      );
+      const next = { ...prev, price_per_sqft: value };
+      if (area > 0 && value > 0) {
+        next.price = Math.round(value * area);
+        next.price_label = formatPrice(next.price);
+      }
+      return next;
+    });
+  };
+
+  const plotLandAreaSqft = getPlotLandAreaSqft();
+  const plotLandPriceSummary =
+    formData.price > 0 && (formData.price_per_sqft ?? 0) > 0
+      ? `Auto-calculated: ${formatINR(formData.price)} total · ₹${(formData.price_per_sqft ?? 0).toLocaleString('en-IN')}/sq.ft`
+      : '';
+
+  const areaFieldLabel = isBuildingType
+    ? 'Built-up Area (sq.ft)'
+    : isPlotTypeOnly
+      ? 'Plot Size (sq.ft)'
+      : 'Land Area';
 
   const kathaSelectValue = getKathaSelectValue(formData.katha);
   const selectedKathaOption = findKathaOption(formData.katha ?? '');
@@ -521,7 +774,8 @@ export default function AdminPropertyForm() {
                 </div>
               )}
 
-              {/* Status */}
+              {/* Status — buildings only */}
+              {!isPlotOrLand && (
               <div>
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Status
@@ -542,6 +796,7 @@ export default function AdminPropertyForm() {
                   ))}
                 </div>
               </div>
+              )}
 
               {/* Featured */}
               <label className="flex items-center gap-3 font-sans text-sm">
@@ -612,7 +867,8 @@ export default function AdminPropertyForm() {
                 </select>
               </div>
 
-              {/* Age */}
+              {/* Age — buildings only */}
+              {!isPlotOrLand && (
               <div>
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Age
@@ -629,6 +885,7 @@ export default function AdminPropertyForm() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
           </div>
 
@@ -640,6 +897,58 @@ export default function AdminPropertyForm() {
             </p>
 
             <div className="space-y-6 mt-6">
+              {isPlotOrLand ? (
+                <>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">
+                        Total Price (₹) *
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.price || ''}
+                        onChange={(e) => handlePlotTotalPriceChange(Number(e.target.value))}
+                        className="admin-input-ghost"
+                      />
+                      {formData.price > 0 && (
+                        <p className="mt-2 text-[11px] font-medium text-emerald-700">
+                          = {formatINR(formData.price)}
+                        </p>
+                      )}
+                      {errors.price && (
+                        <p className="mt-2 text-xs text-gray-500">{errors.price}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">
+                        Price per sq.ft (₹)
+                      </label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.price_per_sqft || ''}
+                        onChange={(e) => handlePlotPricePerSqftChange(Number(e.target.value))}
+                        className="admin-input-ghost"
+                      />
+                      {(formData.price_per_sqft ?? 0) > 0 && (
+                        <p className="mt-2 text-[11px] font-medium text-emerald-700">
+                          {formatINRPerSqft(formData.price_per_sqft)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {plotLandPriceSummary && (
+                    <p className="text-[11px] font-medium text-emerald-700">{plotLandPriceSummary}</p>
+                  )}
+                  {plotLandAreaSqft <= 0 && (formData.price > 0 || (formData.price_per_sqft ?? 0) > 0) && (
+                    <p className="text-[11px] text-gray-500">
+                      Enter plot size below to auto-calculate price fields.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
               {/* Asking Price */}
               <div>
                 <label className="block font-sans text-xs text-gray-500 mb-2">
@@ -661,12 +970,14 @@ export default function AdminPropertyForm() {
                   <p className="mt-2 text-xs text-gray-500">{errors.price}</p>
                 )}
               </div>
+                </>
+              )}
 
               {/* Monthly Rental */}
-              {!isPlotType && (
+              {isBuildingType && (
                 <div>
                   <label className="block font-sans text-xs text-gray-500 mb-2">
-                    Monthly Rental Income (₹)
+                    Monthly Income (₹)
                   </label>
                   <input
                     type="number"
@@ -686,7 +997,7 @@ export default function AdminPropertyForm() {
               )}
 
               {/* Rental Yield */}
-              {!isPlotType && (
+              {isBuildingType && (
                 <div>
                   <label className="block font-sans text-xs text-gray-500 mb-2">
                     Rental Yield (%)
@@ -718,36 +1029,181 @@ export default function AdminPropertyForm() {
             <h2 className="admin-section-title">Property Details</h2>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
-              {/* Area (sqft) */}
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Area (sq.ft)
-                </label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={formData.area_sqft || ''}
-                  onChange={(e) => updateFormData('area_sqft', Number(e.target.value))}
-                  className="admin-input-ghost"
-                />
-              </div>
+              {/* Area — building types */}
+              {isBuildingType && (
+                <div>
+                  <label className="block font-sans text-xs text-gray-500 mb-2">
+                    {areaFieldLabel}
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="0"
+                    value={formData.area_sqft || ''}
+                    onChange={(e) => updateFormData('area_sqft', Number(e.target.value))}
+                    className="admin-input-ghost"
+                  />
+                </div>
+              )}
 
-              {/* Dimensions */}
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Dimensions (e.g. 40×60 ft)
-                </label>
-                <input
-                  type="text"
-                  placeholder="40×60 ft"
-                  value={formData.dimensions}
-                  onChange={(e) => updateFormData('dimensions', e.target.value)}
-                  className="admin-input-ghost"
-                />
-              </div>
+              {/* Area — plot & land types with unit switcher */}
+              {isPlotOrLand && (
+                <div className="sm:col-span-2">
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      type="button"
+                      onClick={() => handleAreaUnitChange('sqft')}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                        (formData.area_unit ?? 'sqft') === 'sqft'
+                          ? 'bg-black text-white'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      sq.ft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAreaUnitChange('acres')}
+                      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                        formData.area_unit === 'acres'
+                          ? 'bg-black text-white'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}
+                    >
+                      Acres & Guntas
+                    </button>
+                  </div>
 
-              {/* Total Floors */}
-              {!isPlotType && (
+                  {(formData.area_unit ?? 'sqft') === 'sqft' ? (
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">
+                        Plot Size (sq.ft)
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          placeholder="0"
+                          value={formData.area_sqft || ''}
+                          onChange={(e) => handlePlotAreaSqftChange(Number(e.target.value))}
+                          className="admin-input-ghost pr-14"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                          sq.ft
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block font-sans text-xs text-gray-500 mb-2">
+                          Acres
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0"
+                          value={formData.land_acres || ''}
+                          onChange={(e) => handlePlotAcresChange(Number(e.target.value))}
+                          className="admin-input-ghost"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-sans text-xs text-gray-500 mb-2">
+                          Guntas
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.01"
+                            placeholder="0"
+                            value={formData.land_guntas || ''}
+                            onChange={(e) => handlePlotGuntasChange(Number(e.target.value))}
+                            className="admin-input-ghost pr-10"
+                          />
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                            /40
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.area_unit === 'acres' && (
+                    <p className="mt-2 text-[11px] leading-relaxed text-gray-500">
+                      1 Acre = 40 Guntas = 43,560 sq.ft
+                    </p>
+                  )}
+                  {plotLandAreaSqft > 0 && (
+                    <p className="mt-2 text-[11px] text-gray-500">
+                      Saved as: {plotLandAreaSqft.toLocaleString('en-IN')} sq.ft
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Agriculture-only fields */}
+              {isLandType && (
+                <>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">
+                      Survey Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 123/4"
+                      value={formData.survey_number ?? ''}
+                      onChange={(e) => updateFormData('survey_number', e.target.value)}
+                      className="admin-input-ghost"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">
+                      Water Source
+                    </label>
+                    <select
+                      value={formData.water_source ?? ''}
+                      onChange={(e) => updateFormData('water_source', e.target.value)}
+                      className="admin-select"
+                    >
+                      <option value="">Select...</option>
+                      {WATER_SOURCE_OPTIONS.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="flex items-center gap-3 font-sans text-sm">
+                      <input
+                        type="checkbox"
+                        checked={formData.dc_conversion_done ?? false}
+                        onChange={(e) => updateFormData('dc_conversion_done', e.target.checked)}
+                        className="w-4 h-4"
+                      />
+                      DC Conversion Done
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {/* Dimensions — plots only */}
+              {isPlotTypeOnly && (
+                <div>
+                  <label className="block font-sans text-xs text-gray-500 mb-2">
+                    Dimensions (e.g. 30×40 ft)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="30×40 ft"
+                    value={formData.dimensions}
+                    onChange={(e) => updateFormData('dimensions', e.target.value)}
+                    className="admin-input-ghost"
+                  />
+                </div>
+              )}
+
+              {/* Total Floors — buildings only */}
+              {isBuildingType && (
                 <div>
                   <label className="block font-sans text-xs text-gray-500 mb-2">
                     Total Floors
@@ -764,11 +1220,11 @@ export default function AdminPropertyForm() {
                 </div>
               )}
 
-              {/* Total Units/Rooms */}
-              {!isPlotType && (
+              {/* Rental Units — buildings only */}
+              {isBuildingType && (
                 <div>
                   <label className="block font-sans text-xs text-gray-500 mb-2">
-                    Total {formData.type === 'PG Buildings' ? 'Rooms' : 'Units'}
+                    Rental Units
                   </label>
                   <input
                     type="number"
@@ -869,6 +1325,7 @@ export default function AdminPropertyForm() {
           </div>
 
           {/* SECTION 5: BBMP & LEGAL */}
+          {(isBuildingType || isPlotTypeOnly) && (
           <div className="admin-section">
             <h2 className="admin-section-title">BBMP & Legal</h2>
 
@@ -904,6 +1361,7 @@ export default function AdminPropertyForm() {
               </label>
             </div>
           </div>
+          )}
 
           {/* SECTION 6: HIGHLIGHTS */}
           <div className="admin-section">
@@ -965,7 +1423,8 @@ export default function AdminPropertyForm() {
             )}
           </div>
 
-          {/* SECTION 7: AMENITIES */}
+          {/* SECTION 7: AMENITIES — buildings only */}
+          {isBuildingType && (
           <div className="admin-section">
             <h2 className="admin-section-title">Amenities</h2>
 
@@ -983,6 +1442,7 @@ export default function AdminPropertyForm() {
               ))}
             </div>
           </div>
+          )}
 
           {/* SECTION: PROPERTY PHOTOS */}
           <div className="admin-section">

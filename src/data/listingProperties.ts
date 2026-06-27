@@ -5,6 +5,10 @@ export interface ListingProperty {
   location: string;
   area: string;
   area_sqft: number;
+  area_unit?: string;
+  area_acres?: number;
+  area_guntas?: number;
+  price_per_sqft?: number;
   price: number;
   price_label: string;
   monthly_rental: string;
@@ -27,6 +31,19 @@ export interface ListingProperty {
   commercial_subtype?: string;
   images?: string[];
   katha?: string;
+  dc_conversion?: string;
+}
+
+export function isAgricultureLandListing(
+  property: Pick<ListingProperty, 'raw_type' | 'plot_subtype'>,
+): boolean {
+  return (
+    property.raw_type === 'Agriculture Land' || property.plot_subtype === 'Agriculture Land'
+  );
+}
+
+export function isPlotLandListing(property: Pick<ListingProperty, 'type'>): boolean {
+  return isPlotType(property.type);
 }
 
 /** Live listings come from Firestore — no mock cards. */
@@ -87,30 +104,75 @@ export function getCardCityName(
 
 export type PropertyStatsView = Pick<
   ListingProperty,
-  'monthly_rental' | 'area_sqft' | 'type' | 'raw_type' | 'units' | 'katha'
+  | 'monthly_rental'
+  | 'area_sqft'
+  | 'area_unit'
+  | 'area_acres'
+  | 'area_guntas'
+  | 'price_per_sqft'
+  | 'price'
+  | 'type'
+  | 'raw_type'
+  | 'plot_subtype'
+  | 'units'
+  | 'katha'
+  | 'dimensions'
+  | 'facing'
+  | 'dc_conversion'
 >;
 
 export function propertyToStatsView(property: {
   type: string;
+  plot_subtype?: string;
   monthly_rental?: string | null;
   area_sqft: number;
+  area_unit?: string;
+  area_acres?: number;
+  area_guntas?: number;
+  price_per_sqft?: number;
+  price?: number;
   total_units: number;
   katha?: string;
+  dimensions?: string;
+  facing?: string;
+  extraDetails?: Record<string, string | number>;
 }): PropertyStatsView {
   const isPlot =
-    property.type.includes('Plot') || property.type === 'Agriculture Land';
+    property.type.includes('Plot') ||
+    property.type === 'Agriculture Land' ||
+    property.plot_subtype === 'Agriculture Land';
+
+  const dcRaw = property.extraDetails?.['DC Conversion Done'];
+  const dcConversion =
+    dcRaw === 'Yes' ? 'Done' : dcRaw === 'No' ? 'Pending' : undefined;
+
+  const rawType =
+    property.plot_subtype === 'Agriculture Land' || property.type === 'Agriculture Land'
+      ? 'Agriculture Land'
+      : property.type;
 
   return {
     monthly_rental: isPlot ? '—' : (property.monthly_rental ?? '—'),
     area_sqft: property.area_sqft,
-    type: property.type.includes('Plot') || property.type === 'Agriculture Land'
+    area_unit: property.area_unit,
+    area_acres: property.area_acres,
+    area_guntas: property.area_guntas,
+    price_per_sqft: property.price_per_sqft,
+    price: property.price,
+    plot_subtype: property.plot_subtype,
+    dimensions: property.dimensions,
+    facing: property.facing,
+    dc_conversion: dcConversion,
+    type: property.type.includes('Plot') ||
+      property.type === 'Agriculture Land' ||
+      property.plot_subtype === 'Agriculture Land'
       ? 'Plot / Agriculture'
       : property.type === 'Residential Rental Income'
         ? 'Residential Rental'
         : property.type === 'Commercial Properties'
           ? 'Commercial'
           : property.type,
-    raw_type: property.type,
+    raw_type: rawType,
     units: property.total_units,
     katha: property.katha,
   };

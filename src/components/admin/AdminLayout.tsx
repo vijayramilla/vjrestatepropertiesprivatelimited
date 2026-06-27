@@ -1,18 +1,21 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
+import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 
 interface AdminLayoutProps {
   children: ReactNode;
   title?: string;
 }
 
-const navItems = [
+const baseNavItems = [
   { icon: House, label: 'Properties', path: '/admin/properties', short: 'List' },
   { icon: Users, label: 'Users', path: '/admin/users', short: 'Users' },
   { icon: ChatCircle, label: 'Enquiries', path: '/admin/enquiries', short: 'Leads' },
+  { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
+  { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
 ];
 
@@ -20,12 +23,19 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const openRequirementsCount = useOpenRequirementsCount();
 
   const isNavActive = (path: string) => {
     if (path === '/admin/properties') {
       return location.pathname === path;
     }
     if (path === '/admin/users') {
+      return location.pathname === path;
+    }
+    if (path === '/admin/requirements') {
+      return location.pathname === path;
+    }
+    if (path === '/admin/requirements/new') {
       return location.pathname === path;
     }
     return location.pathname.startsWith(path);
@@ -64,9 +74,10 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
       </div>
 
       <nav className="mt-4 flex-1 overflow-y-auto px-3 sm:mt-5">
-        {navItems.map((item) => {
+        {baseNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = isNavActive(item.path);
+          const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
           return (
             <button
               key={item.path}
@@ -78,7 +89,14 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
               className={navButtonClass(isActive)}
             >
               <Icon size={18} weight={isActive ? 'regular' : 'thin'} />
-              <span>{item.label}</span>
+              <span className="flex flex-1 items-center justify-between gap-2">
+                {item.label}
+                {showBadge && (
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black">
+                    {openRequirementsCount > 99 ? '99+' : openRequirementsCount}
+                  </span>
+                )}
+              </span>
             </button>
           );
         })}
@@ -178,20 +196,26 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
         </main>
 
         <nav className="admin-mobile-nav" aria-label="Admin navigation">
-          {navItems.map((item) => {
+          {baseNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = isNavActive(item.path);
+            const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
             return (
               <button
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-200 ${
+                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-200 ${
                   isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
               >
                 <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+                {showBadge && (
+                  <span className="absolute right-[18%] top-1 min-w-[16px] rounded-full bg-white px-1 text-[8px] font-bold text-black">
+                    {openRequirementsCount > 9 ? '9+' : openRequirementsCount}
+                  </span>
+                )}
                 <span className="text-[10px] font-semibold uppercase tracking-wide">{item.short}</span>
               </button>
             );

@@ -6,6 +6,8 @@ import {
   getPlotSubtype,
 } from '@/data/properties';
 import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
+import { formatCardPricePerSqft } from '@/lib/formatPrice';
+import { formatArea, formatPlotSizeSqft, formatDimensionsDisplay } from '@/lib/plotLandForm';
 
 const fontUI: CSSProperties = { fontFamily: "'DM Sans', system-ui, sans-serif" };
 
@@ -122,11 +124,8 @@ function buildDetailRows(property: Property): DetailRow[] {
     return [...base, ...(subtypeRows[sub] ?? subtypeRows['Office Space'])];
   }
 
-  if (plotSub === 'Residential Plot') {
+  if (plotSub === 'Residential Plot' || plotSub === 'Commercial Plot') {
     return [
-      { label: getAreaSizeLabel('Residential Plot'), value: property.area_sqft.toLocaleString('en-IN') },
-      { label: 'Dimensions', value: property.dimensions },
-      { label: 'Facing', value: property.facing },
       { label: 'Road Width', value: str(extra, 'Road Width') },
       { label: 'Zone', value: str(extra, 'Zone') },
       { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
@@ -134,29 +133,15 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Water Source', value: str(extra, 'Water Source') },
       { label: 'Soil Type', value: str(extra, 'Soil Type') },
       { label: 'Nearest Landmark', value: str(extra, 'Nearest Landmark') },
-    ];
-  }
-
-  if (plotSub === 'Commercial Plot') {
-    return [
-      { label: getAreaSizeLabel('Commercial Plot'), value: property.area_sqft.toLocaleString('en-IN') },
-      { label: 'Dimensions', value: property.dimensions },
-      { label: 'Facing', value: property.facing },
-      { label: 'Road Width', value: str(extra, 'Road Width') },
-      { label: 'Zone', value: str(extra, 'Zone') },
-      { label: 'FSI / FAR', value: str(extra, 'FSI') },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
-      { label: 'Electricity', value: str(extra, 'Electricity') },
-      { label: 'Road Access', value: str(extra, 'Road Access') },
-      { label: 'Nearest Landmark', value: str(extra, 'Nearest Landmark') },
+      ...(plotSub === 'Commercial Plot'
+        ? [{ label: 'FSI / FAR', value: str(extra, 'FSI') }, { label: 'Road Access', value: str(extra, 'Road Access') }]
+        : []),
     ];
   }
 
   if (plotSub === 'Agriculture Land') {
     return [
-      { label: getAreaSizeLabel('Agriculture Land'), value: `${(property.plotSizeSqFt / 43560).toFixed(2)} acres` },
       { label: 'Survey Number', value: str(extra, 'Survey No.') },
-      { label: 'Facing', value: property.facing },
       { label: 'Road Access', value: str(extra, 'Road Access') },
       { label: 'Water Source', value: str(extra, 'Water Source') },
       { label: 'Soil Type', value: str(extra, 'Soil Type') },
@@ -168,6 +153,12 @@ function buildDetailRows(property: Property): DetailRow[] {
   }
 
   return [];
+}
+
+function formatKathaValue(katha?: string): string {
+  const value = katha?.trim();
+  if (!value || value === 'Not Available') return '—';
+  return value;
 }
 
 function getHeroMetrics(property: Property): DetailRow[] {
@@ -190,18 +181,59 @@ function getHeroMetrics(property: Property): DetailRow[] {
   }
 
   const plotSub = getPlotSubtype(property);
-  if (isPlotProperty(property.type)) {
-    const areaVal =
-      plotSub === 'Agriculture Land'
-        ? `${(property.plotSizeSqFt / 43560).toFixed(2)} acres`
-        : property.area_sqft > 0
-          ? `${property.area_sqft.toLocaleString('en-IN')} sq.ft`
-          : '—';
+  if (isPlotProperty(property.type) || plotSub === 'Agriculture Land') {
+    if (plotSub === 'Agriculture Land') {
+      const extra = property.extraDetails ?? {};
+      const dcValue =
+        extra['DC Conversion Done'] === 'Yes'
+          ? 'Done'
+          : extra['DC Conversion Done'] === 'No'
+            ? 'Pending'
+            : '—';
+      return [
+        {
+          label: 'Land Area',
+          value: formatArea(
+            property.area_unit ?? 'acres',
+            property.area_sqft,
+            property.area_acres,
+            property.area_guntas,
+          ),
+        },
+        { label: 'DC Conversion', value: dcValue },
+        { label: 'Khata Type', value: formatKathaValue(property.katha) },
+        {
+          label: 'Price / sq.ft',
+          value:
+            (property.price_per_sqft ?? 0) > 0
+              ? formatCardPricePerSqft(property.price_per_sqft)
+              : '—',
+        },
+      ];
+    }
+
+    if (property.area_unit === 'acres') {
+      return [
+        {
+          label: 'Plot Area',
+          value: formatArea(
+            'acres',
+            property.area_sqft,
+            property.area_acres,
+            property.area_guntas,
+          ),
+        },
+        { label: 'Dimensions', value: formatDimensionsDisplay(property.dimensions) },
+        { label: 'Facing', value: property.facing?.trim() || '—' },
+        { label: 'Khata Type', value: formatKathaValue(property.katha) },
+      ];
+    }
+
     return [
-      { label: getAreaSizeLabel(plotSub ?? property.type), value: areaVal },
-      { label: 'Facing', value: property.facing || '—' },
-      { label: 'Dimensions', value: property.dimensions || '—' },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
+      { label: 'Plot Size', value: formatPlotSizeSqft({ area_sqft: property.area_sqft }) },
+      { label: 'Dimensions', value: formatDimensionsDisplay(property.dimensions) },
+      { label: 'Facing', value: property.facing?.trim() || '—' },
+      { label: 'Khata Type', value: formatKathaValue(property.katha) },
     ];
   }
 

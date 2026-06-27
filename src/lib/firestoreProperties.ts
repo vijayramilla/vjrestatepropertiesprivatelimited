@@ -16,6 +16,10 @@ export interface FirestorePropertyDoc {
   monthly_rental_label?: string;
   rental_yield?: number | null;
   area_sqft?: number;
+  area_unit?: string;
+  area_acres?: number;
+  area_guntas?: number;
+  price_per_sqft?: number;
   built_up_area_sqft?: number;
   dimensions?: string;
   floor_count?: number;
@@ -79,6 +83,10 @@ export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): L
     location: data.location ?? data.area ?? '',
     area: data.area ?? '',
     area_sqft: data.area_sqft ?? 0,
+    area_unit: data.area_unit,
+    area_acres: data.area_acres,
+    area_guntas: data.area_guntas,
+    price_per_sqft: data.price_per_sqft,
     price: data.price ?? 0,
     price_label: data.price_label ?? formatPrice(data.price),
     monthly_rental: isPlot ? '—' : (data.monthly_rental_label ?? formatRental(data.monthly_rental)),
@@ -101,6 +109,12 @@ export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): L
     commercial_subtype: data.commercial_subtype,
     images: data.images ?? [],
     katha: data.katha ?? '—',
+    dc_conversion:
+      data.extra_details?.['DC Conversion Done'] === 'Yes'
+        ? 'Done'
+        : data.extra_details?.['DC Conversion Done'] === 'No'
+          ? 'Pending'
+          : undefined,
   };
 }
 
@@ -138,6 +152,10 @@ export function mapFirestoreToProperty(id: string, data: FirestorePropertyDoc): 
     plotSizeSqFt: isPlot ? (data.area_sqft ?? 0) : (data.area_sqft ?? 0),
     builtUpAreaSqFt: data.built_up_area_sqft ?? data.area_sqft ?? 0,
     area_sqft: data.area_sqft ?? 0,
+    area_unit: data.area_unit,
+    area_acres: data.area_acres,
+    area_guntas: data.area_guntas,
+    price_per_sqft: data.price_per_sqft,
     floors: data.floor_count ?? 0,
     tenants: data.total_units ?? 0,
     occupancyPercent: data.occupancy_percent ?? 0,

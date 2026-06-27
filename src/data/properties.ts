@@ -13,6 +13,10 @@ export interface Property {
   plotSizeSqFt: number;
   builtUpAreaSqFt: number;
   area_sqft: number;
+  area_unit?: string;
+  area_acres?: number;
+  area_guntas?: number;
+  price_per_sqft?: number;
   floors: number;
   tenants: number;
   occupancyPercent: number;
@@ -248,7 +252,12 @@ export function resolveLocalityName(input: string): string | null {
 }
 
 export const PROPERTY_TYPES = [
-  "PG Building", "Residential Rental Income", "Commercial Properties", "Residential Plot", "Commercial Plot",
+  'PG Buildings',
+  'Residential Rental Income',
+  'Commercial Properties',
+  'Residential Plot',
+  'Commercial Plot',
+  'Agriculture Land',
 ];
 
 /** Live listings come from Firestore — no mock cards. */

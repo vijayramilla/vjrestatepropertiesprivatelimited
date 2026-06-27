@@ -14,12 +14,15 @@ const ShortlistPage = lazy(() => import('./pages/ShortlistPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage'));
+const RequirementsBoardPage = lazy(() => import('./pages/RequirementsBoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
 const AdminPropertyForm = lazy(() => import('./pages/admin/AdminPropertyForm'));
 const AdminLeadsList = lazy(() => import('./pages/admin/AdminLeadsList'));
 const AdminUsersList = lazy(() => import('./pages/admin/AdminUsersList'));
+const AdminRequirementsList = lazy(() => import('./pages/admin/AdminRequirementsList'));
+const AdminPostRequirementPage = lazy(() => import('./pages/admin/AdminPostRequirementPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -40,6 +43,8 @@ function App() {
               <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
               <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
               <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
+              <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
+              <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
               <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
             </Route>
 
@@ -66,6 +71,22 @@ function App() {
               element={
                 <AdminRoute>
                   <LazyPage><AdminUsersList /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/requirements"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminRequirementsList /></LazyPage>
+                </AdminRoute>
+              }
+            />
+            <Route
+              path="/admin/requirements/new"
+              element={
+                <AdminRoute>
+                  <LazyPage><AdminPostRequirementPage /></LazyPage>
                 </AdminRoute>
               }
             />

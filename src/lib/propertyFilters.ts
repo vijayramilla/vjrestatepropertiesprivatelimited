@@ -5,6 +5,7 @@ export const FILTER_RANGE_UNLIMITED = Number.MAX_SAFE_INTEGER;
 
 /** Map public filter labels to Firestore `type` values (admin may use plural variants). */
 export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
+  'PG Buildings': ['PG Building', 'PG Buildings', 'PG'],
   'PG Building': ['PG Building', 'PG Buildings', 'PG'],
   'Residential Rental Income': [
     'Residential Rental Income',
@@ -16,6 +17,18 @@ export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
   'Commercial Plot': ['Commercial Plot'],
   'Agriculture Land': ['Agriculture Land'],
 };
+
+/** Display order for property categories on the listings page. */
+export const PROPERTY_CATEGORIES = [
+  'PG Buildings',
+  'Residential Rental Income',
+  'Commercial Properties',
+  'Residential Plot',
+  'Commercial Plot',
+  'Agriculture Land',
+] as const;
+
+export type PropertyCategory = (typeof PROPERTY_CATEGORIES)[number];
 
 const ALL_TYPE_ALIASES = new Set(
   Object.values(TYPE_FILTER_ALIASES).flat().map((t) => t.toLowerCase()),
@@ -212,7 +225,36 @@ export function isKnownPropertyType(type: string | undefined): boolean {
 }
 
 export function isPgProperty(type: string | undefined): boolean {
-  return propertyMatchesTypeFilter(type, 'PG Building');
+  return (
+    propertyMatchesTypeFilter(type, 'PG Buildings') ||
+    propertyMatchesTypeFilter(type, 'PG Building')
+  );
+}
+
+/** Resolve a listing to one of the six public property categories. */
+export function getPropertyCategory(p: {
+  type?: string | null;
+  plot_subtype?: string | null;
+}): PropertyCategory | string {
+  const type = canonicalPropertyType(String(p.type ?? ''));
+
+  if (type === 'Agriculture Land' || p.plot_subtype === 'Agriculture Land') {
+    return 'Agriculture Land';
+  }
+  if (isPgProperty(type)) return 'PG Buildings';
+  if (type === 'Residential Rental Income') return 'Residential Rental Income';
+  if (type === 'Commercial Properties') return 'Commercial Properties';
+  if (type === 'Residential Plot') return 'Residential Plot';
+  if (type === 'Commercial Plot') return 'Commercial Plot';
+
+  return type;
+}
+
+export function propertyMatchesCategoryFilter(
+  property: { type?: string | null; plot_subtype?: string | null },
+  filterCategory: string,
+): boolean {
+  return getPropertyCategory(property) === filterCategory;
 }
 
 export function isLandOrPlotProperty(p: {
@@ -357,30 +399,20 @@ export function filterProperties<T extends PropertyFilterInput>(
 
   if (types.length > 0) {
     result = result.filter((p) =>
-      types.some((t) => propertyMatchesTypeFilter(p.type ?? undefined, t)),
+      types.some((t) => propertyMatchesCategoryFilter(p, t)),
     );
   }
 
-  if (types.includes('Residential Plot') || types.includes('Commercial Plot')) {
-    if (plotSubtype === 'Residential Plot') {
-      result = result.filter((p) => p.type === 'Residential Plot');
-    } else if (plotSubtype === 'Commercial Plot') {
-      result = result.filter((p) => p.type === 'Commercial Plot');
-    }
+  if (plotSubtype === 'Agriculture Land') {
+    result = result.filter((p) => getPropertyCategory(p) === 'Agriculture Land');
+  } else if (plotSubtype === 'Residential Plot') {
+    result = result.filter((p) => getPropertyCategory(p) === 'Residential Plot');
+  } else if (plotSubtype === 'Commercial Plot') {
+    result = result.filter((p) => getPropertyCategory(p) === 'Commercial Plot');
   }
 
   if (localities.length > 0) {
     result = result.filter((p) => propertyMatchesAnyLocality(p, localities));
-  }
-
-  if (plotSubtype === 'Agriculture Land') {
-    const plotTypesActive =
-      types.includes('Residential Plot') ||
-      types.includes('Commercial Plot') ||
-      types.some((t) => t.includes('Agriculture'));
-    if (plotTypesActive) {
-      result = result.filter((p) => p.plot_subtype === 'Agriculture Land');
-    }
   }
 
   result = result.filter((p) => propertyMatchesPriceRange(p, priceRange));
