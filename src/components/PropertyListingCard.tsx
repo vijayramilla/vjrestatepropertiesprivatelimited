@@ -15,6 +15,7 @@ import PlotLandCardStats from './PlotLandCardStats';
 import { formatINRCompact, formatCardPricePerSqft } from '@/lib/formatPrice';
 import { shareProperty } from '@/utils/shareProperty';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
+import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
@@ -46,11 +47,15 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared' | 'whatsapp' | 'failed'>('idle');
   const [waLoading, setWaLoading] = useState(false);
+  const [contactOpen, setContactOpen] = useState(false);
 
-  const handleWhatsApp = async (e: React.MouseEvent) => {
+  const handleWhatsApp = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (waLoading) return;
+    setContactOpen(true);
+  };
+
+  const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
     setWaLoading(true);
     try {
       await openWhatsAppPropertyEnquiry(
@@ -62,8 +67,9 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
           price_label: property.price_label,
           monthly_rental_label: property.monthly_rental,
         },
-        { source: 'card', leadType: 'whatsapp' },
+        { source: 'card', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
       );
+      setContactOpen(false);
     } finally {
       setWaLoading(false);
     }
@@ -281,6 +287,14 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
           )}
         </AnimatePresence>
       </div>
+
+      <PropertyEnquiryContactModal
+        open={contactOpen}
+        title="WhatsApp Enquiry"
+        subtitle={`Share your details for ${saleTitle}`}
+        onClose={() => setContactOpen(false)}
+        onSubmit={submitWhatsAppEnquiry}
+      />
     </motion.article>
   );
 }

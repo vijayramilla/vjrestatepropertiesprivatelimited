@@ -25,6 +25,8 @@ export interface PropertyLeadInput {
   leadType: LeadType;
   visitDate?: string;
   visitTime?: string;
+  buyerName?: string;
+  buyerPhone?: string;
   message: string;
   source: LeadSource;
 }
@@ -69,6 +71,8 @@ export function subscribePropertyLeads(
           leadType: data.leadType ?? 'whatsapp',
           visitDate: data.visitDate,
           visitTime: data.visitTime,
+          buyerName: data.buyerName,
+          buyerPhone: data.buyerPhone,
           message: data.message ?? '',
           source: data.source ?? 'card',
           status: data.status ?? 'new',

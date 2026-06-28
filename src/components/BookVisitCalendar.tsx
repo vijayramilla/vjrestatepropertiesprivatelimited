@@ -33,10 +33,23 @@ export default function BookVisitCalendar({
 }: BookVisitCalendarProps) {
   const [date, setDate] = useState<Date | undefined>();
   const [timeSlot, setTimeSlot] = useState<string>('');
+  const [buyerName, setBuyerName] = useState('');
+  const [buyerPhone, setBuyerPhone] = useState('');
+  const [contactError, setContactError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const handleConfirm = async () => {
     if (!date || !timeSlot) return;
+    if (!buyerName.trim()) {
+      setContactError('Please enter your name');
+      return;
+    }
+    const digits = buyerPhone.replace(/\D/g, '');
+    if (digits.length !== 10) {
+      setContactError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+    setContactError('');
     setSubmitting(true);
     try {
       const visitDate = format(date, 'PPP');
@@ -49,7 +62,14 @@ export default function BookVisitCalendar({
           price_label: property.price_label,
           monthly_rental_label: property.monthly_rental_label,
         },
-        { visitDate, visitTime: timeSlot, source, leadType: 'book_visit' },
+        {
+          visitDate,
+          visitTime: timeSlot,
+          source,
+          leadType: 'book_visit',
+          buyerName: buyerName.trim(),
+          buyerPhone: digits,
+        },
       );
       onClose();
     } finally {
@@ -114,11 +134,46 @@ export default function BookVisitCalendar({
         </div>
       </div>
 
+      <div className="border-t border-[#f0f0f0] px-4 pt-4 pb-2">
+        <p className="mb-3 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#888]">
+          Your contact details
+        </p>
+        <div className="space-y-3">
+          <div>
+            <label className="mb-1 block font-sans text-[10px] font-medium uppercase tracking-[0.1em] text-[#888]">
+              Full Name *
+            </label>
+            <input
+              type="text"
+              value={buyerName}
+              onChange={(e) => setBuyerName(e.target.value)}
+              className="h-10 w-full border border-[#e8e8e8] px-3 font-sans text-[13px] focus:border-black focus:outline-none"
+              placeholder="Your name"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block font-sans text-[10px] font-medium uppercase tracking-[0.1em] text-[#888]">
+              Mobile Number *
+            </label>
+            <input
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              value={buyerPhone}
+              onChange={(e) => setBuyerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+              className="h-10 w-full border border-[#e8e8e8] px-3 font-sans text-[13px] focus:border-black focus:outline-none"
+              placeholder="10-digit number"
+            />
+          </div>
+        </div>
+        {contactError && <p className="mt-2 font-sans text-[11px] text-red-600">{contactError}</p>}
+      </div>
+
       <div className="flex flex-col gap-2 px-4 pb-4 pt-3">
         <Button
           type="button"
           onClick={handleConfirm}
-          disabled={!date || !timeSlot || submitting}
+          disabled={!date || !timeSlot || !buyerName.trim() || buyerPhone.length < 10 || submitting}
           className="h-[46px] w-full rounded-lg bg-black text-[12px] uppercase tracking-[0.1em] text-white hover:bg-[#222]"
         >
           {submitting ? 'Confirming...' : 'Confirm & Continue on WhatsApp'}

@@ -11,6 +11,7 @@ import { shareProperty } from '@/utils/shareProperty';
 import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
+import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
 import PropertyDetailsPanel from '../components/PropertyDetailsPanel';
 import PropertyKeyStats from '../components/PropertyKeyStats';
 import PlotLandCardStats from '../components/PlotLandCardStats';
@@ -141,6 +142,7 @@ export default function PropertyDetailPage() {
   const [showBooking, setShowBooking] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
   const [waLoading, setWaLoading] = useState(false);
+  const [waContactOpen, setWaContactOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -253,8 +255,13 @@ export default function PropertyDetailPage() {
     }
   };
 
-  const handleWhatsApp = async () => {
+  const handleWhatsApp = () => {
     if (waLoading) return;
+    setWaContactOpen(true);
+  };
+
+  const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
+    if (!property) return;
     setWaLoading(true);
     try {
       await openWhatsAppPropertyEnquiry(
@@ -266,8 +273,9 @@ export default function PropertyDetailPage() {
           price_label: formatPrice(property.price),
           monthly_rental_label: property.monthly_rental ?? undefined,
         },
-        { source: 'detail', leadType: 'whatsapp' },
+        { source: 'detail', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
       );
+      setWaContactOpen(false);
     } finally {
       setWaLoading(false);
     }
@@ -744,6 +752,14 @@ export default function PropertyDetailPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PropertyEnquiryContactModal
+        open={waContactOpen}
+        title="WhatsApp Enquiry"
+        subtitle={`Share your details for ${property.title}`}
+        onClose={() => setWaContactOpen(false)}
+        onSubmit={submitWhatsAppEnquiry}
+      />
     </motion.div>
   );
 }

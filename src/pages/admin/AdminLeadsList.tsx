@@ -138,6 +138,13 @@ export default function AdminLeadsList() {
                         {lead.visitTime ? ` · ${lead.visitTime}` : ''}
                       </p>
                     )}
+                    {(lead.buyerName || lead.buyerPhone) && (
+                      <p className="mt-2 text-xs text-gray-600">
+                        {lead.buyerName}
+                        {lead.buyerName && lead.buyerPhone ? ' · ' : ''}
+                        {lead.buyerPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 border-t border-gray-50 pt-3">

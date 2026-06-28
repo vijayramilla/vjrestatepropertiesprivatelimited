@@ -11,18 +11,30 @@ export type WhatsAppPropertyInput = {
 export type WhatsAppEnquiryOptions = {
   visitDate?: string;
   visitTime?: string;
+  buyerName?: string;
+  buyerPhone?: string;
   source?: string;
   leadType?: string;
 };
 
 export function buildWhatsAppMessage(
   property: WhatsAppPropertyInput,
-  extra?: { visitDate?: string; visitTime?: string },
+  extra?: {
+    visitDate?: string;
+    visitTime?: string;
+    buyerName?: string;
+    buyerPhone?: string;
+  },
 ): string;
 
 export function getWhatsAppPropertyUrl(
   property: WhatsAppPropertyInput,
-  extra?: { visitDate?: string; visitTime?: string },
+  extra?: {
+    visitDate?: string;
+    visitTime?: string;
+    buyerName?: string;
+    buyerPhone?: string;
+  },
 ): string;
 
 export function openWhatsAppPropertyEnquiry(

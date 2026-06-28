@@ -1,10 +1,25 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import PropertyCard from '../PropertyCard';
+import HomePropertyCard from './HomePropertyCard';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 
 type HomeListingDoc = FirestorePropertyDoc & { id: string };
+
+const DM_SANS = "'DM Sans', system-ui, sans-serif";
+
+function SkeletonCard() {
+  return (
+    <div className="border border-black/10 bg-white animate-pulse">
+      <div className="aspect-[4/5] bg-[#f0f0f0] sm:aspect-[5/6]" />
+      <div className="space-y-3 p-5">
+        <div className="h-3 w-1/3 bg-[#f0f0f0]" />
+        <div className="h-8 w-2/3 bg-[#f0f0f0]" />
+        <div className="h-10 w-full bg-[#f0f0f0]" />
+      </div>
+    </div>
+  );
+}
 
 export default function HomeListingsSection() {
   const [latestProperties, setLatestProperties] = useState<HomeListingDoc[]>([]);
@@ -16,11 +31,11 @@ export default function HomeListingsSection() {
         const featured = docs
           .filter(({ data }) => data.featured === true)
           .slice(0, 3)
-          .map(({ id, data }) => ({ id, ...data } as HomeListingDoc));
+          .map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
 
         const fallback = docs
           .slice(0, 3)
-          .map(({ id, data }) => ({ id, ...data } as HomeListingDoc));
+          .map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
 
         setLatestProperties(featured.length > 0 ? featured : fallback);
         setLoading(false);
@@ -36,28 +51,22 @@ export default function HomeListingsSection() {
 
   if (loading) {
     return (
-      <section className="border-b border-[#ebebeb] bg-gray-50 py-8 pb-6">
+      <section className="border-b border-[#ebebeb] bg-white py-12 md:py-16">
         <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <div className="flex flex-col gap-2 max-sm:gap-2 sm:flex-row sm:items-end sm:justify-between mb-6">
+          <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="font-sans text-[10px] sm:text-[11px] font-medium text-[#888] uppercase tracking-[0.18em]">
+              <p
+                className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#888]"
+                style={{ fontFamily: DM_SANS }}
+              >
                 New Listings
               </p>
-              <h2 className="font-serif text-[26px] sm:text-[28px] text-black font-normal tracking-[0.01em] mt-1">
-                Latest Properties
-              </h2>
+              <h2 className="font-display mt-2 text-[28px] text-black md:text-[32px]">Latest Properties</h2>
             </div>
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="rounded-xl border border-[#ebebeb] overflow-hidden animate-pulse">
-                <div className="aspect-square bg-[#f0f0f0]" />
-                <div className="p-4 space-y-3">
-                  <div className="h-4 bg-[#f0f0f0] rounded w-3/4" />
-                  <div className="h-3 bg-[#f0f0f0] rounded w-1/2" />
-                  <div className="h-6 bg-[#f0f0f0] rounded w-1/3" />
-                </div>
-              </div>
+              <SkeletonCard key={i} />
             ))}
           </div>
         </div>
@@ -70,27 +79,36 @@ export default function HomeListingsSection() {
   }
 
   return (
-    <section className="border-b border-[#ebebeb] bg-gray-50 py-8 pb-6">
+    <section className="border-b border-[#ebebeb] bg-white py-12 md:py-16">
       <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-        <div className="flex flex-col gap-2 max-sm:gap-2 sm:flex-row sm:items-end sm:justify-between mb-6">
+        <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="font-sans text-[10px] sm:text-[11px] font-medium text-[#888] uppercase tracking-[0.18em]">
+            <p
+              className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#888]"
+              style={{ fontFamily: DM_SANS }}
+            >
               New Listings
             </p>
-            <h2 className="font-serif text-[26px] sm:text-[28px] text-black font-normal tracking-[0.01em] mt-1">
-              Latest Properties
-            </h2>
+            <h2 className="font-display mt-2 text-[28px] text-black md:text-[32px]">Latest Properties</h2>
+            <p
+              className="mt-2 max-w-md text-sm leading-relaxed text-[#666]"
+              style={{ fontFamily: DM_SANS }}
+            >
+              Handpicked investment opportunities across Bangalore — rental income, commercial assets, and
+              premium plots.
+            </p>
           </div>
           <Link
             to="/properties"
-            className="font-sans text-xs sm:text-[13px] font-normal text-[#888] hover:text-black transition-colors self-start sm:self-auto"
+            className="inline-flex items-center gap-1 self-start border-b border-black pb-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-black transition hover:text-[#666] sm:self-auto"
+            style={{ fontFamily: DM_SANS }}
           >
-            View all →
+            View all properties
           </Link>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 sm:gap-5">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 lg:gap-8">
           {latestProperties.map((property, index) => (
-            <PropertyCard key={property.id} property={property} index={index} />
+            <HomePropertyCard key={property.id} property={property} index={index} />
           ))}
         </div>
       </div>

@@ -6,15 +6,23 @@ import { siteContact } from '@/data/siteContact';
 const WA_NUMBER = siteContact.phoneTel.replace('+', '');
 
 export function buildWhatsAppMessage(property, extra = {}) {
-  const { visitDate, visitTime } = extra;
+  const { visitDate, visitTime, buyerName, buyerPhone } = extra;
   const url = getPropertyShareUrl(property.id);
   const monthlyLabel = property.monthly_rental_label ?? property.monthly_rental;
   const lines = [
     "Hi VJR Estate, I'm interested in this property:",
+  ];
+  if (buyerName) {
+    lines.push(`Name: ${buyerName}`);
+  }
+  if (buyerPhone) {
+    lines.push(`Phone: ${buyerPhone}`);
+  }
+  lines.push(
     property.title,
     `${property.type ?? ''} · ${property.area}, Bangalore`.trim(),
     `Price: ${property.price_label}`,
-  ];
+  );
   if (monthlyLabel && monthlyLabel !== '—') {
     lines.push(`Monthly Income: ${monthlyLabel}`);
   }
@@ -40,11 +48,13 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
   const {
     visitDate,
     visitTime,
+    buyerName,
+    buyerPhone,
     source = 'card',
     leadType = visitDate ? 'book_visit' : 'whatsapp',
   } = options;
 
-  const message = buildWhatsAppMessage(property, { visitDate, visitTime });
+  const message = buildWhatsAppMessage(property, { visitDate, visitTime, buyerName, buyerPhone });
   const propertyUrl = getPropertyShareUrl(property.id);
 
   try {
@@ -60,6 +70,8 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
       leadType,
       visitDate,
       visitTime,
+      buyerName,
+      buyerPhone,
       message,
       source,
     });
@@ -67,6 +79,6 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
     console.error('Failed to save property lead:', err);
   }
 
-  const url = getWhatsAppPropertyUrl(property, { visitDate, visitTime });
+  const url = getWhatsAppPropertyUrl(property, { visitDate, visitTime, buyerName, buyerPhone });
   window.open(url, '_blank', 'noopener,noreferrer');
 }
