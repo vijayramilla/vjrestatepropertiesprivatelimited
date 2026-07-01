@@ -25,7 +25,6 @@ export default function AdminLogin() {
         setError('You do not have admin access.');
         return;
       }
-      localStorage.setItem('userEmail', userCredential.user.email || '');
       navigate('/admin/properties');
     } catch (err) {
       setError('Invalid credentials. Try again.');

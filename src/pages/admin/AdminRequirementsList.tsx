@@ -14,7 +14,7 @@ import {
   AdminToolbar,
 } from '@/components/admin/AdminUi';
 import {
-  subscribeRequirements,
+  subscribeAdminRequirements,
   updateRequirement,
   deleteRequirement,
   formatBudgetRange,

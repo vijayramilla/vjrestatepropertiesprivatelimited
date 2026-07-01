@@ -1,6 +1,6 @@
 import {
-  addDoc,
   collection,
+  deleteDoc,
   doc,
   getCountFromServer,
   increment,
@@ -8,9 +8,10 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
-  deleteDoc,
   where,
+  writeBatch,
   type Unsubscribe,
   type Timestamp,
 } from 'firebase/firestore';
@@ -58,6 +59,41 @@ export type PublicRequirement = Omit<
 >;
 
 const PRIVATE_KEYS = ['paymentMode', 'buyerName', 'buyerPhone'] as const;
+const REQUIREMENT_PRIVATE_COLLECTION = 'requirement_private';
+
+export interface RequirementPrivateDoc {
+  paymentMode: PaymentMode;
+  buyerName: string;
+  buyerPhone: string;
+}
+
+function splitRequirementUpdate(data: Partial<RequirementDoc>) {
+  const publicFields: Record<string, unknown> = {};
+  const privateFields: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (key === 'id' || key === 'reqId') continue;
+    if (PRIVATE_KEYS.includes(key as (typeof PRIVATE_KEYS)[number])) {
+      privateFields[key] = value;
+    } else {
+      publicFields[key] = value;
+    }
+  }
+
+  return { publicFields, privateFields };
+}
+
+function emptyPrivateFields(): RequirementPrivateDoc {
+  return { paymentMode: 'Other', buyerName: '', buyerPhone: '' };
+}
+
+function readPrivateFromLegacy(data: Record<string, unknown>): RequirementPrivateDoc {
+  return {
+    paymentMode: (data.paymentMode as PaymentMode) ?? 'Other',
+    buyerName: String(data.buyerName ?? ''),
+    buyerPhone: String(data.buyerPhone ?? ''),
+  };
+}
 
 export function toPublicRequirement(
   id: string,
@@ -87,15 +123,27 @@ export async function generateReqId(): Promise<string> {
 export async function createRequirement(
   input: Omit<RequirementDoc, 'reqId' | 'status' | 'clickCount' | 'postedAt'>,
 ): Promise<{ id: string; reqId: string }> {
+  const { paymentMode, buyerName, buyerPhone, ...publicInput } = input;
   const reqId = await generateReqId();
-  const ref = await addDoc(collection(db, 'requirements'), {
-    ...input,
+  const batch = writeBatch(db);
+  const requirementRef = doc(collection(db, 'requirements'));
+
+  batch.set(requirementRef, {
+    ...publicInput,
     reqId,
     status: 'open',
     clickCount: 0,
     postedAt: serverTimestamp(),
   });
-  return { id: ref.id, reqId };
+
+  batch.set(doc(db, REQUIREMENT_PRIVATE_COLLECTION, requirementRef.id), {
+    paymentMode,
+    buyerName,
+    buyerPhone,
+  });
+
+  await batch.commit();
+  return { id: requirementRef.id, reqId };
 }
 
 export async function incrementRequirementClickCount(requirementId: string): Promise<void> {
@@ -162,10 +210,14 @@ export function subscribeRequirements(
   return onSnapshot(
     q,
     (snap) => {
-      const items = snap.docs.map((d) => ({
-        id: d.id,
-        ...(d.data() as Omit<RequirementDoc, 'id'>),
-      }));
+      const items = snap.docs.map((d) => {
+        const stripped = stripPrivateRequirementFields(d.data() as Record<string, unknown>);
+        return {
+          id: d.id,
+          ...stripped,
+          ...emptyPrivateFields(),
+        } as RequirementDoc;
+      });
       onData(items);
     },
     (err) => {
@@ -173,6 +225,66 @@ export function subscribeRequirements(
       onError?.(err as Error);
     },
   );
+}
+
+/** Admin-only: merges public requirements with private buyer contact fields */
+export function subscribeAdminRequirements(
+  onData: (items: RequirementDoc[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  let publicItems: RequirementDoc[] = [];
+  let privateById = new Map<string, RequirementPrivateDoc>();
+
+  const emit = () => {
+    onData(
+      publicItems.map((item) => {
+        const privateDoc = privateById.get(item.id!);
+        const legacyPrivate = readPrivateFromLegacy(item as unknown as Record<string, unknown>);
+        const hasLegacy =
+          legacyPrivate.buyerName.length > 0 || legacyPrivate.buyerPhone.length > 0;
+
+        return {
+          ...stripPrivateRequirementFields(item as unknown as Record<string, unknown>),
+          ...(privateDoc ?? (hasLegacy ? legacyPrivate : emptyPrivateFields())),
+          id: item.id,
+        } as RequirementDoc;
+      }),
+    );
+  };
+
+  const unsubPublic = onSnapshot(
+    query(collection(db, 'requirements'), orderBy('postedAt', 'desc')),
+    (snap) => {
+      publicItems = snap.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as Omit<RequirementDoc, 'id'>),
+      }));
+      emit();
+    },
+    (err) => {
+      console.error('requirements listener error:', err);
+      onError?.(err as Error);
+    },
+  );
+
+  const unsubPrivate = onSnapshot(
+    collection(db, REQUIREMENT_PRIVATE_COLLECTION),
+    (snap) => {
+      privateById = new Map(
+        snap.docs.map((d) => [d.id, d.data() as RequirementPrivateDoc]),
+      );
+      emit();
+    },
+    (err) => {
+      console.error('requirement_private listener error:', err);
+      onError?.(err as Error);
+    },
+  );
+
+  return () => {
+    unsubPublic();
+    unsubPrivate();
+  };
 }
 
 export function subscribeOpenRequirementsCount(
@@ -190,12 +302,24 @@ export async function updateRequirement(
   id: string,
   data: Partial<RequirementDoc>,
 ): Promise<void> {
-  const { id: _id, reqId: _req, ...rest } = data;
-  await updateDoc(doc(db, 'requirements', id), rest);
+  const { publicFields, privateFields } = splitRequirementUpdate(data);
+
+  if (Object.keys(publicFields).length > 0) {
+    await updateDoc(doc(db, 'requirements', id), publicFields);
+  }
+
+  if (Object.keys(privateFields).length > 0) {
+    await setDoc(doc(db, REQUIREMENT_PRIVATE_COLLECTION, id), privateFields, {
+      merge: true,
+    });
+  }
 }
 
 export async function deleteRequirement(id: string): Promise<void> {
-  await deleteDoc(doc(db, 'requirements', id));
+  const batch = writeBatch(db);
+  batch.delete(doc(db, 'requirements', id));
+  batch.delete(doc(db, REQUIREMENT_PRIVATE_COLLECTION, id));
+  await batch.commit();
 }
 
 export function formatRequirementPostedAt(
