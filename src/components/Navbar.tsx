@@ -9,6 +9,7 @@ import {
   Phone,
   SignOut,
   SquaresFour,
+  GlobeHemisphereWest,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +21,7 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
+  { label: 'Land Map', path: '/map', Icon: GlobeHemisphereWest },
   { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
   { label: 'Contact Us', path: '/contact', Icon: Phone },
 ];
@@ -153,9 +155,19 @@ export default function Navbar() {
         }}
       >
         <div className="w-full h-full flex items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <Link to="/" className="flex-shrink-0 cursor-pointer">
+          <Link to="/" className="flex shrink-0 cursor-pointer items-center gap-2 sm:gap-2.5">
+            <img
+              src="/favicon.png"
+              alt=""
+              width={32}
+              height={32}
+              className={`h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8 ${
+                isTransparent ? 'brightness-0 invert' : ''
+              }`}
+              decoding="async"
+            />
             <span
-              className="font-serif text-xl md:text-2xl font-normal tracking-[-0.01em]"
+              className="font-serif text-xl font-normal tracking-[-0.01em] md:text-2xl"
               style={{ color: logoColor }}
             >
               VJR Estate
@@ -165,21 +177,29 @@ export default function Navbar() {
           <div className="hidden md:flex flex-1 items-center justify-center gap-8">
             {[
               { label: 'Properties', path: '/properties' },
+              { label: 'Land Map', path: '/map', icon: true },
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
-            ].map(({ label, path }) => (
+            ].map(({ label, path, icon }) => (
               <Link
                 key={path}
                 to={path}
-                className="text-[11px] font-medium uppercase tracking-[0.14em] transition-opacity hover:opacity-100"
+                className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] transition-opacity hover:opacity-100"
                 style={{
                   fontFamily: DM_SANS,
-                  color: location.pathname === path || (path === '/properties' && location.pathname.startsWith('/properties'))
-                    ? iconColor
-                    : labelColor,
-                  opacity: location.pathname === path || (path === '/properties' && location.pathname.startsWith('/properties')) ? 1 : 0.85,
+                  color:
+                    location.pathname === path ||
+                    (path === '/properties' && location.pathname.startsWith('/properties'))
+                      ? iconColor
+                      : labelColor,
+                  opacity:
+                    location.pathname === path ||
+                    (path === '/properties' && location.pathname.startsWith('/properties'))
+                      ? 1
+                      : 0.85,
                 }}
               >
+                {icon && <GlobeHemisphereWest size={14} weight="regular" />}
                 {label}
               </Link>
             ))}

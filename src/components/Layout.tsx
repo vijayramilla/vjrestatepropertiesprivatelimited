@@ -8,6 +8,7 @@ export default function Layout() {
   const location = useLocation();
 
   const isPropertyDetail = /^\/properties\/[^/]+$/.test(location.pathname);
+  const isMapPage = location.pathname === '/map';
 
   useEffect(() => {
     if (!isPropertyDetail) setDefaultSiteMeta();
@@ -20,10 +21,10 @@ export default function Layout() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <Navbar />
-      <main className="flex-1 w-full">
+      <main className={`flex-1 w-full ${isMapPage ? 'overflow-hidden' : ''}`}>
         <Outlet />
       </main>
-      <div className={isPropertyDetail ? 'hidden lg:block' : undefined}>
+      <div className={isMapPage ? 'hidden' : isPropertyDetail ? 'hidden lg:block' : undefined}>
         <Footer />
       </div>
     </div>

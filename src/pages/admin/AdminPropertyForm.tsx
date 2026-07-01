@@ -31,6 +31,8 @@ import {
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
 import { BANGALORE_AREAS } from '@/data/properties';
+import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
+import type { LandLocationValue } from '@/lib/mapGeocoding';
 import {
   canonicalPropertyType,
   extractLocalityFromText,
@@ -77,10 +79,13 @@ interface FormData {
   water_source?: string;
   dc_conversion_done?: boolean;
   extra_details?: Record<string, string | number>;
+  map_lat?: number;
+  map_lng?: number;
+  maps_link?: string;
 }
 
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
-const PLOT_TYPES = ['Residential Plot', 'Commercial Plot'];
+const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot'];
 
 const WATER_SOURCE_OPTIONS = [
   'Borewell',
@@ -98,6 +103,7 @@ const PROPERTY_TYPES = [
   'Residential Plot',
   'Commercial Plot',
   'Agriculture Land',
+  'PG Plot',
 ];
 
 const COMMERCIAL_SUBTYPES = [
@@ -112,7 +118,7 @@ const COMMERCIAL_SUBTYPES = [
   'Flex Space',
 ];
 
-const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land'];
+const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land', 'PG Plot'];
 
 const AREAS = [...BANGALORE_AREAS];
 
@@ -218,6 +224,9 @@ export default function AdminPropertyForm() {
     survey_number: '',
     water_source: '',
     dc_conversion_done: false,
+    map_lat: 0,
+    map_lng: 0,
+    maps_link: '',
   });
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
 
@@ -267,6 +276,9 @@ export default function AdminPropertyForm() {
               water_source: String(extra['Water Source'] ?? ''),
               dc_conversion_done: extra['DC Conversion Done'] === 'Yes',
               extra_details: data.extra_details ?? {},
+              map_lat: Number((data as { map_lat?: number }).map_lat) || 0,
+              map_lng: Number((data as { map_lng?: number }).map_lng) || 0,
+              maps_link: String((data as { maps_link?: string }).maps_link ?? ''),
             });
             setImageUrls(data.images ?? []);
           }
@@ -324,13 +336,24 @@ export default function AdminPropertyForm() {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const plotOrLand = PLOT_LAND_TYPES.includes(
+      formData.type as (typeof PLOT_LAND_TYPES)[number],
+    );
 
     if (!formData.title.trim()) newErrors.title = 'Title is required';
     const resolvedArea =
       formData.area.trim() ||
       extractLocalityFromText(formData.location) ||
       extractLocalityFromText(formData.title);
-    if (!resolvedArea) newErrors.area = 'Area is required';
+    if (!resolvedArea) {
+      newErrors.area = 'Area is required';
+    } else if (
+      plotOrLand &&
+      (!formData.map_lat || !formData.map_lng)
+    ) {
+      newErrors.area =
+        'Select area via Google Search or paste a Maps link to set the pin';
+    }
     if (!formData.price) newErrors.price = 'Price is required';
 
     setErrors(newErrors);
@@ -418,6 +441,15 @@ export default function AdminPropertyForm() {
               area_acres: land_acres ?? 0,
               area_guntas: land_guntas ?? 0,
               price_per_sqft: price_per_sqft ?? 0,
+              ...(formData.map_lat && formData.map_lng
+                ? {
+                    map_lat: formData.map_lat,
+                    map_lng: formData.map_lng,
+                    ...(formData.maps_link?.trim()
+                      ? { maps_link: formData.maps_link.trim() }
+                      : {}),
+                  }
+                : {}),
             }
           : {}),
         images: imageUrls,
@@ -821,20 +853,64 @@ export default function AdminPropertyForm() {
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Area / Locality *
                 </label>
-                <select
-                  value={formData.area}
-                  onChange={(e) => updateFormData('area', e.target.value)}
-                  className="admin-select"
-                >
-                  <option value="">Select area...</option>
-                  {AREAS.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-                {errors.area && (
-                  <p className="mt-2 text-xs text-gray-500">{errors.area}</p>
+                {isPlotOrLand ? (
+                  <LandMapLocationPicker
+                    value={
+                      formData.area
+                        ? {
+                            area: formData.area,
+                            location: formData.location,
+                            map_lat: formData.map_lat ?? 0,
+                            map_lng: formData.map_lng ?? 0,
+                            maps_link: formData.maps_link,
+                          }
+                        : null
+                    }
+                    onChange={(next: LandLocationValue | null) => {
+                      if (!next) {
+                        updateFormData('area', '');
+                        updateFormData('location', '');
+                        updateFormData('map_lat', 0);
+                        updateFormData('map_lng', 0);
+                        updateFormData('maps_link', '');
+                        return;
+                      }
+                      setFormData((prev) => ({
+                        ...prev,
+                        area: next.area,
+                        location: next.location,
+                        map_lat: next.map_lat,
+                        map_lng: next.map_lng,
+                        maps_link: next.maps_link ?? '',
+                      }));
+                      if (errors.area) {
+                        setErrors((prev) => {
+                          const nextErrors = { ...prev };
+                          delete nextErrors.area;
+                          return nextErrors;
+                        });
+                      }
+                    }}
+                    error={errors.area}
+                  />
+                ) : (
+                  <>
+                    <select
+                      value={formData.area}
+                      onChange={(e) => updateFormData('area', e.target.value)}
+                      className="admin-select"
+                    >
+                      <option value="">Select area...</option>
+                      {AREAS.map((a) => (
+                        <option key={a} value={a}>
+                          {a}
+                        </option>
+                      ))}
+                    </select>
+                    {errors.area && (
+                      <p className="mt-2 text-xs text-red-600">{errors.area}</p>
+                    )}
+                  </>
                 )}
               </div>
 

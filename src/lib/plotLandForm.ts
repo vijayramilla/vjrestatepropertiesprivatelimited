@@ -1,7 +1,12 @@
 export const GUNTA_SQFT = 43560 / 40;
 export const SQFT_PER_ACRE = 43560;
 
-export const PLOT_LAND_TYPES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land'] as const;
+export const PLOT_LAND_TYPES = [
+  'Residential Plot',
+  'Commercial Plot',
+  'Agriculture Land',
+  'PG Plot',
+] as const;
 
 export type AreaUnit = 'sqft' | 'acres';
 

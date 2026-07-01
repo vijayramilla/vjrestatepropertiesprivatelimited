@@ -157,11 +157,11 @@ export function propertyToStatsView(property: {
     area_unit: property.area_unit,
     area_acres: property.area_acres,
     area_guntas: property.area_guntas,
-    price_per_sqft: property.price_per_sqft,
-    price: property.price,
+    price_per_sqft: property.price_per_sqft ?? 0,
+    price: property.price ?? 0,
     plot_subtype: property.plot_subtype,
-    dimensions: property.dimensions,
-    facing: property.facing,
+    dimensions: property.dimensions ?? '—',
+    facing: property.facing ?? '—',
     dc_conversion: dcConversion,
     type: property.type.includes('Plot') ||
       property.type === 'Agriculture Land' ||

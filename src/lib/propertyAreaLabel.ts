@@ -56,6 +56,7 @@ export function isPlotOrLandPropertyType(propertyType: string): boolean {
   return (
     t === 'Residential Plot' ||
     t === 'Commercial Plot' ||
+    t === 'PG Plot' ||
     t === 'Agriculture Land' ||
     t.includes('Plot') ||
     t.includes('Agriculture') ||
