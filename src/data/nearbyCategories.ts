@@ -1,0 +1,58 @@
+export const NEARBY_CATEGORIES = [
+  {
+    type: 'subway_station',
+    label: 'Metro',
+    color: '#3B82F6',
+    icon: '🚇',
+    emoji: '🚇',
+  },
+  {
+    type: 'school',
+    label: 'School',
+    color: '#10B981',
+    icon: '🏫',
+    emoji: '🏫',
+  },
+  {
+    type: 'hospital',
+    label: 'Hospital',
+    color: '#EF4444',
+    icon: '🏥',
+    emoji: '🏥',
+  },
+  {
+    type: 'shopping_mall',
+    label: 'Mall',
+    color: '#F59E0B',
+    icon: '🛍️',
+    emoji: '🛍️',
+  },
+  {
+    type: 'bank',
+    label: 'Bank',
+    color: '#6366F1',
+    icon: '🏦',
+    emoji: '🏦',
+  },
+  {
+    type: 'restaurant',
+    label: 'Restaurant',
+    color: '#F97316',
+    icon: '🍽️',
+    emoji: '🍽️',
+  },
+  {
+    type: 'park',
+    label: 'Park',
+    color: '#22C55E',
+    icon: '🌳',
+    emoji: '🌳',
+  },
+  {
+    type: 'bus_station',
+    label: 'Bus Stop',
+    color: '#8B5CF6',
+    icon: '🚌',
+    emoji: '🚌',
+  },
+];

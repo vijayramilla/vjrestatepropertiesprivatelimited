@@ -19,6 +19,7 @@ const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage')
 const RequirementsBoardPage = lazy(() => import('./pages/RequirementsBoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const BangaloreMap = lazy(() => import('./pages/BangaloreMap'));
+const EmiCalculatorPage = lazy(() => import('./pages/EmiCalculatorPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
 const AdminPropertyForm = lazy(() => import('./pages/admin/AdminPropertyForm'));
@@ -35,11 +36,14 @@ function MapPage() {
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
   if (loadError) {
+    console.error('[Maps] Google Maps load error:', loadError.message);
     return (
       <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center bg-white px-6 text-center md:h-[calc(100vh-4rem)]">
-        <div className="max-w-md">
-          <p className="font-medium text-gray-900">Failed to load Google Maps</p>
-          <p className="mt-2 text-sm text-gray-500">{loadError.message}</p>
+        <div className="max-w-md space-y-3">
+          <p className="font-medium text-gray-900">Oops! Something went wrong</p>
+          <p className="text-sm text-gray-500">The map couldn't load.</p>
+          <p className="rounded-lg bg-red-50 px-4 py-3 text-xs text-red-700 font-mono">{loadError.message}</p>
+          <p className="text-xs text-gray-400">Check Google Cloud Console → APIs & Services → ensure Maps JavaScript API + Places API are enabled and billing is active.</p>
         </div>
       </div>
     );
@@ -74,6 +78,7 @@ function App() {
                   <Route path="/map" element={<MapPage />} />
                   <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
                   <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
+                  <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
                   <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
                   <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
                 </Route>

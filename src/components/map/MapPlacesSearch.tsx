@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Autocomplete } from '@react-google-maps/api';
 import { Navigation, X } from 'lucide-react';
-import { BANGALORE_BOUNDS } from '@/data/mapConfig';
 import {
   GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
   useGooglePlacesPacSync,
@@ -50,14 +49,6 @@ export default function MapPlacesSearch({
     }, 180);
   };
 
-  const bounds =
-    typeof google !== 'undefined'
-      ? new google.maps.LatLngBounds(
-          { lat: BANGALORE_BOUNDS.south, lng: BANGALORE_BOUNDS.west },
-          { lat: BANGALORE_BOUNDS.north, lng: BANGALORE_BOUNDS.east },
-        )
-      : undefined;
-
   return (
     <div className="map-places-search relative z-[120] flex shrink-0 items-center gap-2 overflow-visible rounded-full border border-gray-100 bg-white py-2 pr-2 pl-3 shadow-lg">
       <Autocomplete
@@ -72,10 +63,7 @@ export default function MapPlacesSearch({
           }
           syncPacPosition();
         }}
-        options={{
-          ...GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
-          bounds,
-        }}
+        options={GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS}
       >
         <input
           ref={inputRef}

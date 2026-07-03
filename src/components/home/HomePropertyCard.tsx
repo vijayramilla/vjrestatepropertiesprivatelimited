@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -17,7 +17,6 @@ import { useShortlist } from '@/context/ShortlistContext';
 import {
   getCardSaleTitle,
   getCardCityName,
-  getTypeBadgeLabel,
   isPlotLandListing,
   type ListingProperty,
 } from '@/data/listingProperties';
@@ -61,6 +60,12 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
   const isPlotOrLand = isPlotLandListing(property);
   const isFeatured = doc.featured === true;
 
+  const [imgError, setImgError] = useState(false);
+  const prevId = useRef(property.id);
+  if (prevId.current !== property.id) {
+    prevId.current = property.id;
+    setImgError(false);
+  }
   const [contactOpen, setContactOpen] = useState(false);
   const [waLoading, setWaLoading] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
@@ -134,7 +139,7 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
   return (
     <>
       <motion.article
-        className="group relative h-[560px] w-full overflow-hidden bg-black sm:h-[580px] lg:h-[600px]"
+        className="group relative h-[560px] w-full overflow-hidden bg-black sm:h-[580px] lg:h-[600px] border border-white/[0.04]"
         initial={{ opacity: 0, y: 24 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-40px' }}
@@ -143,7 +148,7 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
       >
         {/* Image + gradient */}
         <div className="absolute inset-0">
-          {coverImage ? (
+          {coverImage && !imgError ? (
             <motion.img
               src={coverImage}
               alt={saleTitle}
@@ -151,15 +156,21 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
               decoding="async"
               fetchPriority={index === 0 ? 'high' : undefined}
               className="h-full w-full object-cover"
+              onError={() => setImgError(true)}
               whileHover={{ scale: 1.05 }}
               transition={{ duration: 0.8, ease: [0.16, 0.84, 0.34, 1] }}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#2a2a2a] to-[#111]">
-              <TypeIcon size={56} weight="thin" color="#555" />
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-900 via-gray-950 to-black">
+              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+              <div className="relative flex flex-col items-center gap-2">
+                <TypeIcon size={64} weight="thin" className="text-white/10" />
+                <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/20">Image Coming Soon</span>
+              </div>
             </div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/65 to-black/10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/10" />
+          <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 50%)' }} />
         </div>
 
         {/* Top badges */}
@@ -169,7 +180,7 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
               initial={{ opacity: 0, x: -16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.15 }}
-              className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 backdrop-blur-sm"
+              className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.08)]"
             >
               <span
                 className="text-[10px] font-medium uppercase tracking-[0.2em] text-white"
@@ -213,15 +224,7 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
         </motion.button>
 
         {/* Bottom content overlay */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 p-5 sm:p-6 md:p-8">
-          <motion.p
-            {...fadeUp(0.2)}
-            className="mb-2 text-[10px] font-medium uppercase tracking-[0.22em] text-white/50"
-            style={{ fontFamily: DM_SANS }}
-          >
-            {getTypeBadgeLabel(property.type)}
-          </motion.p>
-
+        <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 sm:p-6 md:p-8">
           <motion.div {...fadeUp(0.28)} className="mb-3 flex items-center gap-2">
             <MapPin size={14} weight="regular" color="rgba(255,255,255,0.55)" />
             <span

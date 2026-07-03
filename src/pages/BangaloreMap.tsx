@@ -5,13 +5,17 @@ import {
   useRef,
   useState,
 } from 'react';
-import { GoogleMap, OverlayView } from '@react-google-maps/api';
+import { Circle, GoogleMap, OverlayView, Polyline } from '@react-google-maps/api';
+import { AnimatePresence } from 'framer-motion';
+import { Search } from 'lucide-react';
+import { soundEngine } from '@/utils/soundEngine';
+import { fetchNearbyPlaces, type NearbyPlace } from '@/utils/fetchNearbyPlaces';
+import { generateAIAnalysis } from '@/utils/aiAnalyze';
 import { collection, onSnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { setDefaultSiteMeta } from '@/lib/siteMeta';
-import { BANGALORE_COORDINATES, localityFromGooglePlace, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
+import { BANGALORE_COORDINATES, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
 import {
-  BANGALORE_BOUNDS,
   BUDGET_FILTERS,
   CATEGORY_CONFIG,
   formatMapINR,
@@ -174,13 +178,24 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [mapSearch, setMapSearch] = useState<MapSearchFilter>(DEFAULT_MAP_SEARCH);
   const [hoveredProperty, setHoveredProperty] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analyzeTarget, setAnalyzeTarget] = useState<MapProperty | null>(null);
+  const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [activeCategories, setActiveCategories] = useState<string[]>([...LAND_TYPES]);
 
   useEffect(() => {
     document.title = 'VJR Land Map | Plots & Land in Bangalore';
-    return () => setDefaultSiteMeta();
+    return () => {
+      setDefaultSiteMeta();
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+    };
   }, []);
 
   useEffect(() => {
@@ -222,41 +237,6 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
     }
   }, [filteredProperties, selectedProperty]);
 
-  const handlePlaceSelected = useCallback((place: google.maps.places.PlaceResult) => {
-    const loc = place.geometry?.location;
-    const center = loc ? { lat: loc.lat(), lng: loc.lng() } : null;
-
-    if (center) {
-      mapRef.current?.panTo(center);
-      mapRef.current?.setZoom(SELECTED_ZOOM);
-    }
-
-    const matched = localityFromGooglePlace(place);
-    const query =
-      matched ??
-      place.name ??
-      place.formatted_address?.split(',')[0]?.trim() ??
-      '';
-
-    setMapSearch({
-      query,
-      center,
-      radiusKm: DEFAULT_MAP_SEARCH.radiusKm,
-    });
-  }, []);
-
-  const handleSearchInputChange = useCallback((value: string) => {
-    setMapSearch((prev) => ({
-      ...prev,
-      query: value,
-      center: value.trim() ? prev.center : null,
-    }));
-  }, []);
-
-  const handleSearchClear = useCallback(() => {
-    setMapSearch(DEFAULT_MAP_SEARCH);
-  }, []);
-
   const handleMarkerClick = useCallback((property: MapProperty) => {
     setSelectedProperty(property);
   }, []);
@@ -280,6 +260,10 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
 
   const handleClosePopup = useCallback(() => {
     setSelectedProperty(null);
+    setShowAnalysis(false);
+    setAnalysisResult(null);
+    setNearbyPlaces([]);
+    setAnalyzeTarget(null);
   }, []);
 
   const handleMapClick = useCallback(() => {
@@ -287,15 +271,20 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   }, [handleClosePopup]);
 
   const handleLocateMe = () => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation || isLocating) return;
+    setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
         setUserLocation(loc);
         mapRef.current?.panTo(loc);
         mapRef.current?.setZoom(SELECTED_ZOOM);
+        setIsLocating(false);
       },
-      (err) => console.log('Location denied:', err),
+      (err) => {
+        console.log('Location denied:', err);
+        setIsLocating(false);
+      },
     );
   };
 
@@ -311,6 +300,52 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
     setMapSearch(DEFAULT_MAP_SEARCH);
   };
 
+  const handleAIAnalyze = async (property: MapProperty) => {
+    if (!property || isAnalyzing) return;
+
+    soundEngine.playPremiumActivate();
+
+    setIsAnalyzing(true);
+    setAnalysisResult(null);
+    setNearbyPlaces([]);
+    setShowAnalysis(false);
+    setAnalyzeTarget(property);
+
+    let tickCount = 0;
+    tickIntervalRef.current = setInterval(() => {
+      soundEngine.playTick();
+      tickCount++;
+      if (tickCount > 20) {
+        clearInterval(tickIntervalRef.current!);
+      }
+    }, 300);
+
+    try {
+      const places = await fetchNearbyPlaces(property.lat, property.lng, 2000);
+
+      places.forEach((_, i) => {
+        setTimeout(() => {
+          soundEngine.playPing(0);
+        }, i * 80);
+      });
+
+      setNearbyPlaces(places);
+
+      const analysis = await generateAIAnalysis(property, places);
+      setAnalysisResult(analysis);
+
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+
+      soundEngine.playSuccess();
+      setShowAnalysis(true);
+      setIsAnalyzing(false);
+    } catch (err) {
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+      setIsAnalyzing(false);
+      console.error('AI Analyze error:', err);
+    }
+  };
+
   const handleMapLoad = useCallback((loadedMap: google.maps.Map) => {
     mapRef.current = loadedMap;
     loadedMap.setCenter(MAP_CENTER);
@@ -319,12 +354,10 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
 
   const mapOptions = useMemo(
     (): google.maps.MapOptions => ({
+      center: MAP_CENTER,
+      zoom: DEFAULT_ZOOM,
       mapTypeId: 'hybrid',
-      restriction: {
-        latLngBounds: BANGALORE_BOUNDS,
-        strictBounds: false,
-      },
-      minZoom: 10,
+      minZoom: 3,
       maxZoom: 20,
       disableDefaultUI: true,
       zoomControl: true,
@@ -341,137 +374,121 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const markerElements = useMemo(
     () =>
       filteredProperties.map((p) => {
-        const isSelected = selectedProperty?.id === p.id;
-        const isHovered = hoveredProperty === p.id;
-        const dotSize = isSelected ? 16 : 13;
-        return (
-          <OverlayView
-            key={p.id}
-            position={{ lat: p.lat, lng: p.lng }}
-            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-          >
-            <div
-              style={{
-                position: 'relative',
-                transform: 'translate(-50%, -50%)',
-                width: dotSize + 20,
-                height: dotSize + 20,
-              }}
-            >
-              <div
-                className="map-marker-glow"
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: dotSize + 14,
-                  height: dotSize + 14,
-                  marginTop: -(dotSize + 14) / 2,
-                  marginLeft: -(dotSize + 14) / 2,
-                  borderRadius: '50%',
-                  backgroundColor: p.color,
-                  pointerEvents: 'none',
-                }}
-              />
-
-              <div
-                role="button"
-                tabIndex={0}
-                className={`map-marker-core${isSelected ? ' is-selected' : ''}`}
-                onMouseEnter={() => setHoveredProperty(p.id)}
-                onMouseLeave={() => setHoveredProperty(null)}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleMarkerClick(p);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') handleMarkerClick(p);
-                }}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  width: dotSize,
-                  height: dotSize,
-                  marginTop: -dotSize / 2,
-                  marginLeft: -dotSize / 2,
-                  backgroundColor: isSelected ? '#000' : p.color,
-                  border: `2.5px solid ${isSelected ? '#fff' : 'rgba(255,255,255,0.95)'}`,
-                  boxShadow: isHovered || isSelected
-                    ? `0 0 0 4px ${p.color}55, 0 0 16px ${p.color}cc, 0 0 28px ${p.color}66, 0 2px 8px rgba(0,0,0,0.45)`
-                    : `0 0 0 3px ${p.color}44, 0 0 12px ${p.color}99, 0 2px 6px rgba(0,0,0,0.35)`,
-                }}
-              />
-
-              {isHovered && !isSelected && (
+            const isSelected = selectedProperty?.id === p.id;
+            const isHovered = hoveredProperty === p.id;
+            const dotSize = isSelected ? 16 : 13;
+            return (
+              <OverlayView
+                key={p.id}
+                position={{ lat: p.lat, lng: p.lng }}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              >
                 <div
                   style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: '50%',
-                    transform: 'translate(-50%, calc(-100% - 10px))',
-                    backgroundColor: 'white',
-                    borderRadius: '12px',
-                    padding: '8px 12px',
-                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                    border: '1px solid rgba(0,0,0,0.06)',
-                    whiteSpace: 'nowrap',
-                    zIndex: 100,
-                    minWidth: '140px',
-                    pointerEvents: 'none',
+                    position: 'relative',
+                    transform: 'translate(-50%, -50%)',
+                    width: dotSize + 20,
+                    height: dotSize + 20,
                   }}
                 >
-                  <div
-                    style={{
-                      height: '3px',
-                      backgroundColor: p.color,
-                      borderRadius: '2px',
-                      marginBottom: '6px',
+                    <div
+                    role="button"
+                    tabIndex={0}
+                    className={`map-marker-core${isSelected ? ' is-selected' : ''}`}
+                    onMouseEnter={() => setHoveredProperty(p.id)}
+                    onMouseLeave={() => setHoveredProperty(null)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleMarkerClick(p);
                     }}
-                  />
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      color: '#111',
-                      marginBottom: '3px',
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') handleMarkerClick(p);
                     }}
-                  >
-                    {formatMapINR(p.price)}
-                  </div>
-                  <div style={{ fontSize: '11px', color: '#666' }}>{formatAreaLabel(p)}</div>
-                  <div
-                    style={{
-                      fontSize: '10px',
-                      color: p.color,
-                      fontWeight: 600,
-                      marginTop: '2px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}
-                  >
-                    {p.propertyType}
-                  </div>
-                  <div
                     style={{
                       position: 'absolute',
-                      bottom: '-6px',
+                      top: '50%',
                       left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: 0,
-                      height: 0,
-                      borderLeft: '6px solid transparent',
-                      borderRight: '6px solid transparent',
-                      borderTop: '6px solid white',
-                      filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.1))',
+                      width: dotSize,
+                      height: dotSize,
+                      marginTop: -dotSize / 2,
+                      marginLeft: -dotSize / 2,
+                      backgroundColor: isSelected ? '#000' : p.color,
+                      border: `2.5px solid ${isSelected ? '#fff' : 'rgba(255,255,255,0.95)'}`,
+                      boxShadow: isHovered || isSelected
+                        ? `0 0 0 3px ${p.color}55, 0 2px 6px rgba(0,0,0,0.3)`
+                        : `0 0 0 2px ${p.color}44, 0 1px 3px rgba(0,0,0,0.25)`,
                     }}
                   />
+
+                  {isHovered && !isSelected && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: '50%',
+                        transform: 'translate(-50%, calc(-100% - 10px))',
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
+                        padding: '8px 12px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                        border: '1px solid rgba(0,0,0,0.06)',
+                        whiteSpace: 'nowrap',
+                        zIndex: 100,
+                        minWidth: '140px',
+                        pointerEvents: 'none',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '3px',
+                          backgroundColor: p.color,
+                          borderRadius: '2px',
+                          marginBottom: '6px',
+                        }}
+                      />
+                      <div
+                        style={{
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#111',
+                          marginBottom: '3px',
+                        }}
+                      >
+                        {formatMapINR(p.price)}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#666' }}>{formatAreaLabel(p)}</div>
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          color: p.color,
+                          fontWeight: 600,
+                          marginTop: '2px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                        }}
+                      >
+                        {p.propertyType}
+                      </div>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-6px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: 0,
+                          height: 0,
+                          borderLeft: '6px solid transparent',
+                          borderRight: '6px solid transparent',
+                          borderTop: '6px solid white',
+                          filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.1))',
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </OverlayView>
-        );
-      }),
+              </OverlayView>
+            );
+          }),
     [filteredProperties, selectedProperty, hoveredProperty, handleMarkerClick],
   );
 
@@ -479,8 +496,17 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
     return null;
   }
 
+  if (typeof google === 'undefined' || !google.maps) {
+    console.error('[Maps] google.maps not initialized despite isLoaded=true');
+    return (
+      <div className="flex h-full items-center justify-center bg-gray-900">
+        <p className="text-sm text-gray-400">Map failed to initialize. Check console for details.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-x-0 top-14 bottom-0 z-10 bg-gray-900 md:top-16">
+    <div className="fixed inset-x-0 top-14 z-10 bg-gray-900 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]" style={{ overscrollBehavior: 'none' }}>
       <MapFilterPanel
         open={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
@@ -495,19 +521,74 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
       />
 
       <div className="relative h-full w-full">
-        <MapTopBar
-          searchValue={mapSearch.query}
-          onPlaceSelected={handlePlaceSelected}
-          onLocateMe={handleLocateMe}
-          onSearchClear={handleSearchClear}
-          onSearchInputChange={handleSearchInputChange}
-          onOpenFilters={() => setIsFilterOpen(true)}
-          onToggleList={() => setIsSidebarOpen((prev) => !prev)}
-          isListOpen={isSidebarOpen}
-          activeBudget={activeBudget}
-          activeCategories={activeCategories}
-          onToggleCategory={toggleCategory}
-        />
+        <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
+          style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
+          <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
+            <div className="relative flex-1 min-w-0 max-w-[280px]">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search Location..."
+                autoComplete="off"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && searchText.trim()) {
+                    const q = searchText.trim().toLowerCase();
+                    const entry = Object.entries(BANGALORE_COORDINATES).find(
+                      ([name]) => name.toLowerCase().includes(q),
+                    );
+                    if (entry) {
+                      const [, coords] = entry;
+                      mapRef.current?.panTo({ lat: coords.lat, lng: coords.lng });
+                      mapRef.current?.setZoom(14);
+                    }
+                  }
+                }}
+                className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-xs font-medium text-gray-800 bg-white shadow-md"
+              />
+            </div>
+
+            <MapTopBar
+              onLocateMe={handleLocateMe}
+              onOpenFilters={() => setIsFilterOpen(true)}
+              activeBudget={activeBudget}
+              activeCategories={activeCategories}
+              isLocating={isLocating}
+            />
+          </div>
+
+          <div className="pointer-events-auto relative z-[40] flex max-w-full items-center gap-2 overflow-x-auto pb-1">
+            {LAND_TYPES.map((type) => {
+              const isActive = activeCategories.includes(type);
+              const config = CATEGORY_CONFIG[type];
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleCategory(type)}
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold whitespace-nowrap shadow-md transition-all duration-200"
+                  style={
+                    isActive
+                      ? {
+                          backgroundColor: config.color,
+                          color: '#fff',
+                          boxShadow: `0 4px 12px ${config.color}66`,
+                        }
+                      : {
+                          backgroundColor: 'rgba(255,255,255,0.9)',
+                          color: '#6b7280',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                        }
+                  }
+                >
+                  {config.label}
+                  {isActive && <span className="ml-1 opacity-70">×</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <MapPropertySidebar
           open={isSidebarOpen}
@@ -516,7 +597,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
           properties={sidebarItems}
         />
 
-        <div className="absolute inset-0 min-h-0">
+        <div className="absolute inset-0 min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100dvh-4rem)]">
       <GoogleMap
         mapContainerStyle={{ width: '100%', height: '100%' }}
         options={mapOptions}
@@ -540,34 +621,132 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
             />
           </OverlayView>
         )}
+
+        {showAnalysis && analyzeTarget && (
+          <>
+            <Circle
+              center={{ lat: analyzeTarget.lat, lng: analyzeTarget.lng }}
+              radius={2000}
+              options={{
+                fillColor: '#3B82F6',
+                fillOpacity: 0.06,
+                strokeColor: '#60A5FA',
+                strokeOpacity: 0.8,
+                strokeWeight: 2,
+              }}
+            />
+            <Circle
+              center={{ lat: analyzeTarget.lat, lng: analyzeTarget.lng }}
+              radius={1000}
+              options={{
+                fillColor: '#3B82F6',
+                fillOpacity: 0.04,
+                strokeColor: '#93C5FD',
+                strokeOpacity: 0.5,
+                strokeWeight: 1,
+                strokeDashArray: '8 4',
+              } as any}
+            />
+            {nearbyPlaces.slice(0, 8).map((place, i) => (
+              <Polyline
+                key={`line-${i}`}
+                path={[
+                  { lat: analyzeTarget.lat, lng: analyzeTarget.lng },
+                  { lat: place.lat, lng: place.lng },
+                ]}
+                options={{
+                  strokeColor: place.color,
+                  strokeOpacity: 0.35,
+                  strokeWeight: 1.5,
+                  geodesic: true,
+                }}
+              />
+            ))}
+            {nearbyPlaces.map((place, i) => (
+              <OverlayView
+                key={`nearby-${i}`}
+                position={{ lat: place.lat, lng: place.lng }}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+              >
+                <div
+                  style={{
+                    transform: 'translate(-50%, -50%)',
+                    animation: `fadeInScale 0.3s ease ${i * 0.08}s both`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: '50%',
+                      backgroundColor: place.color,
+                      border: '2px solid white',
+                      boxShadow: `0 0 12px ${place.color}88, 0 2px 8px rgba(0,0,0,0.3)`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 14,
+                      cursor: 'default',
+                    }}
+                  >
+                    {place.icon}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 4,
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      color: 'white',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '2px 5px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      textAlign: 'center',
+                      backdropFilter: 'blur(4px)',
+                    }}
+                  >
+                    {place.distance < 1000
+                      ? `${place.distance}m`
+                      : `${(place.distance / 1000).toFixed(1)}km`}
+                  </div>
+                </div>
+              </OverlayView>
+            ))}
+          </>
+        )}
       </GoogleMap>
         </div>
       </div>
 
-      {selectedProperty && (
-        <MapPropertyPopup
-          property={{
-            id: selectedProperty.id,
-            title: selectedProperty.title,
-            locality: selectedProperty.locality,
-            propertyType: selectedProperty.propertyType,
-            price: selectedProperty.price,
-            pricePerSqft: selectedProperty.pricePerSqft,
-            image: selectedProperty.image,
-            images: selectedProperty.images,
-            areaLabel: formatAreaLabel(selectedProperty),
-            dimensions: selectedProperty.dimensions,
-            khata: selectedProperty.khata,
-            facing: selectedProperty.facing,
-            dcConversion: selectedProperty.dcConversion,
-            color: selectedProperty.color,
-            lat: selectedProperty.lat,
-            lng: selectedProperty.lng,
-          }}
-          onClose={handleClosePopup}
-          sidebarOpen={isSidebarOpen}
-        />
-      )}
+      <AnimatePresence>
+        {selectedProperty && (
+          <MapPropertyPopup
+            property={{
+              id: selectedProperty.id,
+              title: selectedProperty.title,
+              locality: selectedProperty.locality,
+              propertyType: selectedProperty.propertyType,
+              price: selectedProperty.price,
+              pricePerSqft: selectedProperty.pricePerSqft,
+              image: selectedProperty.image,
+              images: selectedProperty.images,
+              areaLabel: formatAreaLabel(selectedProperty),
+              dimensions: selectedProperty.dimensions,
+              khata: selectedProperty.khata,
+              facing: selectedProperty.facing,
+              dcConversion: selectedProperty.dcConversion,
+              color: selectedProperty.color,
+              lat: selectedProperty.lat,
+              lng: selectedProperty.lng,
+            }}
+            onClose={handleClosePopup}
+            sidebarOpen={isSidebarOpen}
+            onAIAnalyze={() => handleAIAnalyze(selectedProperty)}
+            isAnalyzing={isAnalyzing}
+            analysisResult={analysisResult}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

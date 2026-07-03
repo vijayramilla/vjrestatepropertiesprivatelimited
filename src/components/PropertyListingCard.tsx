@@ -44,6 +44,7 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
   const saleTitle = getCardSaleTitle(property);
   const cityName = getCardCityName(property);
   const isPlotOrLand = isPlotLandListing(property);
+  const [imgError, setImgError] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared' | 'whatsapp' | 'failed'>('idle');
   const [waLoading, setWaLoading] = useState(false);
@@ -144,18 +145,23 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
         }}
       >
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100 sm:aspect-square md:aspect-[4/3]">
-          {coverImage ? (
+          {coverImage && !imgError ? (
             <img
               src={coverImage}
               alt={saleTitle}
               loading={index === 0 ? 'eager' : 'lazy'}
               decoding="async"
               fetchPriority={index === 0 ? 'high' : undefined}
+              onError={() => setImgError(true)}
               className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200">
-              <TypeIcon size={compact ? 32 : 40} weight="thin" color="#c4c4c4" />
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-950">
+              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+              <div className="relative flex flex-col items-center gap-1.5">
+                <TypeIcon size={compact ? 28 : 40} weight="thin" className="text-white/15" />
+                <span className="text-[8px] font-medium uppercase tracking-[0.18em] text-white/20">Image Coming Soon</span>
+              </div>
             </div>
           )}
 

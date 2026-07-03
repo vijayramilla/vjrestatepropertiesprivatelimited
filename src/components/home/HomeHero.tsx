@@ -103,12 +103,25 @@ export default function HomeHero({
         style={{ backgroundImage: `url(${HERO_BG})`, backgroundPosition: 'center top' }}
       />
       <div
-        className="absolute inset-0 z-[1]"
+        className="absolute inset-0 z-[1] overflow-hidden"
         style={{
           background:
             'linear-gradient(160deg, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.50) 45%, rgba(0,0,0,0.65) 100%)',
         }}
-      />
+      >
+        <motion.div
+          className="absolute -top-1/3 -left-1/4 w-[60%] h-[60%] rounded-full opacity-60"
+          style={{ background: 'radial-gradient(circle, rgba(52,211,153,0.08) 0%, transparent 70%)' }}
+          animate={{ x: [0, 40, 0], y: [0, -30, 0] }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute -bottom-1/3 -right-1/4 w-[60%] h-[60%] rounded-full opacity-60"
+          style={{ background: 'radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 70%)' }}
+          animate={{ x: [0, -40, 0], y: [0, 30, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
 
       <div className="relative z-[2] flex flex-1 flex-col items-center justify-center px-4 pb-36 pt-16 text-center md:px-6 md:pb-32">
         <motion.h1
@@ -158,21 +171,21 @@ export default function HomeHero({
                     color: isActive ? '#ffffff' : 'rgba(255,255,255,0.55)',
                   }}
                 >
-                  <span className="md:text-[12px]">{tab.label}</span>
                   {isActive && (
                     <motion.div
                       layoutId="activeTab"
-                      className="absolute bottom-[-1px] left-0 right-0 h-[2px] bg-white"
+                      className="absolute inset-0 rounded-full bg-white/10 backdrop-blur-sm"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
+                  <span className="relative md:text-[12px]">{tab.label}</span>
                 </button>
               );
             })}
           </div>
 
           <div ref={searchRef} className="relative mt-0">
-            <div className="overflow-hidden rounded-2xl bg-white shadow-[0_16px_48px_rgba(0,0,0,0.28)] md:rounded-none md:shadow-[0_20px_60px_rgba(0,0,0,0.25)]">
+            <div className="overflow-hidden rounded-2xl bg-white/90 backdrop-blur-xl border border-white/20 shadow-[0_16px_48px_rgba(0,0,0,0.35)] md:rounded-none md:border-0 md:bg-white/95 md:shadow-[0_20px_60px_rgba(0,0,0,0.3)]">
               <div className="flex min-h-[52px] flex-col md:min-h-[60px] md:flex-row md:items-stretch">
                 <div className="flex flex-1 flex-col justify-center border-b border-[#eee] px-4 py-3 md:border-b-0 md:border-r md:py-0 md:pl-5 md:pr-3">
                   <div className="mb-1 flex items-center gap-1.5">
@@ -236,8 +249,9 @@ export default function HomeHero({
                 <motion.button
                   type="button"
                   onClick={onSearch}
+                  whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="hidden min-h-[60px] w-[120px] shrink-0 items-center justify-center bg-black text-white transition-colors hover:bg-[#111] md:flex"
+                  className="group hidden min-h-[60px] w-[130px] shrink-0 items-center justify-center gap-2 bg-black text-white transition-colors hover:bg-[#111] md:flex"
                   style={{
                     fontFamily: DM_SANS,
                     fontSize: '12px',
@@ -246,7 +260,12 @@ export default function HomeHero({
                     letterSpacing: '0.1em',
                   }}
                 >
-                  Search
+                  <span>Search</span>
+                  <ArrowUpRight
+                    size={14}
+                    weight="bold"
+                    className="transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                  />
                 </motion.button>
               </div>
 
@@ -256,7 +275,7 @@ export default function HomeHero({
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="overflow-hidden border-t border-[#eee]"
+                    className="overflow-hidden border-t border-white/10 bg-white/60 backdrop-blur-lg"
                   >
                     <div className="max-h-[min(45vh,320px)] overflow-y-auto overscroll-contain p-3 md:p-4">
                       {localityNotice && (
@@ -313,7 +332,7 @@ export default function HomeHero({
               type="button"
               onClick={onSearch}
               whileTap={{ scale: 0.98 }}
-              className="mt-2 flex h-[50px] w-full items-center justify-center rounded-2xl bg-black text-white transition-colors hover:bg-[#111] md:hidden"
+              className="group mt-2 flex h-[50px] w-full items-center justify-center gap-2 rounded-2xl bg-white/90 backdrop-blur-xl border border-white/20 text-black transition-colors hover:bg-white md:hidden"
               style={{
                 fontFamily: DM_SANS,
                 fontSize: '12px',
@@ -322,7 +341,12 @@ export default function HomeHero({
                 letterSpacing: '0.1em',
               }}
             >
-              Search Properties
+              <span>Search Properties</span>
+              <ArrowUpRight
+                size={14}
+                weight="bold"
+                className="transition-all duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+              />
             </motion.button>
           </div>
 
@@ -344,7 +368,7 @@ export default function HomeHero({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7 + i * 0.04, duration: 0.4 }}
                 onClick={() => onTrendingClick(area)}
-                className="group flex shrink-0 items-center gap-1 border border-[rgba(255,255,255,0.2)] bg-transparent px-3 py-2 text-[10px] text-[rgba(255,255,255,0.7)] transition-all duration-200 hover:border-[rgba(255,255,255,0.4)] hover:bg-[rgba(255,255,255,0.1)] hover:text-white sm:text-[11px]"
+                className="group flex shrink-0 items-center gap-1 border border-[rgba(255,255,255,0.15)] bg-[rgba(255,255,255,0.06)] backdrop-blur-sm px-3 py-2 text-[10px] text-[rgba(255,255,255,0.7)] transition-all duration-200 hover:border-[rgba(255,255,255,0.3)] hover:bg-[rgba(255,255,255,0.12)] hover:text-white sm:text-[11px]"
                 style={{ fontFamily: DM_SANS }}
               >
                 {area}

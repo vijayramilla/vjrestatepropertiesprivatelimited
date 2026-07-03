@@ -10,13 +10,14 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 function SkeletonCard() {
   return (
-    <div className="border border-black/10 bg-white animate-pulse">
-      <div className="aspect-[4/5] bg-[#f0f0f0] sm:aspect-[5/6]" />
+    <div className="relative overflow-hidden border border-black/5 bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="aspect-[4/5] bg-gray-200 sm:aspect-[5/6]" />
       <div className="space-y-3 p-5">
-        <div className="h-3 w-1/3 bg-[#f0f0f0]" />
-        <div className="h-8 w-2/3 bg-[#f0f0f0]" />
-        <div className="h-10 w-full bg-[#f0f0f0]" />
+        <div className="h-3 w-1/3 rounded bg-gray-200" />
+        <div className="h-8 w-2/3 rounded bg-gray-200" />
+        <div className="h-10 w-full rounded bg-gray-200" />
       </div>
+      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/30 to-transparent" />
     </div>
   );
 }
@@ -91,11 +92,10 @@ export default function HomeListingsSection() {
             </p>
             <h2 className="font-display mt-2 text-[28px] text-black md:text-[32px]">Latest Properties</h2>
             <p
-              className="mt-2 max-w-md text-sm leading-relaxed text-[#666]"
+              className="mt-2 max-w-lg text-sm leading-relaxed text-[#666]"
               style={{ fontFamily: DM_SANS }}
             >
-              Handpicked investment opportunities across Bangalore — rental income, commercial assets, and
-              premium plots.
+              Handpicked investment opportunities across Bangalore — rental income, commercial assets, and premium plots.
             </p>
           </div>
           <Link

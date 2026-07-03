@@ -33,46 +33,87 @@
   @apply prop-tool-btn w-9 px-0 sm:w-auto sm:px-3;
 }
 
+/* ── Premium filter sections ── */
 .prop-filter-section {
-  @apply rounded-2xl border border-gray-100 bg-gray-50/50 p-4 sm:p-5;
+  @apply rounded-2xl border border-gray-200/80 bg-white p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] sm:p-5;
+}
+
+.prop-filter-section + .prop-filter-section {
+  @apply mt-4 sm:mt-5;
 }
 
 .prop-filter-section-title {
-  @apply mb-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500;
+  @apply mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500;
 }
 
+.prop-filter-section-title::after {
+  content: '';
+  @apply flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent;
+}
+
+/* ── Premium type pills ── */
 .prop-type-grid {
-  @apply grid grid-cols-2 gap-2;
+  @apply grid grid-cols-2 gap-2.5;
 }
 
 .prop-type-pill {
-  @apply flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-[13px] font-medium transition-all duration-200 active:scale-[0.98];
+  @apply relative flex min-h-[48px] cursor-pointer items-center gap-3 rounded-xl border-2 px-3.5 py-3 text-left text-[13px] font-medium transition-all duration-200 overflow-hidden;
+}
+
+.prop-type-pill::before {
+  content: '';
+  @apply absolute inset-0 opacity-0 transition-opacity duration-200;
+  background: linear-gradient(135deg, rgba(0,0,0,0.03), transparent);
+}
+
+.prop-type-pill:hover::before {
+  @apply opacity-100;
 }
 
 .prop-type-pill-active {
-  @apply border-black bg-black text-white shadow-sm;
+  @apply border-black bg-black text-white shadow-[0_4px_16px_-4px_rgba(0,0,0,0.3)];
+}
+
+.prop-type-pill-active::before {
+  display: none;
 }
 
 .prop-type-pill-idle {
-  @apply border-gray-200 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50;
+  @apply border-gray-100 bg-white text-gray-700 hover:border-gray-300 hover:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.08)];
 }
 
+/* ── Premium budget chips ── */
 .prop-budget-grid {
-  @apply grid grid-cols-2 gap-2 sm:grid-cols-3;
+  @apply grid grid-cols-2 gap-2.5 sm:grid-cols-3;
 }
 
 .prop-budget-chip {
-  @apply min-h-[40px] rounded-xl border px-2 py-2 text-center text-[11px] font-semibold leading-tight transition-all duration-200 active:scale-[0.97] sm:text-[12px];
+  @apply relative min-h-[42px] rounded-xl border-2 px-3 py-2.5 text-center text-[11px] font-semibold leading-tight transition-all duration-200 overflow-hidden sm:text-[12px];
+}
+
+.prop-budget-chip::before {
+  content: '';
+  @apply absolute inset-0 opacity-0 transition-opacity duration-200;
+  background: linear-gradient(135deg, rgba(0,0,0,0.03), transparent);
+}
+
+.prop-budget-chip:hover::before {
+  @apply opacity-100;
 }
 
 .prop-budget-chip-active {
-  @apply border-black bg-black text-white;
+  @apply border-black bg-black text-white shadow-[0_4px_16px_-4px_rgba(0,0,0,0.3)];
+}
+
+.prop-budget-chip-active::before {
+  display: none;
 }
 
 .prop-budget-chip-idle {
-  @apply border-gray-200 bg-white text-gray-700 hover:border-gray-400;
+  @apply border-gray-100 bg-white text-gray-700 hover:border-gray-300 hover:shadow-[0_2px_12px_-4px_rgba(0,0,0,0.08)];
 }
 
+/* ── Sheets & overlays ── */
 .prop-sheet {
   @apply fixed inset-x-0 bottom-0 z-[100] flex max-h-[min(92dvh,720px)] flex-col rounded-t-3xl bg-white shadow-2xl;
   padding-bottom: env(safe-area-inset-bottom);

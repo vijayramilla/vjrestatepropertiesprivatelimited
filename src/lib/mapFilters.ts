@@ -61,32 +61,63 @@ export function matchesMapBudget(price: number, budget: BudgetFilter): boolean {
   return safePrice >= budget.min && safePrice <= budget.max;
 }
 
-export function matchesMapSearch(
-  property: { lat: number; lng: number; locality: string; title: string },
-  search: MapSearchFilter,
-): boolean {
-  if (!search.query.trim() && !search.center) return true;
+function normalizeText(s: string): string {
+  return s.toLowerCase().replace(/[\s.,\-/#]+/g, '');
+}
 
-  if (search.center) {
-    const distance = haversineKm(
-      search.center.lat,
-      search.center.lng,
-      property.lat,
-      property.lng,
-    );
-    if (distance <= search.radiusKm) return true;
-  }
+function matchesText(propertyLocality: string, propertyTitle: string, query: string): boolean {
+  const locality = propertyLocality.toLowerCase();
+  const title = (propertyTitle || '').toLowerCase();
 
-  const query = search.query.trim().toLowerCase();
-  if (!query) return false;
-
-  const locality = property.locality.toLowerCase();
-  const title = (property.title || '').toLowerCase();
-
-  return (
+  if (
     locality.includes(query) ||
     query.includes(locality) ||
     title.includes(query) ||
     query.split(',')[0]?.trim() === locality
+  ) {
+    return true;
+  }
+
+  const normQuery = normalizeText(query);
+  const normLocality = normalizeText(locality);
+  const normTitle = normalizeText(title);
+
+  return (
+    normLocality.includes(normQuery) ||
+    normQuery.includes(normLocality) ||
+    normTitle.includes(normQuery)
   );
+}
+
+export function matchesMapSearch(
+  property: { lat: number; lng: number; locality: string; title: string },
+  search: MapSearchFilter,
+): boolean {
+  const hasQuery = search.query.trim().length > 0;
+  const hasCenter = search.center !== null;
+
+  if (!hasQuery && !hasCenter) return true;
+
+  let withinRadius = false;
+  if (hasCenter) {
+    const distance = haversineKm(
+      search.center!.lat,
+      search.center!.lng,
+      property.lat,
+      property.lng,
+    );
+    withinRadius = distance <= search.radiusKm;
+  }
+
+  let textMatch = false;
+  if (hasQuery) {
+    const q = search.query.trim().toLowerCase();
+    textMatch = matchesText(property.locality, property.title, q);
+  }
+
+  if (hasCenter && hasQuery) return withinRadius && textMatch;
+  if (hasCenter) return withinRadius;
+  if (hasQuery) return textMatch;
+
+  return false;
 }

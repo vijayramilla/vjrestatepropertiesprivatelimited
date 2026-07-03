@@ -83,7 +83,7 @@ export default function MapPropertySidebar({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-600 transition-colors hover:bg-gray-200"
             aria-label="Close list panel"
           >
             <X size={18} />
@@ -164,7 +164,7 @@ export default function MapPropertySidebar({
                             e.stopPropagation();
                             toggle(property.id);
                           }}
-                          className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors ${
+                          className={`flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border text-xs font-semibold transition-colors ${
                             saved
                               ? 'border-red-200 bg-red-50 text-red-600'
                               : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
@@ -179,7 +179,7 @@ export default function MapPropertySidebar({
                             e.stopPropagation();
                             setContactProperty(property);
                           }}
-                          className="flex h-9 w-11 shrink-0 items-center justify-center rounded-lg bg-[#25D366] text-white transition-colors hover:bg-[#1da851]"
+                          className="flex h-11 w-12 shrink-0 items-center justify-center rounded-lg bg-[#25D366] text-white transition-colors hover:bg-[#1da851]"
                           aria-label="WhatsApp enquiry"
                         >
                           <WhatsappLogo size={18} weight="fill" />

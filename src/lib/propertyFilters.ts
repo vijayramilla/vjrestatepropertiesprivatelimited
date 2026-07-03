@@ -6,6 +6,7 @@ export const FILTER_RANGE_UNLIMITED = Number.MAX_SAFE_INTEGER;
 /** Map public filter labels to Firestore `type` values (admin may use plural variants). */
 export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
   'PG Buildings': ['PG Building', 'PG Buildings', 'PG'],
+  'PG Plot': ['PG Plot'],
   'PG Building': ['PG Building', 'PG Buildings', 'PG'],
   'Residential Rental Income': [
     'Residential Rental Income',
@@ -21,6 +22,7 @@ export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
 /** Display order for property categories on the listings page. */
 export const PROPERTY_CATEGORIES = [
   'PG Buildings',
+  'PG Plot',
   'Residential Rental Income',
   'Commercial Properties',
   'Residential Plot',
@@ -231,7 +233,7 @@ export function isPgProperty(type: string | undefined): boolean {
   );
 }
 
-/** Resolve a listing to one of the six public property categories. */
+/** Resolve a listing to one of the public property categories. */
 export function getPropertyCategory(p: {
   type?: string | null;
   plot_subtype?: string | null;
@@ -241,6 +243,7 @@ export function getPropertyCategory(p: {
   if (type === 'Agriculture Land' || p.plot_subtype === 'Agriculture Land') {
     return 'Agriculture Land';
   }
+  if (p.plot_subtype === 'PG Plot' || type === 'PG Plot') return 'PG Plot';
   if (isPgProperty(type)) return 'PG Buildings';
   if (type === 'Residential Rental Income') return 'Residential Rental Income';
   if (type === 'Commercial Properties') return 'Commercial Properties';
@@ -269,6 +272,7 @@ export function isLandOrPlotProperty(p: {
 /** Normalize admin/public type labels before saving to Firestore. */
 export function canonicalPropertyType(type: string): string {
   const t = type.trim();
+  if (/^pg\s*plot$/i.test(t)) return 'PG Plot';
   if (/^pg\s*buildings?$/i.test(t) || t === 'PG') return 'PG Buildings';
   if (/^residential rental/i.test(t)) return 'Residential Rental Income';
   if (/^commercial propert/i.test(t) || t === 'Commercial') return 'Commercial Properties';
@@ -409,6 +413,8 @@ export function filterProperties<T extends PropertyFilterInput>(
     result = result.filter((p) => getPropertyCategory(p) === 'Residential Plot');
   } else if (plotSubtype === 'Commercial Plot') {
     result = result.filter((p) => getPropertyCategory(p) === 'Commercial Plot');
+  } else if (plotSubtype === 'PG Plot') {
+    result = result.filter((p) => getPropertyCategory(p) === 'PG Plot');
   }
 
   if (localities.length > 0) {

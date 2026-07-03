@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type RefObject } from 'react';
 
 let activePacOwnerId: string | null = null;
 
@@ -6,7 +6,7 @@ export function setActivePacOwner(id: string | null) {
   activePacOwnerId = id;
 }
 
-/** Remove Google "Powered by" branding and hide empty dropdown shells */
+/** Remove Google "Powered by" branding logos from pac-containers */
 export function hideGooglePacBranding() {
   document.querySelectorAll('.pac-logo, .hdpi.pac-logo').forEach((el) => {
     el.remove();
@@ -14,11 +14,6 @@ export function hideGooglePacBranding() {
 
   document.querySelectorAll<HTMLElement>('.pac-container').forEach((pac) => {
     pac.querySelectorAll('.pac-logo').forEach((logo) => logo.remove());
-
-    const items = pac.querySelectorAll('.pac-item');
-    if (items.length === 0 && activePacOwnerId === null) {
-      pac.style.display = 'none';
-    }
   });
 }
 
@@ -47,6 +42,28 @@ export function attachPacToBody() {
   hideGooglePacBranding();
 }
 
+function positionPacContainer(
+  pac: HTMLElement,
+  inputEl: HTMLInputElement,
+): boolean {
+  const rect = inputEl.getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return false;
+
+  const width = Math.max(rect.width, 280);
+  pac.style.position = 'fixed';
+  pac.style.top = `${rect.bottom + 8}px`;
+  pac.style.left = `${rect.left}px`;
+  pac.style.width = `${width}px`;
+  pac.style.minWidth = `${width}px`;
+  pac.style.maxWidth = `${width}px`;
+  pac.style.zIndex = '99999';
+  pac.style.pointerEvents = 'auto';
+  pac.style.paddingBottom = '0';
+  pac.style.marginBottom = '0';
+  pac.style.display = '';
+  return true;
+}
+
 export function positionPacBelowInput(
   inputEl: HTMLInputElement | null,
   ownerId?: string,
@@ -58,38 +75,12 @@ export function positionPacBelowInput(
     return;
   }
 
-  cleanupDuplicatePacContainers();
   attachPacToBody();
-  hideGooglePacBranding();
 
   const pac = document.querySelector<HTMLElement>('.pac-container');
   if (!pac) return;
 
-  const items = pac.querySelectorAll('.pac-item');
-  if (items.length === 0) {
-    pac.style.display = 'none';
-    return;
-  }
-
-  const rect = inputEl.getBoundingClientRect();
-  if (rect.width === 0 && rect.height === 0) {
-    pac.style.display = 'none';
-    return;
-  }
-
-  const width = Math.max(rect.width, 280);
-  pac.style.display = '';
-  pac.style.position = 'fixed';
-  pac.style.top = `${rect.bottom + 8}px`;
-  pac.style.left = `${rect.left}px`;
-  pac.style.width = `${width}px`;
-  pac.style.minWidth = `${width}px`;
-  pac.style.maxWidth = `${width}px`;
-  pac.style.zIndex = '99999';
-  pac.style.pointerEvents = 'auto';
-  pac.style.paddingBottom = '0';
-  pac.style.marginBottom = '0';
-
+  positionPacContainer(pac, inputEl);
   hideGooglePacBranding();
 }
 
@@ -97,6 +88,8 @@ export function useGooglePlacesPacSync(
   inputRef: RefObject<HTMLInputElement | null>,
   ownerId: string,
 ) {
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const syncPacPosition = useCallback(() => {
     if (activePacOwnerId === ownerId || !activePacOwnerId) {
       positionPacBelowInput(inputRef.current, ownerId);
@@ -105,15 +98,20 @@ export function useGooglePlacesPacSync(
 
   useEffect(() => {
     const onFocus = () => {
+      if (blurTimerRef.current) {
+        clearTimeout(blurTimerRef.current);
+        blurTimerRef.current = null;
+      }
       setActivePacOwner(ownerId);
       syncPacPosition();
     };
     const onBlur = () => {
-      window.setTimeout(() => {
+      blurTimerRef.current = setTimeout(() => {
         if (activePacOwnerId === ownerId) {
           setActivePacOwner(null);
           hideAllPacContainers();
         }
+        blurTimerRef.current = null;
       }, 200);
     };
 
@@ -126,9 +124,10 @@ export function useGooglePlacesPacSync(
     const observer = new MutationObserver(() => {
       hideGooglePacBranding();
       if (activePacOwnerId === ownerId) {
-        syncPacPosition();
-      } else if (!activePacOwnerId) {
-        hideAllPacContainers();
+        const pac = document.querySelector<HTMLElement>('.pac-container');
+        if (pac) {
+          positionPacContainer(pac, inputRef.current!);
+        }
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
@@ -140,6 +139,7 @@ export function useGooglePlacesPacSync(
     window.addEventListener('resize', onScrollOrResize);
 
     return () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current);
       input?.removeEventListener('focus', onFocus);
       input?.removeEventListener('blur', onBlur);
       observer.disconnect();

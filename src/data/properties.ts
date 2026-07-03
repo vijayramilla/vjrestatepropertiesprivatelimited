@@ -25,7 +25,7 @@ export interface Property {
   featured: boolean;
   createdAt: string;
   commercial_subtype?: string;
-  plot_subtype?: "Residential Plot" | "Commercial Plot" | "Agriculture Land";
+  plot_subtype?: "Residential Plot" | "Commercial Plot" | "Agriculture Land" | "PG Plot";
   age: string;
   facing: string;
   floor_count: number;
@@ -253,6 +253,7 @@ export function resolveLocalityName(input: string): string | null {
 
 export const PROPERTY_TYPES = [
   'PG Buildings',
+  'PG Plot',
   'Residential Rental Income',
   'Commercial Properties',
   'Residential Plot',

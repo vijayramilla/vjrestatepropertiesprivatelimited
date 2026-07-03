@@ -3,6 +3,7 @@ import { Instagram, Linkedin, MessageCircle, Youtube } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { siteContact } from '@/data/siteContact';
+import { Calculator } from 'lucide-react';
 
 const footerConfig = {
   description:
@@ -163,6 +164,16 @@ export default function Footer() {
                       {link.label}
                     </Link>
                   ))}
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-gray-200">
+                  <Link
+                    to="/emi-calculator"
+                    className="flex items-center gap-2 text-sm font-medium text-black hover:text-gray-600 transition-colors"
+                  >
+                    <Calculator size={15} className="text-gray-500" />
+                    EMI Calculator
+                  </Link>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-200">
