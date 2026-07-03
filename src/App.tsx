@@ -1,5 +1,6 @@
 import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import PremiumValuationPage from './pages/PremiumValuationPage';
 import { ShortlistProvider } from './context/ShortlistContext';
 import { AuthProvider } from './context/AuthContext';
 import { GoogleMapsProvider, useGoogleMapsLoader } from './context/GoogleMapsContext';
@@ -79,6 +80,7 @@ function App() {
                   <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
                   <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
                   <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
+                  <Route path="/property-valuation" element={<PremiumValuationPage />} />
                   <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
                   <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
                 </Route>

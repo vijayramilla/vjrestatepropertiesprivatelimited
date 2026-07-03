@@ -181,6 +181,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchText, setSearchText] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
@@ -351,6 +352,31 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
     loadedMap.setCenter(MAP_CENTER);
     loadedMap.setZoom(DEFAULT_ZOOM);
   }, []);
+
+  useEffect(() => {
+    if (!isLoaded || !searchInputRef.current) return;
+    if (typeof google === 'undefined' || !google.maps.places) {
+      console.warn('[Map] google.maps.places not available');
+      return;
+    }
+    const input = searchInputRef.current;
+    const autocomplete = new google.maps.places.Autocomplete(input, {
+      componentRestrictions: { country: 'in' },
+      bounds: new google.maps.LatLngBounds(
+        new google.maps.LatLng(12.8, 77.4),
+        new google.maps.LatLng(13.2, 77.8),
+      ),
+    });
+    autocomplete.setFields(['geometry', 'name', 'formatted_address', 'place_id']);
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place.geometry?.location) {
+        mapRef.current?.panTo(place.geometry.location);
+        mapRef.current?.setZoom(15);
+      }
+      setSearchText(place.name || '');
+    });
+  }, [isLoaded]);
 
   const mapOptions = useMemo(
     (): google.maps.MapOptions => ({
@@ -523,31 +549,19 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
       <div className="relative h-full w-full">
         <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
           style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
-          <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
-            <div className="relative flex-1 min-w-0 max-w-[280px]">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search Location..."
-                autoComplete="off"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && searchText.trim()) {
-                    const q = searchText.trim().toLowerCase();
-                    const entry = Object.entries(BANGALORE_COORDINATES).find(
-                      ([name]) => name.toLowerCase().includes(q),
-                    );
-                    if (entry) {
-                      const [, coords] = entry;
-                      mapRef.current?.panTo({ lat: coords.lat, lng: coords.lng });
-                      mapRef.current?.setZoom(14);
-                    }
-                  }
-                }}
-                className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-xs font-medium text-gray-800 bg-white shadow-md"
-              />
-            </div>
+            <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
+              <div className="relative flex-1 min-w-0 max-w-[280px]">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search Location..."
+                  autoComplete="off"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-xs font-medium text-gray-800 bg-white shadow-md"
+                />
+              </div>
 
             <MapTopBar
               onLocateMe={handleLocateMe}

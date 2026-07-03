@@ -22,6 +22,7 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
   { label: 'Land Map', path: '/map', Icon: GlobeHemisphereWest },
+
   { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
   { label: 'Contact Us', path: '/contact', Icon: Phone },
 ];
@@ -178,6 +179,7 @@ export default function Navbar() {
             {[
               { label: 'Properties', path: '/properties' },
               { label: 'Land Map', path: '/map', icon: true },
+
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
             ].map(({ label, path, icon }) => (

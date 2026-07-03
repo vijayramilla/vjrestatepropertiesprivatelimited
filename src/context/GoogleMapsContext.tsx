@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { useJsApiLoader } from '@react-google-maps/api';
 
 const GOOGLE_MAPS_LOADER_ID = 'vjr-google-maps-loader';
-const GOOGLE_MAPS_LIBRARIES = [] as const;
+const GOOGLE_MAPS_LIBRARIES = ['places'] as const;
 
 interface GoogleMapsContextValue {
   isLoaded: boolean;

@@ -133,16 +133,7 @@ export function CircularRevealHeading({
         </div>
       </div>
 
-      <motion.div
-        className="absolute inset-0"
-        initial={{ rotate: 0 }}
-        animate={{ rotate: 360 }}
-        transition={{
-          duration: 30,
-          repeat: Infinity,
-          ease: 'linear',
-        }}
-      >
+      <div className="absolute inset-0">
         <svg viewBox="0 0 400 400" className="w-full h-full">
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
@@ -157,7 +148,7 @@ export function CircularRevealHeading({
           />
           {createTextSegments()}
         </svg>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }

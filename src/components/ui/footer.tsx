@@ -3,7 +3,7 @@ import { Instagram, Linkedin, MessageCircle, Youtube } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { siteContact } from '@/data/siteContact';
-import { Calculator } from 'lucide-react';
+
 
 const footerConfig = {
   description:
@@ -43,6 +43,13 @@ const footerConfig = {
         { label: 'Latest Listings', to: '/properties' },
         { label: 'Investment Guide', to: '/about' },
         { label: 'Bangalore Areas', to: '/properties' },
+      ],
+    },
+    {
+      title: 'Tools & Resources',
+      links: [
+        { label: 'AI Property Valuation', to: '/property-valuation' },
+        { label: 'EMI Calculator', to: '/emi-calculator' },
       ],
     },
     {
@@ -122,7 +129,7 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-12">
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-8 flex-1">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-8 flex-1">
             {footerConfig.columns.map((col) => (
               <div key={col.title}>
                 <h3 className="text-sm font-medium mb-3 text-black">{col.title}</h3>
@@ -164,16 +171,6 @@ export default function Footer() {
                       {link.label}
                     </Link>
                   ))}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-gray-200">
-                  <Link
-                    to="/emi-calculator"
-                    className="flex items-center gap-2 text-sm font-medium text-black hover:text-gray-600 transition-colors"
-                  >
-                    <Calculator size={15} className="text-gray-500" />
-                    EMI Calculator
-                  </Link>
                 </div>
 
                 <div className="mt-4 pt-3 border-t border-gray-200">
