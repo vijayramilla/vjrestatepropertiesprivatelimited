@@ -56,7 +56,8 @@ export default defineConfig({
           if (id.includes('node_modules/html2canvas')) return 'vendor-canvas';
           if (id.includes('node_modules/three')) return 'vendor-three';
           if (id.includes('node_modules/@react-three')) return 'vendor-three';
-          if (id.includes('node_modules/recharts')) return 'vendor-charts';
+          // recharts intentionally kept in main bundle to avoid forwardRef/React context issues
+
         },
         chunkFileNames: 'js/[name]-[hash].js',
         entryFileNames: 'js/[name]-[hash].js',
@@ -82,6 +83,7 @@ export default defineConfig({
       '@tsparticles/engine',
       '@tsparticles/slim',
       'cobe',
+      'recharts',
     ],
   },
 });
