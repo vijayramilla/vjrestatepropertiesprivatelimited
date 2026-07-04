@@ -25,7 +25,7 @@ interface DashboardProperty {
   image?: string
 }
 
-function toDashboardProp(doc: any): DashboardProperty {
+function toDashboardProp(doc: FirebaseDocumentSnapshot): DashboardProperty {
   const data = doc.data?.() ?? doc
   return {
     id: doc.id ?? data.id,

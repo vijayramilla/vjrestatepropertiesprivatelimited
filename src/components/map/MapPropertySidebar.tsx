@@ -6,6 +6,7 @@ import { CATEGORY_CONFIG, formatMapINR } from '@/data/mapConfig';
 import { useShortlist } from '@/context/ShortlistContext';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
+import LazyImage from '@/components/common/LazyImage';
 
 export interface MapSidebarProperty {
   id: string;
@@ -112,10 +113,9 @@ export default function MapPropertySidebar({
                       >
                         <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                           {property.image ? (
-                            <img
+                            <LazyImage
                               src={property.image}
                               alt=""
-                              loading="lazy"
                               className="h-full w-full object-cover"
                             />
                           ) : (

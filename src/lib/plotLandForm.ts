@@ -57,16 +57,11 @@ export function formatArea(
   return areaSqft ? `${areaSqft.toLocaleString('en-IN')} sq.ft` : '—';
 }
 
-export function getAreaLabel(areaUnit: string | undefined, isLand = false): string {
-  if (isLand) return 'LAND AREA';
-  return 'PLOT AREA';
-}
-
 export function shouldShowPlotDimensions(
-  areaUnit: string | undefined,
+  _areaUnit: string | undefined,
   dimensions?: string,
 ): boolean {
-  if (areaUnit === 'acres') return false;
+  if (_areaUnit === 'acres') return false;
   const d = dimensions?.trim();
   return !!d && d !== '—';
 }

@@ -42,7 +42,7 @@ export default function MapFilterPanel({
   }, []);
 
   const handleSheetDragEnd = useCallback(
-    (_: any, info: PanInfo) => {
+    (_: React.ComponentType<unknown>, info: PanInfo) => {
       if (info.offset.y > 100 || info.velocity.y > 500) {
         onClose();
       }

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -13,6 +13,7 @@ import {
   Tree,
   type Icon,
 } from '@phosphor-icons/react';
+import LazyImage from '@/components/common/LazyImage';
 import { useShortlist } from '@/context/ShortlistContext';
 import {
   getCardSaleTitle,
@@ -45,7 +46,7 @@ interface HomePropertyCardProps {
   index?: number;
 }
 
-export default function HomePropertyCard({ property: doc, index = 0 }: HomePropertyCardProps) {
+const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index = 0 }: HomePropertyCardProps) {
   const navigate = useNavigate();
   const { showLocationModal } = useLocationPermission();
   const { isShortlisted, toggle } = useShortlist();
@@ -144,13 +145,13 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
           className="relative w-full text-left cursor-pointer"
         >
           <div className="relative aspect-[16/11] w-full overflow-hidden bg-[#F3F4F6]">
+            {/* Skeleton shimmer — shows behind LazyImage while loading */}
+            <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
             {coverImage && !imgError ? (
-              <img
+              <LazyImage
                 src={coverImage}
                 alt={saleTitle}
-                loading={index === 0 ? 'eager' : 'lazy'}
-                decoding="async"
-                fetchPriority={index === 0 ? 'high' : undefined}
+                priority={index === 0}
                 onError={() => setImgError(true)}
                 className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
@@ -260,4 +261,6 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
       />
     </>
   );
-}
+});
+
+export default HomePropertyCard;

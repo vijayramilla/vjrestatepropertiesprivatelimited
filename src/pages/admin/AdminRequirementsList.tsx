@@ -29,6 +29,7 @@ import {
   type RequirementTimeline,
   type PaymentMode,
 } from '@/lib/requirements';
+
 import RequirementStatusBadge from '@/components/requirements/RequirementStatusBadge';
 
 export default function AdminRequirementsList() {
@@ -45,7 +46,7 @@ export default function AdminRequirementsList() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = subscribeRequirements(
+    const unsub = subscribeAdminRequirements(
       (data) => {
         setItems(data);
         setLoading(false);

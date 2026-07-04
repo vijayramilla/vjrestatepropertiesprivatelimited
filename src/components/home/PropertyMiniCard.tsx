@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, memo } from 'react'
 import { Heart, MapPin } from '@phosphor-icons/react'
 import { useShortlist } from '@/context/ShortlistContext'
 import { formatCardTotalPrice } from '@/lib/formatPrice'
+import LazyImage from '@/components/common/LazyImage'
 
 interface PropertyMiniCardProps {
   property: {
@@ -24,7 +25,7 @@ interface PropertyMiniCardProps {
   onClick?: () => void
 }
 
-export default function PropertyMiniCard({ property, badge, onClick }: PropertyMiniCardProps) {
+const PropertyMiniCard = memo(function PropertyMiniCard({ property, badge, onClick }: PropertyMiniCardProps) {
   const { isShortlisted, toggle } = useShortlist()
   const saved = isShortlisted(property.id)
   const imgSrc = property.image || property.images?.[0]
@@ -64,7 +65,7 @@ export default function PropertyMiniCard({ property, badge, onClick }: PropertyM
 
       <div className="relative w-10 h-10 shrink-0 rounded-lg overflow-hidden bg-[#F3F4F6] ring-1 ring-black/[0.04] group-hover:ring-black/[0.08] transition-all">
         {imgSrc ? (
-          <img
+          <LazyImage
             src={imgSrc}
             alt={property.title}
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
@@ -107,4 +108,6 @@ export default function PropertyMiniCard({ property, badge, onClick }: PropertyM
       </button>
     </button>
   )
-}
+})
+
+export default PropertyMiniCard

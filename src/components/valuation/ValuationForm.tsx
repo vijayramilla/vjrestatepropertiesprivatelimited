@@ -53,7 +53,6 @@ export default function ValuationForm({ onValuate, loading }: ValuationFormProps
   const [bhk, setBhk] = useState('');
   const [status, setStatus] = useState('');
   const [localityQuery, setLocalityQuery] = useState('');
-  const [isLocating, setIsLocating] = useState(false);
 
   const suggestions = useMemo(
     () => (localityQuery.trim().length > 0 ? filterLocalities(localityQuery, 6) : []),
@@ -94,7 +93,6 @@ export default function ValuationForm({ onValuate, loading }: ValuationFormProps
 
   const handleLocate = () => {
     if (!navigator.geolocation) return;
-    setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -111,9 +109,8 @@ export default function ValuationForm({ onValuate, loading }: ValuationFormProps
         } catch {
           /* fallback to manual */
         }
-        setIsLocating(false);
       },
-      () => setIsLocating(false),
+      () => { /* fallback to manual */ },
       { timeout: 5000 },
     );
   };

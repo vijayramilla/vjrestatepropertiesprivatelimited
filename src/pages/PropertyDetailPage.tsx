@@ -3,8 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice, formatINR } from '@/lib/formatPrice';
-import { formatPlotLandAreaDisplay, formatArea } from '@/lib/plotLandForm';
+import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice } from '@/lib/formatPrice';
+import { formatArea } from '@/lib/plotLandForm';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
 import { siteContact } from '@/data/siteContact';
 import { shareProperty } from '@/utils/shareProperty';
@@ -44,6 +44,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
+import LazyImage from '@/components/common/LazyImage';
 import {
   isPlotProperty,
   isLandOrPlotProperty,
@@ -166,6 +167,20 @@ export default function PropertyDetailPage() {
     fetchProperty();
   }, [id]);
 
+  const recentlyViewedId = id;
+  useEffect(() => {
+    if (!recentlyViewedId) return;
+    try {
+      const key = 'vjr_recently_viewed'
+      const stored = localStorage.getItem(key)
+      const ids: string[] = stored ? JSON.parse(stored) : []
+      const updated = [recentlyViewedId, ...ids.filter((i) => i !== recentlyViewedId)].slice(0, 10)
+      localStorage.setItem(key, JSON.stringify(updated))
+    } catch (e) {
+      console.error('Recently viewed save error:', e)
+    }
+  }, [recentlyViewedId]);
+
   useEffect(() => {
     if (!property) return;
     setPropertyShareMeta({
@@ -214,17 +229,6 @@ export default function PropertyDetailPage() {
   }
 
   const propertyId = property.id;
-  useEffect(() => {
-    try {
-      const key = 'vjr_recently_viewed'
-      const stored = localStorage.getItem(key)
-      const ids: string[] = stored ? JSON.parse(stored) : []
-      const updated = [propertyId, ...ids.filter((id) => id !== propertyId)].slice(0, 10)
-      localStorage.setItem(key, JSON.stringify(updated))
-    } catch (e) {
-      console.error('Recently viewed save error:', e)
-    }
-  }, [propertyId])
   const saved = isShortlisted(propertyId);
   const isLandOrPlot = isLandOrPlotProperty(property);
   const showRental = showsRentalIncome(property);
@@ -349,9 +353,10 @@ export default function PropertyDetailPage() {
               className="relative w-full overflow-hidden bg-[#f2f2f2] aspect-square lg:aspect-[4/3]"
             >
               {activeImage ? (
-                <img
+                <LazyImage
                   src={activeImage}
                   alt={property.title}
+                  priority={true}
                   className="absolute inset-0 w-full h-full object-cover object-center"
                 />
               ) : (

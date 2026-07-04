@@ -35,23 +35,23 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
   }, [googleMapsApiKey]);
 
   useEffect(() => {
-    const key = 'gm_authFailure';
-    const existing = (window as any)[key];
-    (window as any)[key] = () => {
+    const key = 'gm_authFailure' as keyof Window;
+    const existing = (window)[key] as (() => void) | undefined;
+    (window)[key] = () => {
       console.error('[Maps] gm_authFailure fired — API key rejected or billing disabled');
       authFailedRef.current = true;
       setAuthFailure(true);
       if (typeof existing === 'function') existing();
     };
     return () => {
-      (window as any)[key] = existing;
+      (window)[key] = existing as typeof window[typeof key];
     };
   }, []);
 
   const { isLoaded, loadError } = useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey,
-    libraries: GOOGLE_MAPS_LIBRARIES,
+    libraries: [...GOOGLE_MAPS_LIBRARIES] as const,
   });
 
   useEffect(() => {

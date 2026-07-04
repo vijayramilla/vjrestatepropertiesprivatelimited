@@ -1,11 +1,24 @@
+# Cache JS/CSS chunks forever (hashed filenames)
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-/*.js
-  Cache-Control: public, max-age=31536000, immutable
-
-/*.css
-  Cache-Control: public, max-age=31536000, immutable
+# HTML — revalidate on every visit
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
 
 /index.html
   Cache-Control: public, max-age=0, must-revalidate
+
+# Service worker
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Security headers
+/*
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(self)

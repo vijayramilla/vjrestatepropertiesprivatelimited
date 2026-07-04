@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence, type PanInfo } from 'framer-motion';
+import { motion, type PanInfo } from 'framer-motion';
 import {
   AlertTriangle,
   Check,
@@ -18,6 +18,7 @@ import { WhatsappLogo } from '@phosphor-icons/react';
 import { CATEGORY_CONFIG, formatMapINR } from '@/data/mapConfig';
 import { siteContact } from '@/data/siteContact';
 import GlassCard from '@/components/ui/glass-card';
+import LazyImage from '@/components/common/LazyImage';
 
 export interface MapPopupProperty {
   id: string;
@@ -158,7 +159,7 @@ export default function MapPropertyPopup({
   const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${property.lat},${property.lng}&travelmode=driving`;
   const shareLocationUrl = `https://www.google.com/maps?q=${property.lat},${property.lng}`;
   const propertyUrl = `${siteContact.siteUrl}/properties/${property.id}`;
-  const whatsAppText = encodeURIComponent(
+const whatsAppText = encodeURIComponent(
     `Hi VJR Estate, I'm interested in this property:\n${property.title || `${config.label} for Sale`}\n${property.propertyType} · ${property.locality}, Bangalore\nPrice: ${formatMapINR(property.price)}\n\n${propertyUrl}`,
   );
 
@@ -168,13 +169,14 @@ export default function MapPropertyPopup({
       text: `${property.title || config.label} — ${property.locality}`,
       url: shareLocationUrl,
     };
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-        return;
-      } catch {
+if (navigator.share) {
+        try {
+          await navigator.share(shareData);
+          return;
+        } catch {
+          // ignore
+        }
       }
-    }
     window.open(shareLocationUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -228,7 +230,7 @@ export default function MapPropertyPopup({
 
   function renderRiskBlock(content: string): ReactNode {
     const lines = contentLines(content);
-    const first = lines[0]?.replace(/^\[\!\]\s*/, '').trim() || content;
+    const first = lines[0]?.replace(/^\[!\]\s*/, '').trim() || content;
     return (
       <div className="flex items-start gap-2 rounded-xl bg-amber-500/8 border border-amber-500/15 px-3.5 py-2.5">
         <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-500/15">
@@ -397,19 +399,17 @@ export default function MapPropertyPopup({
               }}
               className="cursor-grab active:cursor-grabbing"
             >
-              <img
+              <LazyImage
                 src={photo}
                 alt={property.title}
                 className="h-44 w-full object-cover sm:h-40 pointer-events-none"
-                loading="lazy"
               />
             </motion.div>
           ) : (
-            <img
+            <LazyImage
               src={photo}
               alt={property.title}
               className="h-44 w-full object-cover sm:h-40"
-              loading="lazy"
             />
           )}
           {photoNavButtons}

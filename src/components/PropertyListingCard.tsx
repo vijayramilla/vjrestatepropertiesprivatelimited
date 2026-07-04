@@ -1,5 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, memo } from 'react';
+import LazyImage from './common/LazyImage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ShareNetwork, WhatsappLogo, MapPin } from '@phosphor-icons/react';
 import { Buildings, HouseLine, Storefront, Tree, type Icon } from '@phosphor-icons/react';
@@ -33,7 +34,7 @@ interface PropertyListingCardProps {
   compact?: boolean;
 }
 
-export default function PropertyListingCard({ property, index = 0, compact = false }: PropertyListingCardProps) {
+const PropertyListingCard = memo(function PropertyListingCard({ property, index = 0, compact = false }: PropertyListingCardProps) {
   const navigate = useNavigate();
   const { showLocationModal } = useLocationPermission();
   const { isShortlisted, toggle } = useShortlist();
@@ -145,13 +146,13 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
         }}
       >
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100 sm:aspect-square md:aspect-[4/3]">
+          {/* Skeleton shimmer — shows behind LazyImage while loading */}
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
           {coverImage && !imgError ? (
-            <img
+            <LazyImage
               src={coverImage}
               alt={saleTitle}
-              loading={index === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={index === 0 ? 'high' : undefined}
+              priority={index === 0}
               onError={() => setImgError(true)}
               className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.03]"
             />
@@ -303,4 +304,6 @@ export default function PropertyListingCard({ property, index = 0, compact = fal
       />
     </motion.article>
   );
-}
+});
+
+export default PropertyListingCard;

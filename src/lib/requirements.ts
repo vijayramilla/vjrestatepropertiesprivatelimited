@@ -1,6 +1,5 @@
 import {
   collection,
-  deleteDoc,
   doc,
   getCountFromServer,
   increment,
@@ -99,7 +98,10 @@ export function toPublicRequirement(
   id: string,
   data: RequirementDoc,
 ): PublicRequirement {
-  const { paymentMode: _p, buyerName: _n, buyerPhone: _ph, ...rest } = data;
+  const rest = { ...data };
+  delete (rest as any).paymentMode;
+  delete (rest as any).buyerName;
+  delete (rest as any).buyerPhone;
   return { ...rest, id };
 }
 
@@ -305,11 +307,11 @@ export async function updateRequirement(
   const { publicFields, privateFields } = splitRequirementUpdate(data);
 
   if (Object.keys(publicFields).length > 0) {
-    await updateDoc(doc(db, 'requirements', id), publicFields);
+    await updateDoc(doc(db, 'requirements', id), publicFields as Record<string, any>);
   }
 
   if (Object.keys(privateFields).length > 0) {
-    await setDoc(doc(db, REQUIREMENT_PRIVATE_COLLECTION, id), privateFields, {
+    await setDoc(doc(db, REQUIREMENT_PRIVATE_COLLECTION, id), privateFields as Record<string, any>, {
       merge: true,
     });
   }

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
+import LazyImage from '@/components/common/LazyImage';
 import { formatPrice, formatRental, formatYield, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import {
   PLOT_LAND_TYPES,
@@ -420,11 +421,8 @@ export default function AdminPropertyForm() {
       const {
         land_acres,
         land_guntas,
-        survey_number,
-        water_source,
-        dc_conversion_done,
-        area_unit,
-        price_per_sqft,
+        area_unit: _areaUnit,
+        price_per_sqft: _pps,
         extra_details: _extra,
         ...restForm
       } = formData;
@@ -437,10 +435,10 @@ export default function AdminPropertyForm() {
         area_sqft,
         ...(isPlotOrLand
           ? {
-              area_unit: area_unit ?? 'sqft',
+              area_unit: 'sqft',
               area_acres: land_acres ?? 0,
               area_guntas: land_guntas ?? 0,
-              price_per_sqft: price_per_sqft ?? 0,
+              price_per_sqft: 0,
               ...(formData.map_lat && formData.map_lng
                 ? {
                     map_lat: formData.map_lat,
@@ -1530,7 +1528,7 @@ export default function AdminPropertyForm() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {imageUrls.map((url) => (
                 <div key={url} className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50">
-                  <img src={url} alt="Property" className="h-full w-full object-cover" />
+                  <LazyImage src={url} alt="Property" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeExistingImage(url)}
@@ -1543,7 +1541,7 @@ export default function AdminPropertyForm() {
               ))}
               {pendingPreviews.map((url, index) => (
                 <div key={url} className="relative aspect-square overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50/30">
-                  <img src={url} alt="Pending upload" className="h-full w-full object-cover opacity-90" />
+                  <LazyImage src={url} alt="Pending upload" className="h-full w-full object-cover opacity-90" />
                   <button
                     type="button"
                     onClick={() => removePendingImage(index)}

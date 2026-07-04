@@ -1,4 +1,4 @@
-import { formatPlotLandCardArea, formatArea } from '@/lib/plotLandForm';
+import { formatArea } from '@/lib/plotLandForm';
 
 /** Area stat label shown on property cards (replaces "Sq.ft"). Values are unchanged. */
 export function getAreaSizeLabel(propertyType: string): string {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HomePropertyCard from './HomePropertyCard';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
+import { usePropertiesCache } from '@/hooks/usePropertiesCache';
 import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 
 type HomeListingDoc = FirestorePropertyDoc & { id: string };
@@ -23,8 +24,15 @@ function SkeletonCard() {
 }
 
 export default function HomeListingsSection() {
-  const [latestProperties, setLatestProperties] = useState<HomeListingDoc[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { getCached, setCache } = usePropertiesCache('home-listings');
+  const [latestProperties, setLatestProperties] = useState<HomeListingDoc[]>(() => {
+    const cached = getCached('home-listings');
+    return (cached ?? []) as unknown as HomeListingDoc[];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = getCached('home-listings');
+    return !cached;
+  });
 
   useEffect(() => {
     const unsub = subscribeProperties(
@@ -38,7 +46,9 @@ export default function HomeListingsSection() {
           .slice(0, 3)
           .map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
 
-        setLatestProperties(featured.length > 0 ? featured : fallback);
+        const result = featured.length > 0 ? featured : fallback;
+        setCache('home-listings', result as unknown[]);
+        setLatestProperties(result);
         setLoading(false);
       },
       () => {
@@ -48,7 +58,7 @@ export default function HomeListingsSection() {
     );
 
     return () => unsub();
-  }, []);
+  }, [setCache]);
 
   if (loading) {
     return (

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import LazyImage from './common/LazyImage';
 
 type PropertyImageVariant = 'card' | 'detail' | 'thumb';
 
@@ -32,11 +33,9 @@ export default function PropertyImage({
         className={cn('relative w-full overflow-hidden bg-[#f2f2f2]', className)}
         style={cardSquareStyle}
       >
-        <img
+        <LazyImage
           src={src}
           alt={alt}
-          loading="lazy"
-          decoding="async"
           className={cn('absolute inset-0 w-full h-full object-contain object-center', imgClassName)}
         />
       </div>
@@ -51,7 +50,7 @@ export default function PropertyImage({
 
   return (
     <div className={cn(containerClass, className)}>
-      <img src={src} alt={alt} loading="lazy" decoding="async" className={cn(imgClass, imgClassName)} />
+      <LazyImage src={src} alt={alt} className={cn(imgClass, imgClassName)} />
     </div>
   );
 }

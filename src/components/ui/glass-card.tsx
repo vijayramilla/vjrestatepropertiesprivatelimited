@@ -31,7 +31,7 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
   if (Component === 'button') {
     return (
       <button
-        ref={ref as any}
+        ref={ref as React.Ref<HTMLButtonElement>}
         type="button"
         className={classes}
         onClick={onClick}
@@ -43,7 +43,7 @@ const GlassCard = forwardRef<HTMLDivElement, GlassCardProps>(function GlassCard(
 
   if (Component === 'a' && href) {
     return (
-      <a ref={ref as any} href={href} className={classes} target="_blank" rel="noopener noreferrer">
+      <a ref={ref as React.Ref<HTMLAnchorElement>} href={href} className={classes} target="_blank" rel="noopener noreferrer">
         {children}
       </a>
     );

@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
+import LazyImage from './common/LazyImage';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
@@ -157,15 +158,15 @@ export default function Navbar() {
       >
         <div className="w-full h-full flex items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <Link to="/" className="flex shrink-0 cursor-pointer items-center gap-2 sm:gap-2.5">
-            <img
+            <LazyImage
               src="/favicon.png"
               alt=""
               width={32}
               height={32}
+              priority={true}
               className={`h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8 ${
                 isTransparent ? 'brightness-0 invert' : ''
               }`}
-              decoding="async"
             />
             <span
               className="font-serif text-xl font-normal tracking-[-0.01em] md:text-2xl"
@@ -250,11 +251,10 @@ export default function Navbar() {
               buttonRef={profileRef}
             >
               {user?.photoURL ? (
-                <img
+                <LazyImage
                   src={user.photoURL}
                   alt=""
                   className="w-[18px] h-[18px] object-cover"
-                  style={{ borderRadius: 0 }}
                 />
               ) : (
                 <User
@@ -290,11 +290,10 @@ export default function Navbar() {
                 <div className="px-5 pt-4 pb-3 border-b border-[#f0f0f0]">
                   <div className="flex items-center gap-3">
                     {user.photoURL ? (
-                      <img
+                      <LazyImage
                         src={user.photoURL}
                         alt=""
                         className="w-9 h-9 object-cover flex-shrink-0"
-                        style={{ borderRadius: 0 }}
                       />
                     ) : (
                       <div

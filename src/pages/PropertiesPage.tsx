@@ -26,9 +26,9 @@ import {
   resolveLocalityForSearch,
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
-import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 import { formatPrice } from '@/lib/formatPrice';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
+import { usePropertiesCache } from '@/hooks/usePropertiesCache';
 import { Button } from '@/components/ui/liquid-glass-button';
 
 type SortOption = 'price_asc' | 'price_desc' | 'rental_desc' | 'newest';
@@ -124,45 +124,49 @@ function FilterTypePill({
       </span>
       <span className="line-clamp-2 leading-snug">{label}</span>
     </button>
-  );
+);
 }
 
-function FilterRadio({
-  checked,
-  onChange,
-  label,
-  name,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-  name: string;
-}) {
-  return (
-    <label className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-2.5 transition hover:bg-gray-50">
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="sr-only" />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition ${
-          checked ? 'border-gray-900 bg-gray-900' : 'border-gray-300 bg-white'
-        }`}
-      >
-        {checked && <span className="h-2 w-2 rounded-full bg-white" />}
-      </span>
-      <span className="text-[14px] text-gray-600">{label}</span>
-    </label>
-  );
+interface PropertyListItem extends PropertyFilterInput {
+  id: string;
+  title?: string;
+  type?: string;
+  area?: string;
+  location?: string;
+  price?: number;
+  price_label?: string;
+  monthly_rental?: number;
+  monthly_rental_label?: string;
+  rental_yield?: string;
+  area_sqft?: number;
+  area_unit?: string;
+  area_acres?: number;
+  area_guntas?: number;
+  price_per_sqft?: number;
+  total_units?: number;
+  plot_subtype?: string;
+  facing?: string;
+  description?: string;
+  highlights?: string[];
+  amenities?: string[];
+  katha?: string;
+  featured?: boolean;
+  listed_days_ago?: number;
+  createdAt?: Record<string, unknown> | string | number | Date;
+  images?: string[];
 }
-
-type PropertyListItem = PropertyFilterInput &
-  FirestorePropertyDoc & {
-    id: string;
-    createdAt?: { toDate?: () => Date } | string | number | Date;
-  };
 
 export default function PropertiesPage() {
   const [searchParams] = useSearchParams();
-  const [properties, setProperties] = useState<PropertyListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { getCached, setCache } = usePropertiesCache('all-properties');
+  const [properties, setProperties] = useState<PropertyListItem[]>(() => {
+    const cached = getCached('all-properties');
+    return (cached ?? []) as unknown as PropertyListItem[];
+  });
+  const [loading, setLoading] = useState(() => {
+    const cached = getCached('all-properties');
+    return !cached;
+  });
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_SLIDER_MAX]);
@@ -196,13 +200,15 @@ export default function PropertiesPage() {
   useEffect(() => {
     const unsub = subscribeProperties(
       (docs) => {
-        setProperties(docs.map(({ id, data }) => ({ id, ...data })));
+        const mapped = docs.map(({ id, data }) => ({ id, ...data }));
+        setCache('all-properties', mapped as unknown[]);
+        setProperties(mapped);
         setLoading(false);
       },
       () => setLoading(false),
     );
     return () => unsub();
-  }, []);
+  }, [setCache]);
 
   useEffect(() => {
     const typeParam = searchParams.get('type');
@@ -295,9 +301,13 @@ export default function PropertiesPage() {
         sorted.sort((a, b) => {
           const byCat = categoryIndex(a) - categoryIndex(b);
           if (byCat !== 0) return byCat;
-          const aDate = a.createdAt?.toDate?.() || new Date(a.createdAt as string | number | Date);
-          const bDate = b.createdAt?.toDate?.() || new Date(b.createdAt as string | number | Date);
-          return bDate.getTime() - aDate.getTime();
+          const aTime = a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt && typeof (a.createdAt as Record<string, unknown>).toDate === 'function'
+            ? (a.createdAt as { toDate: () => Date }).toDate().getTime()
+            : new Date(a.createdAt as string | number | Date).getTime();
+          const bTime = b.createdAt && typeof b.createdAt === 'object' && 'toDate' in b.createdAt && typeof (b.createdAt as Record<string, unknown>).toDate === 'function'
+            ? (b.createdAt as { toDate: () => Date }).toDate().getTime()
+            : new Date(b.createdAt as string | number | Date).getTime();
+          return bTime - aTime;
         });
         break;
     }
@@ -989,7 +999,7 @@ export default function PropertiesPage() {
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: index * 0.05 }}
                           >
-                            <PropertyCard property={property} index={index} />
+                            <PropertyCard property={property as never} index={index} />
                           </motion.div>
                         ))}
                       </div>
@@ -1006,7 +1016,7 @@ export default function PropertiesPage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
                   >
-                    <PropertyCard property={property} index={index} />
+                    <PropertyCard property={property as never} index={index} />
                   </motion.div>
                 ))}
               </div>
