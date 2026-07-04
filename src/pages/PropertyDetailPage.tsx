@@ -214,6 +214,17 @@ export default function PropertyDetailPage() {
   }
 
   const propertyId = property.id;
+  useEffect(() => {
+    try {
+      const key = 'vjr_recently_viewed'
+      const stored = localStorage.getItem(key)
+      const ids: string[] = stored ? JSON.parse(stored) : []
+      const updated = [propertyId, ...ids.filter((id) => id !== propertyId)].slice(0, 10)
+      localStorage.setItem(key, JSON.stringify(updated))
+    } catch (e) {
+      console.error('Recently viewed save error:', e)
+    }
+  }, [propertyId])
   const saved = isShortlisted(propertyId);
   const isLandOrPlot = isLandOrPlotProperty(property);
   const showRental = showsRentalIncome(property);

@@ -1,12 +1,12 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Heart,
   ShareNetwork,
   WhatsappLogo,
   MapPin,
-  ArrowUpRight,
+  ArrowRight,
   Buildings,
   HouseLine,
   Storefront,
@@ -45,7 +45,6 @@ interface HomePropertyCardProps {
   index?: number;
 }
 
-/** Home-only luxury card — UI from @21st-dev/magic MCP, wired to VJR data & actions */
 export default function HomePropertyCard({ property: doc, index = 0 }: HomePropertyCardProps) {
   const navigate = useNavigate();
   const { showLocationModal } = useLocationPermission();
@@ -130,195 +129,125 @@ export default function HomePropertyCard({ property: doc, index = 0 }: HomePrope
     }
   };
 
-  const fadeUp = (delay: number) => ({
-    initial: { opacity: 0, y: 10 },
-    animate: { opacity: 1, y: 0 },
-    transition: { delay, duration: 0.45, ease: [0.22, 1, 0.36, 1] as const },
-  });
-
   return (
     <>
       <motion.article
-        className="group relative h-[560px] w-full overflow-hidden bg-black sm:h-[580px] lg:h-[600px] border border-white/[0.04]"
-        initial={{ opacity: 0, y: 24 }}
+        className="group flex flex-col w-full overflow-hidden rounded-xl bg-white border border-gray-100 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5"
+        initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, margin: '-40px' }}
-        transition={{ duration: 0.55, delay: index * 0.1, ease: [0.22, 1, 0.36, 1] }}
-        whileHover={{ y: -4 }}
+        transition={{ duration: 0.4, delay: index * 0.08, ease: 'easeOut' }}
       >
-        {/* Image + gradient */}
-        <div className="absolute inset-0">
-          {coverImage && !imgError ? (
-            <motion.img
-              src={coverImage}
-              alt={saleTitle}
-              loading={index === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={index === 0 ? 'high' : undefined}
-              className="h-full w-full object-cover"
-              onError={() => setImgError(true)}
-              whileHover={{ scale: 1.05 }}
-              transition={{ duration: 0.8, ease: [0.16, 0.84, 0.34, 1] }}
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-gray-900 via-gray-950 to-black">
-              <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
-              <div className="relative flex flex-col items-center gap-2">
-                <TypeIcon size={64} weight="thin" className="text-white/10" />
-                <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-white/20">Image Coming Soon</span>
+        <button
+          type="button"
+          onClick={goToDetail}
+          className="relative w-full text-left cursor-pointer"
+        >
+          <div className="relative aspect-[16/11] w-full overflow-hidden bg-[#F3F4F6]">
+            {coverImage && !imgError ? (
+              <img
+                src={coverImage}
+                alt={saleTitle}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                decoding="async"
+                fetchPriority={index === 0 ? 'high' : undefined}
+                onError={() => setImgError(true)}
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                <TypeIcon size={40} weight="thin" className="text-gray-300" />
               </div>
-            </div>
-          )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/10" />
-          <div className="absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 50%)' }} />
-        </div>
+            )}
 
-        {/* Top badges */}
-        <div className="absolute left-5 top-5 z-10 flex flex-wrap items-center gap-2 sm:left-6 sm:top-6">
-          {isFeatured && (
-            <motion.div
-              initial={{ opacity: 0, x: -16 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.15 }}
-              className="rounded-full border border-white/20 bg-white/10 px-4 py-1.5 backdrop-blur-sm shadow-[0_0_20px_rgba(255,255,255,0.08)]"
-            >
-              <span
-                className="text-[10px] font-medium uppercase tracking-[0.2em] text-white"
-                style={{ fontFamily: DM_SANS }}
-              >
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+
+            {isFeatured && (
+              <span className="absolute top-2.5 left-2.5 z-10 bg-white/95 backdrop-blur-sm text-[10px] font-semibold text-[#4F46E5] px-2.5 py-1 rounded-full shadow-sm">
                 Featured
               </span>
-            </motion.div>
-          )}
-          {imageCount > 0 && (
-            <span
-              className="rounded-full border border-white/15 bg-black/30 px-3 py-1 text-[9px] font-medium uppercase tracking-[0.14em] text-white/80 backdrop-blur-sm"
-              style={{ fontFamily: DM_SANS }}
-            >
-              {imageCount} Photos
-            </span>
-          )}
-        </div>
-
-        {/* Save */}
-        <motion.button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            toggle(property.id);
-          }}
-          className="absolute right-5 top-5 z-10 rounded-full border border-white/20 bg-white/10 p-3 backdrop-blur-sm transition-colors hover:bg-white/20 sm:right-6 sm:top-6"
-          whileTap={{ scale: 0.92 }}
-          initial={{ opacity: 0, x: 16 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.15 }}
-          aria-label={saved ? 'Remove from shortlist' : 'Save property'}
-        >
-          <motion.div
-            animate={{ scale: saved ? [1, 1.28, 1] : 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            <Heart size={20} weight={saved ? 'fill' : 'regular'} color="#fff" />
-          </motion.div>
-        </motion.button>
-
-        {/* Bottom content overlay */}
-        <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 sm:p-6 md:p-8">
-          <motion.div {...fadeUp(0.28)} className="mb-3 flex items-center gap-2">
-            <MapPin size={14} weight="regular" color="rgba(255,255,255,0.55)" />
-            <span
-              className="truncate text-[11px] font-light uppercase tracking-[0.16em] text-white/55"
-              style={{ fontFamily: DM_SANS }}
-            >
-              {cityName}
-            </span>
-          </motion.div>
-
-          <motion.h3
-            {...fadeUp(0.36)}
-            className="font-display mb-4 line-clamp-2 text-2xl font-light leading-tight tracking-tight text-white sm:text-3xl md:text-[2rem]"
-          >
-            {saleTitle}
-          </motion.h3>
-
-          <motion.div
-            {...fadeUp(0.44)}
-            className="mb-4 h-px w-12 bg-white/30"
-            initial={{ scaleX: 0, opacity: 0 }}
-            animate={{ scaleX: 1, opacity: 1 }}
-            transition={{ delay: 0.48, duration: 0.4 }}
-          />
-
-          <motion.div {...fadeUp(0.52)}>
-            <p className="font-display text-2xl font-light text-white sm:text-[1.75rem]">
-              {priceDisplay}
-            </p>
-            {subline && (
-              <p
-                className="mt-1.5 text-xs font-light text-white/55"
-                style={{ fontFamily: DM_SANS }}
-              >
-                {subline}
-              </p>
             )}
-          </motion.div>
 
-          <motion.div
-            {...fadeUp(0.62)}
-            className="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3"
-          >
             <button
               type="button"
-              onClick={goToDetail}
-              className="inline-flex items-center gap-2 border border-white/30 px-5 py-3 text-[10px] font-medium uppercase tracking-[0.18em] text-white transition-all hover:border-white hover:bg-white/10 sm:text-[11px]"
-              style={{ fontFamily: DM_SANS }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(property.id) }}
+              className="absolute top-2.5 right-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 backdrop-blur-sm shadow-sm transition-all hover:bg-white active:scale-90"
+              aria-label={saved ? 'Remove from shortlist' : 'Save property'}
             >
-              <ArrowUpRight size={15} weight="bold" />
-              View Property
+              <Heart
+                size={15}
+                weight={saved ? 'fill' : 'regular'}
+                className={saved ? 'text-[#EF4444]' : 'text-gray-400'}
+              />
             </button>
 
+            {imageCount > 0 && (
+              <span className="absolute bottom-2.5 right-2.5 z-10 bg-black/50 backdrop-blur-sm text-white text-[9px] font-medium px-2 py-0.5 rounded">
+                {imageCount} photos
+              </span>
+            )}
+          </div>
+
+          <div className="p-3.5 sm:p-4">
+            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5">
+              <MapPin size={11} weight="regular" className="text-gray-400" />
+              <span className="truncate">{cityName}</span>
+            </div>
+
+            <h3
+              className="text-sm font-semibold leading-snug text-gray-900 line-clamp-2"
+              style={{ fontFamily: DM_SANS }}
+            >
+              {saleTitle}
+            </h3>
+
+            <div className="mt-3 pt-3 border-t border-gray-50">
+              <p
+                className="font-numeric text-xl font-bold leading-none text-gray-900 tracking-tight"
+              >
+                {priceDisplay}
+              </p>
+              {subline && (
+                <p
+                  className="mt-1 text-[11px] text-gray-500"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  {subline}
+                </p>
+              )}
+            </div>
+          </div>
+        </button>
+
+        <div className="border-t border-gray-50 px-3.5 pb-3.5 pt-2.5 sm:px-4">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleShare}
-              aria-label="Share property"
-              className="inline-flex items-center gap-2 border border-white/30 px-4 py-3 text-[10px] font-medium uppercase tracking-[0.18em] text-white transition-all hover:border-white hover:bg-white/10 sm:text-[11px]"
-              style={{ fontFamily: DM_SANS }}
+              className="inline-flex items-center justify-center gap-1.5 flex-1 h-9 rounded-lg border border-gray-200 bg-white text-gray-600 text-[10px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-50 active:scale-[0.98]"
             >
-              <ShareNetwork size={15} weight="regular" />
-              Share
+              <ShareNetwork size={13} weight="duotone" />
+              {shareFeedback || 'Share'}
             </button>
 
             <button
               type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setContactOpen(true);
-              }}
+              onClick={(e) => { e.preventDefault(); e.stopPropagation(); setContactOpen(true) }}
               disabled={waLoading}
-              aria-label="WhatsApp enquiry"
-              className="inline-flex items-center gap-2 border border-[#25D366]/60 bg-[#25D366]/90 px-4 py-3 text-[10px] font-medium uppercase tracking-[0.18em] text-white transition-all hover:bg-[#25D366] disabled:opacity-60 sm:text-[11px]"
-              style={{ fontFamily: DM_SANS }}
+              className="inline-flex items-center justify-center gap-1.5 flex-1 h-9 rounded-lg bg-gray-900 text-white text-[10px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-800 active:scale-[0.98]"
             >
-              <WhatsappLogo size={16} weight="fill" color="#fff" />
-              WhatsApp
+              <WhatsappLogo size={14} weight="fill" />
+              {waLoading ? '...' : 'WhatsApp'}
             </button>
-          </motion.div>
 
-          <AnimatePresence>
-            {shareFeedback && (
-              <motion.p
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="mt-3 text-[10px] text-white/50"
-                style={{ fontFamily: DM_SANS }}
-              >
-                {shareFeedback}
-              </motion.p>
-            )}
-          </AnimatePresence>
+            <button
+              type="button"
+              onClick={goToDetail}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 active:scale-[0.98]"
+            >
+              <ArrowRight size={14} weight="bold" />
+            </button>
+          </div>
         </div>
       </motion.article>
 

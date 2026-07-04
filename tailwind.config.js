@@ -104,9 +104,14 @@ export default {
         shimmer: {
           '100%': { transform: 'translateX(100%)' },
         },
+        ripple: {
+          '0%': { transform: 'scale(0)', opacity: '0.5' },
+          '100%': { transform: 'scale(20)', opacity: '0' },
+        },
       },
       animation: {
         shimmer: 'shimmer 1.5s infinite',
+        ripple: 'ripple 0.6s ease-out',
       },
     },
   },

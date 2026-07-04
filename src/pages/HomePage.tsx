@@ -1,10 +1,8 @@
-import { useEffect, useState, useRef, useCallback, Suspense, lazy } from 'react';
+import { useEffect, useState, useCallback, Suspense, lazy } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { GlobeHemisphereWest, ArrowRight } from '@phosphor-icons/react';
 import HomeHero from '../components/home/HomeHero';
 import HomeListingsSection from '../components/home/HomeListingsSection';
-import { AnimatedStatNumber } from '@/components/ui/animated-blur-number';
 import { MAX_LOCALITY_SELECTIONS } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 
@@ -12,6 +10,7 @@ const HomeScrollShowcase = lazy(() => import('../components/home/HomeScrollShowc
 const HomeGlobalInvestors = lazy(() => import('../components/home/HomeGlobalInvestors'));
 const HomeCircularReveal = lazy(() => import('../components/home/HomeCircularReveal'));
 const HomeVjrSparkles = lazy(() => import('../components/home/HomeVjrSparkles'));
+import HomepageDashboard from '../components/home/HomepageDashboard';
 
 function SectionFallback({ minHeight = '16rem' }: { minHeight?: string }) {
   return (
@@ -22,13 +21,6 @@ function SectionFallback({ minHeight = '16rem' }: { minHeight?: string }) {
     />
   );
 }
-
-const stats = [
-  { number: 200, label: 'Properties Sold', suffix: '+' },
-  { number: 100, label: 'Bangalore Focus', suffix: '%' },
-  { number: 4, label: 'Years Experience', suffix: '' },
-  { number: 2025, label: 'Established', suffix: '' },
-];
 
 const TAB_TO_TYPE_PARAM: Record<string, string | undefined> = {
   All: undefined,
@@ -52,9 +44,6 @@ export default function HomePage() {
   const [propertyType, setPropertyType] = useState('All');
   const [selectedLocalities, setSelectedLocalities] = useState<string[]>([]);
   const [localityNotice, setLocalityNotice] = useState('');
-
-  const [counterStarted, setCounterStarted] = useState(false);
-  const counterRef = useRef<HTMLDivElement>(null);
 
   const toggleLocality = useCallback((area: string) => {
     setSelectedLocalities((prev) => {
@@ -80,14 +69,6 @@ export default function HomePage() {
     navigate(`/properties?${params.toString()}`);
   };
 
-  useEffect(() => {
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && !counterStarted) setCounterStarted(true);
-    }, { threshold: 0.3 });
-    if (counterRef.current) observer.observe(counterRef.current);
-    return () => observer.disconnect();
-  }, [counterStarted]);
-
   return (
     <div className="bg-white">
       <HomeHero
@@ -99,6 +80,8 @@ export default function HomePage() {
         onSearch={goToProperties}
         onTrendingClick={handleTrendingClick}
       />
+
+      <HomepageDashboard />
 
       <HomeListingsSection />
 
@@ -113,30 +96,6 @@ export default function HomePage() {
       <Suspense fallback={<SectionFallback minHeight="28rem" />}>
         <HomeCircularReveal />
       </Suspense>
-
-      <section ref={counterRef} className="bg-black py-10 md:py-16 lg:py-24">
-        <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16">
-          <motion.h2 initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="font-display text-white text-center mb-10 md:mb-16 text-2xl md:text-3xl lg:text-4xl leading-tight">Why Investors Choose VJR Estate</motion.h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-            {stats.map((stat) => (
-              <div key={stat.label} className="text-center py-6 md:py-10">
-                <AnimatedStatNumber
-                  value={stat.number}
-                  suffix={stat.suffix}
-                  active={counterStarted}
-                  className="text-white font-numeric text-3xl md:text-4xl lg:text-5xl font-bold leading-none tracking-tight"
-                  duration={400}
-                  blur={14}
-                />
-                <p className="text-gray-400 text-xs md:text-sm uppercase tracking-[0.15em] mt-3 md:mt-4">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-          <motion.p initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="text-gray-300 text-sm md:text-base text-center max-w-xl mx-auto mt-10 md:mt-14 leading-relaxed">
-            Every property on VJR Estate is reviewed by our team for legal clarity, rental income accuracy, and investment potential.
-          </motion.p>
-        </div>
-      </section>
 
       <section className="bg-black py-10 md:py-16 lg:py-24">
         <div className="w-full px-4 md:px-8 lg:px-12 xl:px-16 text-center">
