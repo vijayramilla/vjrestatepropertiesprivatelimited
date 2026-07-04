@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, Suspense, lazy } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { GlobeHemisphereWest, ArrowRight } from '@phosphor-icons/react';
 import HomeHero from '../components/home/HomeHero';
 import HomeListingsSection from '../components/home/HomeListingsSection';
