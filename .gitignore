@@ -24,3 +24,6 @@ dist-ssr
 .bolt/
 __pycache__/
 *.pyc
+
+# opencode config (contains secrets)
+opencode.json
