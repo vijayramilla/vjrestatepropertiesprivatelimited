@@ -6,30 +6,10 @@ on:
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: b43a3f56328c360652cc3b9969d22ff2
 
 jobs:
-  debug-token:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "Token length: ${#CLOUDFLARE_API_TOKEN}"
-          echo "First 10 chars: ${CLOUDFLARE_API_TOKEN:0:10}"
-          echo "Last 10 chars: ${CLOUDFLARE_API_TOKEN: -10}"
-      - run: |
-          curl -s -o /tmp/cf_verify.json -w "%{http_code}" \
-            "https://api.cloudflare.com/client/v4/user/tokens/verify" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-          echo ""
-          cat /tmp/cf_verify.json
-      - run: |
-          curl -s -o /tmp/cf_accounts.json -w "%{http_code}" \
-            "https://api.cloudflare.com/client/v4/accounts" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-          echo ""
-          cat /tmp/cf_accounts.json
-
   deploy:
-    needs: debug-token
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -38,6 +18,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: node --version
       - run: npm ci
       - run: npm run build
-      - run: npx --yes wrangler@latest pages deploy dist --project-name=vjr-estate --branch main
+      - run: npm install -g wrangler@latest
+      - name: Test CF API token
+        run: |
+          curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          echo "---"
+          curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+      - name: Deploy to Cloudflare Pages
+        run: wrangler pages deploy dist --project-name=vjr-estate --branch main
