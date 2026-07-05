@@ -24,10 +24,20 @@ jobs:
       - run: npm install -g wrangler@latest
       - name: Test CF API token
         run: |
+          echo "=== Token verify ==="
           curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-          echo "---"
+          echo ""
+          echo "=== Account info ==="
           curl -s "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID" \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          echo ""
+          echo "=== Wrangler version ==="
+          wrangler --version
+          echo "=== Node version ==="
+          node --version
+      - name: Debug wrangler pages project list
+        run: wrangler pages project list
+        continue-on-error: true
       - name: Deploy to Cloudflare Pages
-        run: wrangler pages deploy dist --project-name=vjr-estate --branch main
+        run: wrangler pages deploy dist --project-name=vjr-estate --branch main --verbose
