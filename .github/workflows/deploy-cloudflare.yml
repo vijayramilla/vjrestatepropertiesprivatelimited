@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Netlify
 
 on:
   push:
@@ -7,8 +7,6 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,11 +14,8 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+      - uses: jsmrcaga/action-netlify-deploy@v2.0.0
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: b43a3f56328c360652cc3b9969d22ff2
-          command: pages deploy dist --project-name=vjr-estate --branch main
-          preCommands: wrangler --version
-          postCommands: echo "Done"
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+          build_directory: dist

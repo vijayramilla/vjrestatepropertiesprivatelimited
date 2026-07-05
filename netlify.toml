@@ -3,6 +3,23 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.processing]
+  skip_processing = false
+
+[build.processing.css]
+  bundle = true
+  minify = true
+
+[build.processing.html]
+  pretty_urls = true
+
+[build.processing.images]
+  compress = true
+
+[build.processing.js]
+  bundle = true
+  minify = true
+
 # React Router SPA — direct links (e.g. /properties/:id) must serve index.html
 [[redirects]]
   from = "/*"
