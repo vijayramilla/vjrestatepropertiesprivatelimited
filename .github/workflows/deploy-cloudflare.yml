@@ -6,7 +6,6 @@ on:
 
 env:
   CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: b43a3f56328c360652cc3b9969d22ff2
 
 jobs:
   deploy:
@@ -20,4 +19,11 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - run: npx wrangler@4.107.0 pages deploy dist --project-name=vjr-estate --branch main
+      - run: npm install -g wrangler@latest
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        run: |
+          wrangler --version
+          wrangler pages deploy dist --project-name=vjr-estate --branch main 2>&1
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
