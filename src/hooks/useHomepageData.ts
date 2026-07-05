@@ -169,11 +169,35 @@ const FALLBACK_LOCALITIES = [
   { locality: 'Hebbal', avgPricePerSqft: 13500, count: 0 },
 ]
 
+const CACHE_KEY = 'vjr_price_snapshot'
+const CACHE_TTL = 60 * 60 * 1000
+
+function loadCachedLocalities() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (Date.now() - parsed.timestamp < CACHE_TTL) {
+      return parsed.data as typeof FALLBACK_LOCALITIES
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+function saveCachedLocalities(data: typeof FALLBACK_LOCALITIES) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }))
+  } catch { /* ignore */ }
+}
+
 export function useBangalorePriceSnapshot() {
-  const [localities, setLocalities] = useState<typeof FALLBACK_LOCALITIES>([])
-  const [loading, setLoading] = useState(true)
+  const [localities, setLocalities] = useState<typeof FALLBACK_LOCALITIES>(() => {
+    return loadCachedLocalities() ?? FALLBACK_LOCALITIES
+  })
 
   useEffect(() => {
+    if (loadCachedLocalities()) return
+
     let cancelled = false
     const fetch = async () => {
       try {
@@ -206,17 +230,17 @@ export function useBangalorePriceSnapshot() {
           .sort((a, b) => b.avgPricePerSqft - a.avgPricePerSqft)
           .slice(0, 8)
 
-        if (!cancelled) setLocalities(result.length >= 4 ? result : FALLBACK_LOCALITIES)
+        const final = result.length >= 4 ? result : FALLBACK_LOCALITIES
+        saveCachedLocalities(final)
+        if (!cancelled) setLocalities(final)
       } catch (err) {
         console.error('Price snapshot error:', err)
         if (!cancelled) setLocalities(FALLBACK_LOCALITIES)
-      } finally {
-        if (!cancelled) setLoading(false)
       }
     }
     fetch()
     return () => { cancelled = true }
   }, [])
 
-  return { localities, loading }
+  return { localities, loading: false }
 }

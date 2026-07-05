@@ -1,7 +1,9 @@
 import {
   collection,
   onSnapshot,
+  query,
   type DocumentData,
+  type QueryConstraint,
   type QuerySnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -33,9 +35,13 @@ export function sortDocsByNewest(docs: { id: string; data: DocumentData }[]): { 
 export function subscribeProperties(
   onData: (docs: { id: string; data: DocumentData }[]) => void,
   onError?: (error: Error) => void,
+  ...constraints: QueryConstraint[]
 ): Unsubscribe {
+  const ref = constraints.length > 0
+    ? query(collection(db, 'properties'), ...constraints)
+    : collection(db, 'properties');
   return onSnapshot(
-    collection(db, 'properties'),
+    ref,
     (snap: QuerySnapshot) => {
       const docs = snap.docs.map((d) => ({
         id: d.id,

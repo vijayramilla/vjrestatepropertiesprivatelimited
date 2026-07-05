@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { where, limit, orderBy } from 'firebase/firestore';
 import HomePropertyCard from './HomePropertyCard';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { usePropertiesCache } from '@/hooks/usePropertiesCache';
@@ -37,16 +38,9 @@ export default function HomeListingsSection() {
   useEffect(() => {
     const unsub = subscribeProperties(
       (docs) => {
-        const featured = docs
-          .filter(({ data }) => data.featured === true)
+        const result = docs
           .slice(0, 3)
           .map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
-
-        const fallback = docs
-          .slice(0, 3)
-          .map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
-
-        const result = featured.length > 0 ? featured : fallback;
         setCache('home-listings', result as unknown[]);
         setLatestProperties(result);
         setLoading(false);
@@ -55,6 +49,9 @@ export default function HomeListingsSection() {
         setLoading(false);
         setLatestProperties([]);
       },
+      where('featured', '==', true),
+      orderBy('createdAt', 'desc'),
+      limit(3),
     );
 
     return () => unsub();

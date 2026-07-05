@@ -21,6 +21,7 @@ dist-ssr
 *.sln
 *.sw?
 .env
+.env.production
 .bolt/
 __pycache__/
 *.pyc

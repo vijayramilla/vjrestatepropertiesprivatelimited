@@ -64,7 +64,7 @@ export function SparklesCore({
         enable: false,
         zIndex: 1,
       },
-      fpsLimit: 120,
+      fpsLimit: 30,
       interactivity: {
         events: {
           onClick: { enable: true, mode: 'push' },

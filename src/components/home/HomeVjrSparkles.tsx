@@ -21,7 +21,7 @@ export default function HomeVjrSparkles() {
             background="transparent"
             minSize={0.4}
             maxSize={1}
-            particleDensity={800}
+            particleDensity={80}
             className="pointer-events-none absolute inset-0 z-10 h-full w-full"
             particleColor="#FFFFFF"
           />
