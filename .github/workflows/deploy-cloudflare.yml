@@ -19,11 +19,25 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - run: npm install -g wrangler@latest
+      - run: npm install -g wrangler@4.107.0
       - name: Deploy to Cloudflare Pages
         id: deploy
         run: |
-          wrangler --version
-          wrangler pages deploy dist --project-name=vjr-estate --branch main 2>&1
+          set +e
+          wrangler --version 2>&1 | tee /tmp/wrangler_version.txt
+          wrangler pages deploy dist --project-name=vjr-estate --branch main 2>&1 | tee /tmp/deploy_log.txt
+          RC=${PIPESTATUS[0]}
+          echo "WRANGLER_EXIT_CODE=$RC" >> $GITHUB_ENV
+          if [ $RC -ne 0 ]; then
+            echo "=== DEPLOY FAILED (exit code $RC) ==="
+            cat /tmp/deploy_log.txt
+          fi
+          exit $RC
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      - name: Upload deploy log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-log
+          path: /tmp/deploy_log.txt
