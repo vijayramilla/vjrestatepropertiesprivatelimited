@@ -4,10 +4,6 @@ on:
   push:
     branches: [main]
 
-env:
-  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-  CLOUDFLARE_ACCOUNT_ID: b43a3f56328c360652cc3b9969d22ff2
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -18,7 +14,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: node --version
       - run: npm ci
       - run: npm run build
-      - run: npm install -g wrangler@4.107.0
-      - run: wrangler pages deploy dist --project-name=vjr-estate --branch main
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: b43a3f56328c360652cc3b9969d22ff2
+          command: pages deploy dist --project-name=vjr-estate --branch main
+      - name: Print deploy URL
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: echo "Deployed to $DEPLOY_URL"
