@@ -20,15 +20,4 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
-      - run: npm install -g wrangler
-      - name: Deploy to Cloudflare Pages
-        run: |
-          echo "=== wrangler version ==="
-          wrangler --version
-          echo "=== listing dist ==="
-          ls -la dist/ | head -20
-          echo "=== running deploy ==="
-          wrangler pages deploy dist --project-name=vjr-estate --branch main 2>&1
-          echo "=== exit code: $? ==="
-          echo "=== project list test ==="
-          wrangler pages project list 2>&1
+      - run: npx wrangler@4.107.0 pages deploy dist --project-name=vjr-estate --branch main
