@@ -12,6 +12,7 @@ import { isGoogleMapsUrl, isWithinBangalore } from '@/lib/googleMapsLinkParser';
 import { KARNATAKA_KATHA_GROUPS, KARNATAKA_KATHA_CUSTOM_VALUE, findKathaOption } from '@/data/karnatakaKathas';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
+import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 
 const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;
 const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
@@ -48,6 +49,7 @@ export default function ListPropertyPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
+  const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
   const [showSignIn, setShowSignIn] = useState(false);
   const [linkInput, setLinkInput] = useState('');
   const [linkLoading, setLinkLoading] = useState(false);
@@ -321,6 +323,13 @@ export default function ListPropertyPage() {
 
               <div>
                 <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500 mb-3">Google Maps Location *</label>
+                {!mapsLoaded ? (
+                  <div className="space-y-3 animate-pulse">
+                    <div className="h-[42px] rounded-xl bg-gray-100" />
+                    <div className="h-[36px] w-[140px] rounded-xl bg-gray-100" />
+                  </div>
+                ) : (
+                <>
                 <div className="relative">
                   <input
                     type="text"
@@ -369,6 +378,7 @@ export default function ListPropertyPage() {
                     <p className="text-[10px] text-emerald-600/60">This area will be displayed on the listing card</p>
                   </div>
                 )}
+                </>)}
               </div>
 
               <div>

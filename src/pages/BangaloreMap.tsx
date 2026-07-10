@@ -5,9 +5,9 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Circle, GoogleMap, OverlayView, Polyline } from '@react-google-maps/api';
+import { Autocomplete, Circle, GoogleMap, OverlayView, Polyline } from '@react-google-maps/api';
 import { AnimatePresence } from 'framer-motion';
-import { Search } from 'lucide-react';
+
 import { soundEngine } from '@/utils/soundEngine';
 import { fetchNearbyPlaces, type NearbyPlace } from '@/utils/fetchNearbyPlaces';
 import { generateAIAnalysis } from '@/utils/aiAnalyze';
@@ -15,7 +15,6 @@ import { collection, onSnapshot, type QueryDocumentSnapshot } from 'firebase/fir
 import { db } from '@/lib/firebase';
 import { setDefaultSiteMeta } from '@/lib/siteMeta';
 import { BANGALORE_COORDINATES, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
-import { BANGALORE_AREAS } from '@/data/properties';
 import {
   BUDGET_FILTERS,
   CATEGORY_CONFIG,
@@ -187,10 +186,11 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   const [isLocating, setIsLocating] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchText, setSearchText] = useState('');
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const [showLocalityGrid, setShowLocalityGrid] = useState(false);
+  const [searchPanelOpen, setSearchPanelOpen] = useState(false);
+  const [searchInputValue, setSearchInputValue] = useState('');
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [autocompleteInstance, setAutocompleteInstance] = useState<any>(null);
   const [isMobile, setIsMobile] = useState(false);
-  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -200,29 +200,62 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !searchText.trim()) { setPredictions([]); return; }
+    try {
+      const stored = localStorage.getItem('vjr_map_searches');
+      if (stored) {
+        setRecentSearches(JSON.parse(stored).slice(0, 5));
+      }
+    } catch (e) {}
+  }, []);
+
+  const saveRecentSearch = (locationName: string) => {
+    try {
+      const stored = localStorage.getItem('vjr_map_searches');
+      const existing: string[] = stored ? JSON.parse(stored) : [];
+      const updated = [locationName, ...existing.filter(s => s !== locationName)].slice(0, 5);
+      localStorage.setItem('vjr_map_searches', JSON.stringify(updated));
+      setRecentSearches(updated);
+    } catch (e) {}
+  };
+  const [desktopPredictions, setDesktopPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const desktopDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isLoaded || !searchPanelOpen || isMobile || !searchInputValue.trim()) {
+      setDesktopPredictions([]);
+      return;
+    }
     const timer = setTimeout(() => {
       try {
         const service = new google.maps.places.AutocompleteService();
         service.getPlacePredictions(
-          { input: searchText, componentRestrictions: { country: 'in' } },
-          (results) => setPredictions(results || []),
+          { input: searchInputValue, componentRestrictions: { country: 'in' } },
+          (results) => setDesktopPredictions(results || []),
         );
-      } catch { setPredictions([]); }
+      } catch { setDesktopPredictions([]); }
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchText, isLoaded]);
+  }, [searchInputValue, searchPanelOpen, isMobile, isLoaded]);
 
-  const fallbackResults = useMemo(() => {
-    if (predictions.length || !searchText.trim()) return [];
-    const q = searchText.trim().toLowerCase();
-    return BANGALORE_AREAS.filter((a) => a.toLowerCase().includes(q)).slice(0, 20);
-  }, [searchText, predictions]);
+  useEffect(() => {
+    if (!searchPanelOpen || isMobile) return;
+    const handleClick = (e: MouseEvent) => {
+      if (desktopDropdownRef.current && !desktopDropdownRef.current.contains(e.target as Node)) {
+        setSearchPanelOpen(false);
+        setSearchInputValue('');
+        setDesktopPredictions([]);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [searchPanelOpen, isMobile]);
 
-  const selectPlace = useCallback((placeId: string, description: string) => {
+  const selectDesktopPlace = (placeId: string, description: string) => {
     setSearchText(description);
-    setShowLocalityGrid(false);
-    setPredictions([]);
+    saveRecentSearch(description);
+    setSearchPanelOpen(false);
+    setSearchInputValue('');
+    setDesktopPredictions([]);
     if (!placeId) {
       const coord = BANGALORE_COORDINATES[description];
       if (coord && mapRef.current) {
@@ -241,7 +274,8 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
         }
       });
     } catch {}
-  }, []);
+  };
+
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
@@ -582,6 +616,162 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   return (
     <>
       <Navbar />
+
+
+      {searchPanelOpen && isMobile && (
+        <>
+          <div
+            onPointerDown={(e) => {
+              if (e.target === e.currentTarget) setSearchPanelOpen(false);
+            }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              zIndex: 200,
+              backdropFilter: 'blur(2px)',
+            }}
+          />
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 201,
+            backgroundColor: 'white',
+            display: 'flex',
+            flexDirection: 'column',
+            animation: 'slideUp 0.25s ease-out',
+          }}>
+            <div style={{ padding: '16px 16px 0', borderBottom: '1px solid #F3F4F6' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                <button
+                  onClick={() => { setSearchPanelOpen(false); setSearchInputValue(''); }}
+                  style={{
+                    width: '40px', height: '40px', borderRadius: '50%', border: 'none',
+                    backgroundColor: '#F3F4F6', cursor: 'pointer', fontSize: '18px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}
+                >
+                  ←
+                </button>
+                <Autocomplete
+                  onLoad={(ac) => setAutocompleteInstance(ac)}
+                  onPlaceChanged={() => {
+                    if (autocompleteInstance) {
+                      const place = autocompleteInstance.getPlace();
+                      if (place.geometry?.location) {
+                        const lat = place.geometry.location.lat();
+                        const lng = place.geometry.location.lng();
+                        const name = place.name || place.formatted_address || searchInputValue;
+                        setSearchText(name);
+                        saveRecentSearch(name);
+                        mapRef.current?.panTo({ lat, lng });
+                        mapRef.current?.setZoom(14);
+                        setSearchPanelOpen(false);
+                        setSearchInputValue('');
+                      }
+                    }
+                  }}
+                  options={{
+                    componentRestrictions: { country: 'in' },
+                    bounds: { north: 13.215, south: 12.750, west: 77.350, east: 77.850 },
+                    strictBounds: false,
+                    types: ['geocode', 'establishment'],
+                  }}
+                >
+                  <input
+                    autoFocus
+                    type="text"
+                    placeholder="Search location in Bangalore..."
+                    value={searchInputValue}
+                    onChange={(e) => setSearchInputValue(e.target.value)}
+                    style={{
+                      flex: 1, height: '48px', border: '2px solid #E5E7EB', borderRadius: '999px',
+                      padding: '0 48px 0 20px', fontSize: '15px', outline: 'none', color: '#111827',
+                      backgroundColor: '#F9FAFB', width: '100%', boxSizing: 'border-box',
+                      WebkitAppearance: 'none',
+                    }}
+                    onFocus={(e) => { e.target.style.borderColor = '#3B82F6'; e.target.style.backgroundColor = 'white'; }}
+                    onBlur={(e) => { e.target.style.borderColor = '#E5E7EB'; e.target.style.backgroundColor = '#F9FAFB'; }}
+                  />
+                </Autocomplete>
+              </div>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              <button
+                onClick={() => { handleLocateMe(); setSearchPanelOpen(false); }}
+                style={{
+                  width: '100%', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px',
+                  border: 'none', backgroundColor: 'white', cursor: 'pointer', textAlign: 'left',
+                  borderBottom: '1px solid #F3F4F6',
+                }}
+              >
+                <div style={{
+                  width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#EFF6FF',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M12 2v4m0 12v4m-6-6H2m20 0h-4" />
+                  </svg>
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: '500', color: '#1D4ED8' }}>
+                  View lands near my location
+                </span>
+              </button>
+
+              {recentSearches.length > 0 && (
+                <div>
+                  <div style={{
+                    padding: '16px 20px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <p style={{ fontSize: '13px', fontWeight: '700', color: '#111827', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Recently Searched
+                    </p>
+                    <button
+                      onClick={() => { localStorage.removeItem('vjr_map_searches'); setRecentSearches([]); }}
+                      style={{ fontSize: '12px', color: '#6B7280', border: 'none', background: 'none', cursor: 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {recentSearches.map((search, i) => (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        const coords = BANGALORE_COORDINATES[search] ||
+                          Object.entries(BANGALORE_COORDINATES).find(([k]) => search.toLowerCase().includes(k.toLowerCase()))?.[1];
+                        if (coords && mapRef.current) {
+                          mapRef.current.panTo(coords);
+                          mapRef.current.setZoom(14);
+                        }
+                        setSearchText(search);
+                        setSearchPanelOpen(false);
+                      }}
+                      style={{
+                        width: '100%', padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '16px',
+                        border: 'none', backgroundColor: 'white', cursor: 'pointer', textAlign: 'left',
+                        borderBottom: '1px solid #F9FAFB',
+                      }}
+                    >
+                      <span style={{ fontSize: '18px', color: '#9CA3AF' }}>🕐</span>
+                      <span style={{ fontSize: '14px', color: '#374151', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {search}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+
+            </div>
+          </div>
+        </>
+      )}
+
       <div className="fixed inset-x-0 z-10 bg-gray-900 top-14 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]" style={{ overscrollBehavior: 'none' }}>
       <MapFilterPanel
         open={isFilterOpen}
@@ -600,89 +790,84 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
         <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
           style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
             <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
-              <div className="relative flex-1 min-w-0 max-w-[280px]">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 z-10 pointer-events-none" />
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  placeholder="Search Location..."
-                  autoComplete="off"
-                  value={searchText}
-                  onFocus={() => setShowLocalityGrid(true)}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-[16px] font-medium text-gray-800 bg-white shadow-md"
-                />
-                {showLocalityGrid && !isMobile && (() => {
-                  const items = predictions.length ? predictions : fallbackResults;
-                  if (!items.length) return null;
-                  return (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-[200] max-h-72 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
-                      <div className="p-2">
-                        {items.map((item) => {
-                          const placeId = (item as google.maps.places.AutocompletePrediction).place_id;
-                          const mainText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.main_text : (item as string);
-                          const secondaryText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.secondary_text : '';
-                          return (
-                            <button
-                              key={placeId || item}
-                              type="button"
-                              onMouseDown={() => placeId ? selectPlace(placeId, (item as google.maps.places.AutocompletePrediction).description) : selectPlace('', item as string)}
-                              className="w-full rounded-xl px-3.5 py-2.5 text-left hover:bg-gray-50 transition-colors"
-                            >
-                              <span className="text-sm font-medium text-gray-800">{mainText}</span>
-                              {secondaryText && <span className="ml-1 text-xs text-gray-400">, {secondaryText}</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
+              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: '240px' }}>
+                {!isMobile ? (
+                  <>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '13px', pointerEvents: 'none', zIndex: 1 }}>
+                      🔍
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="Search Location..."
+                      value={searchInputValue || searchText}
+                      onChange={(e) => { setSearchInputValue(e.target.value); if (searchText) setSearchText(''); if (!searchPanelOpen) setSearchPanelOpen(true); }}
+                      onFocus={() => setSearchPanelOpen(true)}
+                      className="pointer-events-auto w-full h-8 rounded-full border-none shadow-md text-xs pl-7 pr-3 outline-none bg-white"
+                      style={{ fontSize: '12px' }}
+                    />
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setSearchPanelOpen(true)}
+                    className="pointer-events-auto"
+                    style={{
+                      width: '100%', height: '32px', backgroundColor: 'white', borderRadius: '999px',
+                      border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                      display: 'flex', alignItems: 'center', padding: '0 10px', gap: '6px',
+                      cursor: 'pointer', textAlign: 'left', minWidth: 0,
+                    }}
+                  >
+                    <span style={{ color: '#9CA3AF', fontSize: '13px', flexShrink: 0 }}>🔍</span>
+                    <span style={{ flex: 1, fontSize: '12px', color: searchText ? '#111827' : '#9CA3AF', fontWeight: searchText ? '500' : '400', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {searchText || 'Search Location...'}
+                    </span>
+                    {searchText && (
+                      <span onClick={(e) => { e.stopPropagation(); setSearchText(''); setNearbyPlaces([]); }} style={{ color: '#9CA3AF', fontSize: '12px', cursor: 'pointer', padding: '2px', flexShrink: 0 }}>
+                        ✕
+                      </span>
+                    )}
+                  </button>
+                )}
 
-              {showLocalityGrid && isMobile && (() => {
-                const items = predictions.length ? predictions : fallbackResults;
-                return (
-                  <div className="fixed inset-0 z-[300] bg-white flex flex-col">
-                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
-                      <div className="relative flex-1">
-                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                        <input
-                          type="text"
-                          placeholder="Search Location..."
-                          autoFocus
-                          value={searchText}
-                          onChange={(e) => setSearchText(e.target.value)}
-                          className="w-full h-10 pl-8 pr-3 rounded-full bg-gray-100 text-sm outline-none"
-                        />
+                {searchPanelOpen && !isMobile && (desktopPredictions.length > 0 || (!searchInputValue && recentSearches.length > 0)) && (
+                  <div className="absolute left-0 top-full mt-1.5 z-[200] w-80 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl p-2">
+                    {desktopPredictions.length > 0 ? (
+                      <div>
+                        {(desktopPredictions as google.maps.places.AutocompletePrediction[]).map((item) => (
+                          <button
+                            key={item.place_id}
+                            type="button"
+                            onMouseDown={() => selectDesktopPlace(item.place_id, item.description)}
+                            className="w-full rounded-xl px-3.5 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                          >
+                            <span className="text-sm font-medium text-gray-800">{item.structured_formatting.main_text}</span>
+                            {item.structured_formatting.secondary_text && <span className="ml-1 text-xs text-gray-400">, {item.structured_formatting.secondary_text}</span>}
+                          </button>
+                        ))}
                       </div>
-                      <button type="button" onClick={() => { setShowLocalityGrid(false); setSearchText(''); }} className="text-sm font-medium text-gray-600">Cancel</button>
-                    </div>
-                    {items.length > 0 && (
-                      <div className="flex-1 overflow-y-auto p-3">
-                        {predictions.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">Suggestions</p>}
-                        <div className="flex flex-col gap-2">
-                          {items.map((item) => {
-                            const placeId = (item as google.maps.places.AutocompletePrediction).place_id;
-                            const mainText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.main_text : (item as string);
-                            const secondaryText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.secondary_text : '';
-                            return (
-                              <button
-                                key={placeId || item}
-                                type="button"
-                                onClick={() => placeId ? selectPlace(placeId, (item as google.maps.places.AutocompletePrediction).description) : selectPlace('', item as string)}
-                                className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-left transition-colors hover:border-gray-200 hover:bg-gray-100"
-                              >
-                                <p className="text-sm font-medium text-gray-800">{mainText}</p>
-                                {secondaryText && <p className="text-xs text-gray-400 mt-0.5">{secondaryText}</p>}
-                              </button>
-                            );
-                          })}
-                        </div>
+                    ) : !searchInputValue && recentSearches.length > 0 && (
+                      <div>
+                        <p className="px-3.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Recently Searched</p>
+                        {recentSearches.map((s, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onMouseDown={() => {
+                              const coords = BANGALORE_COORDINATES[s] ||
+                                Object.entries(BANGALORE_COORDINATES).find(([k]) => s.toLowerCase().includes(k.toLowerCase()))?.[1];
+                              if (coords && mapRef.current) { mapRef.current.panTo(coords); mapRef.current.setZoom(14); }
+                              setSearchText(s);
+                              setSearchPanelOpen(false);
+                            }}
+                            className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          >
+                            🕐 {s}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
-                );
-              })()}
+                )}
               </div>
 
             <MapTopBar
