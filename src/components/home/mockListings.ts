@@ -25,7 +25,7 @@ export const PROPERTY_TYPE_OPTIONS = [
   'PG Building',
   'Residential Rental',
   'Commercial',
-  'Plot / Agriculture',
+  'JD Land',
 ] as const;
 
 export const AREA_DEFAULT = 'All Areas';

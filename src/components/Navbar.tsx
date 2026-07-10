@@ -7,9 +7,11 @@ import {
   User,
   Envelope,
   Phone,
+  Info,
   SignOut,
   SquaresFour,
   GlobeHemisphereWest,
+  PlusCircle,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -23,7 +25,9 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
   { label: 'Land Map', path: '/map', Icon: GlobeHemisphereWest },
+  { label: 'List Property', path: '/list-property', Icon: PlusCircle },
 
+  { label: 'About Us', path: '/about', Icon: Info },
   { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
   { label: 'Contact Us', path: '/contact', Icon: Phone },
 ];
@@ -76,6 +80,7 @@ export default function Navbar() {
   const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
+  const isMapPage = location.pathname === '/map' || location.pathname === '/list-property';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
 
@@ -169,10 +174,16 @@ export default function Navbar() {
               }`}
             />
             <span
-              className="font-serif text-xl font-normal tracking-[-0.01em] md:text-2xl"
+              className="font-serif text-base font-bold tracking-tight md:text-lg"
               style={{ color: logoColor }}
             >
-              VJR Estate
+              VJR
+            </span>
+            <span
+              className="font-serif text-sm font-bold tracking-[0.12em] opacity-70 md:text-base md:tracking-[0.14em]"
+              style={{ color: logoColor }}
+            >
+              ESTATE
             </span>
           </Link>
 
@@ -180,10 +191,11 @@ export default function Navbar() {
             {[
               { label: 'Properties', path: '/properties' },
               { label: 'Land Map', path: '/map', icon: true },
-
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
-            ].map(({ label, path, icon }) => (
+            ]
+              .filter((item) => !isMapPage)
+              .map(({ label, path, icon }) => (
               <Link
                 key={path}
                 to={path}

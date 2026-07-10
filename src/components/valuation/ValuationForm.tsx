@@ -23,7 +23,7 @@ const PROPERTY_TYPES = [
   { id: 'PG Building', icon: PGBuildingIcon, label: 'PG Building' },
 ];
 
-const LAND_SUBCATEGORIES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land'];
+const LAND_SUBCATEGORIES = ['Residential Plot', 'Commercial Plot', 'JD Land'];
 const COMMERCIAL_SUBCATEGORIES = ['Office Space', 'Retail / Showroom', 'Warehouse / Godown', 'Commercial Land'];
 
 const AGE_OPTIONS = ['New Construction', '0-5 Years', '5-10 Years', '10-20 Years', '20+ Years'];

@@ -167,7 +167,7 @@ export function HeroGeometric({
           <motion.div custom={1} variants={fadeUpVariants} initial="hidden" animate="visible">
             <h1
               className="mb-4 font-display tracking-tight md:mb-6"
-              style={{ fontFamily: "'Libre Baskerville', Georgia, serif" }}
+              style={{ fontFamily: "'Poppins', system-ui, sans-serif" }}
             >
               <span className="block bg-gradient-to-b from-white to-white/75 bg-clip-text text-4xl text-transparent sm:text-5xl md:text-7xl lg:text-8xl">
                 {title1}

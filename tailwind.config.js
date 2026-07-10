@@ -75,9 +75,9 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
-        serif: ['Libre Baskerville', 'Georgia', 'serif'],
+        serif: ['Poppins', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)'],
-        display: ['Libre Baskerville', 'Georgia', 'serif'],
+        display: ['Poppins', 'system-ui', 'sans-serif'],
         body: ['Inter', 'system-ui', 'sans-serif'],
         numeric: ['Inter', 'system-ui', 'sans-serif'],
       },

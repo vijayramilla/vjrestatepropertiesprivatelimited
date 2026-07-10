@@ -361,7 +361,7 @@ export default function PremiumValuationPage() {
                       <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-6 border-t border-gray-100 pt-6">
                         <p className="mb-4 text-center text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">Select {propertyType === 'Plot / Land' ? 'Land' : 'Commercial'} Type</p>
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                          {(propertyType === 'Plot / Land' ? ['Residential Plot', 'Commercial Plot', 'Agriculture Land'] : ['Office Space', 'Retail / Showroom', 'Warehouse / Godown', 'Commercial Land']).map((sc) => (
+                          {(propertyType === 'Plot / Land' ? ['Residential Plot', 'Commercial Plot', 'JD Land'] : ['Office Space', 'Retail / Showroom', 'Warehouse / Godown', 'Commercial Land']).map((sc) => (
                             <button
                               key={sc}
                               type="button"

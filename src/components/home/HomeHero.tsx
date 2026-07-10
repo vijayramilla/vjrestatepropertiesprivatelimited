@@ -25,7 +25,7 @@ const HERO_TABS = [
   { label: 'Residential', value: 'Residential' },
   { label: 'Commercial', value: 'Commercial' },
   { label: 'Plot', value: 'Plot' },
-  { label: 'Agriculture', value: 'Agriculture' },
+  { label: 'JD Land', value: 'JD Land' },
 ] as const;
 
 const TRENDING_AREAS = [

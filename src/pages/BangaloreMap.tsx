@@ -15,6 +15,7 @@ import { collection, onSnapshot, type QueryDocumentSnapshot } from 'firebase/fir
 import { db } from '@/lib/firebase';
 import { setDefaultSiteMeta } from '@/lib/siteMeta';
 import { BANGALORE_COORDINATES, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
+import { BANGALORE_AREAS } from '@/data/properties';
 import {
   BUDGET_FILTERS,
   CATEGORY_CONFIG,
@@ -35,6 +36,9 @@ import {
   parseMapPrice,
   type MapSearchFilter,
 } from '@/lib/mapFilters';
+import { useSiteSettings } from '@/context/SiteSettingsContext';
+import Navbar from '@/components/Navbar';
+import MapPropertyDetailModal from '@/components/map/MapPropertyDetailModal';
 
 const MAP_CENTER = { lat: 12.9716, lng: 77.5946 };
 const DEFAULT_ZOOM = 11;
@@ -42,9 +46,9 @@ const SELECTED_ZOOM = 15;
 
 const TYPE_ALIASES: Record<string, LandType> = {
   'Residential Plot': 'Residential Plot',
+  'PG Plot': 'Residential Plot',
   'Commercial Plot': 'Commercial Plot',
-  'Agriculture Land': 'Agriculture Land',
-  'PG Plot': 'PG Plot',
+  'JD Land': 'JD Land',
 };
 
 interface MapProperty {
@@ -67,13 +71,13 @@ interface MapProperty {
   color: string;
   lat: number;
   lng: number;
+  listed_by?: string;
 }
 
 function normalizePropertyType(rawType?: string, plotSubtype?: string): LandType | null {
-  if (plotSubtype === 'PG Plot') return 'PG Plot';
-  if (plotSubtype === 'Agriculture Land') return 'Agriculture Land';
+  if (plotSubtype === 'Residential Plot' || plotSubtype === 'PG Plot') return 'Residential Plot';
   if (plotSubtype === 'Commercial Plot') return 'Commercial Plot';
-  if (plotSubtype === 'Residential Plot') return 'Residential Plot';
+  if (plotSubtype === 'JD Land') return 'JD Land';
   const fromRaw = TYPE_ALIASES[rawType ?? ''] ?? (rawType as LandType | undefined);
   if (fromRaw && LAND_TYPES.includes(fromRaw)) return fromRaw;
   return null;
@@ -147,17 +151,18 @@ function mapFirestoreDoc(docSnap: QueryDocumentSnapshot): MapProperty | null {
     areaGuntas: Number(raw.areaGuntas ?? raw.area_guntas ?? 0),
     areaUnit,
     dimensions: String(raw.dimensions ?? '—'),
-    khata: String(raw.khata ?? raw.khataType ?? raw.khata_type ?? '—'),
+    khata: String(raw.katha ?? raw.khata ?? raw.khataType ?? raw.khata_type ?? '—'),
     facing: String(raw.facing ?? '—'),
     dcConversion: dcRaw?.['DC Conversion Done'] ?? undefined,
     color: CATEGORY_CONFIG[propertyType].color,
     lat,
     lng,
+    listed_by: String(raw.listed_by ?? ''),
   };
 }
 
 function formatAreaLabel(p: MapProperty): string {
-  if (p.areaUnit === 'acres' || p.propertyType === 'Agriculture Land') {
+  if (p.areaUnit === 'acres') {
     const acres = p.areaAcres + p.areaGuntas / 40;
     return acres > 0 ? `${acres.toFixed(2)} Acres` : '—';
   }
@@ -183,12 +188,68 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [searchText, setSearchText] = useState('');
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [showLocalityGrid, setShowLocalityGrid] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded || !searchText.trim()) { setPredictions([]); return; }
+    const timer = setTimeout(() => {
+      try {
+        const service = new google.maps.places.AutocompleteService();
+        service.getPlacePredictions(
+          { input: searchText, componentRestrictions: { country: 'in' } },
+          (results) => setPredictions(results || []),
+        );
+      } catch { setPredictions([]); }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchText, isLoaded]);
+
+  const fallbackResults = useMemo(() => {
+    if (predictions.length || !searchText.trim()) return [];
+    const q = searchText.trim().toLowerCase();
+    return BANGALORE_AREAS.filter((a) => a.toLowerCase().includes(q)).slice(0, 20);
+  }, [searchText, predictions]);
+
+  const selectPlace = useCallback((placeId: string, description: string) => {
+    setSearchText(description);
+    setShowLocalityGrid(false);
+    setPredictions([]);
+    if (!placeId) {
+      const coord = BANGALORE_COORDINATES[description];
+      if (coord && mapRef.current) {
+        mapRef.current.panTo({ lat: coord.lat, lng: coord.lng });
+        mapRef.current.setZoom(15);
+      }
+      return;
+    }
+    try {
+      const el = document.createElement('div');
+      const service = new google.maps.places.PlacesService(el);
+      service.getDetails({ placeId, fields: ['geometry', 'name', 'formatted_address'] }, (place, status) => {
+        if (status === 'OK' && place?.geometry?.location && mapRef.current) {
+          mapRef.current.panTo(place.geometry.location);
+          mapRef.current.setZoom(15);
+        }
+      });
+    } catch {}
+  }, []);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analyzeTarget, setAnalyzeTarget] = useState<MapProperty | null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [detailModalId, setDetailModalId] = useState<string | null>(null);
+  const { mapOnly } = useSiteSettings();
 
   const [activeCategories, setActiveCategories] = useState<string[]>([...LAND_TYPES]);
 
@@ -256,9 +317,18 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
         areaLabel: formatAreaLabel(p),
         color: p.color,
         priceLabel: formatMapINR(p.price),
+        listed_by: p.listed_by,
       })),
     [filteredProperties],
   );
+
+  const handleViewDetails = useCallback((id: string) => {
+    setDetailModalId(id);
+  }, []);
+
+  const handleCloseDetailModal = useCallback(() => {
+    setDetailModalId(null);
+  }, []);
 
   const handleClosePopup = useCallback(() => {
     setSelectedProperty(null);
@@ -354,30 +424,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
     loadedMap.setZoom(DEFAULT_ZOOM);
   }, []);
 
-  useEffect(() => {
-    if (!isLoaded || !searchInputRef.current) return;
-    if (typeof google === 'undefined' || !google.maps.places) {
-      console.warn('[Map] google.maps.places not available');
-      return;
-    }
-    const input = searchInputRef.current;
-    const autocomplete = new google.maps.places.Autocomplete(input, {
-      componentRestrictions: { country: 'in' },
-      bounds: new google.maps.LatLngBounds(
-        new google.maps.LatLng(12.8, 77.4),
-        new google.maps.LatLng(13.2, 77.8),
-      ),
-    });
-    autocomplete.setFields(['geometry', 'name', 'formatted_address', 'place_id']);
-    autocomplete.addListener('place_changed', () => {
-      const place = autocomplete.getPlace();
-      if (place.geometry?.location) {
-        mapRef.current?.panTo(place.geometry.location);
-        mapRef.current?.setZoom(15);
-      }
-      setSearchText(place.name || '');
-    });
-  }, [isLoaded]);
+
 
   const mapOptions = useMemo(
     (): google.maps.MapOptions => ({
@@ -533,7 +580,9 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   }
 
   return (
-    <div className={`fixed inset-x-0 z-10 bg-gray-900 ${noHeaderOffset ? 'top-0 h-dvh' : 'top-14 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`} style={{ overscrollBehavior: 'none' }}>
+    <>
+      <Navbar />
+      <div className="fixed inset-x-0 z-10 bg-gray-900 top-14 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]" style={{ overscrollBehavior: 'none' }}>
       <MapFilterPanel
         open={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}
@@ -559,9 +608,81 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
                   placeholder="Search Location..."
                   autoComplete="off"
                   value={searchText}
+                  onFocus={() => setShowLocalityGrid(true)}
                   onChange={(e) => setSearchText(e.target.value)}
-                  className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-xs font-medium text-gray-800 bg-white shadow-md"
+                  className="w-full h-11 pl-8 pr-3 rounded-full border-none outline-none text-[16px] font-medium text-gray-800 bg-white shadow-md"
                 />
+                {showLocalityGrid && !isMobile && (() => {
+                  const items = predictions.length ? predictions : fallbackResults;
+                  if (!items.length) return null;
+                  return (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-[200] max-h-72 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
+                      <div className="p-2">
+                        {items.map((item) => {
+                          const placeId = (item as google.maps.places.AutocompletePrediction).place_id;
+                          const mainText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.main_text : (item as string);
+                          const secondaryText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.secondary_text : '';
+                          return (
+                            <button
+                              key={placeId || item}
+                              type="button"
+                              onMouseDown={() => placeId ? selectPlace(placeId, (item as google.maps.places.AutocompletePrediction).description) : selectPlace('', item as string)}
+                              className="w-full rounded-xl px-3.5 py-2.5 text-left hover:bg-gray-50 transition-colors"
+                            >
+                              <span className="text-sm font-medium text-gray-800">{mainText}</span>
+                              {secondaryText && <span className="ml-1 text-xs text-gray-400">, {secondaryText}</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {showLocalityGrid && isMobile && (() => {
+                const items = predictions.length ? predictions : fallbackResults;
+                return (
+                  <div className="fixed inset-0 z-[300] bg-white flex flex-col">
+                    <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
+                      <div className="relative flex-1">
+                        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Search Location..."
+                          autoFocus
+                          value={searchText}
+                          onChange={(e) => setSearchText(e.target.value)}
+                          className="w-full h-10 pl-8 pr-3 rounded-full bg-gray-100 text-sm outline-none"
+                        />
+                      </div>
+                      <button type="button" onClick={() => { setShowLocalityGrid(false); setSearchText(''); }} className="text-sm font-medium text-gray-600">Cancel</button>
+                    </div>
+                    {items.length > 0 && (
+                      <div className="flex-1 overflow-y-auto p-3">
+                        {predictions.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 mb-3">Suggestions</p>}
+                        <div className="flex flex-col gap-2">
+                          {items.map((item) => {
+                            const placeId = (item as google.maps.places.AutocompletePrediction).place_id;
+                            const mainText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.main_text : (item as string);
+                            const secondaryText = placeId ? (item as google.maps.places.AutocompletePrediction).structured_formatting.secondary_text : '';
+                            return (
+                              <button
+                                key={placeId || item}
+                                type="button"
+                                onClick={() => placeId ? selectPlace(placeId, (item as google.maps.places.AutocompletePrediction).description) : selectPlace('', item as string)}
+                                className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-left transition-colors hover:border-gray-200 hover:bg-gray-100"
+                              >
+                                <p className="text-sm font-medium text-gray-800">{mainText}</p>
+                                {secondaryText && <p className="text-xs text-gray-400 mt-0.5">{secondaryText}</p>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               </div>
 
             <MapTopBar
@@ -610,6 +731,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
           onOpen={() => setIsSidebarOpen(true)}
           onClose={() => setIsSidebarOpen(false)}
           properties={sidebarItems}
+          onViewDetails={mapOnly ? handleViewDetails : undefined}
         />
 
         <div className="absolute inset-0 min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100dvh-4rem)]">
@@ -753,15 +875,25 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
               color: selectedProperty.color,
               lat: selectedProperty.lat,
               lng: selectedProperty.lng,
+              listed_by: selectedProperty.listed_by,
             }}
             onClose={handleClosePopup}
             sidebarOpen={isSidebarOpen}
             onAIAnalyze={() => handleAIAnalyze(selectedProperty)}
             isAnalyzing={isAnalyzing}
             analysisResult={analysisResult}
+            onViewDetails={mapOnly ? handleViewDetails : undefined}
           />
         )}
       </AnimatePresence>
+
+      {detailModalId && (
+        <MapPropertyDetailModal
+          propertyId={detailModalId}
+          onClose={handleCloseDetailModal}
+        />
+      )}
     </div>
+    </>
   );
 }

@@ -20,7 +20,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <Navbar />
+      {!isMapPage && <Navbar />}
       <main className={`flex-1 w-full ${isMapPage ? 'overflow-hidden' : ''}`}>
         <Outlet />
       </main>

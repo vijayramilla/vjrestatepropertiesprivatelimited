@@ -7,6 +7,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Heart,
   MapPin,
   Navigation,
   Share2,
@@ -19,6 +20,7 @@ import { CATEGORY_CONFIG, formatMapINR } from '@/data/mapConfig';
 import { siteContact } from '@/data/siteContact';
 import GlassCard from '@/components/ui/glass-card';
 import LazyImage from '@/components/common/LazyImage';
+import { useShortlist } from '@/context/ShortlistContext';
 
 export interface MapPopupProperty {
   id: string;
@@ -37,6 +39,7 @@ export interface MapPopupProperty {
   color: string;
   lat: number;
   lng: number;
+  listed_by?: string;
 }
 
 interface MapPropertyPopupProps {
@@ -46,6 +49,7 @@ interface MapPropertyPopupProps {
   onAIAnalyze?: () => void;
   isAnalyzing?: boolean;
   analysisResult?: string | null;
+  onViewDetails?: (id: string) => void;
 }
 
 const SECTION_HEADERS = [
@@ -125,6 +129,7 @@ export default function MapPropertyPopup({
   onAIAnalyze,
   isAnalyzing = false,
   analysisResult = null,
+  onViewDetails,
 }: MapPropertyPopupProps) {
   const config = CATEGORY_CONFIG[property.propertyType];
   const gallery = property.images.length
@@ -137,6 +142,8 @@ export default function MapPropertyPopup({
   const hasMultiplePhotos = gallery.length > 1;
 
   const [isMobile, setIsMobile] = useState(false);
+  const { toggle: toggleShortlist, isShortlisted } = useShortlist();
+  const saved = isShortlisted(property.id);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -463,6 +470,14 @@ if (navigator.share) {
             <MapPin size={13} className="shrink-0 text-gray-400" />
             {property.locality}
           </p>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <span className="inline-block rounded-full bg-black px-2.5 py-0.5 text-[10px] font-medium text-white">
+              General Property
+            </span>
+            <span className="inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-medium text-amber-800">
+              Listed by {property.listed_by || 'VJR Estate'}
+            </span>
+          </div>
         </div>
 
         <div className="mt-3 flex items-end justify-between gap-3">
@@ -480,28 +495,27 @@ if (navigator.share) {
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2">
-          {property.dimensions && property.dimensions !== '—' && (
-            <GlassCard compact>
-              <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Dimensions</p>
-              <p className="font-semibold text-gray-900 mt-0.5">{property.dimensions}</p>
-            </GlassCard>
-          )}
-          {property.facing && property.facing !== '—' && (
-            <GlassCard compact>
-              <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Facing</p>
-              <p className="font-semibold text-gray-900 mt-0.5">{property.facing}</p>
-            </GlassCard>
-          )}
+          <GlassCard compact>
+            <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Dimensions</p>
+            <p className="font-semibold text-gray-900 mt-0.5">{property.dimensions && property.dimensions !== '—' ? property.dimensions : '—'}</p>
+          </GlassCard>
+          <GlassCard compact>
+            <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Facing</p>
+            <p className="font-semibold text-gray-900 mt-0.5">{property.facing && property.facing !== '—' ? property.facing : '—'}</p>
+          </GlassCard>
           <GlassCard compact>
             <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Khata</p>
-            <p className="font-semibold text-gray-900 mt-0.5">{property.khata}</p>
+            <p className="font-semibold text-gray-900 mt-0.5">{property.khata && property.khata !== '—' ? property.khata : '—'}</p>
           </GlassCard>
-          {property.propertyType === 'Agriculture Land' && (
+          {property.propertyType === 'Agriculture Land' ? (
             <GlassCard compact>
               <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">DC Conversion</p>
-              <p className="font-semibold text-gray-900 mt-0.5">
-                {property.dcConversion ? 'Done' : 'Pending'}
-              </p>
+              <p className="font-semibold text-gray-900 mt-0.5">{property.dcConversion ? 'Done' : 'Pending'}</p>
+            </GlassCard>
+          ) : (
+            <GlassCard compact>
+              <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Area</p>
+              <p className="font-semibold text-gray-900 mt-0.5">{property.areaLabel || '—'}</p>
             </GlassCard>
           )}
         </div>
@@ -559,14 +573,11 @@ if (navigator.share) {
         </div>
 
         <div className="mt-2 grid grid-cols-2 gap-2 pb-1">
-          <GlassCard interactive as="a" href={`/properties/${property.id}`} onClick={undefined}>
-            <Link
-              to={`/properties/${property.id}`}
-              className="flex items-center justify-center gap-1.5 py-0.5 text-xs font-bold text-gray-800"
-              onClick={(e) => e.stopPropagation()}
-            >
-              View Details
-            </Link>
+          <GlassCard interactive as="button" onClick={() => toggleShortlist(property.id)}>
+            <div className={`flex items-center justify-center gap-1.5 py-0.5 text-xs font-bold ${saved ? 'text-red-500' : 'text-gray-800'}`}>
+              <Heart size={14} className={saved ? 'fill-current' : ''} />
+              {saved ? 'Shortlisted' : 'Shortlist'}
+            </div>
           </GlassCard>
           <GlassCard interactive as="a" href={`${siteContact.whatsappUrl}?text=${whatsAppText}`}>
             <div className="flex items-center justify-center gap-1.5 py-0.5">

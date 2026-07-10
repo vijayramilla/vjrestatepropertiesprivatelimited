@@ -1,8 +1,7 @@
 export const LAND_TYPES = [
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
-  'PG Plot',
+  'JD Land',
 ] as const;
 
 export type LandType = (typeof LAND_TYPES)[number];
@@ -13,8 +12,7 @@ export const CATEGORY_CONFIG: Record<
 > = {
   'Residential Plot': { color: '#EF4444', label: 'Residential Plot' },
   'Commercial Plot': { color: '#F97316', label: 'Commercial Plot' },
-  'Agriculture Land': { color: '#15803D', label: 'Agriculture Land' },
-  'PG Plot': { color: '#7C3AED', label: 'PG Plot' },
+  'JD Land': { color: '#7C3AED', label: 'JD Land' },
 };
 
 export const BUDGET_FILTERS = [

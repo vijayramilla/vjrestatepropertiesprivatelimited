@@ -41,6 +41,7 @@ export interface FirestorePropertyDoc {
   createdAt?: { toDate?: () => Date };
   extra_details?: Record<string, string | number>;
   images?: string[];
+  listed_by?: string;
 }
 
 const DISPLAY_TYPE_MAP: Record<string, string> = {
@@ -48,9 +49,10 @@ const DISPLAY_TYPE_MAP: Record<string, string> = {
   'PG Buildings': 'PG Building',
   'Residential Rental Income': 'Residential Rental',
   'Commercial Properties': 'Commercial',
-  'Residential Plot': 'Plot / Agriculture',
-  'Commercial Plot': 'Plot / Agriculture',
-  'Agriculture Land': 'Plot / Agriculture',
+  'Residential Plot': 'Residential Plot',
+  'PG Plot': 'Residential Plot',
+  'Commercial Plot': 'Commercial Plot',
+  'JD Land': 'JD Land',
 };
 
 export function normalizePropertyType(type: string): string {
@@ -59,10 +61,9 @@ export function normalizePropertyType(type: string): string {
 
 export function isFirestoreLandOrPlot(data: FirestorePropertyDoc): boolean {
   const type = data.type ?? '';
-  if (data.plot_subtype === 'Agriculture Land') return true;
-  if (type.includes('Plot') || type === 'Agriculture Land') return true;
+  if (type.includes('Plot') || type === 'JD Land') return true;
   const lower = type.toLowerCase();
-  return lower.includes('plot') || lower.includes('agriculture');
+  return lower.includes('plot') || lower.includes('land');
 }
 
 export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): ListingProperty {
@@ -115,6 +116,7 @@ export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): L
         : data.extra_details?.['DC Conversion Done'] === 'No'
           ? 'Pending'
           : undefined,
+    listed_by: data.listed_by,
   };
 }
 
@@ -133,8 +135,8 @@ export function mapFirestoreToProperty(id: string, data: FirestorePropertyDoc): 
   else if (data.type === 'Residential Rental Income') propertyType = 'Residential Rental Income';
   else if (data.type === 'Commercial Properties') propertyType = 'Commercial Properties';
   else if (data.type === 'Commercial Plot') propertyType = 'Commercial Plot';
-  else if (data.type === 'Agriculture Land' || data.plot_subtype === 'Agriculture Land') propertyType = 'Residential Plot';
-  else if (data.type === 'Residential Plot') propertyType = 'Residential Plot';
+  else if (data.type === 'Residential Plot' || data.type === 'PG Plot') propertyType = 'Residential Plot';
+  else if (data.type === 'JD Land') propertyType = 'JD Land';
   else if (data.type) propertyType = data.type as Property['type'];
 
   return {

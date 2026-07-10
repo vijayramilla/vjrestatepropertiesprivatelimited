@@ -77,7 +77,7 @@ export default function MapPlacesSearch({
           onBlur={handleBlur}
           onInput={syncPacPosition}
           placeholder="Search Location..."
-          className="map-places-input w-[200px] bg-transparent text-sm font-medium text-gray-800 outline-none placeholder:text-gray-400 sm:w-[240px]"
+          className="map-places-input w-[200px] bg-transparent text-[16px] font-medium text-gray-800 outline-none placeholder:text-gray-400 sm:w-[240px]"
           autoComplete="off"
         />
       </Autocomplete>

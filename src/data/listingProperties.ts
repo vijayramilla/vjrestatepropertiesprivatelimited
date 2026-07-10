@@ -32,14 +32,13 @@ export interface ListingProperty {
   images?: string[];
   katha?: string;
   dc_conversion?: string;
+  listed_by?: string;
 }
 
 export function isAgricultureLandListing(
-  property: Pick<ListingProperty, 'raw_type' | 'plot_subtype'>,
+  _property: Pick<ListingProperty, 'raw_type' | 'plot_subtype'>,
 ): boolean {
-  return (
-    property.raw_type === 'Agriculture Land' || property.plot_subtype === 'Agriculture Land'
-  );
+  return false;
 }
 
 export function isPlotLandListing(property: Pick<ListingProperty, 'type'>): boolean {
@@ -66,7 +65,7 @@ export function getTypeBadgeLabel(type: string): string {
 
 export function isPlotType(type: string): boolean {
   const t = type.toLowerCase();
-  return t.includes('plot') || t.includes('agriculture') || t.includes('land');
+  return t.includes('plot') || t.includes('land');
 }
 
 const RAW_TYPE_LABELS: Record<string, string> = {
@@ -75,8 +74,9 @@ const RAW_TYPE_LABELS: Record<string, string> = {
   'Residential Rental Income': 'Residential Rental Income',
   'Commercial Properties': 'Commercial Properties',
   'Residential Plot': 'Residential Plot',
+  'PG Plot': 'Residential Plot',
   'Commercial Plot': 'Commercial Plot',
-  'Agriculture Land': 'Agriculture Land',
+  'JD Land': 'JD Land',
 };
 
 export function getCardSaleTitle(
@@ -139,17 +139,13 @@ export function propertyToStatsView(property: {
 }): PropertyStatsView {
   const isPlot =
     property.type.includes('Plot') ||
-    property.type === 'Agriculture Land' ||
-    property.plot_subtype === 'Agriculture Land';
+    property.type === 'JD Land';
 
   const dcRaw = property.extraDetails?.['DC Conversion Done'];
   const dcConversion =
     dcRaw === 'Yes' ? 'Done' : dcRaw === 'No' ? 'Pending' : undefined;
 
-  const rawType =
-    property.plot_subtype === 'Agriculture Land' || property.type === 'Agriculture Land'
-      ? 'Agriculture Land'
-      : property.type;
+  const rawType = property.type;
 
   return {
     monthly_rental: isPlot ? '—' : (property.monthly_rental ?? '—'),
@@ -163,10 +159,8 @@ export function propertyToStatsView(property: {
     dimensions: property.dimensions ?? '—',
     facing: property.facing ?? '—',
     dc_conversion: dcConversion,
-    type: property.type.includes('Plot') ||
-      property.type === 'Agriculture Land' ||
-      property.plot_subtype === 'Agriculture Land'
-      ? 'Plot / Agriculture'
+    type: property.type.includes('Plot') || property.type === 'JD Land'
+      ? property.type
       : property.type === 'Residential Rental Income'
         ? 'Residential Rental'
         : property.type === 'Commercial Properties'

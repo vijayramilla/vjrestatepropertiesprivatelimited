@@ -172,7 +172,7 @@ export const REQUIREMENT_PROPERTY_TYPES = [
   'Commercial Property',
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
+  'JD Land',
   'Other',
 ] as const;
 

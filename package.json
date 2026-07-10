@@ -12,6 +12,7 @@
     "deploy:rules": "firebase deploy --only firestore:rules,storage"
   },
   "dependencies": {
+    "@dietrichgebert/ponytail": "^4.8.4",
     "@google/generative-ai": "^0.24.1",
     "@notionhq/client": "^5.22.0",
     "@phosphor-icons/react": "^2.1.10",

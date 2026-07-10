@@ -29,7 +29,7 @@ const TAB_TO_TYPE_PARAM: Record<string, string | undefined> = {
   Residential: 'Residential Rental Income',
   Commercial: 'Commercial Properties',
   Plot: 'Residential Plot,Commercial Plot',
-  Agriculture: 'Agriculture Land',
+  'JD Land': 'JD Land',
 };
 
 function buildSearchParams(propertyType: string, localities: string[]) {

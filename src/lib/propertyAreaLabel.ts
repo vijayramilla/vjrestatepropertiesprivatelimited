@@ -16,18 +16,14 @@ export function getAreaSizeLabel(propertyType: string): string {
     return 'Built-up Area';
   }
 
-  if (t === 'Residential Plot' || t === 'Commercial Plot') {
+  if (t === 'Residential Plot' || t === 'Commercial Plot' || t === 'JD Land') {
     return 'Plot Size';
   }
 
-  if (t === 'Agriculture Land') {
-    return 'Land Area';
-  }
-
-  if (t.includes('Plot') || t.includes('Agriculture') || t.includes('Land')) {
+  if (t.includes('Plot') || t.includes('Land')) {
     if (t.includes('Commercial')) return 'Plot Size';
     if (t.includes('Residential')) return 'Plot Size';
-    return 'Land Area';
+    return 'Plot Size';
   }
 
   return 'Built-up Area';
@@ -35,9 +31,6 @@ export function getAreaSizeLabel(propertyType: string): string {
 
 /** Card display label including units where relevant */
 export function getCardAreaLabel(propertyType: string): string {
-  if (propertyType.trim() === 'Agriculture Land') {
-    return 'Land Area (acres)';
-  }
   return getAreaSizeLabel(propertyType);
 }
 
@@ -56,11 +49,9 @@ export function isPlotOrLandPropertyType(propertyType: string): boolean {
   return (
     t === 'Residential Plot' ||
     t === 'Commercial Plot' ||
-    t === 'PG Plot' ||
-    t === 'Agriculture Land' ||
+    t === 'JD Land' ||
     t.includes('Plot') ||
-    t.includes('Agriculture') ||
-    t === 'Plot / Agriculture'
+    t.includes('Land')
   );
 }
 
@@ -76,9 +67,9 @@ export function getCardAreaValue(property: {
   if (
     raw === 'Residential Plot' ||
     raw === 'Commercial Plot' ||
-    raw === 'Agriculture Land' ||
+    raw === 'JD Land' ||
     raw.includes('Plot') ||
-    raw.includes('Agriculture')
+    raw.includes('Land')
   ) {
     return formatArea(
       property.area_unit,

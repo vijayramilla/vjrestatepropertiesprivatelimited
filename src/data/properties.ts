@@ -2,7 +2,7 @@ export interface Property {
   id: string;
   name: string;
   title: string;
-  type: "PG Building" | "Residential Rental Income" | "Commercial Properties" | "Residential Plot" | "Commercial Plot";
+  type: "PG Building" | "Residential Rental Income" | "Commercial Properties" | "Residential Plot" | "Commercial Plot" | "JD Land";
   location: string;
   area: string;
   price: number;
@@ -25,7 +25,7 @@ export interface Property {
   featured: boolean;
   createdAt: string;
   commercial_subtype?: string;
-  plot_subtype?: "Residential Plot" | "Commercial Plot" | "Agriculture Land" | "PG Plot";
+  plot_subtype?: "Residential Plot" | "Commercial Plot" | "JD Land";
   age: string;
   facing: string;
   floor_count: number;
@@ -253,12 +253,11 @@ export function resolveLocalityName(input: string): string | null {
 
 export const PROPERTY_TYPES = [
   'PG Buildings',
-  'PG Plot',
   'Residential Rental Income',
   'Commercial Properties',
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
+  'JD Land',
 ];
 
 /** Live listings come from Firestore — no mock cards. */
@@ -294,21 +293,20 @@ export function getPropertyById(): Property | undefined {
 }
 
 export function isPlotProperty(type: Property["type"]): boolean {
-  return type === "Residential Plot" || type === "Commercial Plot";
+  return type === "Residential Plot" || type === "Commercial Plot" || type === "JD Land";
 }
 
 /** Plots, agriculture land, and land listings — no monthly rental display. */
 export function isLandOrPlotType(type: string): boolean {
-  if (type === "Residential Plot" || type === "Commercial Plot") return true;
+  if (type === "Residential Plot" || type === "Commercial Plot" || type === "JD Land") return true;
   const t = type.toLowerCase();
-  return t.includes("plot") || t.includes("agriculture") || t.includes("land");
+  return t.includes("plot") || t.includes("land");
 }
 
 export function isLandOrPlotProperty(
   property: Pick<Property, "type" | "plot_subtype">,
 ): boolean {
-  if (property.plot_subtype === "Agriculture Land") return true;
-  return isPlotProperty(property.type);
+  return isPlotProperty(property.type) || (!!property.plot_subtype && isPlotProperty({ type: property.plot_subtype } as Property));
 }
 
 export function showsRentalIncome(
@@ -325,6 +323,7 @@ export function getDisplayCategory(type: Property["type"]): string {
   if (type === "PG Building") return "PG Building";
   if (type === "Residential Rental Income") return "Residential Rental Income";
   if (type === "Commercial Properties") return "Commercial";
+  if (type === "JD Land") return "JD Land";
   return "Plot";
 }
 
@@ -332,6 +331,7 @@ export function getPlotSubtype(property: Property): string | undefined {
   if (property.plot_subtype) return property.plot_subtype;
   if (property.type === "Residential Plot") return "Residential Plot";
   if (property.type === "Commercial Plot") return "Commercial Plot";
+  if (property.type === "JD Land") return "JD Land";
   return undefined;
 }
 

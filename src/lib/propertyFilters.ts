@@ -6,7 +6,6 @@ export const FILTER_RANGE_UNLIMITED = Number.MAX_SAFE_INTEGER;
 /** Map public filter labels to Firestore `type` values (admin may use plural variants). */
 export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
   'PG Buildings': ['PG Building', 'PG Buildings', 'PG'],
-  'PG Plot': ['PG Plot'],
   'PG Building': ['PG Building', 'PG Buildings', 'PG'],
   'Residential Rental Income': [
     'Residential Rental Income',
@@ -16,18 +15,17 @@ export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
   'Commercial Properties': ['Commercial Properties', 'Commercial'],
   'Residential Plot': ['Residential Plot'],
   'Commercial Plot': ['Commercial Plot'],
-  'Agriculture Land': ['Agriculture Land'],
+  'JD Land': ['JD Land'],
 };
 
 /** Display order for property categories on the listings page. */
 export const PROPERTY_CATEGORIES = [
   'PG Buildings',
-  'PG Plot',
   'Residential Rental Income',
   'Commercial Properties',
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
+  'JD Land',
 ] as const;
 
 export type PropertyCategory = (typeof PROPERTY_CATEGORIES)[number];
@@ -240,15 +238,12 @@ export function getPropertyCategory(p: {
 }): PropertyCategory | string {
   const type = canonicalPropertyType(String(p.type ?? ''));
 
-  if (type === 'Agriculture Land' || p.plot_subtype === 'Agriculture Land') {
-    return 'Agriculture Land';
-  }
-  if (p.plot_subtype === 'PG Plot' || type === 'PG Plot') return 'PG Plot';
   if (isPgProperty(type)) return 'PG Buildings';
   if (type === 'Residential Rental Income') return 'Residential Rental Income';
   if (type === 'Commercial Properties') return 'Commercial Properties';
   if (type === 'Residential Plot') return 'Residential Plot';
   if (type === 'Commercial Plot') return 'Commercial Plot';
+  if (type === 'JD Land') return 'JD Land';
 
   return type;
 }
@@ -264,21 +259,20 @@ export function isLandOrPlotProperty(p: {
   type?: string | null;
   plot_subtype?: string | null;
 }): boolean {
-  if (p.plot_subtype === 'Agriculture Land') return true;
   const type = String(p.type ?? '');
-  return type.includes('Plot') || type === 'Agriculture Land';
+  return type.includes('Plot') || type === 'JD Land';
 }
 
 /** Normalize admin/public type labels before saving to Firestore. */
 export function canonicalPropertyType(type: string): string {
   const t = type.trim();
-  if (/^pg\s*plot$/i.test(t)) return 'PG Plot';
+  if (/^pg\s*plot$/i.test(t) || t === 'PG Plot') return 'Residential Plot';
   if (/^pg\s*buildings?$/i.test(t) || t === 'PG') return 'PG Buildings';
   if (/^residential rental/i.test(t)) return 'Residential Rental Income';
   if (/^commercial propert/i.test(t) || t === 'Commercial') return 'Commercial Properties';
   if (t === 'Residential Plot') return 'Residential Plot';
   if (t === 'Commercial Plot') return 'Commercial Plot';
-  if (t === 'Agriculture Land') return 'Agriculture Land';
+  if (t === 'JD Land' || /^jd\s*land$/i.test(t)) return 'JD Land';
   return t;
 }
 
@@ -407,14 +401,12 @@ export function filterProperties<T extends PropertyFilterInput>(
     );
   }
 
-  if (plotSubtype === 'Agriculture Land') {
-    result = result.filter((p) => getPropertyCategory(p) === 'Agriculture Land');
-  } else if (plotSubtype === 'Residential Plot') {
+  if (plotSubtype === 'Residential Plot') {
     result = result.filter((p) => getPropertyCategory(p) === 'Residential Plot');
   } else if (plotSubtype === 'Commercial Plot') {
     result = result.filter((p) => getPropertyCategory(p) === 'Commercial Plot');
-  } else if (plotSubtype === 'PG Plot') {
-    result = result.filter((p) => getPropertyCategory(p) === 'PG Plot');
+  } else if (plotSubtype === 'JD Land') {
+    result = result.filter((p) => getPropertyCategory(p) === 'JD Land');
   }
 
   if (localities.length > 0) {

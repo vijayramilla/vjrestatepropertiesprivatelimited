@@ -19,6 +19,7 @@ export interface MapSidebarProperty {
   areaLabel: string;
   color: string;
   priceLabel: string;
+  listed_by?: string;
 }
 
 interface MapPropertySidebarProps {
@@ -26,6 +27,7 @@ interface MapPropertySidebarProps {
   onOpen: () => void;
   onClose: () => void;
   properties: MapSidebarProperty[];
+  onViewDetails?: (id: string) => void;
 }
 
 export default function MapPropertySidebar({
@@ -33,6 +35,7 @@ export default function MapPropertySidebar({
   onOpen,
   onClose,
   properties,
+  onViewDetails,
 }: MapPropertySidebarProps) {
   const navigate = useNavigate();
   const { isShortlisted, toggle } = useShortlist();
@@ -40,7 +43,11 @@ export default function MapPropertySidebar({
   const [waLoading, setWaLoading] = useState(false);
 
   const goToProperty = (id: string) => {
-    navigate(`/properties/${id}`);
+    if (onViewDetails) {
+      onViewDetails(id);
+    } else {
+      navigate(`/properties/${id}`);
+    }
   };
 
   const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
@@ -72,15 +79,7 @@ export default function MapPropertySidebar({
         }`}
         aria-hidden={!open}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-3.5">
-          <div>
-            <p className="text-[11px] font-semibold tracking-wide text-gray-400 uppercase">
-              Land Map
-            </p>
-            <h2 className="text-base font-bold text-gray-900">
-              {properties.length} {properties.length === 1 ? 'Property' : 'Properties'}
-            </h2>
-          </div>
+        <div className="flex shrink-0 items-center justify-end border-b border-gray-100 px-4 py-3.5">
           <button
             type="button"
             onClick={onClose}
@@ -154,6 +153,9 @@ export default function MapPropertySidebar({
                               </>
                             )}
                           </div>
+                          <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-medium text-amber-700">
+                            Listed by {property.listed_by || 'VJR Estate'}
+                          </span>
                         </div>
                       </button>
 

@@ -4,8 +4,7 @@ export const SQFT_PER_ACRE = 43560;
 export const PLOT_LAND_TYPES = [
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
-  'PG Plot',
+  'JD Land',
 ] as const;
 
 export type AreaUnit = 'sqft' | 'acres';

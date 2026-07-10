@@ -188,7 +188,6 @@ export function getKathaCustomText(stored: string | undefined): string {
 
 /** Suggested Khata group by property type in admin form. */
 export function getSuggestedKathaGroupId(propertyType: string): string {
-  if (propertyType === 'Agriculture Land') return 'revenue';
   if (propertyType === 'Residential Plot' || propertyType === 'Commercial Plot') return 'panchayat';
   return 'urban';
 }

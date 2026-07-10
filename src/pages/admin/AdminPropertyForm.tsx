@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   addDoc,
   collection,
@@ -83,10 +83,11 @@ interface FormData {
   map_lat?: number;
   map_lng?: number;
   maps_link?: string;
+  listed_by?: string;
 }
 
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
-const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot'];
+const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
 
 const WATER_SOURCE_OPTIONS = [
   'Borewell',
@@ -103,8 +104,8 @@ const PROPERTY_TYPES = [
   'Commercial Properties',
   'Residential Plot',
   'Commercial Plot',
-  'Agriculture Land',
   'PG Plot',
+  'JD Land',
 ];
 
 const COMMERCIAL_SUBTYPES = [
@@ -119,7 +120,7 @@ const COMMERCIAL_SUBTYPES = [
   'Flex Space',
 ];
 
-const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land', 'PG Plot'];
+const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
 
 const AREAS = [...BANGALORE_AREAS];
 
@@ -179,6 +180,7 @@ const AMENITIES = [
 export default function AdminPropertyForm() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const isEditMode = !!id;
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
@@ -228,8 +230,16 @@ export default function AdminPropertyForm() {
     map_lat: 0,
     map_lng: 0,
     maps_link: '',
+    listed_by: 'VJR Estate',
   });
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { defaultType?: string } | null;
+    if (!isEditMode && state?.defaultType) {
+      setFormData((prev) => ({ ...prev, type: state.defaultType! }));
+    }
+  }, []);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -252,10 +262,7 @@ export default function AdminPropertyForm() {
               Number(extra['Area in Guntas']) ||
               0;
             const loadedAreaUnit =
-              ((data as { area_unit?: AreaUnit }).area_unit as AreaUnit | undefined) ??
-              (data.type === 'Agriculture Land' && (landAcres > 0 || landGuntas > 0)
-                ? 'acres'
-                : 'sqft');
+              ((data as { area_unit?: AreaUnit }).area_unit as AreaUnit | undefined) ?? 'sqft';
             setFormData({
               ...data,
               type: canonicalPropertyType(data.type ?? ''),
@@ -378,7 +385,7 @@ export default function AdminPropertyForm() {
         formData.location || formData.title,
       );
 
-      const isLandType = formData.type === 'Agriculture Land';
+      const isLandType = false;
       const isPlotOrLand = PLOT_LAND_TYPES.includes(
         formData.type as (typeof PLOT_LAND_TYPES)[number],
       );
@@ -400,23 +407,9 @@ export default function AdminPropertyForm() {
           acres = converted.acres;
           guntas = converted.guntas;
         }
-        if (isLandType) {
-          if (acres > 0) landExtra['Area in Acres'] = acres;
-          if (guntas > 0) landExtra['Area in Guntas'] = guntas;
-          if (formData.survey_number?.trim()) {
-            landExtra['Survey No.'] = formData.survey_number.trim();
-          }
-          if (formData.water_source) {
-            landExtra['Water Source'] = formData.water_source;
-          }
-          landExtra['DC Conversion Done'] = formData.dc_conversion_done ? 'Yes' : 'No';
-        }
       }
 
-      const mergedExtraDetails =
-        isLandType && Object.keys(landExtra).length > 0
-          ? { ...(formData.extra_details ?? {}), ...landExtra }
-          : formData.extra_details;
+      const mergedExtraDetails = formData.extra_details;
 
       const {
         land_acres,
@@ -565,11 +558,11 @@ export default function AdminPropertyForm() {
 
   const shouldShowCommercialSubtypeFields =
     formData.type === 'Commercial Properties';
-  const shouldShowPlotSubtypeFields = formData.type.includes('Plot') || formData.type === 'Agriculture Land';
+  const shouldShowPlotSubtypeFields = formData.type.includes('Plot') || formData.type === 'JD Land';
 
   const isBuildingType = BUILDING_TYPES.includes(formData.type);
   const isPlotTypeOnly = PLOT_TYPES.includes(formData.type);
-  const isLandType = formData.type === 'Agriculture Land';
+  const isLandType = false;
   const isPlotOrLand = PLOT_LAND_TYPES.includes(
     formData.type as (typeof PLOT_LAND_TYPES)[number],
   );
@@ -682,7 +675,7 @@ export default function AdminPropertyForm() {
   const plotLandAreaSqft = getPlotLandAreaSqft();
   const plotLandPriceSummary =
     formData.price > 0 && (formData.price_per_sqft ?? 0) > 0
-      ? `Auto-calculated: ${formatINR(formData.price)} total · ₹${(formData.price_per_sqft ?? 0).toLocaleString('en-IN')}/sq.ft`
+      ? `Price saved as: ${formatINR(formData.price)} total · ₹${(formData.price_per_sqft ?? 0).toLocaleString('en-IN')}/sq.ft`
       : '';
 
   const areaFieldLabel = isBuildingType
@@ -1214,8 +1207,8 @@ export default function AdminPropertyForm() {
                 </div>
               )}
 
-              {/* Agriculture-only fields */}
-              {isLandType && (
+              {/* Agriculture-only fields — removed */}
+              {false && (
                 <>
                   <div>
                     <label className="block font-sans text-xs text-gray-500 mb-2">
@@ -1591,19 +1584,36 @@ export default function AdminPropertyForm() {
           <div className="admin-section">
             <h2 className="admin-section-title">Listing Details</h2>
 
-            <div>
-              <label className="block font-sans text-xs text-gray-500 mb-2">
-                Listed Days Ago
-              </label>
-              <input
-                type="number"
-                placeholder="0"
-                value={formData.listed_days_ago}
-                onChange={(e) =>
-                  updateFormData('listed_days_ago', Number(e.target.value))
-                }
-                className="admin-input-ghost"
-              />
+            <div className="space-y-6">
+              <div>
+                <label className="block font-sans text-xs text-gray-500 mb-2">
+                  Listed By
+                </label>
+                <select
+                  value={formData.listed_by ?? 'VJR Estate'}
+                  onChange={(e) => updateFormData('listed_by', e.target.value)}
+                  className="admin-select"
+                >
+                  <option value="VJR Estate">VJR Estate</option>
+                  <option value="Agent">Agent</option>
+                  <option value="Owner">Owner</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-sans text-xs text-gray-500 mb-2">
+                  Listed Days Ago
+                </label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={formData.listed_days_ago}
+                  onChange={(e) =>
+                    updateFormData('listed_days_ago', Number(e.target.value))
+                  }
+                  className="admin-input-ghost"
+                />
+              </div>
             </div>
           </div>
         </form>

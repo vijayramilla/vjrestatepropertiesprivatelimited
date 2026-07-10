@@ -20,7 +20,6 @@ import {
   Buildings,
   HouseLine,
   Storefront,
-  Tree,
   Blueprint,
   Warehouse,
   FirstAid,
@@ -102,7 +101,6 @@ function getCategoryIcon(property: Property): Icon {
     return Storefront;
   }
   const plotSub = getPlotSubtype(property);
-  if (plotSub === 'Agriculture Land') return Tree;
   if (plotSub === 'Commercial Plot') return Storefront;
   return Blueprint;
 }

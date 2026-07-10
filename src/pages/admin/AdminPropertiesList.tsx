@@ -38,6 +38,9 @@ interface Property {
   monthly_rental_label: string;
   featured: boolean;
   status: string;
+  uid?: string;
+  userEmail?: string;
+  userDisplayName?: string;
   createdAt?: { toDate?: () => Date };
 }
 
@@ -81,7 +84,7 @@ export default function AdminPropertiesList() {
     'Commercial Properties',
     'Residential Plot',
     'Commercial Plot',
-    'Agriculture Land',
+    'JD Land',
   ];
 
   useEffect(() => {
@@ -234,6 +237,11 @@ export default function AdminPropertiesList() {
                       {property.status}
                     </AdminBadge>
                   </div>
+                  {property.userDisplayName && (
+                    <p className="mt-2 text-xs text-gray-500">
+                      Listed by <span className="font-medium text-gray-700">{property.userDisplayName}</span>
+                    </p>
+                  )}
 
                   <div className="mt-3 flex items-end justify-between gap-3">
                     <div>
@@ -273,7 +281,7 @@ export default function AdminPropertiesList() {
               ))}
             </div>
 
-            <div className="admin-card hidden overflow-hidden md:block">
+              <div className="admin-card hidden overflow-hidden md:block">
               <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/50 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                 <p className="col-span-2">Title</p>
                 <p className="col-span-1">Type</p>
@@ -282,7 +290,8 @@ export default function AdminPropertiesList() {
                 <p className="col-span-1">Monthly</p>
                 <p className="col-span-1">Status</p>
                 <p className="col-span-1">Featured</p>
-                <p className="col-span-2">Actions</p>
+                <p className="col-span-2">Listed By</p>
+                <p className="col-span-1">Actions</p>
               </div>
 
               {filteredProperties.map((property) => (
@@ -290,7 +299,7 @@ export default function AdminPropertiesList() {
                   key={property.id}
                   className="grid grid-cols-12 gap-4 border-b border-gray-50 px-5 py-3.5 transition-colors last:border-0 hover:bg-gray-50/40"
                 >
-                  <p className="col-span-2 truncate text-sm font-medium text-black">{property.title}</p>
+                  <p className="col-span-3 truncate text-sm font-medium text-black">{property.title}</p>
                   <div className="col-span-1">
                     <p className="text-xs text-gray-800">{property.type}</p>
                     {property.commercial_subtype && (
@@ -311,7 +320,13 @@ export default function AdminPropertiesList() {
                       onToggle={() => handleToggleFeatured(property.id, property.featured)}
                     />
                   </div>
-                  <div className="col-span-2 flex gap-2">
+                  <div className="col-span-2 min-w-0">
+                    <p className="truncate text-xs font-medium text-gray-800">{property.userDisplayName || '—'}</p>
+                    {property.userEmail && (
+                      <p className="truncate text-[10px] text-gray-500">{property.userEmail}</p>
+                    )}
+                  </div>
+                  <div className="col-span-1 flex gap-2">
                     <button
                       type="button"
                       onClick={() => navigate(`/admin/properties/${property.id}/edit`)}

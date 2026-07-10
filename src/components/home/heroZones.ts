@@ -63,4 +63,4 @@ export const HERO_TRENDING = [
   'Hebbal',
 ] as const;
 
-export const PLOT_SUB_TYPES = ['Residential Plot', 'Commercial Plot', 'Agriculture Land'] as const;
+export const PLOT_SUB_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;

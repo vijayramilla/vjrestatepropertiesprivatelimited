@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import Navbar from '@/components/Navbar';
 
 const LOADING_TEXT = 'LOADING BANGALORE';
 
@@ -54,9 +55,11 @@ function OrbitingDot({
   );
 }
 
-export default function MapLoadingSkeleton({ noHeaderOffset }: { noHeaderOffset?: boolean }) {
+export default function MapLoadingSkeleton(_props: { noHeaderOffset?: boolean }) {
   return (
-    <div className={`relative flex w-full flex-col items-center justify-center overflow-hidden bg-gray-950 ${noHeaderOffset ? 'h-dvh' : 'h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`}>
+    <>
+      <Navbar />
+      <div className="relative flex w-full flex-col items-center justify-center overflow-hidden bg-gray-950 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]">
       <GridBackground />
 
       <div
@@ -162,5 +165,6 @@ export default function MapLoadingSkeleton({ noHeaderOffset }: { noHeaderOffset?
         </svg>
       </motion.div>
     </div>
+    </>
   );
 }

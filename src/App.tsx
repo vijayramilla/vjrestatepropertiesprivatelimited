@@ -29,7 +29,9 @@ const AdminUsersList = lazy(() => import('./pages/admin/AdminUsersList'));
 const AdminRequirementsList = lazy(() => import('./pages/admin/AdminRequirementsList'));
 const AdminPostRequirementPage = lazy(() => import('./pages/admin/AdminPostRequirementPage'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AdminListingsDashboard = lazy(() => import('./pages/admin/AdminListingsDashboard'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
+const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -84,9 +86,20 @@ function AppRoutes() {
     return (
       <Routes>
         <Route path="/map" element={<MapPage />} />
+        <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
+        <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
+        <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
         <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
+        <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
+        <Route path="/admin/properties" element={<AdminRoute><LazyPage><AdminPropertiesList /></LazyPage></AdminRoute>} />
+        <Route path="/admin/properties/new" element={<AdminRoute><LazyPage><AdminPropertyForm /></LazyPage></AdminRoute>} />
+        <Route path="/admin/properties/:id/edit" element={<AdminRoute><LazyPage><AdminPropertyForm /></LazyPage></AdminRoute>} />
+        <Route path="/admin/enquiries" element={<AdminRoute><LazyPage><AdminLeadsList /></LazyPage></AdminRoute>} />
+        <Route path="/admin/users" element={<AdminRoute><LazyPage><AdminUsersList /></LazyPage></AdminRoute>} />
+        <Route path="/admin/listings" element={<AdminRoute><LazyPage><AdminListingsDashboard /></LazyPage></AdminRoute>} />
+        <Route path="/admin/requirements" element={<AdminRoute><LazyPage><AdminRequirementsList /></LazyPage></AdminRoute>} />
+        <Route path="/admin/requirements/new" element={<AdminRoute><LazyPage><AdminPostRequirementPage /></LazyPage></AdminRoute>} />
         <Route path="/admin/settings" element={<AdminRoute><LazyPage><AdminSettings /></LazyPage></AdminRoute>} />
-        <Route path="/admin" element={<Navigate to="/admin/settings" replace />} />
         <Route path="*" element={<Navigate to="/map" replace />} />
       </Routes>
     );
@@ -102,6 +115,7 @@ function AppRoutes() {
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
         <Route path="/map" element={<MapPage />} />
+        <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
@@ -133,6 +147,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LazyPage><AdminUsersList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/listings"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminListingsDashboard /></LazyPage>
           </AdminRoute>
         }
       />
