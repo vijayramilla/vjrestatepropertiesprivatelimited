@@ -626,7 +626,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
             }}
             style={{
               position: 'fixed',
-              top: '60px',
+              top: '56px',
               left: 0,
               right: 0,
               bottom: 0,
@@ -641,7 +641,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
             right: 0,
             top: 'auto',
             height: 'auto',
-            maxHeight: '70vh',
+            maxHeight: 'calc(100vh - 56px)',
             zIndex: 201,
             backgroundColor: 'white',
             borderRadius: '24px 24px 0 0',
@@ -650,8 +650,8 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
             flexDirection: 'column',
             animation: 'slideUpPanel 0.3s ease-out',
           }}>
-            <div style={{ padding: '12px 16px 16px', borderBottom: '1px solid #F3F4F6' }}>
-              <div style={{ width: '40px', height: '4px', backgroundColor: '#E5E7EB', borderRadius: '2px', margin: '0 auto 16px' }} />
+            <div style={{ padding: '8px 16px 12px', borderBottom: '1px solid #F3F4F6' }}>
+              <div style={{ width: '40px', height: '4px', backgroundColor: '#E5E7EB', borderRadius: '2px', margin: '0 auto 12px' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Autocomplete
                   onLoad={(ac) => setAutocompleteInstance(ac)}
@@ -687,7 +687,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
                     style={{
                       flex: 1,
                       width: '100%',
-                      height: '44px',
+                      height: '40px',
                       border: '1.5px solid #E5E7EB',
                       borderRadius: '999px',
                       padding: '0 44px 0 16px',
@@ -721,7 +721,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
               </div>
             </div>
 
-            <div style={{ overflowY: 'auto', maxHeight: 'calc(70vh - 120px)', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 140px)', WebkitOverflowScrolling: 'touch' }}>
               <button
                 onClick={() => { handleLocateMe(); setSearchPanelOpen(false); }}
                 style={{
@@ -849,9 +849,12 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
 
       <div className="relative h-full w-full">
         <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
-          style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
+          style={{ 
+            left: isMobile ? '1rem' : (isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem'), 
+            right: '1rem' 
+          }}>
             <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
-              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: '240px' }}>
+              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: isMobile ? 'calc(100vw - 2rem)' : '240px' }}>
                 {!isMobile ? (
                   <>
                     <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '13px', pointerEvents: 'none', zIndex: 1 }}>
