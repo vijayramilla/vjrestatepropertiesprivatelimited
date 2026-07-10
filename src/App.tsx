@@ -44,7 +44,7 @@ function MapPage() {
   if (loadError) {
     console.error('[Maps] Google Maps load error:', loadError.message);
     return (
-      <div className={`flex items-center justify-center bg-white px-6 text-center ${mapOnly ? 'h-dvh' : 'h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)]'}`}>
+      <div className={`flex items-center justify-center bg-white px-6 text-center ${mapOnly ? 'h-dvh' : 'h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`}>
         <div className="max-w-md space-y-3">
           <p className="font-medium text-gray-900">Oops! Something went wrong</p>
           <p className="text-sm text-gray-500">The map couldn't load.</p>

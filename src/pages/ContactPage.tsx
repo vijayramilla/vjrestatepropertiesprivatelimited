@@ -91,7 +91,7 @@ export default function ContactPage() {
       <motion.section
         ref={heroRef}
         style={{ opacity: heroOpacity, scale: heroScale, y: heroY }}
-        className="relative flex min-h-[calc(100vh-72px)] items-center justify-center px-4 sm:px-6 md:px-8"
+        className="relative flex min-h-[calc(100dvh-72px)] items-center justify-center px-4 sm:px-6 md:px-8"
       >
         <div className="mx-auto max-w-7xl text-center">
           <motion.div
