@@ -4,6 +4,7 @@ import { ShortlistProvider } from './context/ShortlistContext';
 import { AuthProvider } from './context/AuthContext';
 import { GoogleMapsProvider, useGoogleMapsLoader } from './context/GoogleMapsContext';
 import { LocationPermissionProvider } from './hooks/useLocationPermission';
+import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsContext';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import PageLoader from './components/PageLoader';
@@ -27,6 +28,7 @@ const AdminLeadsList = lazy(() => import('./pages/admin/AdminLeadsList'));
 const AdminUsersList = lazy(() => import('./pages/admin/AdminUsersList'));
 const AdminRequirementsList = lazy(() => import('./pages/admin/AdminRequirementsList'));
 const AdminPostRequirementPage = lazy(() => import('./pages/admin/AdminPostRequirementPage'));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -35,29 +37,146 @@ function LazyPage({ children }: { children: ReactNode }) {
 
 function MapPage() {
   const { isLoaded, loadError } = useGoogleMapsLoader();
+  const { mapOnly } = useSiteSettings();
 
   if (loadError) {
     console.error('[Maps] Google Maps load error:', loadError.message);
     return (
-      <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center bg-white px-6 text-center md:h-[calc(100vh-4rem)]">
+      <div className={`flex items-center justify-center bg-white px-6 text-center ${mapOnly ? 'h-dvh' : 'h-[calc(100vh-3.5rem)] md:h-[calc(100vh-4rem)]'}`}>
         <div className="max-w-md space-y-3">
           <p className="font-medium text-gray-900">Oops! Something went wrong</p>
           <p className="text-sm text-gray-500">The map couldn't load.</p>
           <p className="rounded-lg bg-red-50 px-4 py-3 text-xs text-red-700 font-mono">{loadError.message}</p>
-          <p className="text-xs text-gray-400">Check Google Cloud Console → APIs & Services → ensure Maps JavaScript API + Places API are enabled and billing is active.</p>
+          <p className="text-xs text-gray-400">Check Google Cloud Console - APIs & Services - ensure Maps JavaScript API + Places API are enabled and billing is active.</p>
         </div>
       </div>
     );
   }
 
   if (!isLoaded) {
-    return <MapLoadingSkeleton />;
+    return <MapLoadingSkeleton noHeaderOffset={mapOnly} />;
   }
 
   return (
-    <Suspense fallback={<MapLoadingSkeleton />}>
-      <BangaloreMap isLoaded={isLoaded} />
+    <Suspense fallback={<MapLoadingSkeleton noHeaderOffset={mapOnly} />}>
+      <BangaloreMap isLoaded={isLoaded} noHeaderOffset={mapOnly} />
     </Suspense>
+  );
+}
+
+function AppRoutes() {
+  const { mapOnly, loading } = useSiteSettings();
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="inline-block">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
+          </div>
+          <p className="mt-4 font-sans text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (mapOnly) {
+    return (
+      <Routes>
+        <Route path="/map" element={<MapPage />} />
+        <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
+        <Route path="/admin/settings" element={<AdminRoute><LazyPage><AdminSettings /></LazyPage></AdminRoute>} />
+        <Route path="/admin" element={<Navigate to="/admin/settings" replace />} />
+        <Route path="*" element={<Navigate to="/map" replace />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<LazyPage><HomePage /></LazyPage>} />
+        <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
+        <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
+        <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
+        <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
+        <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
+        <Route path="/map" element={<MapPage />} />
+        <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
+        <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
+        <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
+        <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
+        <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
+        <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
+      </Route>
+
+      <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
+      <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
+      <Route
+        path="/admin/properties"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminPropertiesList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/enquiries"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminLeadsList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/users"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminUsersList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/requirements"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminRequirementsList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/requirements/new"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminPostRequirementPage /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/properties/new"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminPropertyForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/properties/:id/edit"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminPropertyForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminSettings /></LazyPage>
+          </AdminRoute>
+        }
+      />
+    </Routes>
   );
 }
 
@@ -67,84 +186,11 @@ function App() {
       <LocationPermissionProvider>
         <ShortlistProvider>
           <GoogleMapsProvider>
-            <BrowserRouter>
-              <Routes>
-                <Route element={<Layout />}>
-                  <Route path="/" element={<LazyPage><HomePage /></LazyPage>} />
-                  <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
-                  <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
-                  <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
-                  <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
-                  <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
-                  <Route path="/map" element={<MapPage />} />
-                  <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
-                  <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
-                  <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
-                  <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
-                  <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
-                  <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
-                </Route>
-
-                <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
-                <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
-                <Route
-                  path="/admin/properties"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminPropertiesList /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/enquiries"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminLeadsList /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/users"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminUsersList /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/requirements"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminRequirementsList /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/requirements/new"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminPostRequirementPage /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/properties/new"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminPropertyForm /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-                <Route
-                  path="/admin/properties/:id/edit"
-                  element={
-                    <AdminRoute>
-                      <LazyPage><AdminPropertyForm /></LazyPage>
-                    </AdminRoute>
-                  }
-                />
-              </Routes>
-            </BrowserRouter>
+            <SiteSettingsProvider>
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </SiteSettingsProvider>
           </GoogleMapsProvider>
         </ShortlistProvider>
       </LocationPermissionProvider>

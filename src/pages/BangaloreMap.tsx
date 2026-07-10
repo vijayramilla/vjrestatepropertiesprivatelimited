@@ -166,9 +166,10 @@ function formatAreaLabel(p: MapProperty): string {
 
 interface BangaloreMapProps {
   isLoaded: boolean;
+  noHeaderOffset?: boolean;
 }
 
-export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
+export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapProps) {
   const [properties, setProperties] = useState<MapProperty[]>([]);
   const [, setLoading] = useState(true);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -532,7 +533,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   }
 
   return (
-    <div className="fixed inset-x-0 top-14 z-10 bg-gray-900 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]" style={{ overscrollBehavior: 'none' }}>
+    <div className={`fixed inset-x-0 z-10 bg-gray-900 ${noHeaderOffset ? 'top-0 h-dvh' : 'top-14 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`} style={{ overscrollBehavior: 'none' }}>
       <MapFilterPanel
         open={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}

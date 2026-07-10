@@ -54,9 +54,9 @@ function OrbitingDot({
   );
 }
 
-export default function MapLoadingSkeleton() {
+export default function MapLoadingSkeleton({ noHeaderOffset }: { noHeaderOffset?: boolean }) {
   return (
-    <div className="relative flex h-[calc(100dvh-3.5rem)] w-full flex-col items-center justify-center overflow-hidden bg-gray-950 md:h-[calc(100dvh-4rem)]">
+    <div className={`relative flex w-full flex-col items-center justify-center overflow-hidden bg-gray-950 ${noHeaderOffset ? 'h-dvh' : 'h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`}>
       <GridBackground />
 
       <div

@@ -1,9 +1,10 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
+import { useSiteSettings } from '@/context/SiteSettingsContext';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -17,6 +18,7 @@ const baseNavItems = [
   { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
+  { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
 ];
 
 export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutProps) {
@@ -24,6 +26,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const openRequirementsCount = useOpenRequirementsCount();
+  const { mapOnly } = useSiteSettings();
 
   const isNavActive = (path: string) => {
     if (path === '/admin/properties') {
@@ -36,6 +39,9 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
       return location.pathname === path;
     }
     if (path === '/admin/requirements/new') {
+      return location.pathname === path;
+    }
+    if (path === '/admin/settings') {
       return location.pathname === path;
     }
     return location.pathname.startsWith(path);
@@ -78,6 +84,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
           const Icon = item.icon;
           const isActive = isNavActive(item.path);
           const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
+          const showMapDot = item.path === '/admin/settings' && mapOnly;
           return (
             <button
               key={item.path}
@@ -88,7 +95,12 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
               }}
               className={navButtonClass(isActive)}
             >
-              <Icon size={18} weight={isActive ? 'regular' : 'thin'} />
+              <div className="relative">
+                <Icon size={18} weight={isActive ? 'regular' : 'thin'} />
+                {showMapDot && (
+                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-green-400" />
+                )}
+              </div>
               <span className="flex flex-1 items-center justify-between gap-2">
                 {item.label}
                 {showBadge && (
@@ -200,6 +212,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
             const Icon = item.icon;
             const isActive = isNavActive(item.path);
             const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
+            const showMapDot = item.path === '/admin/settings' && mapOnly;
             return (
               <button
                 key={item.path}
@@ -210,7 +223,12 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
                 }`}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+                <div className="relative">
+                  <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
+                  {showMapDot && (
+                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-green-400" />
+                  )}
+                </div>
                 {showBadge && (
                   <span className="absolute right-[18%] top-1 min-w-[16px] rounded-full bg-white px-1 text-[8px] font-bold text-black">
                     {openRequirementsCount > 9 ? '9+' : openRequirementsCount}
