@@ -125,15 +125,15 @@ export default function MapPropertySidebar({
                               {config.label.split(' ')[0]}
                             </div>
                           )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
                           <span
-                            className="absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold text-white"
+                            className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-bold text-white"
                             style={{ backgroundColor: property.color }}
                           >
                             {config.label.replace(' Plot', '').replace(' Land', '')}
                           </span>
-                        </div>
-
-                        <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-bold text-gray-900">
                             {property.title || config.label}
                           </p>

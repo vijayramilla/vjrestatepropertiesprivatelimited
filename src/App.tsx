@@ -39,12 +39,11 @@ function LazyPage({ children }: { children: ReactNode }) {
 
 function MapPage() {
   const { isLoaded, loadError } = useGoogleMapsLoader();
-  const { mapOnly } = useSiteSettings();
 
   if (loadError) {
     console.error('[Maps] Google Maps load error:', loadError.message);
     return (
-      <div className={`flex items-center justify-center bg-white px-6 text-center ${mapOnly ? 'h-dvh' : 'h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]'}`}>
+      <div className="flex h-dvh items-center justify-center bg-white px-6 text-center">
         <div className="max-w-md space-y-3">
           <p className="font-medium text-gray-900">Oops! Something went wrong</p>
           <p className="text-sm text-gray-500">The map couldn't load.</p>
@@ -56,18 +55,18 @@ function MapPage() {
   }
 
   if (!isLoaded) {
-    return <MapLoadingSkeleton noHeaderOffset={mapOnly} />;
+    return <MapLoadingSkeleton noHeaderOffset />;
   }
 
   return (
-    <Suspense fallback={<MapLoadingSkeleton noHeaderOffset={mapOnly} />}>
-      <BangaloreMap isLoaded={isLoaded} noHeaderOffset={mapOnly} />
+    <Suspense fallback={<MapLoadingSkeleton noHeaderOffset />}>
+      <BangaloreMap isLoaded={isLoaded} noHeaderOffset />
     </Suspense>
   );
 }
 
 function AppRoutes() {
-  const { mapOnly, loading } = useSiteSettings();
+  const { loading } = useSiteSettings();
 
   if (loading) {
     return (
@@ -82,29 +81,6 @@ function AppRoutes() {
     );
   }
 
-  if (mapOnly) {
-    return (
-      <Routes>
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
-        <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
-        <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
-        <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
-        <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
-        <Route path="/admin/properties" element={<AdminRoute><LazyPage><AdminPropertiesList /></LazyPage></AdminRoute>} />
-        <Route path="/admin/properties/new" element={<AdminRoute><LazyPage><AdminPropertyForm /></LazyPage></AdminRoute>} />
-        <Route path="/admin/properties/:id/edit" element={<AdminRoute><LazyPage><AdminPropertyForm /></LazyPage></AdminRoute>} />
-        <Route path="/admin/enquiries" element={<AdminRoute><LazyPage><AdminLeadsList /></LazyPage></AdminRoute>} />
-        <Route path="/admin/users" element={<AdminRoute><LazyPage><AdminUsersList /></LazyPage></AdminRoute>} />
-        <Route path="/admin/listings" element={<AdminRoute><LazyPage><AdminListingsDashboard /></LazyPage></AdminRoute>} />
-        <Route path="/admin/requirements" element={<AdminRoute><LazyPage><AdminRequirementsList /></LazyPage></AdminRoute>} />
-        <Route path="/admin/requirements/new" element={<AdminRoute><LazyPage><AdminPostRequirementPage /></LazyPage></AdminRoute>} />
-        <Route path="/admin/settings" element={<AdminRoute><LazyPage><AdminSettings /></LazyPage></AdminRoute>} />
-        <Route path="*" element={<Navigate to="/map" replace />} />
-      </Routes>
-    );
-  }
-
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -114,7 +90,6 @@ function AppRoutes() {
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
-        <Route path="/map" element={<MapPage />} />
         <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
@@ -124,6 +99,7 @@ function AppRoutes() {
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
 
+      <Route path="/map" element={<MapPage />} />
       <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
       <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
       <Route

@@ -661,36 +661,25 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
               </div>
           </div>
 
-          <div className="pointer-events-auto relative z-[40] flex max-w-full items-center gap-2 overflow-x-auto pb-1">
-            {LAND_TYPES.map((type) => {
-              const isActive = activeCategories.includes(type);
+          {activeCategories.length > 0 && (
+          <div className="pointer-events-auto relative z-[40] flex items-center gap-2">
+            {activeCategories.map((type) => {
               const config = CATEGORY_CONFIG[type];
               return (
                 <button
                   key={type}
                   type="button"
                   onClick={() => toggleCategory(type)}
-                  className="flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2.5 text-xs font-bold whitespace-nowrap shadow-md transition-all duration-200"
-                  style={
-                    isActive
-                      ? {
-                          backgroundColor: config.color,
-                          color: '#fff',
-                          boxShadow: `0 4px 12px ${config.color}66`,
-                        }
-                      : {
-                          backgroundColor: 'rgba(255,255,255,0.9)',
-                          color: '#6b7280',
-                          border: '1px solid rgba(0,0,0,0.1)',
-                        }
-                  }
+                  className="flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold whitespace-nowrap text-white shadow-md"
+                  style={{ backgroundColor: config.color }}
                 >
                   {config.label}
-                  {isActive && <span className="ml-1 opacity-70">×</span>}
+                  <span className="ml-0.5 opacity-70 text-[11px] leading-none">×</span>
                 </button>
               );
             })}
           </div>
+          )}
         </div>
 
         <MapPropertySidebar

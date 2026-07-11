@@ -1,11 +1,12 @@
 import { useState, useCallback, Suspense, lazy } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { GlobeHemisphereWest, ArrowRight } from '@phosphor-icons/react';
 import HomeHero from '../components/home/HomeHero';
 import HomeListingsSection from '../components/home/HomeListingsSection';
 import { MAX_LOCALITY_SELECTIONS } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
+import { useSiteSettings } from '@/context/SiteSettingsContext';
 
 const HomeScrollShowcase = lazy(() => import('../components/home/HomeScrollShowcase'));
 const HomeGlobalInvestors = lazy(() => import('../components/home/HomeGlobalInvestors'));
@@ -41,10 +42,15 @@ function buildSearchParams(propertyType: string, localities: string[]) {
 }
 
 export default function HomePage() {
+  const { mapOnly } = useSiteSettings();
   const navigate = useNavigate();
   const [propertyType, setPropertyType] = useState('All');
   const [selectedLocalities, setSelectedLocalities] = useState<string[]>([]);
   const [localityNotice, setLocalityNotice] = useState('');
+
+  if (mapOnly) {
+    return <Navigate to="/map" replace />;
+  }
 
   const toggleLocality = useCallback((area: string) => {
     setSelectedLocalities((prev) => {
