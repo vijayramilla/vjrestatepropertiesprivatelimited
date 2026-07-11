@@ -23,7 +23,7 @@ import {
   type BudgetFilter,
   type LandType,
 } from '@/data/mapConfig';
-import MapTopBar from '@/components/map/MapTopBar';
+import { SearchBar } from '@/components/ui/search-bar';
 import MapFilterPanel from '@/components/map/MapFilterPanel';
 import MapPropertySidebar from '@/components/map/MapPropertySidebar';
 import MapPropertyPopup from '@/components/map/MapPropertyPopup';
@@ -190,15 +190,6 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   const [searchInputValue, setSearchInputValue] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
-
   useEffect(() => {
     try {
       const stored = localStorage.getItem('vjr_map_searches');
@@ -286,6 +277,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
   const { mapOnly } = useSiteSettings();
 
   const [activeCategories, setActiveCategories] = useState<string[]>([...LAND_TYPES]);
+  const filterCount = (activeBudget.label !== 'All Budgets' ? 1 : 0) + (activeCategories.length > 0 && activeCategories.length < LAND_TYPES.length ? 1 : 0);
 
   useEffect(() => {
     document.title = 'VJR Land Map | Plots & Land in Bangalore';
@@ -636,75 +628,37 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
         <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
           style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
             <div className="pointer-events-auto flex items-center gap-2 overflow-visible">
-              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: isMobile ? 'calc(100vw - 180px)' : '240px' }}>
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '14px', pointerEvents: 'none', zIndex: 1, lineHeight: 1 }}>
-                      🔍
-                    </span>
-                    {searchText && (
-                      <span onClick={() => { setSearchText(''); setSearchInputValue(''); setNearbyPlaces([]); }} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '12px', cursor: 'pointer', zIndex: 1, lineHeight: 1, padding: '4px' }}>
-                        ✕
-                      </span>
-                    )}
-                    <input
-                      type="text"
-                      placeholder="Search Location..."
-                      value={searchInputValue || searchText}
-                      onChange={(e) => { setSearchInputValue(e.target.value); if (searchText) setSearchText(''); if (!searchPanelOpen) setSearchPanelOpen(true); }}
-                      onFocus={() => setSearchPanelOpen(true)}
-                      className="w-full h-9 rounded-full border shadow-sm text-xs pl-9 pr-8 outline-none transition-all duration-200"
-                      style={{ borderColor: searchPanelOpen ? '#6366f1' : '#E5E7EB', fontSize: '13px', backgroundColor: searchPanelOpen ? '#FAFAFE' : 'white' }}
-                    />
-                  </div>
-
-                {searchPanelOpen && (desktopPredictions.length > 0 || (!searchInputValue && recentSearches.length > 0)) && (
-                  <div className="absolute left-0 top-full mt-1.5 z-[200] w-80 max-h-80 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl p-2">
-                    {desktopPredictions.length > 0 ? (
-                      <div>
-                        {(desktopPredictions as google.maps.places.AutocompletePrediction[]).map((item) => (
-                          <button
-                            key={item.place_id}
-                            type="button"
-                            onMouseDown={() => selectDesktopPlace(item.place_id, item.description)}
-                            className="w-full rounded-xl px-3.5 py-2.5 text-left hover:bg-gray-50 transition-colors"
-                          >
-                            <span className="text-sm font-medium text-gray-800">{item.structured_formatting.main_text}</span>
-                            {item.structured_formatting.secondary_text && <span className="ml-1 text-xs text-gray-400">, {item.structured_formatting.secondary_text}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    ) : !searchInputValue && recentSearches.length > 0 && (
-                      <div>
-                        <p className="px-3.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Recently Searched</p>
-                        {recentSearches.map((s, i) => (
-                          <button
-                            key={i}
-                            type="button"
-                            onMouseDown={() => {
-                              const coords = BANGALORE_COORDINATES[s] ||
-                                Object.entries(BANGALORE_COORDINATES).find(([k]) => s.toLowerCase().includes(k.toLowerCase()))?.[1];
-                              if (coords && mapRef.current) { mapRef.current.panTo(coords); mapRef.current.setZoom(14); }
-                              setSearchText(s);
-                              setSearchPanelOpen(false);
-                            }}
-                            className="w-full px-3.5 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                          >
-                            🕐 {s}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, minWidth: 0 }}>
+                <SearchBar
+                  placeholder="Search Location..."
+                  searchText={searchText}
+                  inputValue={searchInputValue}
+                  onInputChange={(v) => { setSearchInputValue(v); if (searchText) setSearchText(''); if (!searchPanelOpen) setSearchPanelOpen(true); }}
+                  predictions={searchPanelOpen ? desktopPredictions : []}
+                  recentSearches={searchPanelOpen && !searchInputValue ? recentSearches : []}
+                  onPlaceSelect={selectDesktopPlace}
+                  onRecentSearchSelect={(s) => {
+                    const coords = BANGALORE_COORDINATES[s] ||
+                      Object.entries(BANGALORE_COORDINATES).find(([k]) => s.toLowerCase().includes(k.toLowerCase()))?.[1];
+                    if (coords && mapRef.current) { mapRef.current.panTo(coords); mapRef.current.setZoom(14); }
+                    setSearchText(s);
+                    setSearchPanelOpen(false);
+                  }}
+                  onSearch={(q) => {
+                    const prediction = desktopPredictions[0];
+                    if (prediction) {
+                      selectDesktopPlace(prediction.place_id, prediction.description);
+                    } else {
+                      const coord = BANGALORE_COORDINATES[q];
+                      if (coord && mapRef.current) { mapRef.current.panTo(coord); mapRef.current.setZoom(14); }
+                      setSearchText(q);
+                    }
+                  }}
+                  onLocateMe={handleLocateMe}
+                  onOpenFilters={() => setIsFilterOpen(true)}
+                  filterCount={filterCount}
+                />
               </div>
-
-            <MapTopBar
-              onLocateMe={handleLocateMe}
-              onOpenFilters={() => setIsFilterOpen(true)}
-              activeBudget={activeBudget}
-              activeCategories={activeCategories}
-              isLocating={isLocating}
-            />
           </div>
 
           <div className="pointer-events-auto relative z-[40] flex max-w-full items-center gap-2 overflow-x-auto pb-1">
