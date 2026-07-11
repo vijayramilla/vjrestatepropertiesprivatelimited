@@ -850,8 +850,8 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
       <div className="relative h-full w-full">
         <div className="pointer-events-none absolute top-4 z-[110] flex flex-col items-start gap-2 overflow-visible transition-[left] duration-300"
           style={{ left: isSidebarOpen ? 'calc(min(100vw,380px) + 1rem)' : '1rem', right: '1rem' }}>
-            <div className="pointer-events-auto flex w-full items-center gap-2 overflow-visible">
-              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: isMobile ? 'calc(100vw - 2rem)' : '240px' }}>
+            <div className="pointer-events-auto flex items-center gap-2 overflow-visible">
+              <div ref={desktopDropdownRef} className="relative" style={{ flex: 1, maxWidth: '240px' }}>
                 {!isMobile ? (
                   <>
                     <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF', fontSize: '13px', pointerEvents: 'none', zIndex: 1 }}>

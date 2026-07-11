@@ -12,8 +12,6 @@ import {
   SquaresFour,
   GlobeHemisphereWest,
   PlusCircle,
-  List,
-  X,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -73,7 +71,7 @@ function NavIconAction({
 export default function Navbar() {
   const [onHero, setOnHero] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   const profileRef = useRef<HTMLButtonElement>(null);
   const [profilePos, setProfilePos] = useState({ top: 0, right: 0 });
   const location = useLocation();
@@ -126,7 +124,6 @@ export default function Navbar() {
 
   useEffect(() => {
     setProfileOpen(false);
-    setMobileMenuOpen(false);
     if (!isHome) setOnHero(false);
   }, [location, isHome]);
 
@@ -143,10 +140,9 @@ export default function Navbar() {
       if (profileRef.current?.contains(t)) return;
       if ((e.target as Element).closest?.('[data-profile-menu]')) return;
       setProfileOpen(false);
-      setMobileMenuOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setProfileOpen(false); setMobileMenuOpen(false); }
+      if (e.key === 'Escape') { setProfileOpen(false); }
     };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', onKey);
@@ -229,20 +225,6 @@ export default function Navbar() {
             className="flex items-center pl-4 md:pl-5"
             style={{ borderLeft: `1px solid ${dividerColor}` }}
           >
-            <div className="md:hidden mr-1">
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen((o) => !o)}
-                aria-label="Toggle menu"
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
-              >
-                {mobileMenuOpen ? (
-                  <X size={20} weight="regular" color={iconColor} />
-                ) : (
-                  <List size={20} weight="regular" color={iconColor} />
-                )}
-              </button>
-            </div>
             <NavIconAction
               label="Saved"
               labelColor={labelColor}
@@ -427,54 +409,6 @@ export default function Navbar() {
                     )}
                   </div>
                 )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
-
-      {createPortal(
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                position: 'fixed',
-                top: '56px',
-                left: 0,
-                right: 0,
-                bottom: 0,
-                zIndex: 9998,
-                backgroundColor: 'rgba(255,255,255,0.98)',
-                backdropFilter: 'blur(12px)',
-              }}
-            >
-              <div className="flex flex-col px-6 pt-6 gap-1">
-                {[
-                  { label: 'Properties', path: '/properties' },
-                  { label: 'Land Map', path: '/map' },
-                  { label: 'About', path: '/about' },
-                  { label: 'Contact', path: '/contact' },
-                  { label: 'List Property', path: '/list-property' },
-                ].filter((item) => !(item.path === '/map' && isMapPage)).map(({ label, path }) => (
-                  <Link
-                    key={path}
-                    to={path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className="block py-4 text-base font-medium border-b border-gray-100"
-                    style={{
-                      fontFamily: DM_SANS,
-                      color: location.pathname === path ? '#000' : '#666',
-                      fontWeight: location.pathname === path ? '600' : '400',
-                    }}
-                  >
-                    {label}
-                  </Link>
-                ))}
               </div>
             </motion.div>
           )}
