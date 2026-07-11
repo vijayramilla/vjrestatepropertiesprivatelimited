@@ -71,7 +71,7 @@ export function normalizeLocalityInput(input: string): string {
   return resolveLocalityName(trimmed) ?? trimmed;
 }
 
-/** Try to find a known Bangalore area mentioned in free text (e.g. property title). */
+/** Try to find a known area mentioned in free text (e.g. property title). */
 export function extractLocalityFromText(text: string): string {
   const trimmed = text.trim();
   if (!trimmed) return '';
@@ -90,10 +90,10 @@ export function extractLocalityFromText(text: string): string {
     if (compactArea.length >= 3 && compactText.includes(compactArea)) return area;
   }
 
-  return '';
+  return trimmed;
 }
 
-/** Resolve typed search text to a canonical Bangalore locality, if possible. */
+/** Resolve typed search text to a canonical locality, if possible. */
 export function resolveLocalityForSearch(query: string): string | null {
   const trimmed = query.trim();
   if (!trimmed) return null;
@@ -121,7 +121,7 @@ export function resolveLocalityForSearch(query: string): string | null {
     if (tokenMatch) return tokenMatch;
   }
 
-  return null;
+  return trimmed;
 }
 
 export function normalizeLocalityList(inputs: string[]): string[] {

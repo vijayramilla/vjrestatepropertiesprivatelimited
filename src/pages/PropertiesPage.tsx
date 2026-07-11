@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
 import { PropertyPagination, PROPERTIES_PAGE_SIZE } from '@/components/ui/the-pagination';
-import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
+import { PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import {
   filterProperties,
@@ -620,7 +620,7 @@ export default function PropertiesPage() {
                     ? localitySlotsLeft > 0
                       ? `Add locality (${localitySlotsLeft} left)...`
                       : 'Maximum 4 localities selected'
-                    : 'Search Bangalore localities...'
+                    : 'Search locations...'
                 }
                 disabled={localitySlotsLeft <= 0 && !searchQuery}
                 value={searchQuery}
@@ -764,7 +764,7 @@ export default function PropertiesPage() {
                 {isTypingLocality ? (
                   <div>
                     <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                      <span>Localities in Bangalore</span>
+                      <span>Locations</span>
                       {localitySuggestions.length > 0 && (
                         <span className="normal-case tracking-normal text-gray-400">
                           {localitySuggestions.length} match{localitySuggestions.length !== 1 ? 'es' : ''}
@@ -866,7 +866,7 @@ export default function PropertiesPage() {
                     )}
 
                     <p className="mt-4 text-center text-[12px] text-gray-400">
-                      Locality search only — pick up to {MAX_LOCALITY_SELECTIONS} areas ({BANGALORE_AREAS.length} localities). Use <strong className="font-semibold text-gray-600">Filters</strong> for property type &amp; budget.
+                      Pick up to {MAX_LOCALITY_SELECTIONS} locations. Use <strong className="font-semibold text-gray-600">Filters</strong> for property type &amp; budget.
                     </p>
                   </>
                 )}

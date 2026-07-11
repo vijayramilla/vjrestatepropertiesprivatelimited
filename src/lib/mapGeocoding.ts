@@ -1,4 +1,4 @@
-import { localityFromGooglePlace, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
+import { BANGALORE_COORDINATES, localityFromGooglePlace } from '@/data/bangaloreCoordinates';
 import {
   expandGoogleMapsUrl,
   extractPlaceIdFromMapsUrl,
@@ -18,28 +18,40 @@ export interface LandLocationValue {
 
 export type { ResolvedMapsLink };
 
-export function localityFromGeocoderResult(result: google.maps.GeocoderResult): string {
-  const fakePlace = {
-    name: result.formatted_address,
-    formatted_address: result.formatted_address,
-    address_components: result.address_components,
-  } as google.maps.places.PlaceResult;
+const GEOCODING_API = 'https://maps.googleapis.com/maps/api/geocode/json';
 
-  const matched = localityFromGooglePlace(fakePlace);
-  if (matched) return matched;
+function getGoogleMapsApiKey(): string {
+  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
+}
 
-  const sublocality = result.address_components?.find(
-    (c) =>
-      c.types.includes('sublocality') ||
-      c.types.includes('sublocality_level_1') ||
-      c.types.includes('neighborhood'),
+export async function getLocalityFromCoords(lat: number, lng: number): Promise<string> {
+  try {
+    const apiKey = getGoogleMapsApiKey();
+    if (!apiKey) return 'Bangalore';
+
+    const url = `${GEOCODING_API}?latlng=${lat},${lng}&key=${apiKey}&result_type=sublocality|neighborhood|locality`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.status === 'OK' && data.results.length > 0) {
+      const components = data.results[0].address_components ?? [];
+      const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
+      return find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || 'Bangalore';
+    }
+
+    return 'Bangalore';
+  } catch {
+    return 'Bangalore';
+  }
+}
+
+function matchToBangaloreCoordinates(areaName: string): string {
+  if (BANGALORE_COORDINATES[areaName]) return areaName;
+  const lower = areaName.toLowerCase();
+  const match = Object.keys(BANGALORE_COORDINATES).find(
+    (k) => lower.includes(k.toLowerCase()) || k.toLowerCase().includes(lower),
   );
-  if (sublocality) return sublocality.long_name;
-
-  const locality = result.address_components?.find((c) => c.types.includes('locality'));
-  if (locality) return locality.long_name;
-
-  return result.formatted_address.split(',')[0]?.trim() || result.formatted_address;
+  return match || areaName;
 }
 
 export function landLocationFromPlace(place: google.maps.places.PlaceResult): LandLocationValue | null {
@@ -64,30 +76,34 @@ export function landLocationFromPlace(place: google.maps.places.PlaceResult): La
   };
 }
 
-export function reverseGeocodeLandLocation(
+export async function reverseGeocodeLandLocation(
   lat: number,
   lng: number,
   mapsLink?: string,
 ): Promise<LandLocationValue> {
-  return new Promise((resolve, reject) => {
-    const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-      if (status !== 'OK' || !results?.[0]) {
-        reject(new Error('Could not resolve address for this pin'));
-        return;
-      }
+  const rawArea = await getLocalityFromCoords(lat, lng);
+  const area = matchToBangaloreCoordinates(rawArea);
 
-      const result = results[0];
-      const area = localityFromGeocoderResult(result);
-      resolve({
-        area: resolveMapLocalityName(area) ?? area,
-        location: result.formatted_address,
-        map_lat: lat,
-        map_lng: lng,
-        maps_link: mapsLink,
-      });
-    });
-  });
+  let location = '';
+  try {
+    const apiKey = getGoogleMapsApiKey();
+    if (apiKey) {
+      const url = `${GEOCODING_API}?latlng=${lat},${lng}&key=${apiKey}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results[0]) {
+        location = data.results[0].formatted_address;
+      }
+    }
+  } catch {
+    // fallback below
+  }
+
+  if (!location) {
+    location = `${area}, ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+  }
+
+  return { area, location, map_lat: lat, map_lng: lng, maps_link: mapsLink };
 }
 
 function geocodePromise(

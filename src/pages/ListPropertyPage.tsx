@@ -7,12 +7,12 @@ import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 import { formatPrice, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import { computePlotLandAreaSqft, sqftToAcresGuntas } from '@/lib/plotLandForm';
 import type { AreaUnit } from '@/lib/plotLandForm';
-import { resolveLocationTextInput, reverseGeocodeLandLocation } from '@/lib/mapGeocoding';
-import { isGoogleMapsUrl, isWithinBangalore } from '@/lib/googleMapsLinkParser';
 import { KARNATAKA_KATHA_GROUPS, KARNATAKA_KATHA_CUSTOM_VALUE, findKathaOption } from '@/data/karnatakaKathas';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
+import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
+import type { LandLocationValue } from '@/lib/mapGeocoding';
 
 const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;
 const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
@@ -39,6 +39,10 @@ interface FormState {
   map_lat: number;
   map_lng: number;
   maps_link: string;
+  city: string;
+  state: string;
+  pincode: string;
+  fullAddress: string;
 }
 
 export default function ListPropertyPage() {
@@ -51,9 +55,6 @@ export default function ListPropertyPage() {
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
   const [showSignIn, setShowSignIn] = useState(false);
-  const [linkInput, setLinkInput] = useState('');
-  const [linkLoading, setLinkLoading] = useState(false);
-  const [linkError, setLinkError] = useState('');
   const [form, setForm] = useState<FormState>({
     title: '',
     type: 'Residential Plot',
@@ -75,6 +76,10 @@ export default function ListPropertyPage() {
     map_lat: 0,
     map_lng: 0,
     maps_link: '',
+    city: '',
+    state: '',
+    pincode: '',
+    fullAddress: '',
   });
 
   const update = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -143,30 +148,6 @@ export default function ListPropertyPage() {
     });
   };
 
-  const handleFetchPin = async () => {
-    const text = linkInput.trim();
-    if (!text) { setLinkError('Paste a Google Maps link or address'); return; }
-    setLinkLoading(true);
-    setLinkError('');
-    try {
-      const resolved = await resolveLocationTextInput(text);
-      if (!resolved) { setLinkError('Could not find this location'); return; }
-      if (!isWithinBangalore(resolved.lat, resolved.lng)) { setLinkError('Location must be within Bangalore'); return; }
-      const next = await reverseGeocodeLandLocation(resolved.lat, resolved.lng, isGoogleMapsUrl(text) ? text : undefined);
-      update('area', next.area);
-      update('location', next.location);
-      update('map_lat', next.map_lat);
-      update('map_lng', next.map_lng);
-      update('maps_link', next.maps_link ?? '');
-      setLinkInput('');
-      setLinkError('');
-    } catch {
-      setLinkError('Failed to fetch location');
-    } finally {
-      setLinkLoading(false);
-    }
-  };
-
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
     if (!selected.length) return;
@@ -184,10 +165,19 @@ export default function ListPropertyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { setShowSignIn(true); return; }
-    if (!form.title.trim() || !form.area.trim() || !form.price) {
-      setToast('Title, Area, and Price are required');
+    
+    // Validation
+    const errors: string[] = [];
+    if (!form.title.trim()) errors.push('Title is required');
+    if (!form.area.trim()) errors.push('Area is required');
+    if (form.map_lat === 0 || form.map_lng === 0) errors.push('Please set location pin on map');
+    if (!form.price) errors.push('Price is required');
+    
+    if (errors.length > 0) {
+      setToast(errors[0]);
       return;
     }
+    
     setSaving(true);
     try {
       const ref = await addDoc(collection(db, 'properties'), sanitizeForFirestore({
@@ -216,6 +206,10 @@ export default function ListPropertyPage() {
         map_lat: form.map_lat,
         map_lng: form.map_lng,
         maps_link: form.maps_link,
+        city: form.city,
+        state: form.state,
+        pincode: form.pincode,
+        fullAddress: form.fullAddress,
         images: [],
         createdAt: serverTimestamp(),
       }));
@@ -241,6 +235,16 @@ export default function ListPropertyPage() {
     form.price > 0 && form.price_per_sqft > 0
       ? `Price saved as: ${formatINR(form.price)} total · ${formatINRPerSqft(form.price_per_sqft)}`
       : '';
+
+  // Form validation
+  const isFormValid = form.title.trim() && form.area.trim() && form.price && form.map_lat !== 0 && form.map_lng !== 0;
+  const getValidationMessage = () => {
+    if (!form.title.trim()) return 'Title is required';
+    if (!form.area.trim()) return 'Location is required';
+    if (form.map_lat === 0 || form.map_lng === 0) return 'Set pin on map';
+    if (!form.price) return 'Price is required';
+    return '';
+  };
 
   type KathaGroup = typeof KARNATAKA_KATHA_GROUPS[number];
 
@@ -324,61 +328,49 @@ export default function ListPropertyPage() {
               <div>
                 <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-gray-500 mb-3">Google Maps Location *</label>
                 {!mapsLoaded ? (
-                  <div className="space-y-3 animate-pulse">
-                    <div className="h-[42px] rounded-xl bg-gray-100" />
-                    <div className="h-[36px] w-[140px] rounded-xl bg-gray-100" />
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-500">
+                    Loading Google Maps search…
                   </div>
                 ) : (
-                <>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Paste Google Maps link, address, or coordinates…"
-                    value={linkInput}
-                    onChange={(e) => setLinkInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleFetchPin(); } }}
-                    className="w-full rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3 text-sm outline-none focus:border-gray-900 focus:bg-white focus:ring-1 focus:ring-gray-900/10 transition-all placeholder:text-gray-300"
+                  <LandMapLocationPicker
+                    value={
+                      form.area
+                        ? {
+                            area: form.area,
+                            location: form.location,
+                            map_lat: form.map_lat,
+                            map_lng: form.map_lng,
+                            maps_link: form.maps_link,
+                          }
+                        : null
+                    }
+                    onChange={(next: LandLocationValue | null) => {
+                      if (!next) {
+                        setForm(prev => ({
+                          ...prev,
+                          area: '',
+                          location: '',
+                          map_lat: 0,
+                          map_lng: 0,
+                          maps_link: '',
+                        }));
+                        return;
+                      }
+                      setForm(prev => ({
+                        ...prev,
+                        area: next.area,
+                        location: next.location,
+                        map_lat: next.map_lat,
+                        map_lng: next.map_lng,
+                        maps_link: next.maps_link ?? '',
+                        city: next.city || prev.city,
+                        state: next.state || prev.state,
+                        pincode: next.pincode || prev.pincode,
+                        fullAddress: next.fullAddress || prev.fullAddress,
+                      }));
+                    }}
                   />
-                </div>
-                <div className="mt-3 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleFetchPin}
-                    disabled={linkLoading}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-gray-900 px-5 py-2.5 text-xs font-semibold text-white shadow-md shadow-gray-900/20 transition-all hover:bg-gray-800 active:scale-[0.97] disabled:opacity-50 disabled:shadow-none"
-                  >
-                    {linkLoading ? (
-                      <><span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" /> Fetching…</>
-                    ) : (
-                      'Fetch Pin Location'
-                    )}
-                  </button>
-                  {form.map_lat !== 0 && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Pin set
-                    </span>
-                  )}
-                </div>
-                {linkError && <p className="mt-2 text-xs text-red-500">{linkError}</p>}
-                {form.map_lat !== 0 && (
-                  <div className="mt-3 rounded-xl bg-emerald-50 border border-emerald-200 p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-                      <span className="text-xs font-semibold text-emerald-700">Location fetched</span>
-                    </div>
-                    <p className="text-[11px] text-emerald-600/70 font-mono">
-                      {form.map_lat.toFixed(6)}, {form.map_lng.toFixed(6)}
-                    </p>
-                    {form.area && (
-                      <p className="text-sm font-bold text-emerald-900">
-                        {form.area}
-                      </p>
-                    )}
-                    <p className="text-[10px] text-emerald-600/60">This area will be displayed on the listing card</p>
-                  </div>
                 )}
-                </>)}
               </div>
 
               <div>
@@ -628,12 +620,22 @@ export default function ListPropertyPage() {
               </button>
               <button
                 type="submit"
-                disabled={saving}
-                className="flex-1 rounded-xl bg-gray-900 py-3.5 text-sm font-semibold text-white shadow-lg shadow-gray-900/25 transition-all hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50 disabled:shadow-none"
+                disabled={saving || !isFormValid}
+                title={!isFormValid ? getValidationMessage() : 'Submit property listing'}
+                className={`flex-1 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.98] ${
+                  isFormValid
+                    ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/25 hover:bg-gray-800 disabled:opacity-50 disabled:shadow-none'
+                    : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
               >
-                {saving ? 'Listing...' : 'List Property'}
+                {saving ? 'Submitting...' : 'Submit'}
               </button>
             </div>
+            {!isFormValid && (
+              <div className="text-center text-xs text-amber-600 bg-amber-50 rounded-lg p-3 border border-amber-200">
+                ⚠️ {getValidationMessage()}
+              </div>
+            )}
           </form>
         </div>
       </div>

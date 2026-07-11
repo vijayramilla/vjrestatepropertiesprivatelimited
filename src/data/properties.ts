@@ -240,7 +240,9 @@ export function filterLocalities(query: string, limit = 20): string[] {
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score || a.area.localeCompare(b.area));
 
-  return scored.slice(0, limit).map(({ area }) => area);
+  const matches = scored.slice(0, limit).map(({ area }) => area);
+  if (matches.length === 0) return [query.trim()];
+  return matches;
 }
 
 export function resolveLocalityName(input: string): string | null {

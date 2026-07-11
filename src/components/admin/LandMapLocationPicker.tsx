@@ -2,16 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Autocomplete, GoogleMap, Marker } from '@react-google-maps/api';
 import { Link2, MapPin, Search } from 'lucide-react';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
-import { BANGALORE_BOUNDS } from '@/data/mapConfig';
 import {
   GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
   useGooglePlacesPacSync,
 } from '@/lib/googlePlacesAutocomplete';
-import { isGoogleMapsUrl, isWithinBangalore } from '@/lib/googleMapsLinkParser';
 import {
   landLocationFromPlace,
-  reverseGeocodeLandLocation,
-  resolveLocationTextInput,
   type LandLocationValue,
 } from '@/lib/mapGeocoding';
 
@@ -47,37 +43,60 @@ export default function LandMapLocationPicker({
     }
   }, [value?.area, value?.maps_link, mode]);
 
-  const bounds =
-    typeof google !== 'undefined'
-      ? new google.maps.LatLngBounds(
-          { lat: BANGALORE_BOUNDS.south, lng: BANGALORE_BOUNDS.west },
-          { lat: BANGALORE_BOUNDS.north, lng: BANGALORE_BOUNDS.east },
-        )
-      : undefined;
+  const extractCoordinates = (text: string): { lat: number; lng: number } | null => {
+    const t = text.trim();
+    const d3d4d = t.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+    if (d3d4d) return { lat: parseFloat(d3d4d[1]), lng: parseFloat(d3d4d[2]) };
+    const at = t.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
+    const q = t.match(/[?&](?:q|ll)=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    if (q) return { lat: parseFloat(q[1]), lng: parseFloat(q[2]) };
+    const plain = t.match(/^(-?\d+\.?\d*)\s*[,;]\s*(-?\d+\.?\d*)$/);
+    if (plain) return { lat: parseFloat(plain[1]), lng: parseFloat(plain[2]) };
+    return null;
+  };
 
-  const applyResolvedLocation = async (text: string, mapsLink?: string) => {
-    const resolved = await resolveLocationTextInput(text);
-    if (!resolved) {
-      setLinkError(
-        'Could not find this location. Paste a Google Maps link, full address, or coordinates like 12.9716, 77.5946.',
-      );
-      return false;
+  const getAreaFromCoords = async (lat: number, lng: number) => {
+    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
+    const data = await res.json();
+    if (data.status === 'OK' && data.results.length) {
+      const addr = data.results[0];
+      const components = addr.address_components ?? [];
+      const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
+      const areaName = find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || 'Unknown';
+      const city = find(['administrative_area_level_2']) || find(['locality']) || 'Unknown';
+      const state = find(['administrative_area_level_1']) || 'Unknown';
+      const pincode = find(['postal_code']) || '';
+      return { areaName, city, state, fullAddress: data.results[0].formatted_address, pincode };
+    }
+    return { areaName: 'Unknown', city: 'Unknown', state: 'Unknown', fullAddress: `${lat}, ${lng}`, pincode: '' };
+  };
+
+  const applyResolvedLocation = async (text: string) => {
+    const fromCoords = extractCoordinates(text);
+    if (fromCoords) {
+      const info = await getAreaFromCoords(fromCoords.lat, fromCoords.lng);
+      if (inputRef.current) inputRef.current.value = info.areaName;
+      setLinkError('');
+      onChange({ area: info.areaName, location: info.fullAddress, map_lat: fromCoords.lat, map_lng: fromCoords.lng, maps_link: text, city: info.city, state: info.state, pincode: info.pincode });
+      return true;
     }
 
-    if (!isWithinBangalore(resolved.lat, resolved.lng)) {
-      setLinkError('Location must be within Bangalore.');
-      return false;
+    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${key}`);
+    const geoData = await geoRes.json();
+    if (geoData.status === 'OK' && geoData.results.length) {
+      const loc = geoData.results[0].geometry.location;
+      const info = await getAreaFromCoords(loc.lat, loc.lng);
+      if (inputRef.current) inputRef.current.value = info.areaName;
+      setLinkError('');
+      onChange({ area: info.areaName, location: info.fullAddress, map_lat: loc.lat, map_lng: loc.lng, maps_link: text, city: info.city, state: info.state, pincode: info.pincode });
+      return true;
     }
 
-    const next = await reverseGeocodeLandLocation(
-      resolved.lat,
-      resolved.lng,
-      mapsLink ?? (isGoogleMapsUrl(text) ? text.trim() : undefined),
-    );
-    if (inputRef.current) inputRef.current.value = next.area;
-    setLinkError('');
-    onChange(next);
-    return true;
+    setLinkError('Could not find this location. Paste a Google Maps link, full address, or coordinates like 12.9716, 77.5946.');
+    return false;
   };
 
   const handlePlaceChanged = async () => {
@@ -86,10 +105,6 @@ export default function LandMapLocationPicker({
       const next = landLocationFromPlace(place);
       if (!next) {
         setLinkError('Could not read this place. Try again or click Find Location.');
-        return;
-      }
-      if (!isWithinBangalore(next.map_lat, next.map_lng)) {
-        setLinkError('Location must be within Bangalore.');
         return;
       }
       setLinkError('');
@@ -146,7 +161,7 @@ export default function LandMapLocationPicker({
         setLinkError('Google Maps is still loading. Try again in a moment.');
         return;
       }
-      await applyResolvedLocation(text, isGoogleMapsUrl(text) ? text : undefined);
+      await applyResolvedLocation(text);
     } catch (err) {
       setLinkError(err instanceof Error ? err.message : 'Failed to parse link');
     } finally {
@@ -200,10 +215,7 @@ export default function LandMapLocationPicker({
               syncPacPosition();
             }}
             onPlaceChanged={handlePlaceChanged}
-            options={{
-              ...GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
-              bounds,
-            }}
+            options={GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS}
           >
             <input
               ref={inputRef}
