@@ -638,16 +638,6 @@ input[type="range"]::-moz-range-thumb {
     opacity: 1;
   }
 }
-
-@keyframes slideUpPanel {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
 .pac-container {
   z-index: 202 !important;
   border-radius: 12px !important;
