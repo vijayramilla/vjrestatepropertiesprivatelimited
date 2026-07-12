@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminBadge, AdminEmptyState, AdminSkeletonList } from '@/components/admin/AdminUi';
@@ -68,6 +68,15 @@ export default function AdminListingsDashboard() {
       await updateDoc(doc(db, 'users', userId), { suspended });
     } catch (err) {
       console.error('Error updating user:', err);
+    }
+  };
+
+  const handleDelete = async (propertyId: string, title: string) => {
+    if (!window.confirm(`Delete "${title}" permanently? This cannot be undone.`)) return;
+    try {
+      await deleteDoc(doc(db, 'properties', propertyId));
+    } catch (err) {
+      console.error('Error deleting property:', err);
     }
   };
 
@@ -230,12 +239,19 @@ export default function AdminListingsDashboard() {
                     ) : (
                       <span className="text-[10px] text-gray-400">No linked user account</span>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(p.id, p.title)}
+                      className="ml-auto rounded-lg px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-red-600 transition-all hover:bg-red-50 hover:shadow-sm"
+                    >
+                      Delete
+                    </button>
                     {p.maps_link && (
                       <a
                         href={p.maps_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="ml-auto flex items-center gap-1 text-[10px] font-medium text-gray-500 underline-offset-2 transition-colors hover:text-blue-600 hover:underline"
+                        className="flex items-center gap-1 text-[10px] font-medium text-gray-500 underline-offset-2 transition-colors hover:text-blue-600 hover:underline"
                       >
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />

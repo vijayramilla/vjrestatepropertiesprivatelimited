@@ -6,6 +6,8 @@ export type WhatsAppPropertyInput = {
   price_label?: string;
   monthly_rental?: number | string;
   monthly_rental_label?: string | null;
+  contact_phone?: string;
+  contact_name?: string;
 };
 
 export type WhatsAppEnquiryOptions = {

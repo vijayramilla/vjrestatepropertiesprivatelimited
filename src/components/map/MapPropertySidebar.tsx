@@ -20,6 +20,8 @@ export interface MapSidebarProperty {
   color: string;
   priceLabel: string;
   listed_by?: string;
+  contact_phone?: string;
+  contact_name?: string;
 }
 
 interface MapPropertySidebarProps {
@@ -62,6 +64,8 @@ export default function MapPropertySidebar({
           type: contactProperty.propertyType,
           area: contactProperty.locality,
           price_label: contactProperty.priceLabel,
+          contact_phone: contactProperty.contact_phone,
+          contact_name: contactProperty.contact_name,
         },
         { source: 'map_list', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
       );

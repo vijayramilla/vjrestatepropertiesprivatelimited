@@ -68,6 +68,8 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           area: property.area,
           price_label: property.price_label,
           monthly_rental_label: property.monthly_rental,
+          contact_phone: property.contact_phone,
+          contact_name: property.contact_name,
         },
         { source: 'card', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
       );

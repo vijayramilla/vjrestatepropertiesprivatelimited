@@ -71,6 +71,8 @@ interface MapProperty {
   lat: number;
   lng: number;
   listed_by?: string;
+  contact_phone?: string;
+  contact_name?: string;
 }
 
 function normalizePropertyType(rawType?: string, plotSubtype?: string): LandType | null {
@@ -157,6 +159,8 @@ function mapFirestoreDoc(docSnap: QueryDocumentSnapshot): MapProperty | null {
     lat,
     lng,
     listed_by: String(raw.listed_by ?? ''),
+    contact_phone: String(raw.contact_phone ?? ''),
+    contact_name: String(raw.contact_name ?? ''),
   };
 }
 
@@ -344,6 +348,8 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
         color: p.color,
         priceLabel: formatMapINR(p.price),
         listed_by: p.listed_by,
+        contact_phone: p.contact_phone,
+        contact_name: p.contact_name,
       })),
     [filteredProperties],
   );

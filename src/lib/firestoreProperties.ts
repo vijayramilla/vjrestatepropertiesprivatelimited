@@ -42,6 +42,8 @@ export interface FirestorePropertyDoc {
   extra_details?: Record<string, string | number>;
   images?: string[];
   listed_by?: string;
+  contact_name?: string;
+  contact_phone?: string;
 }
 
 const DISPLAY_TYPE_MAP: Record<string, string> = {
@@ -102,8 +104,8 @@ export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): L
     facing: data.facing ?? '—',
     age: data.age ?? '—',
     parking: '—',
-    contact_name: 'VJR Estate',
-    contact_phone: siteContact.phoneDisplay,
+    contact_name: data.contact_name || 'VJR Estate',
+    contact_phone: data.contact_phone || siteContact.phoneDisplay,
     posted_date: createdAt?.toISOString() ?? new Date().toISOString(),
     plot_subtype: data.plot_subtype,
     raw_type: data.type,

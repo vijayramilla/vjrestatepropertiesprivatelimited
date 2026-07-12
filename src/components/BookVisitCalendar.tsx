@@ -18,6 +18,8 @@ export interface BookVisitProperty {
   area: string;
   price_label: string;
   monthly_rental_label?: string | null;
+  contact_phone?: string;
+  contact_name?: string;
 }
 
 interface BookVisitCalendarProps {
@@ -61,6 +63,8 @@ export default function BookVisitCalendar({
           area: property.area,
           price_label: property.price_label,
           monthly_rental_label: property.monthly_rental_label,
+          contact_phone: property.contact_phone,
+          contact_name: property.contact_name,
         },
         {
           visitDate,

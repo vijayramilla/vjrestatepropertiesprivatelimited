@@ -20,7 +20,7 @@ interface PropertyEnquiryContactModalProps {
 export default function PropertyEnquiryContactModal({
   open,
   title = 'Your contact details',
-  subtitle = 'We will connect you with VJR Estate on WhatsApp.',
+  subtitle = 'We will connect you on WhatsApp.',
   submitLabel = 'Continue on WhatsApp',
   onClose,
   onSubmit,

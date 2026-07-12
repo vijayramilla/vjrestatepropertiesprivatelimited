@@ -50,6 +50,7 @@ export default function ListPropertyPage() {
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [submitted, setSubmitted] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
@@ -217,8 +218,7 @@ export default function ListPropertyPage() {
         const urls = await uploadPropertyImages(files, ref.id);
         await updateDoc(ref, { images: urls });
       }
-      setToast('Property listed successfully!');
-      setTimeout(() => navigate('/map'), 1500);
+      setSubmitted(true);
     } catch {
       setToast('Error saving property');
     } finally {
@@ -265,6 +265,45 @@ export default function ListPropertyPage() {
             <p className="mt-2 text-sm text-gray-500">For agents and owners — list your plot or land for free</p>
           </div>
 
+          {submitted ? (
+            <div className="mt-10 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+                <svg className="h-10 w-10 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="mt-6 text-2xl font-bold text-gray-900">Property Submitted Successfully!</h2>
+              <p className="mt-2 text-sm text-gray-500">Your listing has been posted and is live on the map.</p>
+              <div className="mt-8 flex justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => navigate('/map')}
+                  className="rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:bg-gray-800 active:scale-[0.97]"
+                >
+                  View on Map
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubmitted(false);
+                    setForm({
+                      title: '', type: 'Residential Plot', area: '', location: '', price: 0,
+                      price_per_sqft: 0, area_sqft: 0, area_unit: 'sqft', land_acres: 0,
+                      land_guntas: 0, dimensions: '', facing: 'East', katha: '', description: '',
+                      contact_name: '', contact_phone: '', listed_by: 'Owner', map_lat: 0,
+                      map_lng: 0, maps_link: '', city: '', state: '', pincode: '', fullAddress: '',
+                    });
+                    setFiles([]);
+                    setPreviews([]);
+                  }}
+                  className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.97]"
+                >
+                  Submit Another
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           {showSignIn && (
             <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
               <p className="text-sm font-semibold text-amber-800">Sign in to list your property</p>
@@ -637,6 +676,8 @@ export default function ListPropertyPage() {
               </div>
             )}
           </form>
+          </>
+          )}
         </div>
       </div>
 

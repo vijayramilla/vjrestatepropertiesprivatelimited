@@ -5,12 +5,28 @@ import { siteContact } from '@/data/siteContact';
 
 const WA_NUMBER = siteContact.phoneTel.replace('+', '');
 
+function getTargetNumber(property) {
+  if (property?.contact_phone) {
+    const digits = String(property.contact_phone).replace(/\D/g, '');
+    if (digits.length >= 10) return digits;
+  }
+  return WA_NUMBER;
+}
+
+function getGreeting(property) {
+  if (property?.contact_phone) {
+    const name = property?.contact_name || 'the owner';
+    return `Hi ${name}, I'm interested in this property:`;
+  }
+  return "Hi VJR Estate, I'm interested in this property:";
+}
+
 export function buildWhatsAppMessage(property, extra = {}) {
   const { visitDate, visitTime, buyerName, buyerPhone } = extra;
   const url = getPropertyShareUrl(property.id);
   const monthlyLabel = property.monthly_rental_label ?? property.monthly_rental;
   const lines = [
-    "Hi VJR Estate, I'm interested in this property:",
+    getGreeting(property),
   ];
   if (buyerName) {
     lines.push(`Name: ${buyerName}`);
@@ -38,7 +54,8 @@ export function buildWhatsAppMessage(property, extra = {}) {
 
 export function getWhatsAppPropertyUrl(property, extra = {}) {
   const message = buildWhatsAppMessage(property, extra);
-  return `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`;
+  const number = getTargetNumber(property);
+  return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
 /**

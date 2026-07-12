@@ -285,6 +285,8 @@ export default function PropertyDetailPage() {
           area: property.area,
           price_label: formatPrice(property.price),
           monthly_rental_label: property.monthly_rental ?? undefined,
+          contact_phone: property.contact_phone,
+          contact_name: property.contact_name,
         },
         { source: 'detail', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
       );
@@ -301,6 +303,8 @@ export default function PropertyDetailPage() {
     area: property.area,
     price_label: formatPrice(property.price),
     monthly_rental_label: property.monthly_rental,
+    contact_phone: property.contact_phone,
+    contact_name: property.contact_name,
   };
 
   return (

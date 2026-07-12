@@ -59,23 +59,6 @@ export default function LandMapLocationPicker({
   };
 
   const getAreaFromCoords = async (lat: number, lng: number) => {
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    try {
-      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
-      const data = await res.json();
-      if (data.status === 'OK' && data.results.length) {
-        const addr = data.results[0];
-        const components = addr.address_components ?? [];
-        const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
-        const areaName = find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || find(['administrative_area_level_2']) || '';
-        const city = find(['locality']) || find(['administrative_area_level_2']) || '';
-        const state = find(['administrative_area_level_1']) || '';
-        const pincode = find(['postal_code']) || '';
-        return { areaName: areaName || 'Unknown', city: city || 'Unknown', state: state || 'Unknown', fullAddress: addr.formatted_address || `${lat}, ${lng}`, pincode };
-      }
-    } catch {} // fall through to Maps JS Geocoder
-
-    // Fallback: use the already-loaded Maps JS Geocoder
     if (typeof google !== 'undefined' && google.maps?.Geocoder) {
       try {
         const geocoder = new google.maps.Geocoder();
@@ -95,8 +78,25 @@ export default function LandMapLocationPicker({
             fullAddress: result.formatted_address || `${lat}, ${lng}`,
           };
         }
-      } catch {} // final fallback below
+      } catch { /* fall through to REST API */ }
     }
+
+    // Fallback: REST API with API key
+    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    try {
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results.length) {
+        const addr = data.results[0];
+        const components = addr.address_components ?? [];
+        const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
+        const areaName = find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || find(['administrative_area_level_2']) || '';
+        const city = find(['locality']) || find(['administrative_area_level_2']) || '';
+        const state = find(['administrative_area_level_1']) || '';
+        const pincode = find(['postal_code']) || '';
+        return { areaName: areaName || 'Unknown', city: city || 'Unknown', state: state || 'Unknown', fullAddress: addr.formatted_address || `${lat}, ${lng}`, pincode };
+      }
+    } catch {}
     return { areaName: 'Unknown', city: 'Unknown', state: 'Unknown', fullAddress: `${lat}, ${lng}`, pincode: '' };
   };
 

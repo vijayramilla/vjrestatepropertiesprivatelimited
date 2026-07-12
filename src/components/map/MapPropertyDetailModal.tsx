@@ -26,6 +26,8 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
   const [loading, setLoading] = useState(true);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [waLoading, setWaLoading] = useState(false);
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactName, setContactName] = useState('');
   const { toggle, isShortlisted } = useShortlist();
   const saved = isShortlisted(propertyId);
 
@@ -36,7 +38,10 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
         const docSnap = await getDoc(doc(db, 'properties', propertyId));
         if (!cancelled) {
           if (docSnap.exists()) {
-            setProperty(mapFirestoreToProperty(docSnap.id, docSnap.data()));
+            const data = docSnap.data();
+            setProperty(mapFirestoreToProperty(docSnap.id, data));
+            setContactPhone(String(data.contact_phone ?? ''));
+            setContactName(String(data.contact_name ?? ''));
           }
           setLoading(false);
         }
@@ -67,8 +72,19 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
     : '—';
 
   const handleWhatsApp = async () => {
+    if (!property) return;
     setWaLoading(true);
-    await openWhatsAppPropertyEnquiry(propertyId, property?.name ?? '');
+    await openWhatsAppPropertyEnquiry({
+      id: propertyId,
+      title: property.title,
+      type: property.type,
+      area: property.area,
+      price_label: formatCardTotalPrice(property.price),
+      monthly_rental: property.monthly_rental,
+      monthly_rental_label: property.monthly_rental,
+      contact_phone: contactPhone,
+      contact_name: contactName,
+    }, { source: 'map_detail', buyerName: property?.name ?? '' });
     setWaLoading(false);
   };
 

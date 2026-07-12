@@ -48,10 +48,6 @@ export default function HomePage() {
   const [selectedLocalities, setSelectedLocalities] = useState<string[]>([]);
   const [localityNotice, setLocalityNotice] = useState('');
 
-  if (mapOnly) {
-    return <Navigate to="/map" replace />;
-  }
-
   const toggleLocality = useCallback((area: string) => {
     setSelectedLocalities((prev) => {
       const { next, limited } = toggleLocalitySelection(prev, area);
@@ -75,6 +71,10 @@ export default function HomePage() {
     const params = buildSearchParams(propertyType, [area]);
     navigate(`/properties?${params.toString()}`);
   };
+
+  if (mapOnly) {
+    return <Navigate to="/map" replace />;
+  }
 
   return (
     <div className="bg-white">
