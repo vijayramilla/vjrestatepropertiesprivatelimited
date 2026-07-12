@@ -13,6 +13,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
 import type { LandLocationValue } from '@/lib/mapGeocoding';
+import { enhanceDescription } from '@/utils/aiDescription';
 
 const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;
 const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
@@ -54,6 +55,8 @@ export default function ListPropertyPage() {
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
+  const [descError, setDescError] = useState('');
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
   const [showSignIn, setShowSignIn] = useState(false);
@@ -596,13 +599,42 @@ export default function ListPropertyPage() {
                 <textarea
                   placeholder="Describe your property — location highlights, nearby landmarks, road access, etc."
                   value={form.description}
-                  onChange={(e) => update('description', e.target.value.slice(0, 500))}
+                  onChange={(e) => { update('description', e.target.value.slice(0, 500)); setDescError(''); }}
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300 resize-none"
                   rows={3}
                 />
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!form.title.trim() || !form.area.trim()) {
+                        setDescError('Add a title and location first');
+                        return;
+                      }
+                      setDescError('');
+                      setEnhancing(true);
+                      try {
+                        const enhanced = await enhanceDescription(form);
+                        update('description', enhanced);
+                      } catch (err) {
+                        setDescError(err instanceof Error ? err.message : 'Failed to enhance description');
+                      } finally {
+                        setEnhancing(false);
+                      }
+                    }}
+                    disabled={enhancing}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-gray-600 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
+                  >
+                    {enhancing ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
+                    ) : (
+                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2l2.4 7.2L22 9l-6 4.8L17.6 22 12 17l-5.6 5L8 13.8 2 9l7.6-.2L12 2z"/></svg>
+                    )}
+                    {enhancing ? 'Enhancing…' : 'AI Enhance'}
+                  </button>
                   <span className="text-[10px] font-medium text-gray-400">{form.description.length}/500</span>
                 </div>
+                {descError && <p className="mt-1.5 text-[11px] text-red-500">{descError}</p>}
               </div>
             </div>
 
