@@ -67,6 +67,8 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
     visitTime,
     buyerName,
     buyerPhone,
+    buyerLat,
+    buyerLng,
     source = 'card',
     leadType = visitDate ? 'book_visit' : 'whatsapp',
   } = options;
@@ -89,6 +91,8 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
       visitTime,
       buyerName,
       buyerPhone,
+      buyerLat,
+      buyerLng,
       message,
       source,
     });

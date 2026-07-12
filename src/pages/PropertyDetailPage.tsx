@@ -273,7 +273,7 @@ export default function PropertyDetailPage() {
     setWaContactOpen(true);
   };
 
-  const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
+  const submitWhatsAppEnquiry = async ({ name, phone, lat, lng }: { name: string; phone: string; lat?: number; lng?: number }) => {
     if (!property) return;
     setWaLoading(true);
     try {
@@ -288,7 +288,7 @@ export default function PropertyDetailPage() {
           contact_phone: property.contact_phone,
           contact_name: property.contact_name,
         },
-        { source: 'detail', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
+        { source: 'detail', leadType: 'whatsapp', buyerName: name, buyerPhone: phone, buyerLat: lat, buyerLng: lng },
       );
       setWaContactOpen(false);
     } finally {
@@ -775,6 +775,7 @@ export default function PropertyDetailPage() {
         open={waContactOpen}
         title="WhatsApp Enquiry"
         subtitle={`Share your details for ${property.title}`}
+        listedBy={property.listed_by}
         onClose={() => setWaContactOpen(false)}
         onSubmit={submitWhatsAppEnquiry}
       />

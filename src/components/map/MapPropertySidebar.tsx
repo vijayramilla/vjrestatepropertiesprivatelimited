@@ -52,7 +52,7 @@ export default function MapPropertySidebar({
     }
   };
 
-  const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
+  const submitWhatsAppEnquiry = async ({ name, phone, lat, lng }: { name: string; phone: string; lat?: number; lng?: number }) => {
     if (!contactProperty) return;
     setWaLoading(true);
     try {
@@ -67,7 +67,7 @@ export default function MapPropertySidebar({
           contact_phone: contactProperty.contact_phone,
           contact_name: contactProperty.contact_name,
         },
-        { source: 'map_list', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
+        { source: 'map_list', leadType: 'whatsapp', buyerName: name, buyerPhone: phone, buyerLat: lat, buyerLng: lng },
       );
       setContactProperty(null);
     } finally {
@@ -217,6 +217,7 @@ export default function MapPropertySidebar({
         onClose={() => setContactProperty(null)}
         title="WhatsApp Enquiry"
         submitLabel={waLoading ? 'Opening…' : 'Continue to WhatsApp'}
+        listedBy={contactProperty?.listed_by}
         onSubmit={submitWhatsAppEnquiry}
       />
     </>

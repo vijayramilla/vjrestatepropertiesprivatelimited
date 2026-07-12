@@ -15,6 +15,8 @@ export type WhatsAppEnquiryOptions = {
   visitTime?: string;
   buyerName?: string;
   buyerPhone?: string;
+  buyerLat?: number;
+  buyerLng?: number;
   source?: string;
   leadType?: string;
 };

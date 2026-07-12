@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminBadge, AdminEmptyState, AdminSkeletonList } from '@/components/admin/AdminUi';
 import { formatINR } from '@/lib/formatPrice';
+import { subscribePropertyLeads } from '@/lib/propertyLeads';
+import type { PropertyLead } from '@/lib/propertyLeads';
 
 interface ListingProperty {
   id: string;
@@ -36,9 +38,11 @@ interface ListingUser {
 export default function AdminListingsDashboard() {
   const [properties, setProperties] = useState<ListingProperty[]>([]);
   const [users, setUsers] = useState<Map<string, ListingUser>>(new Map());
+  const [leads, setLeads] = useState<PropertyLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('All');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'properties'), orderBy('createdAt', 'desc'));
@@ -63,6 +67,13 @@ export default function AdminListingsDashboard() {
     return unsub;
   }, []);
 
+  useEffect(() => {
+    const unsub = subscribePropertyLeads((allLeads) => {
+      setLeads(allLeads);
+    });
+    return unsub;
+  }, []);
+
   const handleSuspend = async (userId: string, suspended: boolean) => {
     try {
       await updateDoc(doc(db, 'users', userId), { suspended });
@@ -79,6 +90,16 @@ export default function AdminListingsDashboard() {
       console.error('Error deleting property:', err);
     }
   };
+
+  const leadsByProperty = useMemo(() => {
+    const map = new Map<string, PropertyLead[]>();
+    for (const lead of leads) {
+      const list = map.get(lead.propertyId);
+      if (list) list.push(lead);
+      else map.set(lead.propertyId, [lead]);
+    }
+    return map;
+  }, [leads]);
 
   const enriched = properties
     .map((p) => ({ ...p, user: users.get(p.uid ?? '') }))
@@ -125,13 +146,14 @@ export default function AdminListingsDashboard() {
           </p>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5 sm:gap-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">
           {[
             { label: 'Total Listings', value: properties.length, color: 'text-gray-900', sub: `${agentListings} agent · ${ownerListings} owner` },
             { label: 'Agents', value: agentListings, color: 'text-blue-600', sub: `${new Set(properties.filter(p => p.listed_by === 'Agent').map(p => p.uid)).size} unique` },
             { label: 'Owners', value: ownerListings, color: 'text-violet-600', sub: `${new Set(properties.filter(p => p.listed_by !== 'Agent').map(p => p.uid)).size} unique` },
             { label: 'Active Users', value: uniqueUsers - suspendedUsers, color: 'text-emerald-600', sub: `${uniqueUsers} total registered` },
             { label: 'Suspended', value: suspendedUsers, color: 'text-red-600', sub: `${((suspendedUsers / (uniqueUsers || 1)) * 100).toFixed(0)}% of users` },
+            { label: 'Total Enquiries', value: leads.length, color: 'text-orange-600', sub: `${leadsByProperty.size} properties contacted` },
           ].map((stat) => (
             <div key={stat.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
               <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">{stat.label}</p>
@@ -260,7 +282,53 @@ export default function AdminListingsDashboard() {
                         View Location
                       </a>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                      className={`ml-3 rounded-lg px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wider transition-all ${
+                        (leadsByProperty.get(p.id)?.length ?? 0) > 0
+                          ? 'text-orange-600 hover:bg-orange-50'
+                          : 'text-gray-400 cursor-default'
+                      }`}
+                    >
+                      Enquiries ({(leadsByProperty.get(p.id)?.length ?? 0)})
+                    </button>
                   </div>
+
+                  {expandedId === p.id && (
+                    <div className="mt-3 ml-12 border-t border-gray-100 pt-3">
+                      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">Enquiry History</p>
+                      {(leadsByProperty.get(p.id)?.length ?? 0) === 0 ? (
+                        <p className="text-[10px] text-gray-400">No enquiries yet.</p>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {leadsByProperty.get(p.id)?.map((lead) => (
+                            <div key={lead.id} className="rounded-lg border border-gray-100 bg-gray-50/50 p-3 text-[11px]">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="font-semibold text-gray-700">{lead.buyerName || 'Anonymous'}</span>
+                                <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${
+                                  lead.leadType === 'book_visit' ? 'bg-blue-50 text-blue-700' : 'bg-green-50 text-green-700'
+                                }`}>
+                                  {lead.leadType === 'book_visit' ? 'Visit' : 'WhatsApp'}
+                                </span>
+                              </div>
+                              {lead.buyerPhone && <p className="text-gray-500">📞 {lead.buyerPhone}</p>}
+                              {lead.buyerLat && lead.buyerLng && <p className="text-gray-500">📍 {lead.buyerLat.toFixed(4)}, {lead.buyerLng.toFixed(4)}</p>}
+                              {lead.visitDate && <p className="text-gray-500">📅 {lead.visitDate}{lead.visitTime ? ` · ${lead.visitTime}` : ''}</p>}
+                              {lead.createdAt && (
+                                <p className="text-gray-400">
+                                  🕐 {lead.createdAt instanceof Date
+                                    ? lead.createdAt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                    : '—'}
+                                </p>
+                              )}
+                              <p className="mt-1 truncate text-gray-400 border-t border-gray-100 pt-1">{lead.message}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

@@ -57,7 +57,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
     setContactOpen(true);
   };
 
-  const submitWhatsAppEnquiry = async ({ name, phone }: { name: string; phone: string }) => {
+  const submitWhatsAppEnquiry = async ({ name, phone, lat, lng }: { name: string; phone: string; lat?: number; lng?: number }) => {
     setWaLoading(true);
     try {
       await openWhatsAppPropertyEnquiry(
@@ -71,7 +71,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           contact_phone: property.contact_phone,
           contact_name: property.contact_name,
         },
-        { source: 'card', leadType: 'whatsapp', buyerName: name, buyerPhone: phone },
+        { source: 'card', leadType: 'whatsapp', buyerName: name, buyerPhone: phone, buyerLat: lat, buyerLng: lng },
       );
       setContactOpen(false);
     } finally {
@@ -301,6 +301,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
         open={contactOpen}
         title="WhatsApp Enquiry"
         subtitle={`Share your details for ${saleTitle}`}
+        listedBy={property.listed_by}
         onClose={() => setContactOpen(false)}
         onSubmit={submitWhatsAppEnquiry}
       />

@@ -27,6 +27,8 @@ export interface PropertyLeadInput {
   visitTime?: string;
   buyerName?: string;
   buyerPhone?: string;
+  buyerLat?: number;
+  buyerLng?: number;
   message: string;
   source: LeadSource;
 }

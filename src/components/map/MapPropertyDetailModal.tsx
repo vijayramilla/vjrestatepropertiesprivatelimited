@@ -28,6 +28,7 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
   const [waLoading, setWaLoading] = useState(false);
   const [contactPhone, setContactPhone] = useState('');
   const [contactName, setContactName] = useState('');
+  const { user, signInWithGoogle } = useAuth();
   const { toggle, isShortlisted } = useShortlist();
   const saved = isShortlisted(propertyId);
 
@@ -71,9 +72,28 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
     ? formatArea(property.area_acres, property.area_guntas, property.area_sqft, property.area_unit)
     : '—';
 
+  const getLocation = (): Promise<{ lat?: number; lng?: number }> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) { resolve({}); return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => resolve({}),
+        { timeout: 10000, enableHighAccuracy: true },
+      );
+    });
+  };
+
   const handleWhatsApp = async () => {
     if (!property) return;
+    if (!user) {
+      try {
+        await signInWithGoogle();
+      } catch {
+        return;
+      }
+    }
     setWaLoading(true);
+    const coords = await getLocation();
     await openWhatsAppPropertyEnquiry({
       id: propertyId,
       title: property.title,
@@ -84,7 +104,7 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
       monthly_rental_label: property.monthly_rental,
       contact_phone: contactPhone,
       contact_name: contactName,
-    }, { source: 'map_detail', buyerName: property?.name ?? '' });
+    }, { source: 'map_detail', buyerName: property?.name ?? '', buyerLat: coords.lat, buyerLng: coords.lng });
     setWaLoading(false);
   };
 
