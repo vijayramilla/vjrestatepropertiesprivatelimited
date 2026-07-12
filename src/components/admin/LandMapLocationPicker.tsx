@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Autocomplete, GoogleMap, Marker } from '@react-google-maps/api';
 import { Link2, MapPin, Search } from 'lucide-react';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '@/lib/firebase';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import {
   GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
@@ -58,17 +60,42 @@ export default function LandMapLocationPicker({
 
   const getAreaFromCoords = async (lat: number, lng: number) => {
     const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
-    const data = await res.json();
-    if (data.status === 'OK' && data.results.length) {
-      const addr = data.results[0];
-      const components = addr.address_components ?? [];
-      const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
-      const areaName = find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || 'Unknown';
-      const city = find(['administrative_area_level_2']) || find(['locality']) || 'Unknown';
-      const state = find(['administrative_area_level_1']) || 'Unknown';
-      const pincode = find(['postal_code']) || '';
-      return { areaName, city, state, fullAddress: data.results[0].formatted_address, pincode };
+    try {
+      const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
+      const data = await res.json();
+      if (data.status === 'OK' && data.results.length) {
+        const addr = data.results[0];
+        const components = addr.address_components ?? [];
+        const find = (types: string[]) => components.find((c: any) => types.some((t) => c.types.includes(t)))?.long_name;
+        const areaName = find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || find(['administrative_area_level_2']) || '';
+        const city = find(['locality']) || find(['administrative_area_level_2']) || '';
+        const state = find(['administrative_area_level_1']) || '';
+        const pincode = find(['postal_code']) || '';
+        return { areaName: areaName || 'Unknown', city: city || 'Unknown', state: state || 'Unknown', fullAddress: addr.formatted_address || `${lat}, ${lng}`, pincode };
+      }
+    } catch {} // fall through to Maps JS Geocoder
+
+    // Fallback: use the already-loaded Maps JS Geocoder
+    if (typeof google !== 'undefined' && google.maps?.Geocoder) {
+      try {
+        const geocoder = new google.maps.Geocoder();
+        const result = await new Promise<google.maps.GeocoderResult | null>((resolve) => {
+          geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+            resolve(status === 'OK' && results?.[0] ? results[0] : null);
+          });
+        });
+        if (result) {
+          const components = result.address_components ?? [];
+          const find = (types: string[]) => components.find((c) => types.some((t) => c.types.includes(t)))?.long_name || '';
+          return {
+            areaName: find(['sublocality_level_1']) || find(['sublocality']) || find(['neighborhood']) || find(['locality']) || find(['administrative_area_level_2']) || 'Unknown',
+            city: find(['locality']) || find(['administrative_area_level_2']) || 'Unknown',
+            state: find(['administrative_area_level_1']) || 'Unknown',
+            pincode: find(['postal_code']) || '',
+            fullAddress: result.formatted_address || `${lat}, ${lng}`,
+          };
+        }
+      } catch {} // final fallback below
     }
     return { areaName: 'Unknown', city: 'Unknown', state: 'Unknown', fullAddress: `${lat}, ${lng}`, pincode: '' };
   };
@@ -81,6 +108,22 @@ export default function LandMapLocationPicker({
       setLinkError('');
       onChange({ area: info.areaName, location: info.fullAddress, map_lat: fromCoords.lat, map_lng: fromCoords.lng, maps_link: text, city: info.city, state: info.state, pincode: info.pincode });
       return true;
+    }
+
+    // Resolve short URLs via Firebase Function
+    if (/goo\.gl|maps\.app\.goo/i.test(text)) {
+      try {
+        const resolveMapUrlFn = httpsCallable(functions, 'resolveMapUrl');
+        const result = await resolveMapUrlFn({ url: text });
+        const data = result.data as any;
+        if (data?.coords) {
+          const info = await getAreaFromCoords(data.coords.lat, data.coords.lng);
+          if (inputRef.current) inputRef.current.value = info.areaName;
+          setLinkError('');
+          onChange({ area: info.areaName, location: info.fullAddress, map_lat: data.coords.lat, map_lng: data.coords.lng, maps_link: text, city: info.city, state: info.state, pincode: info.pincode });
+          return true;
+        }
+      } catch { /* fall through to geocoding */ }
     }
 
     const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
@@ -147,23 +190,79 @@ export default function LandMapLocationPicker({
   };
 
   const handleApplyLink = async () => {
-    const text = linkInput.trim();
-    if (!text) {
-      setLinkError('Paste a Google Maps link or full address.');
-      return;
-    }
-
+    const input = linkInput.trim();
+    if (!input) return;
     setSearchLoading(true);
     setLinkError('');
 
     try {
-      if (!isLoaded || typeof google === 'undefined') {
-        setLinkError('Google Maps is still loading. Try again in a moment.');
+      let coords: { lat: number; lng: number } | null = null;
+
+      // Case 1: Plain coordinates e.g. "15.617, 76.652"
+      const directCoord = input.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
+      if (directCoord) {
+        coords = { lat: parseFloat(directCoord[1]), lng: parseFloat(directCoord[2]) };
+      }
+
+      // Case 2: Full URL — try direct extraction
+      if (!coords) {
+        const patterns = [
+          /!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/,
+          /@(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+          /[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/,
+        ];
+        for (const p of patterns) {
+          const m = input.match(p);
+          if (m) {
+            coords = { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            break;
+          }
+        }
+      }
+
+      // Case 3: Short URL — use Firebase Function
+      if (!coords) {
+        try {
+          const resolveMapUrlFn = httpsCallable(functions, 'resolveMapUrl');
+          const result = await resolveMapUrlFn({ url: input });
+          const data = result.data as any;
+          if (data?.coords) {
+            coords = data.coords;
+          } else if (data?.finalUrl) {
+            const patterns = [/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/, /@(-?\d+\.?\d*),(-?\d+\.?\d*)/];
+            for (const p of patterns) {
+              const m = data.finalUrl.match(p);
+              if (m) {
+                coords = { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+                break;
+              }
+            }
+          }
+        } catch (fnErr) {
+          console.warn('Firebase function failed:', fnErr);
+        }
+      }
+
+      if (!coords) {
+        setLinkError('Could not extract location. Please paste coordinates directly (e.g. 15.6171, 76.6528)');
         return;
       }
-      await applyResolvedLocation(text);
-    } catch (err) {
-      setLinkError(err instanceof Error ? err.message : 'Failed to parse link');
+
+      const info = await getAreaFromCoords(coords.lat, coords.lng);
+      if (inputRef.current) inputRef.current.value = info.areaName;
+      onChange({
+        area: info.areaName,
+        location: info.fullAddress,
+        map_lat: coords.lat,
+        map_lng: coords.lng,
+        maps_link: input,
+        city: info.city,
+        state: info.state,
+        pincode: info.pincode,
+      });
+    } catch (err: any) {
+      console.error('Location fetch failed:', err);
+      setLinkError(err.message || 'Failed to fetch location');
     } finally {
       setSearchLoading(false);
     }
