@@ -12,6 +12,7 @@ import {
   SquaresFour,
   GlobeHemisphereWest,
   PlusCircle,
+  Buildings,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +25,7 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
+  { label: 'My Listings', path: '/my-listings', Icon: Buildings },
   { label: 'Land Map', path: '/map', Icon: GlobeHemisphereWest },
   { label: 'List Property', path: '/list-property', Icon: PlusCircle },
 

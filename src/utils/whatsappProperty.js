@@ -1,3 +1,5 @@
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { savePropertyLead } from '@/lib/propertyLeads';
 import { getPropertyShareUrl } from '@/lib/siteUrl';
 
@@ -76,6 +78,12 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
   const message = buildWhatsAppMessage(property, { visitDate, visitTime, buyerName, buyerPhone });
   const propertyUrl = getPropertyShareUrl(property.id);
 
+  let ownerUid;
+  try {
+    const propSnap = await getDoc(doc(db, 'properties', String(property.id)));
+    if (propSnap.exists()) ownerUid = propSnap.data().uid;
+  } catch {}
+
   try {
     await savePropertyLead({
       propertyId: String(property.id),
@@ -93,8 +101,9 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
       buyerPhone,
       buyerLat,
       buyerLng,
-      message,
+      ownerUid,
       source,
+      message,
     });
   } catch (err) {
     console.error('Failed to save property lead:', err);

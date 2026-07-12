@@ -8,9 +8,9 @@ service firebase.storage {
       );
     }
 
-    match /properties/{propertyId}/{fileName} {
+    match /properties/{uid}/{propertyId}/{fileName} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == uid);
     }
   }
 }

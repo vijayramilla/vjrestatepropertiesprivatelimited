@@ -32,6 +32,8 @@ const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminListingsDashboard = lazy(() => import('./pages/admin/AdminListingsDashboard'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
+const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -91,10 +93,12 @@ function AppRoutes() {
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
         <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
+        <Route path="/my-listings" element={<LazyPage><MyListingsPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
         <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
+        <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
