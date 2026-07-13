@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import { Calendar } from '@/components/ui/calendar';
@@ -39,6 +39,16 @@ export default function BookVisitCalendar({
   const [buyerPhone, setBuyerPhone] = useState('');
   const [contactError, setContactError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [coords, setCoords] = useState<{ lat?: number; lng?: number }>({});
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { timeout: 10000, enableHighAccuracy: true },
+    );
+  }, []);
 
   const handleConfirm = async () => {
     if (!date || !timeSlot) return;
@@ -73,6 +83,8 @@ export default function BookVisitCalendar({
           leadType: 'book_visit',
           buyerName: buyerName.trim(),
           buyerPhone: digits,
+          buyerLat: coords.lat,
+          buyerLng: coords.lng,
         },
       );
       onClose();

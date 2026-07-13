@@ -314,6 +314,7 @@ export default function AdminListingsDashboard() {
                               </div>
                               {lead.buyerPhone && <p className="text-gray-500">📞 {lead.buyerPhone}</p>}
                               {lead.buyerLat && lead.buyerLng && <p className="text-gray-500">📍 {lead.buyerLat.toFixed(4)}, {lead.buyerLng.toFixed(4)}</p>}
+                              {lead.ipAddress && <p className="text-gray-500">🌐 {lead.ipAddress}</p>}
                               {lead.visitDate && <p className="text-gray-500">📅 {lead.visitDate}{lead.visitTime ? ` · ${lead.visitTime}` : ''}</p>}
                               {lead.createdAt && (
                                 <p className="text-gray-400">

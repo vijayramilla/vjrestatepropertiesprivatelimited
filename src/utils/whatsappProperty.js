@@ -1,6 +1,7 @@
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { savePropertyLead } from '@/lib/propertyLeads';
+import { fetchUserLocation } from '@/lib/userTracking';
 import { getPropertyShareUrl } from '@/lib/siteUrl';
 
 import { siteContact } from '@/data/siteContact';
@@ -78,10 +79,17 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
   const message = buildWhatsAppMessage(property, { visitDate, visitTime, buyerName, buyerPhone });
   const propertyUrl = getPropertyShareUrl(property.id);
 
-  let ownerUid;
+  let ownerUid, listedBy, ipAddress;
   try {
-    const propSnap = await getDoc(doc(db, 'properties', String(property.id)));
-    if (propSnap.exists()) ownerUid = propSnap.data().uid;
+    const [propSnap, ipData] = await Promise.all([
+      getDoc(doc(db, 'properties', String(property.id))),
+      fetchUserLocation(),
+    ]);
+    if (propSnap.exists()) {
+      ownerUid = propSnap.data().uid;
+      listedBy = propSnap.data().listed_by;
+    }
+    if (ipData?.ip) ipAddress = ipData.ip;
   } catch {}
 
   try {
@@ -102,6 +110,8 @@ export async function openWhatsAppPropertyEnquiry(property, options = {}) {
       buyerLat,
       buyerLng,
       ownerUid,
+      listedBy,
+      ipAddress,
       source,
       message,
     });

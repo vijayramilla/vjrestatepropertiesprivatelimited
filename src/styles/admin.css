@@ -1,6 +1,4 @@
 /* VJR Admin — monochrome black & white */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Josefin+Sans:wght@300;400;500;600;700&display=swap');
-
 .admin-theme {
   --admin-primary: #000000;
   --admin-primary-dark: #111111;
@@ -10,12 +8,12 @@
   --admin-border: #e5e5e5;
   --admin-muted: #888888;
   --admin-sidebar: #000000;
-  font-family: 'Josefin Sans', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   color: #111111;
 }
 
 .admin-theme .admin-heading {
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .admin-card {
@@ -39,7 +37,7 @@
 
 .admin-section-title {
   @apply mb-5 text-lg font-medium text-black sm:mb-6 sm:text-xl;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .admin-label {
@@ -84,7 +82,7 @@
 
 .admin-stat-value {
   @apply text-3xl font-medium text-black sm:text-4xl;
-  font-family: 'Cinzel', Georgia, serif;
+  font-family: 'Inter', system-ui, sans-serif;
 }
 
 .admin-stat-label {

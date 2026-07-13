@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { WhatsappLogo, MapPin } from '@phosphor-icons/react';
@@ -40,6 +40,8 @@ export default function PropertyEnquiryContactModal({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => { if (open) getLocation(); }, [open]);
 
   const getLocation = (): Promise<void> => {
     return new Promise((resolve) => {
@@ -105,7 +107,7 @@ export default function PropertyEnquiryContactModal({
     setError('');
     setSubmitting(true);
     try {
-      await onSubmit({ name: name.trim(), phone: digits });
+      await onSubmit({ name: name.trim(), phone: digits, lat: coordsRef.current?.lat, lng: coordsRef.current?.lng });
       reset();
     } catch {
       setError('Something went wrong. Please try again.');

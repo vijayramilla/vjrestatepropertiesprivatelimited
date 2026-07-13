@@ -32,6 +32,8 @@ export interface PropertyLeadInput {
   message: string;
   source: LeadSource;
   ownerUid?: string;
+  listedBy?: string;
+  ipAddress?: string;
 }
 
 export interface PropertyLead extends PropertyLeadInput {
@@ -79,6 +81,8 @@ export function subscribePropertyLeads(
           message: data.message ?? '',
           source: data.source ?? 'card',
           ownerUid: data.ownerUid,
+          listedBy: data.listedBy,
+          ipAddress: data.ipAddress,
           status: data.status ?? 'new',
           createdAt,
         };

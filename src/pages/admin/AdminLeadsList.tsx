@@ -47,17 +47,22 @@ export default function AdminLeadsList() {
     return () => unsub();
   }, []);
 
+  const vjrLeads = useMemo(
+    () => leads.filter((l) => !l.listedBy || l.listedBy === 'VJR Estate'),
+    [leads],
+  );
+
   const filtered = useMemo(
-    () => (filter === 'all' ? leads : leads.filter((l) => l.leadType === filter)),
-    [leads, filter],
+    () => (filter === 'all' ? vjrLeads : vjrLeads.filter((l) => l.leadType === filter)),
+    [vjrLeads, filter],
   );
 
   const stats = useMemo(
     () => ({
-      total: leads.length,
-      whatsapp: leads.filter((l) => l.leadType === 'whatsapp').length,
-      visits: leads.filter((l) => l.leadType === 'book_visit').length,
-      today: leads.filter((l) => {
+      total: vjrLeads.length,
+      whatsapp: vjrLeads.filter((l) => l.leadType === 'whatsapp').length,
+      visits: vjrLeads.filter((l) => l.leadType === 'book_visit').length,
+      today: vjrLeads.filter((l) => {
         if (!l.createdAt) return false;
         const today = new Date();
         return (
@@ -67,7 +72,7 @@ export default function AdminLeadsList() {
         );
       }).length,
     }),
-    [leads],
+    [vjrLeads],
   );
 
   return (
