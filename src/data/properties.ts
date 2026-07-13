@@ -39,6 +39,9 @@ export interface Property {
   extraDetails?: Record<string, string | number>;
   images?: string[];
   katha?: string;
+  contact_name?: string;
+  contact_phone?: string;
+  listed_by?: string;
 }
 
 /** Bangalore localities A–Z — used for search autocomplete & filters */

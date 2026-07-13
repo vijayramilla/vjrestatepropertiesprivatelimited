@@ -182,5 +182,8 @@ export function mapFirestoreToProperty(id: string, data: FirestorePropertyDoc): 
     extraDetails: data.extra_details,
     images: data.images ?? [],
     katha: data.katha?.trim() || '—',
+    contact_name: data.contact_name || 'VJR Estate',
+    contact_phone: data.contact_phone || siteContact.phoneDisplay,
+    listed_by: data.listed_by,
   };
 }
