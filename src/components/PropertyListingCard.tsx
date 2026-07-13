@@ -42,7 +42,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
   const TypeIcon = getTypeIcon(property.type);
   const coverImage = property.images?.[0];
   const imageCount = property.images?.length ?? 0;
-  const saleTitle = getCardSaleTitle(property);
+  const saleTitle = property.title || getCardSaleTitle(property);
   const cityName = getCardCityName(property);
   const isPlotOrLand = isPlotLandListing(property);
   const [imgError, setImgError] = useState(false);
@@ -187,7 +187,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
               key={saved ? 'saved' : 'unsaved'}
               initial={{ scale: 1 }}
               animate={{ scale: [1, 1.25, 1] }}
-              transition={{ type: 'spring', stiffness: 400, damping: 12 }}
+              transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}
             >
               <Heart
                 size={14}

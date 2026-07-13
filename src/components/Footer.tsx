@@ -5,6 +5,7 @@ import { siteContact } from '@/data/siteContact';
 const quickLinks = [
   { name: 'Home', path: '/' },
   { name: 'Properties', path: '/properties' },
+  { name: 'Blog', path: '/blog' },
   { name: 'About', path: '/about' },
   { name: 'Contact', path: '/contact' },
 ];

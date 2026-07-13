@@ -55,7 +55,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
   const TypeIcon = getTypeIcon(property.type);
   const coverImage = property.images?.[0];
   const imageCount = property.images?.length ?? 0;
-  const saleTitle = getCardSaleTitle(property);
+  const saleTitle = property.title || getCardSaleTitle(property);
   const cityName = getCardCityName(property);
   const isPlotOrLand = isPlotLandListing(property);
   const isFeatured = doc.featured === true;

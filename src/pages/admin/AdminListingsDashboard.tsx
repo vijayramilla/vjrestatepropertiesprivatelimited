@@ -2,7 +2,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
-import { AdminBadge, AdminEmptyState, AdminSkeletonList } from '@/components/admin/AdminUi';
+import { motion } from 'framer-motion';
+import { Phone, MapPin, Globe, Calendar, Clock, Target } from 'lucide-react';
+import { AdminBadge, AdminEmptyState, AdminSkeletonList, AdminStatGrid, AdminStatCard } from '@/components/admin/AdminUi';
 import { formatINR } from '@/lib/formatPrice';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
 import type { PropertyLead } from '@/lib/propertyLeads';
@@ -146,22 +148,18 @@ export default function AdminListingsDashboard() {
           </p>
         </div>
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-6 sm:gap-4">
-          {[
-            { label: 'Total Listings', value: properties.length, color: 'text-gray-900', sub: `${agentListings} agent · ${ownerListings} owner` },
-            { label: 'Agents', value: agentListings, color: 'text-blue-600', sub: `${new Set(properties.filter(p => p.listed_by === 'Agent').map(p => p.uid)).size} unique` },
-            { label: 'Owners', value: ownerListings, color: 'text-violet-600', sub: `${new Set(properties.filter(p => p.listed_by !== 'Agent').map(p => p.uid)).size} unique` },
-            { label: 'Active Users', value: uniqueUsers - suspendedUsers, color: 'text-emerald-600', sub: `${uniqueUsers} total registered` },
-            { label: 'Suspended', value: suspendedUsers, color: 'text-red-600', sub: `${((suspendedUsers / (uniqueUsers || 1)) * 100).toFixed(0)}% of users` },
-            { label: 'Total Enquiries', value: leads.length, color: 'text-orange-600', sub: `${leadsByProperty.size} properties contacted` },
-          ].map((stat) => (
-            <div key={stat.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500">{stat.label}</p>
-              <p className={`mt-1.5 text-2xl font-bold ${stat.color}`}>{stat.value}</p>
-              <p className="mt-0.5 text-[10px] text-gray-400">{stat.sub}</p>
-            </div>
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+        >
+          <AdminStatGrid>
+            <AdminStatCard label="Total Listings" value={properties.length > 0 ? `${properties.length}` : '0'} />
+            <AdminStatCard label="Active Users" value={`${uniqueUsers - suspendedUsers}`} />
+            <AdminStatCard label="Suspended" value={`${suspendedUsers}`} />
+            <AdminStatCard label="Total Enquiries" value={`${leads.length}`} />
+          </AdminStatGrid>
+        </motion.div>
 
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
@@ -275,10 +273,7 @@ export default function AdminListingsDashboard() {
                         rel="noopener noreferrer"
                         className="flex items-center gap-1 text-[10px] font-medium text-gray-500 underline-offset-2 transition-colors hover:text-blue-600 hover:underline"
                       >
-                        <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-                        </svg>
+                        <MapPin size={12} />
                         View Location
                       </a>
                     )}
@@ -312,13 +307,13 @@ export default function AdminListingsDashboard() {
                                   {lead.leadType === 'book_visit' ? 'Visit' : 'WhatsApp'}
                                 </span>
                               </div>
-                              {lead.buyerPhone && <p className="text-gray-500">📞 {lead.buyerPhone}</p>}
-                              {lead.buyerLat && lead.buyerLng && <p className="text-gray-500">📍 {lead.buyerLat.toFixed(4)}, {lead.buyerLng.toFixed(4)}</p>}
-                              {lead.ipAddress && <p className="text-gray-500">🌐 {lead.ipAddress}</p>}
-                              {lead.visitDate && <p className="text-gray-500">📅 {lead.visitDate}{lead.visitTime ? ` · ${lead.visitTime}` : ''}</p>}
+                              {lead.buyerPhone && <p className="flex items-center gap-1.5 text-gray-500"><Phone size={12} /> {lead.buyerPhone}</p>}
+                              {lead.buyerLat && lead.buyerLng && <p className="flex items-center gap-1.5 text-gray-500"><MapPin size={12} /> {lead.buyerLat.toFixed(4)}, {lead.buyerLng.toFixed(4)}</p>}
+                              {lead.ipAddress && <p className="flex items-center gap-1.5 text-gray-500"><Globe size={12} /> {lead.ipAddress}</p>}
+                              {lead.visitDate && <p className="flex items-center gap-1.5 text-gray-500"><Calendar size={12} /> {lead.visitDate}{lead.visitTime ? ` · ${lead.visitTime}` : ''}</p>}
                               {lead.createdAt && (
-                                <p className="text-gray-400">
-                                  🕐 {lead.createdAt instanceof Date
+                                <p className="flex items-center gap-1.5 text-gray-400">
+                                  <Clock size={12} /> {lead.createdAt instanceof Date
                                     ? lead.createdAt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
                                     : '—'}
                                 </p>

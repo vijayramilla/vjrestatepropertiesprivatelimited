@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
-import { Eye, EyeSlash } from 'phosphor-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -66,7 +67,12 @@ export default function AdminLogin() {
     <div className="admin-theme relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-white px-4 py-8 pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))]">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_#f5f5f5_0%,_#ffffff_50%)]" />
 
-      <div className="admin-card relative w-full max-w-[420px] border-gray-200 p-6 shadow-lg shadow-black/10 sm:p-10">
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+        className="admin-card relative w-full max-w-[420px] border-gray-200 p-6 shadow-lg shadow-black/10 sm:p-10"
+      >
         <div className="text-center">
           <h1 className="admin-heading text-2xl font-medium text-black sm:text-3xl">VJR Estate</h1>
           <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">
@@ -124,7 +130,7 @@ export default function AdminLogin() {
               className="absolute right-1 top-[calc(50%+10px)] flex min-h-[44px] min-w-[44px] -translate-y-1/2 items-center justify-center rounded-lg text-gray-400 transition-colors hover:text-black"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              {showPassword ? <EyeSlash size={18} weight="regular" /> : <Eye size={18} weight="regular" />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
@@ -138,7 +144,7 @@ export default function AdminLogin() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-      </div>
+      </motion.div>
     </div>
   );
 }

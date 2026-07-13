@@ -194,6 +194,7 @@ export default function Navbar() {
             {[
               { label: 'Properties', path: '/properties' },
               { label: 'Land Map', path: '/map', icon: true },
+              { label: 'Blog', path: '/blog' },
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
             ]

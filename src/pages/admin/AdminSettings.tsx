@@ -1,13 +1,20 @@
+import { motion } from 'framer-motion';
+import { MapPin, AlertTriangle } from 'lucide-react';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
+import { AdminPageShell, AdminPageHeader } from '@/components/admin/AdminUi';
 
 export default function AdminSettings() {
   const { mapOnly, toggling, error, toggleMapOnly } = useSiteSettings();
 
   return (
-    <div className="p-6 max-w-3xl">
-      <h1 className="admin-heading text-2xl font-bold mb-8">Site Settings</h1>
-
-      <div className="admin-section">
+    <AdminPageShell>
+      <AdminPageHeader title="Site Settings" eyebrow="Admin" />
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+        className="admin-section max-w-3xl"
+      >
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -53,9 +60,7 @@ export default function AdminSettings() {
         {mapOnly && !error && (
           <div className="mt-5 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3">
             <div className="flex items-start gap-3">
-              <svg className="mt-0.5 h-5 w-5 shrink-0 text-yellow-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-              </svg>
+              <AlertTriangle size={20} className="mt-0.5 shrink-0 text-yellow-600" />
               <div className="text-sm text-yellow-800">
                 <p className="font-medium">Map Only Mode is active</p>
                 <p className="mt-1">
@@ -66,7 +71,7 @@ export default function AdminSettings() {
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </AdminPageShell>
   );
 }

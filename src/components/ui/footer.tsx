@@ -20,6 +20,7 @@ const footerConfig = {
       title: 'Company',
       links: [
         { label: 'About Us', to: '/about' },
+        { label: 'Blog', to: '/blog' },
         { label: 'Contact', to: '/contact' },
         { label: 'Submit Requirement', to: '/submit-requirement' },
         { label: 'Requirements', to: '/requirements' },
@@ -71,6 +72,7 @@ const footerConfig = {
     },
   ],
   quickLinks: [
+    { label: 'Blog', to: '/blog' },
     { label: 'Browse Properties', to: '/properties' },
     { label: 'Submit Requirement', to: '/submit-requirement' },
     { label: 'Requirements', to: '/requirements' },

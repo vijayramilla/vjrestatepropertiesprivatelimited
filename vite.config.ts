@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react';
 import compression from 'vite-plugin-compression';
 
 export default defineConfig({
+  define: {
+    'process.env.FRAMER_MOTION_API_KEY': JSON.stringify('fr_4pr81nbwcb8p1baxsxxkwjw3gr'),
+  },
   plugins: [
     react(),
 

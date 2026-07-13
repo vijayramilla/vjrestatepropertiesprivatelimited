@@ -1,0 +1,52 @@
+{
+  "kind": "collectionType",
+  "collectionName": "blog_posts",
+  "info": {
+    "singularName": "blog-post",
+    "pluralName": "blog-posts",
+    "displayName": "BlogPost"
+  },
+  "options": {
+    "draftAndPublish": true
+  },
+  "attributes": {
+    "category": {
+      "enum": [
+        "Investment",
+        "Local Guide",
+        "Market Intel",
+        "Sell Smart"
+      ],
+      "default": "Local Guide",
+      "type": "enumeration"
+    },
+    "slug": {
+      "targetField": "title",
+      "type": "uid",
+      "required": true
+    },
+    "readTime": {
+      "type": "string"
+    },
+    "excerpt": {
+      "type": "text"
+    },
+    "content": {
+      "type": "richtext"
+    },
+    "author": {
+      "default": "VJR Estate Team",
+      "type": "string"
+    },
+    "image": {
+      "type": "string"
+    },
+    "date": {
+      "type": "date"
+    },
+    "title": {
+      "type": "string",
+      "required": true
+    }
+  }
+}

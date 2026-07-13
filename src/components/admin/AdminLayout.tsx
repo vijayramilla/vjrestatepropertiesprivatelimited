@@ -1,7 +1,8 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
@@ -20,6 +21,7 @@ const baseNavItems = [
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
   { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
+  { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
 ];
 
 export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutProps) {
@@ -44,6 +46,9 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
     }
     if (path === '/admin/settings') {
       return location.pathname === path;
+    }
+    if (path === '/admin/blog') {
+      return location.pathname === path || location.pathname.startsWith('/admin/blog/');
     }
     return location.pathname.startsWith(path);
   };
@@ -205,7 +210,14 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
         </header>
 
         <main className="mt-14 flex-1 overflow-x-hidden overflow-y-auto bg-white pb-[calc(4.5rem+env(safe-area-inset-bottom))] md:pb-0">
-          <div className="max-w-full">{children}</div>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+            className="max-w-full"
+          >
+            {children}
+          </motion.div>
         </main>
 
         <nav className="admin-mobile-nav" aria-label="Admin navigation">

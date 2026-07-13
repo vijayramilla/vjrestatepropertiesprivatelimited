@@ -84,8 +84,9 @@ export function getCardSaleTitle(
 ): string {
   const raw = property.raw_type ?? property.type;
 
-  if (raw === 'Commercial Properties' && property.commercial_subtype) {
-    return `${property.commercial_subtype} For Sale`;
+  if (raw === 'Commercial Properties') {
+    if (property.commercial_subtype) return `${property.commercial_subtype} For Sale`;
+    return 'Commercial For Sale';
   }
 
   if (property.plot_subtype) {

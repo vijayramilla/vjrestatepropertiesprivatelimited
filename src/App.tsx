@@ -30,10 +30,14 @@ const AdminRequirementsList = lazy(() => import('./pages/admin/AdminRequirements
 const AdminPostRequirementPage = lazy(() => import('./pages/admin/AdminPostRequirementPage'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminListingsDashboard = lazy(() => import('./pages/admin/AdminListingsDashboard'));
+const AdminBlogPosts = lazy(() => import('./pages/admin/AdminBlogPosts'));
+const AdminBlogPostForm = lazy(() => import('./pages/admin/AdminBlogPostForm'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const BlogPage = lazy(() => import('./pages/BlogPage'));
+const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -99,6 +103,8 @@ function AppRoutes() {
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
         <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
+        <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
+        <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
@@ -175,6 +181,30 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LazyPage><AdminSettings /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/blog"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminBlogPosts /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/blog/new"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminBlogPostForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/blog/:documentId/edit"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminBlogPostForm /></LazyPage>
           </AdminRoute>
         }
       />
