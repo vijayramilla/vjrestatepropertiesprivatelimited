@@ -33,7 +33,8 @@ import {
 } from '@/data/karnatakaKathas';
 import { BANGALORE_AREAS } from '@/data/properties';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
-import type { LandLocationValue } from '@/lib/mapGeocoding';
+import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
+import { landLocationFromPlace, type LandLocationValue } from '@/lib/mapGeocoding';
 import {
   canonicalPropertyType,
   extractLocalityFromText,
@@ -233,6 +234,30 @@ export default function AdminPropertyForm() {
     listed_by: 'VJR Estate',
   });
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
+  const areaSearchRef = useRef<HTMLInputElement>(null);
+  const { isLoaded, loadError } = useGoogleMapsLoader();
+
+  useEffect(() => {
+    if (!isLoaded || loadError || !areaSearchRef.current) return;
+    try {
+      const autocomplete = new google.maps.places.Autocomplete(areaSearchRef.current, {
+        componentRestrictions: { country: 'in' },
+        fields: ['formatted_address', 'geometry', 'name', 'address_components'],
+      });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        const loc = landLocationFromPlace(place);
+        if (!loc) return;
+        setFormData((prev) => ({
+          ...prev,
+          area: loc.area,
+          location: loc.location,
+          map_lat: loc.map_lat,
+          map_lng: loc.map_lng,
+        }));
+      });
+    } catch { /* google maps unavailable */ }
+  }, [isLoaded, loadError]);
 
   useEffect(() => {
     const state = location.state as { defaultType?: string } | null;
@@ -841,6 +866,12 @@ export default function AdminPropertyForm() {
             <div className="space-y-6">
               {/* Area / Locality */}
               <div>
+                <input
+                  ref={areaSearchRef}
+                  type="search"
+                  placeholder="Search any area (Google Places)..."
+                  className="admin-input-ghost mb-3"
+                />
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Area / Locality *
                 </label>

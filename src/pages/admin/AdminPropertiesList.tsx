@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   collection,
@@ -24,6 +24,7 @@ import {
 } from '@/components/admin/AdminUi';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Trash, NotePencil, Plus } from 'phosphor-react';
+import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 
 const container = {
   animate: { transition: { staggerChildren: 0.05 } },
@@ -85,6 +86,22 @@ export default function AdminPropertiesList() {
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { isLoaded, loadError } = useGoogleMapsLoader();
+
+  useEffect(() => {
+    if (!isLoaded || loadError || !inputRef.current) return;
+    try {
+      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
+        componentRestrictions: { country: 'in' },
+        fields: ['formatted_address'],
+      });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        setSearch(place?.formatted_address ?? '');
+      });
+    } catch { /* google maps unavailable */ }
+  }, [isLoaded, loadError]);
 
   const types = [
     'All Types',
@@ -174,10 +191,9 @@ export default function AdminPropertiesList() {
 
         <AdminToolbar>
           <input
+            ref={inputRef}
             type="search"
             placeholder="Search by title or locality..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
             className="admin-input-ghost"
           />
           <AdminFilterRow>
