@@ -59,7 +59,7 @@ export class GoogleMapsAdvancedParser {
    * Normalize input - add https:// if needed, handle special cases
    */
   static normalize(input: string): string {
-    let trimmed = input.trim();
+    const trimmed = input.trim();
     if (!trimmed) return '';
 
     // Already has protocol
@@ -83,7 +83,7 @@ export class GoogleMapsAdvancedParser {
   static safeDecodeURI(url: string): string {
     try {
       return decodeURIComponent(url);
-    } catch (e) {
+    } catch (_e) {
       console.log('Could not decode URI, using as-is');
       return url;
     }
@@ -243,9 +243,8 @@ export class GoogleMapsAdvancedParser {
       }
 
       return { lat: latNum, lng: lngNum };
-    } catch (e) {
-      return null;
-    }
+    } catch (_e) { /* ist ignore: invalid input */ }
+    return null;
   }
 
   /**

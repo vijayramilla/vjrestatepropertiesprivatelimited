@@ -200,7 +200,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
       if (stored) {
         setRecentSearches(JSON.parse(stored).slice(0, 5));
       }
-    } catch (e) {}
+    } catch { /* localStorage read */ }
   }, []);
 
   const saveRecentSearch = (locationName: string) => {
@@ -210,7 +210,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
       const updated = [locationName, ...existing.filter(s => s !== locationName)].slice(0, 5);
       localStorage.setItem('vjr_map_searches', JSON.stringify(updated));
       setRecentSearches(updated);
-    } catch (e) {}
+    } catch { /* localStorage write */ }
   };
   const [desktopPredictions, setDesktopPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const desktopDropdownRef = useRef<HTMLDivElement>(null);
@@ -268,7 +268,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
           mapRef.current.setZoom(15);
         }
       });
-    } catch {}
+    } catch { /* geocode */ }
   };
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);

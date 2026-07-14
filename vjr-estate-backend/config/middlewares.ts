@@ -9,7 +9,7 @@ const config: Core.Config.Middlewares = [
       contentSecurityPolicy: {
         useDefaults: true,
         directives: {
-          'frame-ancestors': ["'self'", 'http://localhost:5173', 'http://localhost:5174'],
+          'frame-ancestors': ["'self'", 'http://localhost:5173', 'http://localhost:5174', 'https://vjrestate.com'],
         },
       },
     },
@@ -17,7 +17,7 @@ const config: Core.Config.Middlewares = [
   {
     name: 'strapi::cors',
     config: {
-      origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000'],
+          origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000', 'https://vjrestate.com', 'https://www.vjrestate.com'],
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
       headers: ['Content-Type', 'Authorization', 'Origin', 'Accept'],
       keepHeaderOnError: true,

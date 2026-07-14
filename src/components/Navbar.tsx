@@ -198,7 +198,7 @@ export default function Navbar() {
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
             ]
-              .filter((item) => !isMapPage)
+              .filter(() => !isMapPage)
               .map(({ label, path, icon }) => (
               <Link
                 key={path}

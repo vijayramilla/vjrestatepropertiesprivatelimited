@@ -38,6 +38,7 @@ const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
+const CareersPage = lazy(() => import('./pages/CareersPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -103,6 +104,7 @@ function AppRoutes() {
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
         <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
+        <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+
 import { motion, type PanInfo } from 'framer-motion';
 import {
   AlertTriangle,
@@ -129,7 +129,6 @@ export default function MapPropertyPopup({
   onAIAnalyze,
   isAnalyzing = false,
   analysisResult = null,
-  onViewDetails,
 }: MapPropertyPopupProps) {
   const config = CATEGORY_CONFIG[property.propertyType];
   const gallery = property.images.length

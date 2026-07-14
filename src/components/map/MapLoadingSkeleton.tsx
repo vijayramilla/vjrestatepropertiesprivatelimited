@@ -55,7 +55,7 @@ function OrbitingDot({
   );
 }
 
-export default function MapLoadingSkeleton(_props: { noHeaderOffset?: boolean }) {
+export default function MapLoadingSkeleton() {
   return (
     <>
       <Navbar />

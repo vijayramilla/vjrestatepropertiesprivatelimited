@@ -38,6 +38,7 @@ export interface ListingProperty {
 export function isAgricultureLandListing(
   _property: Pick<ListingProperty, 'raw_type' | 'plot_subtype'>,
 ): boolean {
+  void _property;
   return false;
 }
 

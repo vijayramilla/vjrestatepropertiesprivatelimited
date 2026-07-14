@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MapPin, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
 import { AdminPageShell, AdminPageHeader } from '@/components/admin/AdminUi';
 

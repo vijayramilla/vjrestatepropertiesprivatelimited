@@ -1,6 +1,6 @@
 import type { BlogPost } from '@/data/blogPosts';
 
-const STRAPI_URL = import.meta.env.VITE_STRAPI_URL || 'http://localhost:1337';
+const STRAPI_URL = import.meta.env.VITE_STRAPI_URL;
 
 interface StrapiPost {
   id: number;
@@ -33,6 +33,7 @@ function mapStrapiPost(post: StrapiPost): BlogPost {
 }
 
 export async function getBlogPosts(): Promise<BlogPost[]> {
+  if (!STRAPI_URL) throw new Error('Strapi URL not configured');
   const res = await fetch(`${STRAPI_URL}/api/blog-posts`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Strapi error: ${res.status}`);
   const json = await res.json();
@@ -40,6 +41,7 @@ export async function getBlogPosts(): Promise<BlogPost[]> {
 }
 
 export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
+  if (!STRAPI_URL) throw new Error('Strapi URL not configured');
   const res = await fetch(
     `${STRAPI_URL}/api/blog-posts?filters[slug][$eq]=${encodeURIComponent(slug)}`,
     { cache: 'no-store' }

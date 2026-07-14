@@ -3,10 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import clsx from "clsx";
 import {
   UploadCloud,
-  File as FileIcon,
-  Trash2,
   Loader,
-  CheckCircle,
 } from "lucide-react";
 
 interface FileWithPreview {
@@ -72,11 +69,6 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
     });
   };
 
-  const clearAll = () => {
-    setFiles([]);
-    onFilesChange?.([]);
-  };
-
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
@@ -94,13 +86,7 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
     if (e.target.files) handleFiles(e.target.files);
   };
 
-  const formatFileSize = (bytes: number): string => {
-    if (!bytes) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
-  };
+  const formatFileSize = (_bytes: number): string => "";
 
   return (
     <div className="w-full">

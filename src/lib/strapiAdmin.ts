@@ -1,10 +1,11 @@
-const STRAPI_URL = import.meta.env.VITE_STRAPI_URL || 'http://localhost:1337';
+const STRAPI_URL = import.meta.env.VITE_STRAPI_URL;
 const ADMIN_EMAIL = import.meta.env.VITE_STRAPI_ADMIN_EMAIL || 'admin@vjrestate.com';
 const ADMIN_PASSWORD = import.meta.env.VITE_STRAPI_ADMIN_PASSWORD || 'Admin123!';
 
 let token: string | null = null;
 
 async function login(): Promise<string> {
+  if (!STRAPI_URL) throw new Error('Strapi URL not configured');
   const res = await fetch(`${STRAPI_URL}/admin/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

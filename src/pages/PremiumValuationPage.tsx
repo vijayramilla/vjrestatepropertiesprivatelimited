@@ -78,7 +78,7 @@ function FaqSection() {
   ];
   return (
     <section className="mx-auto w-full max-w-2xl">
-      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white/70 shadow-[0_8px_32px_rgba(15,23,42,0.05)] backdrop-blur-xl">
+      <div className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white/70 shadow-[0_8px_32px_rgba(15,23,42,0.05)] backdrop-blur-xl relative before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/8 before:via-transparent before:to-transparent before:pointer-events-none">
         {FAQs.map((faq, i) => {
           const isOpen = openIndex === i;
           return (
@@ -145,7 +145,10 @@ function StepIndicator({ step, steps }: { step: number; steps: { label: string; 
                   )}
                 >
                   {isActive && (
-                    <span className="absolute -inset-1 rounded-full border border-gray-900/15" aria-hidden />
+                    <>
+                      <span className="absolute -inset-1.5 rounded-full border border-gray-900/15" aria-hidden />
+                      <span className="absolute -inset-2.5 animate-ping rounded-full bg-gray-900/5" aria-hidden />
+                    </>
                   )}
                   {isDone ? (
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -264,7 +267,7 @@ export default function PremiumValuationPage() {
 
   return (
     <div className="relative min-h-screen bg-[#fafafa]">
-      {/* Premium Ambient Backgrounds */}
+      <div className="pointer-events-none fixed inset-0 opacity-[0.02]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #000 1px, transparent 0)', backgroundSize: '40px 40px' }} aria-hidden />
       <SparklesCore particleColor="#000000" particleDensity={8} minSize={0.3} maxSize={1.1} speed={1.2} className="pointer-events-none absolute inset-0 opacity-[0.15]" />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <motion.div
@@ -283,7 +286,10 @@ export default function PremiumValuationPage() {
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 pt-24 pb-16 sm:px-6 md:pt-32 lg:px-8">
         {/* HERO */}
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE_LUXE }} className="mb-16 text-center md:mb-20">
+    <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE_LUXE }} className="mb-16 text-center md:mb-20">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-32 w-[500px] opacity-[0.07]" aria-hidden>
+            <div className="h-full w-full rounded-full bg-gradient-to-r from-transparent via-gray-900 to-transparent blur-3xl" />
+          </div>
           <span className="inline-flex items-center gap-2.5 rounded-full border border-gray-200/70 bg-white/60 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-500 shadow-sm backdrop-blur-sm">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60" />
@@ -292,7 +298,7 @@ export default function PremiumValuationPage() {
             AI Property Valuation
           </span>
 
-          <h1 className="mx-auto mt-6 max-w-3xl font-serif text-4xl tracking-tight text-gray-950 md:text-5xl lg:text-6xl">
+          <h1 className="mx-auto mt-6 max-w-3xl font-serif text-4xl tracking-tight md:text-5xl lg:text-6xl">
             Know what your property
             <span className="mt-1 block italic">
               <span className="bg-gradient-to-r from-gray-950 via-gray-600 to-gray-950 bg-clip-text text-transparent">is truly worth.</span>
@@ -323,7 +329,7 @@ export default function PremiumValuationPage() {
         {/* FORM + RESULTS */}
         <div className="grid gap-8 lg:grid-cols-5 lg:gap-12">
           <div className="lg:col-span-3">
-            <GlassCard className="w-full !p-8 sm:!p-10">
+            <GlassCard className="w-full !p-8 sm:!p-10 relative before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/10 before:via-transparent before:to-transparent before:pointer-events-none">
               <StepIndicator step={step} steps={formSteps} />
               <AnimatePresence mode="wait">
                 {step === 0 && (
@@ -530,6 +536,7 @@ export default function PremiumValuationPage() {
                 {loading ? (
                   <motion.div key="loading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="relative mb-5 h-14 w-14">
+                      <div className="absolute -inset-2 rounded-full border border-gray-200/60" aria-hidden />
                       <div className="absolute inset-0 rounded-full border-2 border-gray-200" />
                       <div className="absolute inset-0 animate-spin rounded-full border-2 border-gray-950 border-t-transparent" />
                       <div className="absolute inset-3 flex items-center justify-center">
@@ -541,9 +548,9 @@ export default function PremiumValuationPage() {
                   </motion.div>
                 ) : result && showResults ? (
                   <motion.div key="results" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.5, ease: EASE_LUXE }} className="space-y-5">
-                    {/* Signature: dark ink-plate value card */}
                     <div className="relative overflow-hidden rounded-2xl bg-gray-950 p-8 text-center shadow-[0_30px_60px_-15px_rgba(0,0,0,0.45)] ring-1 ring-white/10">
                       <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(120% 90% at 50% 0%, rgba(255,255,255,0.10), transparent 55%)' }} aria-hidden />
+                      <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-b from-white/20 via-transparent to-transparent opacity-50" aria-hidden />
                       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" aria-hidden />
                       <p className="text-[10px] font-semibold uppercase tracking-[0.25em] text-white/40">Estimated Market Value</p>
                       <p className="mt-3 font-serif text-4xl tracking-tight text-white md:text-5xl">
@@ -573,7 +580,7 @@ export default function PremiumValuationPage() {
                             <p className="mt-1 text-2xl font-bold text-gray-950">{result.confidenceScore}<span className="text-sm font-medium text-gray-400">%</span></p>
                           </div>
                           <div className="h-10 w-32 self-end">
-                            <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                            <div className="relative h-2 w-full overflow-hidden rounded-full bg-gray-100">
                               <motion.div
                                 className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-gray-700 to-gray-950"
                                 initial={{ width: 0 }}
@@ -623,6 +630,7 @@ export default function PremiumValuationPage() {
                   <motion.div key="placeholder" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="relative mb-6">
                       <div className="absolute -inset-3 rounded-3xl border border-gray-200/70" aria-hidden />
+                      <div className="absolute -inset-4 rounded-3xl bg-gradient-to-b from-gray-900/5 via-transparent to-transparent opacity-60" aria-hidden />
                       <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-950 to-gray-700 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)] ring-1 ring-black/5">
                         <span className="font-serif text-3xl text-white">₹</span>
                       </div>
@@ -646,14 +654,13 @@ export default function PremiumValuationPage() {
           <div className="grid gap-6 md:grid-cols-3">
             {STEPS.map((s, i) => (
               <motion.div key={s.num} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5, delay: i * 0.15, ease: EASE_LUXE }}>
-                <GlassCard interactive className="relative h-full overflow-hidden !p-8">
-                  {/* Ghost serif numeral */}
-                  <span className="pointer-events-none absolute -top-4 right-3 select-none font-serif text-[88px] leading-none text-gray-950/[0.05]" aria-hidden>{s.num}</span>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-gray-400">Step {s.num}</span>
-                  <h3 className="mt-3 font-serif text-lg text-gray-950">{s.title}</h3>
-                  <div className="mt-3 h-px w-10 bg-gray-900/20" aria-hidden />
-                  <p className="mt-3 text-sm leading-relaxed text-gray-500">{s.desc}</p>
-                </GlassCard>
+            <GlassCard interactive className="relative h-full overflow-hidden !p-8 before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/8 before:via-transparent before:to-transparent before:pointer-events-none">
+              <span className="pointer-events-none absolute -top-4 right-3 select-none font-serif text-[88px] leading-none text-gray-950/[0.05]" aria-hidden>{s.num}</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-gray-400">Step {s.num}</span>
+              <h3 className="mt-3 font-serif text-lg text-gray-950">{s.title}</h3>
+              <div className="mt-3 h-px w-10 bg-gray-900/20" aria-hidden />
+              <p className="mt-3 text-sm leading-relaxed text-gray-500">{s.desc}</p>
+            </GlassCard>
               </motion.div>
             ))}
           </div>
@@ -662,6 +669,7 @@ export default function PremiumValuationPage() {
         {/* MARKET STATS — dark inverted band */}
         <section className="mb-24">
           <div className="relative overflow-hidden rounded-3xl bg-gray-950 px-8 py-12 shadow-[0_30px_70px_-20px_rgba(0,0,0,0.5)] ring-1 ring-white/10 md:px-14 md:py-14">
+            <div className="pointer-events-none absolute -inset-px rounded-3xl bg-gradient-to-b from-white/15 via-transparent to-transparent opacity-60" aria-hidden />
             <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(110% 90% at 50% 0%, rgba(255,255,255,0.07), transparent 55%)' }} aria-hidden />
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" aria-hidden />
             <div className="grid grid-cols-2 gap-y-10 md:grid-cols-4">

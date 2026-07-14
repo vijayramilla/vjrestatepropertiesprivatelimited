@@ -82,6 +82,7 @@ export default function EmiCalculatorPage() {
 
   return (
     <div className={`relative min-h-screen overflow-hidden transition-colors duration-500 ${bgClass}`}>
+      <div className="pointer-events-none fixed inset-0 opacity-[0.02]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #000 1px, transparent 0)', backgroundSize: '40px 40px' }} aria-hidden />
       <button
         onClick={() => setIsDark(!isDark)}
         className={`fixed right-4 top-4 z-50 flex h-9 w-9 items-center justify-center rounded-xl border transition-all ${
@@ -119,12 +120,9 @@ export default function EmiCalculatorPage() {
       </div>
 
       <div className="relative z-10 mx-auto max-w-7xl px-4 py-6 sm:px-6 md:py-12 lg:py-16">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="mb-8 text-center md:mb-12"
-        >
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-40 w-[600px] opacity-[0.07]" aria-hidden>
+            <div className="h-full w-full rounded-full bg-gradient-to-r from-transparent via-gray-900 to-transparent blur-3xl" />
+          </div>
           <motion.div
             className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] md:h-16 md:w-16 ${
               isDark ? 'bg-gradient-to-br from-white to-gray-300' : 'bg-gradient-to-br from-black to-gray-800'
@@ -149,12 +147,11 @@ export default function EmiCalculatorPage() {
           <div className={`mx-auto mt-3 h-1 w-16 rounded-full bg-gradient-to-r ${isDark ? 'from-white via-gray-500 to-white' : 'from-black via-gray-500 to-black'}`}
             style={{ transform: 'scaleX(1)' }}
           />
-        </motion.div>
 
         <div className="grid gap-6 lg:grid-cols-5 lg:gap-8">
           <div className="space-y-5 lg:col-span-3">
             <TiltCard intensity={6}>
-              <div className={`rounded-2xl border p-5 shadow-sm md:p-7 ${cardClass}`}>
+              <div className={`rounded-2xl border p-5 shadow-sm md:p-7 ${cardClass} relative before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/10 before:via-transparent before:to-transparent before:pointer-events-none`}>
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isDark ? 'bg-white/10' : 'bg-black'}`}>
@@ -220,7 +217,7 @@ export default function EmiCalculatorPage() {
 
             {/* Tabs */}
             {hasResults && (
-              <div className={`rounded-2xl border p-4 shadow-sm ${cardClass}`}>
+              <div className={`rounded-2xl border p-4 shadow-sm ${cardClass} relative before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/10 before:via-transparent before:to-transparent before:pointer-events-none`}>
                 <div className="mb-3 flex flex-wrap gap-1">
                   {tabs.map((tab) => (
                     <button
@@ -325,7 +322,9 @@ export default function EmiCalculatorPage() {
                     <div className={`relative overflow-hidden rounded-2xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.2)] md:p-7 ${
                       isDark ? 'bg-gradient-to-br from-white/10 via-white/5 to-white/10' : 'bg-gradient-to-br from-black via-gray-900 to-black'
                     }`}>
+                      <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-b from-white/20 via-transparent to-transparent opacity-50" aria-hidden />
                       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.1),transparent)]" />
+                      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent" aria-hidden />
                       <div className="relative z-10 text-center">
                         <p className="mb-1 flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60">
                           <Sparkles size={10} className="text-amber-400" />

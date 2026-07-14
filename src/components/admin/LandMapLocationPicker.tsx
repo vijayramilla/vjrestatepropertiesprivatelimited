@@ -63,7 +63,7 @@ export default function LandMapLocationPicker({
         const pincode = find(['postal_code']) || '';
         return { areaName: areaName || 'Unknown', city: city || 'Unknown', state: state || 'Unknown', fullAddress: addr.formatted_address || `${lat}, ${lng}`, pincode };
       }
-    } catch {}
+    } catch { /* geocode fallback */ }
     return { areaName: 'Unknown', city: 'Unknown', state: 'Unknown', fullAddress: `${lat}, ${lng}`, pincode: '' };
   };
 

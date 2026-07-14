@@ -14,7 +14,7 @@ import { siteContact } from '@/data/siteContact';
 import { useShortlist } from '@/context/ShortlistContext';
 import { useAuth } from '@/context/AuthContext';
 import LazyImage from '@/components/common/LazyImage';
-import { MapPin, Heart, WhatsappLogo, ShareNetwork, X, CheckCircle, ArrowLeft, ArrowRight, CalendarBlank } from '@phosphor-icons/react';
+import { MapPin, Heart, WhatsappLogo, ShareNetwork, X, CheckCircle, ArrowLeft, ArrowRight } from '@phosphor-icons/react';
 
 interface MapPropertyDetailModalProps {
   propertyId: string;
@@ -66,7 +66,7 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
   const currentImage = allImages[photoIndex] ?? null;
 
   const isLandOrPlot = property ? isLandOrPlotProperty(property) : false;
-  const isPlot = property ? isPlotProperty(property.type) : false;
+  void isPlotProperty;
 
   const plotAreaDisplay = property
     ? formatArea(property.area_acres, property.area_guntas, property.area_sqft, property.area_unit)

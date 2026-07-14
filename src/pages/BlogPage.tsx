@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, ArrowRight, Loader2 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Clock, Loader2 } from 'lucide-react';
 import { blogPosts as fallbackPosts } from '@/data/blogPosts';
 import { getBlogPosts } from '@/lib/strapi';
 import type { BlogPost } from '@/data/blogPosts';

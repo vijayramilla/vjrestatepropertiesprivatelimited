@@ -3,7 +3,7 @@ import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } fro
 import { db } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
-import { Phone, MapPin, Globe, Calendar, Clock, Target } from 'lucide-react';
+import { Phone, MapPin, Globe, Calendar, Clock } from 'lucide-react';
 import { AdminBadge, AdminEmptyState, AdminSkeletonList, AdminStatGrid, AdminStatCard } from '@/components/admin/AdminUi';
 import { formatINR } from '@/lib/formatPrice';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
@@ -117,8 +117,6 @@ export default function AdminListingsDashboard() {
       );
     });
 
-  const agentListings = properties.filter((p) => p.listed_by === 'Agent').length;
-  const ownerListings = properties.filter((p) => p.listed_by === 'Owner' || !p.listed_by).length;
   const uniqueUsers = new Set(properties.map((p) => p.uid)).size;
   const suspendedUsers = new Set(
     properties.filter((p) => users.get(p.uid ?? '')?.suspended).map((p) => p.uid)

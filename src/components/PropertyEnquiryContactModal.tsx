@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
-import { WhatsappLogo, MapPin } from '@phosphor-icons/react';
+import { WhatsappLogo } from '@phosphor-icons/react';
 import { useAuth } from '@/context/AuthContext';
 
 export interface EnquiryContactDetails {
@@ -33,7 +33,7 @@ export default function PropertyEnquiryContactModal({
   const { user, signInWithGoogle } = useAuth();
   const [authLoading, setAuthLoading] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [locationDone, setLocationDone] = useState(false);
+  const [, setLocationDone] = useState(false);
   const coordsRef = useRef<{ lat: number; lng: number } | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');

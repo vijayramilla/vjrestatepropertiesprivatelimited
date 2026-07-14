@@ -8,6 +8,7 @@ const quickLinks = [
   { name: 'Blog', path: '/blog' },
   { name: 'About', path: '/about' },
   { name: 'Contact', path: '/contact' },
+  { name: 'Careers', path: '/careers' },
 ];
 
 export default function Footer() {
