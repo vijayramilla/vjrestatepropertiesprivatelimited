@@ -317,6 +317,14 @@ export default function AdminCrm() {
             />
           </Link>
           <StatCard
+            icon={<TrendingUp className="w-5 h-5" strokeWidth={1.5} />}
+            label="Commission Clients"
+            value={String(earningsMeta.count)}
+            subtext={`${earningsMeta.count > 0 ? ((earningsMeta.count / clients.length) * 100).toFixed(0) : 0}% of all clients`}
+            iconBg="bg-amber-100 dark:bg-amber-900/30"
+            iconColor="text-amber-600 dark:text-amber-400"
+          />
+          <StatCard
             icon={<Users className="w-5 h-5" strokeWidth={1.5} />}
             label="Sellers"
             value={String(clients.filter(c => c.client_role === 'Seller').length)}
