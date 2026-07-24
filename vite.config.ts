@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import compression from 'vite-plugin-compression';
+import crmProxyPlugin from './scripts/vite-crm-proxy-plugin.js';
 
 export default defineConfig({
   define: {
@@ -23,6 +24,8 @@ export default defineConfig({
       ext: '.br',
       threshold: 10240,
     }),
+
+    crmProxyPlugin(),
   ],
 
   server: {
