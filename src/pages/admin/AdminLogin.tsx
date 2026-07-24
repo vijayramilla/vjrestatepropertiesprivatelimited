@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { onAuthStateChanged, signInWithEmailAndPassword, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
-import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import { isAuthorizedAdmin, checkCrmAccess } from '@/lib/adminAuth';
 import { Eye, EyeOff } from 'lucide-react';
 
 export default function AdminLogin() {
@@ -16,8 +16,9 @@ export default function AdminLogin() {
   const [googleLoading, setGoogleLoading] = useState(false);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (isAuthorizedAdmin(user)) navigate('/admin/properties', { replace: true });
+      else if (await checkCrmAccess(user)) navigate('/crm', { replace: true });
     });
     return unsub;
   }, [navigate]);
@@ -50,6 +51,8 @@ export default function AdminLogin() {
       const result = await signInWithPopup(auth, googleProvider);
       if (isAuthorizedAdmin(result.user)) {
         navigate('/admin/properties');
+      } else if (await checkCrmAccess(result.user)) {
+        navigate('/crm');
       } else {
         await signOut(auth);
         setError('This Google account does not have admin access.');

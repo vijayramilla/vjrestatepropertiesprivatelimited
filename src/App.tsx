@@ -7,6 +7,7 @@ import { LocationPermissionProvider } from './hooks/useLocationPermission';
 import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsContext';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
+import CrmRoute from './components/CrmRoute';
 import PageLoader from './components/PageLoader';
 import MapLoadingSkeleton from './components/map/MapLoadingSkeleton';
 
@@ -32,6 +33,15 @@ const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
 const AdminListingsDashboard = lazy(() => import('./pages/admin/AdminListingsDashboard'));
 const AdminBlogPosts = lazy(() => import('./pages/admin/AdminBlogPosts'));
 const AdminBlogPostForm = lazy(() => import('./pages/admin/AdminBlogPostForm'));
+const AdminOwnerContacts = lazy(() => import('./pages/admin/AdminOwnerContacts'));
+const AdminCrm = lazy(() => import('./pages/admin/AdminCrm'));
+const CrmEarnings = lazy(() => import('./pages/admin/CrmEarnings'));
+const CrmData = lazy(() => import('./pages/admin/CrmData'));
+const AdminLeads = lazy(() => import('./pages/admin/AdminLeads'));
+const LeadDetail = lazy(() => import('./pages/admin/LeadDetail'));
+const AdminAgents = lazy(() => import('./pages/admin/AdminAgents'));
+const AdminMongoDbData = lazy(() => import('./pages/admin/AdminMongoDbData'));
+const AdminProfile = lazy(() => import('./pages/crm/AdminProfile'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
@@ -39,6 +49,9 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const CareersPage = lazy(() => import('./pages/CareersPage'));
+const VastuCalculatorPage = lazy(() => import('./pages/VastuCalculatorPage'));
+const BangaloreLandInvestmentGuide = lazy(() => import('./pages/BangaloreLandInvestmentGuide'));
+// const ARVideoPage = lazy(() => import('./pages/ARVideoPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -62,11 +75,11 @@ function MapPage() {
   }
 
   if (!isLoaded) {
-    return <MapLoadingSkeleton noHeaderOffset />;
+    return <MapLoadingSkeleton />;
   }
 
   return (
-    <Suspense fallback={<MapLoadingSkeleton noHeaderOffset />}>
+    <Suspense fallback={<MapLoadingSkeleton />}>
       <BangaloreMap isLoaded={isLoaded} noHeaderOffset />
     </Suspense>
   );
@@ -102,9 +115,12 @@ function AppRoutes() {
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
+        <Route path="/vastu-calculator" element={<LazyPage><VastuCalculatorPage /></LazyPage>} />
         <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
+        <Route path="/bangalore-land-investment-guide" element={<LazyPage><BangaloreLandInvestmentGuide /></LazyPage>} />
+        {/* <Route path="/ar-video" element={<LazyPage><ARVideoPage /></LazyPage>} /> */}
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
@@ -208,6 +224,78 @@ function AppRoutes() {
           <AdminRoute>
             <LazyPage><AdminBlogPostForm /></LazyPage>
           </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/owner-contacts"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminOwnerContacts /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/crm"
+        element={
+          <CrmRoute>
+            <LazyPage><AdminCrm /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/earnings"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEarnings /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/data"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmData /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/requirements"
+        element={
+          <CrmRoute>
+            <LazyPage><AdminLeads /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/requirements/:id"
+        element={
+          <CrmRoute>
+            <LazyPage><LeadDetail /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/agents"
+        element={
+          <CrmRoute>
+            <LazyPage><AdminAgents /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/mongodb-data"
+        element={
+          <CrmRoute>
+            <LazyPage><AdminMongoDbData /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/profile"
+        element={
+          <CrmRoute>
+            <LazyPage><AdminProfile /></LazyPage>
+          </CrmRoute>
         }
       />
     </Routes>

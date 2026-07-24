@@ -172,9 +172,7 @@ export default function Navbar() {
               width={32}
               height={32}
               priority={true}
-              className={`h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8 ${
-                isTransparent ? 'brightness-0 invert' : ''
-              }`}
+              className="h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8"
             />
             <span
               className="font-serif text-base font-bold tracking-tight md:text-lg"
@@ -195,6 +193,7 @@ export default function Navbar() {
               { label: 'Properties', path: '/properties' },
               { label: 'Land Map', path: '/map', icon: true },
               { label: 'Blog', path: '/blog' },
+              { label: 'Vastu', path: '/vastu-calculator' },
               { label: 'About', path: '/about' },
               { label: 'Contact', path: '/contact' },
             ]
@@ -368,6 +367,15 @@ export default function Navbar() {
                   >
                     <SquaresFour size={15} weight="thin" color="#000000" />
                     Admin Dashboard
+                  </Link>
+                  <Link
+                    to="/crm"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                    style={{ fontFamily: DM_SANS }}
+                  >
+                    <Buildings size={15} weight="thin" color="#000000" />
+                    CRM
                   </Link>
                 </>
               )}

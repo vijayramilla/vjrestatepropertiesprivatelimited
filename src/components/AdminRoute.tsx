@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import { isAuthorizedAdmin, checkAdminViaProxy } from '@/lib/adminAuth';
 
 interface AdminRouteProps {
   children: ReactNode;
@@ -12,8 +12,13 @@ export default function AdminRoute({ children }: AdminRouteProps) {
   const [authState, setAuthState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthState(isAuthorizedAdmin(user) ? 'authorized' : 'unauthorized');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (isAuthorizedAdmin(user)) {
+        setAuthState('authorized');
+        return;
+      }
+      const proxied = await checkAdminViaProxy(user);
+      setAuthState(proxied ? 'authorized' : 'unauthorized');
     });
 
     return () => unsubscribe();
