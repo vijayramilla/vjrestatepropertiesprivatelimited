@@ -104,7 +104,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<LazyPage><HomePage /></LazyPage>} />
+        <Route path="/" element={<LazyPage><MapPage /></LazyPage>} />
         <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
         <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
