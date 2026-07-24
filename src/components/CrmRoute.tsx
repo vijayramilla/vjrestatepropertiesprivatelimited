@@ -1,0 +1,41 @@
+import { ReactNode, useEffect, useState } from 'react';
+import { Navigate } from 'react-router-dom';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { checkCrmAccess } from '@/lib/adminAuth';
+
+interface CrmRouteProps {
+  children: ReactNode;
+}
+
+export default function CrmRoute({ children }: CrmRouteProps) {
+  const [authState, setAuthState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      const allowed = await checkCrmAccess(user);
+      setAuthState(allowed ? 'authorized' : 'unauthorized');
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  if (authState === 'loading') {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
+        <div className="text-center">
+          <div className="inline-block">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
+          </div>
+          <p className="mt-4 font-sans text-sm text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (authState === 'unauthorized') {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  return <>{children}</>;
+}
