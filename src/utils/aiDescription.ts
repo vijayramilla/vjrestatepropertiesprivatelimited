@@ -7,7 +7,7 @@ interface FormData {
   area: string;
   location: string;
   price: number;
-  price_label: string;
+  price_label?: string;
   price_per_sqft: number;
   area_sqft: number;
   area_unit: string;

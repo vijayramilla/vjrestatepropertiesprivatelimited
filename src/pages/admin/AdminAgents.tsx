@@ -34,7 +34,7 @@ function statusBreakdown(leads: Lead[]): { label: string; count: number }[] {
 }
 
 export default function AdminAgents() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);

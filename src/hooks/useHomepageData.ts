@@ -25,7 +25,21 @@ interface DashboardProperty {
   image?: string
 }
 
-function toDashboardProp(doc: FirebaseDocumentSnapshot): DashboardProperty {
+interface FirestoreDocLike {
+  id?: string
+  title?: string
+  type?: string
+  location?: string
+  area?: string
+  price?: number
+  price_label?: string
+  area_sqft?: number
+  monthly_rental?: string | null
+  images?: string[]
+  data?: () => FirestoreDocLike
+}
+
+function toDashboardProp(doc: FirestoreDocLike): DashboardProperty {
   const data = doc.data?.() ?? doc
   return {
     id: doc.id ?? data.id,

@@ -14,13 +14,15 @@ function AreaValueOnly({
   className = '',
 }: {
   value: string;
-  variant: 'card' | 'detail';
+  variant: 'card' | 'detail' | 'compact';
   className?: string;
 }) {
   const valueClass =
     variant === 'detail'
       ? 'font-numeric text-[15px] text-[#000] font-semibold'
-      : 'font-numeric text-[13px] font-semibold text-gray-900 truncate';
+      : variant === 'compact'
+        ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
+        : 'font-numeric text-[13px] font-semibold text-gray-900 truncate';
 
   return (
     <div className={`min-w-0 ${className}`}>
@@ -37,18 +39,22 @@ function StatCell({
 }: {
   label: string;
   value: string;
-  variant: 'card' | 'detail';
+  variant: 'card' | 'detail' | 'compact';
   className?: string;
 }) {
   const labelClass =
     variant === 'detail'
       ? 'font-sans text-[10px] font-medium text-[#aaa] uppercase tracking-[0.08em]'
-      : 'font-sans text-[10px] font-medium uppercase tracking-wide text-gray-400';
+      : variant === 'compact'
+        ? 'font-sans text-[7px] font-medium uppercase tracking-wide text-gray-400'
+        : 'font-sans text-[10px] font-medium uppercase tracking-wide text-gray-400';
 
   const valueClass =
     variant === 'detail'
       ? 'font-numeric text-[15px] text-[#000] font-semibold mt-1'
-      : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
+      : variant === 'compact'
+        ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
+        : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
 
   return (
     <div className={`min-w-0 ${className}`}>
@@ -74,7 +80,7 @@ function formatFacing(facing?: string): string {
 
 interface PlotLandCardStatsProps {
   property: PropertyStatsView;
-  variant?: 'card' | 'detail';
+  variant?: 'card' | 'detail' | 'compact';
   className?: string;
 }
 
@@ -97,7 +103,9 @@ export default function PlotLandCardStats({
   const containerClass =
     variant === 'detail'
       ? `grid grid-cols-2 gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5 ${className}`
-      : `grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${className}`;
+      : variant === 'compact'
+        ? `grid grid-cols-2 gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 ${className}`
+        : `grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${className}`;
 
   if (isLand) {
     const dcValue = property.dc_conversion ?? '—';

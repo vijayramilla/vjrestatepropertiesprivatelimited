@@ -56,12 +56,13 @@ function toFirestoreDoc(property: CardInput): FirestorePropertyDoc {
 interface PropertyCardProps {
   property: CardInput;
   index?: number;
+  compact?: boolean;
 }
 
-export default function PropertyCard({ property, index = 0 }: PropertyCardProps) {
+export default function PropertyCard({ property, index = 0, compact = false }: PropertyCardProps) {
   const listing = isFullListing(property)
     ? property
     : mapFirestoreToListing(String(property.id), toFirestoreDoc(property));
 
-  return <PropertyListingCard property={listing} index={index} />;
+  return <PropertyListingCard property={listing} index={index} compact={compact} />;
 }

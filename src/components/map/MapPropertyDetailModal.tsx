@@ -10,7 +10,6 @@ import { isPlotProperty, isLandOrPlotProperty } from '@/data/properties';
 import type { Property } from '@/data/properties';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import { shareProperty } from '@/utils/shareProperty';
-import { siteContact } from '@/data/siteContact';
 import { useShortlist } from '@/context/ShortlistContext';
 import { useAuth } from '@/context/AuthContext';
 import LazyImage from '@/components/common/LazyImage';
@@ -62,14 +61,14 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
   const galleryImages = property?.images?.filter(Boolean) ?? [];
   const allImages = galleryImages.length > 0
     ? galleryImages
-    : (property?.image ? [property.image] : []);
+    : [];
   const currentImage = allImages[photoIndex] ?? null;
 
   const isLandOrPlot = property ? isLandOrPlotProperty(property) : false;
   void isPlotProperty;
 
   const plotAreaDisplay = property
-    ? formatArea(property.area_acres, property.area_guntas, property.area_sqft, property.area_unit)
+    ? formatArea(property.area_unit, property.area_sqft, property.area_acres, property.area_guntas)
     : '—';
 
   const getLocation = (): Promise<{ lat?: number; lng?: number }> => {
@@ -100,8 +99,7 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
       type: property.type,
       area: property.area,
       price_label: formatCardTotalPrice(property.price),
-      monthly_rental: property.monthly_rental,
-      monthly_rental_label: property.monthly_rental,
+      monthly_rental: property.monthly_rental ?? undefined,
       contact_phone: contactPhone,
       contact_name: contactName,
     }, { source: 'map_detail', buyerName: property?.name ?? '', buyerLat: coords.lat, buyerLng: coords.lng });
@@ -112,7 +110,6 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
     shareProperty({
       id: propertyId,
       title: property?.title ?? '',
-      url: `${siteContact.siteUrl}/properties/${propertyId}`,
     });
   };
 

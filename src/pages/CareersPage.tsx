@@ -25,7 +25,7 @@ const fontHeading = { fontFamily: "'Libre Baskerville', Georgia, serif" };
 
 const slideUp = {
   hidden: { opacity: 0, y: 56 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] } },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.75, ease: [0.22, 1, 0.36, 1] as const } },
 };
 
 function SectionLabel({ children, dark = false }: { children: string; dark?: boolean }) {

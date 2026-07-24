@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
@@ -22,6 +22,7 @@ const baseNavItems = [
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
   { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
   { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
+  { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', short: 'Owners' },
 ];
 
 export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutProps) {

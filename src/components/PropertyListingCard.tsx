@@ -147,8 +147,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           });
         }}
       >
-        <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100 sm:aspect-square md:aspect-[4/3]">
-          {/* Skeleton shimmer — shows behind LazyImage while loading */}
+          <div className={`relative w-full overflow-hidden bg-gray-100 ${compact ? 'aspect-[2/1]' : 'aspect-[4/3] sm:aspect-square md:aspect-[4/3]'}`}>
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
           {coverImage && !imgError ? (
             <LazyImage
@@ -169,113 +168,64 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           )}
 
           {imageCount > 0 && (
-            <span
-              className="absolute left-2 top-2 z-10 rounded bg-black/70 px-2 py-0.5 text-[10px] font-medium text-white"
-              style={{ fontFamily: DM_SANS }}
-            >
+            <span className={`absolute left-2 top-2 z-10 rounded bg-black/70 font-medium text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[10px]'}`} style={{ fontFamily: DM_SANS }}>
               {imageCount} {imageCount === 1 ? 'Photo' : 'Photos'}
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={handleHeart}
-            className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 shadow-sm"
-            aria-label="Save property"
-          >
-            <motion.span
-              key={saved ? 'saved' : 'unsaved'}
-              initial={{ scale: 1 }}
-              animate={{ scale: [1, 1.25, 1] }}
-              transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}
-            >
-              <Heart
-                size={14}
-                weight={saved ? 'fill' : 'regular'}
-                color={saved ? '#111827' : '#6b7280'}
-              />
+          <button type="button" onClick={handleHeart} className={`absolute right-2 top-2 z-10 flex items-center justify-center rounded-full bg-white/95 shadow-sm ${compact ? 'h-6 w-6' : 'h-8 w-8'}`} aria-label="Save property">
+            <motion.span key={saved ? 'saved' : 'unsaved'} initial={{ scale: 1 }} animate={{ scale: [1, 1.25, 1] }} transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}>
+              <Heart size={compact ? 10 : 14} weight={saved ? 'fill' : 'regular'} color={saved ? '#111827' : '#6b7280'} />
             </motion.span>
           </button>
         </div>
 
-        {/* Compact content — Squareyards proportions */}
-        <div className="px-3.5 pb-3 pt-3 md:p-5">
-          <h3
-            className="line-clamp-2 text-base font-semibold leading-snug text-gray-900 md:text-xl"
-            style={{ fontFamily: DM_SANS }}
-          >
+        <div className={compact ? 'px-2 py-1.5' : 'px-3.5 pb-3 pt-3 md:p-5'}>
+          <h3 className={`line-clamp-2 font-semibold leading-snug text-gray-900 ${compact ? 'text-[11px]' : 'text-base md:text-xl'}`} style={{ fontFamily: DM_SANS }}>
             {saleTitle}
           </h3>
 
-          <p
-            className="mt-1 flex items-center gap-1 text-[12px] text-gray-500"
-            style={{ fontFamily: DM_SANS }}
-          >
-            <MapPin size={12} weight="regular" color="#9ca3af" className="shrink-0" />
+          <p className={`flex items-center gap-1 text-gray-500 ${compact ? 'mt-0.5 text-[9px]' : 'mt-1 text-[12px]'}`} style={{ fontFamily: DM_SANS }}>
+            <MapPin size={compact ? 9 : 12} weight="regular" color="#9ca3af" className="shrink-0" />
             <span className="truncate">{cityName}</span>
           </p>
 
-          <div className="mt-2.5 border-t border-gray-100 pt-2.5">
+          <div className={`border-t border-gray-100 ${compact ? 'mt-1 pt-1' : 'mt-2.5 pt-2.5'}`}>
             {!isPlotOrLand && (
-              <p
-                className="text-[10px] font-medium uppercase tracking-wide text-gray-400"
-                style={{ fontFamily: DM_SANS }}
-              >
+              <p className="text-[8px] font-medium uppercase tracking-wide text-gray-400" style={{ fontFamily: DM_SANS }}>
                 Price
               </p>
             )}
-            <p className="mt-0.5 font-numeric text-2xl font-bold leading-none text-gray-900 md:text-3xl lg:text-4xl">
-              {isPlotOrLand
-                ? formatINRCompact(property.price)
-                : property.price_label}
+            <p className={`font-numeric font-bold leading-none text-gray-900 ${compact ? 'text-xs mt-0' : 'mt-0.5 text-2xl md:text-3xl lg:text-4xl'}`}>
+              {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}
             </p>
             {isPlotOrLand && (property.price_per_sqft ?? 0) > 0 && (
-              <p
-                className="mt-1 font-numeric text-sm text-gray-500 md:text-base"
-                style={{ fontFamily: DM_SANS }}
-              >
+              <p className={`font-numeric text-gray-500 ${compact ? 'mt-0 text-[9px]' : 'mt-1 text-sm md:text-base'}`} style={{ fontFamily: DM_SANS }}>
                 {formatCardPricePerSqft(property.price_per_sqft)}
               </p>
             )}
           </div>
 
           {isPlotOrLand ? (
-            <PlotLandCardStats property={property} variant="card" />
+            <PlotLandCardStats property={property} variant={compact ? 'compact' : 'card'} />
           ) : (
-            <PropertyKeyStats property={property} variant="card" />
+            <PropertyKeyStats property={property} variant={compact ? 'compact' : 'card'} />
           )}
         </div>
       </Link>
 
-      <div className="relative mt-auto border-t border-gray-100 px-3.5 pb-3.5 pt-2.5">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleShare}
-            aria-label="Share property"
-            className="flex h-10 min-h-[44px] flex-1 touch-manipulation items-center justify-center gap-1 rounded-lg border border-gray-300 bg-white text-gray-700 transition-colors hover:bg-gray-50 active:scale-[0.98]"
-          >
-            <ShareNetwork size={15} weight="duotone" className="text-gray-600" />
-            <span
-              className="text-[10px] font-medium uppercase tracking-wide text-gray-700"
-              style={{ fontFamily: DM_SANS }}
-            >
+      <div className={`relative mt-auto border-t border-gray-100 ${compact ? 'px-2 pb-1.5 pt-0.5' : 'px-3.5 pb-3.5 pt-2.5'}`}>
+        <div className={`flex ${compact ? 'gap-0.5' : 'gap-2'}`}>
+          <button type="button" onClick={handleShare} aria-label="Share property" className={`flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition-colors hover:bg-gray-50 active:scale-[0.98] ${compact ? 'h-6 min-h-0 gap-0.5 text-[8px]' : 'h-10 min-h-[44px] gap-1 touch-manipulation'}`}>
+            <ShareNetwork size={compact ? 9 : 15} weight="duotone" className="text-gray-600" />
+            <span className={`font-medium uppercase tracking-wide ${compact ? 'text-[8px]' : 'text-[10px]'} text-gray-700`} style={{ fontFamily: DM_SANS }}>
               {shareLabel}
             </span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleWhatsApp}
-            disabled={waLoading}
-            aria-label="WhatsApp enquiry"
-            className="flex h-10 min-h-[44px] flex-1 touch-manipulation items-center justify-center gap-1 rounded-lg bg-gray-900 text-white transition-colors hover:bg-gray-800 active:scale-[0.98] disabled:opacity-70"
-          >
-            <WhatsappLogo size={15} weight="fill" color="#fff" />
-            <span
-              className="text-[10px] font-medium uppercase tracking-wide text-white"
-              style={{ fontFamily: DM_SANS }}
-            >
+          <button type="button" onClick={handleWhatsApp} disabled={waLoading} aria-label="WhatsApp enquiry" className={`flex flex-1 items-center justify-center rounded-lg bg-gray-900 text-white transition-colors hover:bg-gray-800 active:scale-[0.98] disabled:opacity-70 ${compact ? 'h-6 min-h-0 gap-0.5 text-[8px]' : 'h-10 min-h-[44px] gap-1 touch-manipulation'}`}>
+            <WhatsappLogo size={compact ? 9 : 15} weight="fill" color="#fff" />
+            <span className={`font-medium uppercase tracking-wide ${compact ? 'text-[8px]' : 'text-[10px]'} text-white`} style={{ fontFamily: DM_SANS }}>
               {waLoading ? '...' : 'WhatsApp'}
             </span>
           </button>
@@ -283,14 +233,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
 
         <AnimatePresence>
           {linkCopied && (
-            <motion.span
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.2 }}
-              className="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-[10px] text-white"
-              style={{ fontFamily: DM_SANS }}
-            >
+            <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.2 }} className="pointer-events-none absolute -top-8 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2.5 py-1 text-[10px] text-white" style={{ fontFamily: DM_SANS }}>
               Link Copied!
             </motion.span>
           )}

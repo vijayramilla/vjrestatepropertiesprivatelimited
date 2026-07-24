@@ -21,6 +21,8 @@ import {
   isPlotLandListing,
   type ListingProperty,
 } from '@/data/listingProperties';
+import PropertyKeyStats from '@/components/PropertyKeyStats';
+import PlotLandCardStats from '@/components/PlotLandCardStats';
 import { formatINRCompact, formatCardPricePerSqft } from '@/lib/formatPrice';
 import { formatArea } from '@/lib/plotLandForm';
 import { shareProperty } from '@/utils/shareProperty';
@@ -146,7 +148,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
           onClick={goToDetail}
           className="relative w-full text-left cursor-pointer"
         >
-          <div className="relative aspect-[16/11] w-full overflow-hidden bg-[#F3F4F6]">
+          <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#F3F4F6]">
             {/* Skeleton shimmer — shows behind LazyImage while loading */}
             <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
             {coverImage && !imgError ? (
@@ -166,7 +168,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
             {isFeatured && (
-              <span className="absolute top-2.5 left-2.5 z-10 bg-white/95 backdrop-blur-sm text-[10px] font-semibold text-[#4F46E5] px-2.5 py-1 rounded-full shadow-sm">
+              <span className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur-sm text-[9px] font-semibold text-[#4F46E5] px-2 py-0.5 rounded-full shadow-sm">
                 Featured
               </span>
             )}
@@ -174,62 +176,68 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
             <button
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(property.id) }}
-              className="absolute top-2.5 right-2.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/95 backdrop-blur-sm shadow-sm transition-all hover:bg-white active:scale-90"
+              className="absolute top-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-white/95 backdrop-blur-sm shadow-sm transition-all hover:bg-white active:scale-90"
               aria-label={saved ? 'Remove from shortlist' : 'Save property'}
             >
               <Heart
-                size={15}
+                size={12}
                 weight={saved ? 'fill' : 'regular'}
                 className={saved ? 'text-[#EF4444]' : 'text-gray-400'}
               />
             </button>
 
             {imageCount > 0 && (
-              <span className="absolute bottom-2.5 right-2.5 z-10 bg-black/50 backdrop-blur-sm text-white text-[9px] font-medium px-2 py-0.5 rounded">
+              <span className="absolute bottom-2 right-2 z-10 bg-black/50 backdrop-blur-sm text-white text-[8px] font-medium px-1.5 py-0.5 rounded">
                 {imageCount} photos
               </span>
             )}
           </div>
 
-          <div className="p-3.5 sm:p-4">
-            <div className="flex items-center gap-1.5 text-[11px] text-gray-500 mb-1.5">
-              <MapPin size={11} weight="regular" className="text-gray-400" />
+          <div className="p-3 sm:p-3.5">
+            <div className="flex items-center gap-1 text-[10px] text-gray-500 mb-1">
+              <MapPin size={10} weight="regular" className="text-gray-400" />
               <span className="truncate">{cityName}</span>
             </div>
 
             <h3
-              className="text-sm font-semibold leading-snug text-gray-900 line-clamp-2"
+              className="text-xs font-semibold leading-snug text-gray-900 line-clamp-2"
               style={{ fontFamily: DM_SANS }}
             >
               {saleTitle}
             </h3>
 
-            <div className="mt-3 pt-3 border-t border-gray-50">
+            <div className="mt-2 pt-2 border-t border-gray-50">
               <p
-                className="font-numeric text-xl font-bold leading-none text-gray-900 tracking-tight"
+                className="font-numeric text-base font-bold leading-none text-gray-900 tracking-tight"
               >
                 {priceDisplay}
               </p>
               {subline && (
                 <p
-                  className="mt-1 text-[11px] text-gray-500"
+                  className="mt-0.5 text-[10px] text-gray-500"
                   style={{ fontFamily: DM_SANS }}
                 >
                   {subline}
                 </p>
               )}
             </div>
+
+            {isPlotOrLand ? (
+              <PlotLandCardStats property={property} variant="card" />
+            ) : (
+              <PropertyKeyStats property={property} variant="card" />
+            )}
           </div>
         </button>
 
-        <div className="border-t border-gray-50 px-3.5 pb-3.5 pt-2.5 sm:px-4">
-          <div className="flex items-center gap-2">
+        <div className="border-t border-gray-50 px-3 pb-3 pt-2 sm:px-3.5">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center justify-center gap-1.5 flex-1 h-9 rounded-lg border border-gray-200 bg-white text-gray-600 text-[10px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-50 active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 text-[9px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-50 active:scale-[0.98]"
             >
-              <ShareNetwork size={13} weight="duotone" />
+              <ShareNetwork size={11} weight="duotone" />
               {shareFeedback || 'Share'}
             </button>
 
@@ -237,18 +245,18 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setContactOpen(true) }}
               disabled={waLoading}
-              className="inline-flex items-center justify-center gap-1.5 flex-1 h-9 rounded-lg bg-gray-900 text-white text-[10px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-800 active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg bg-gray-900 text-white text-[9px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-800 active:scale-[0.98]"
             >
-              <WhatsappLogo size={14} weight="fill" />
+              <WhatsappLogo size={12} weight="fill" />
               {waLoading ? '...' : 'WhatsApp'}
             </button>
 
             <button
               type="button"
               onClick={goToDetail}
-              className="inline-flex items-center justify-center h-9 w-9 rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 active:scale-[0.98]"
+              className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 active:scale-[0.98]"
             >
-              <ArrowRight size={14} weight="bold" />
+              <ArrowRight size={12} weight="bold" />
             </button>
           </div>
         </div>

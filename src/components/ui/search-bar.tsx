@@ -114,7 +114,7 @@ const SearchBar = ({
     animate: {
       rotate: isAnimating ? [0, -15, 15, -10, 10, 0] : 0,
       scale: isAnimating ? [1, 1.3, 1] : 1,
-      transition: { duration: 0.6, ease: "easeInOut" },
+      transition: { duration: 0.6, ease: "easeInOut" as const },
     },
   }
 
@@ -129,7 +129,7 @@ const SearchBar = ({
       opacity: 1,
       y: 0,
       scale: 1,
-      transition: { type: "spring", stiffness: 300, damping: 15, delay: i * 0.07 },
+      transition: { type: "spring" as const, stiffness: 300, damping: 15, delay: i * 0.07 },
     }),
     exit: (i: number) => ({
       opacity: 0,

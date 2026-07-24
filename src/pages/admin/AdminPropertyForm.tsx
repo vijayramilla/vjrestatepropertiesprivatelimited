@@ -8,7 +8,7 @@ import {
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import LazyImage from '@/components/common/LazyImage';
 import { formatPrice, formatRental, formatYield, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
@@ -85,7 +85,11 @@ interface FormData {
   map_lng?: number;
   maps_link?: string;
   listed_by?: string;
+  contact_name?: string;
+  contact_phone?: string;
 }
+
+const OWNER_API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:5000';
 
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
 const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
@@ -232,6 +236,8 @@ export default function AdminPropertyForm() {
     map_lng: 0,
     maps_link: '',
     listed_by: 'VJR Estate',
+    contact_name: '',
+    contact_phone: '',
   });
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
   const areaSearchRef = useRef<HTMLInputElement>(null);
@@ -314,6 +320,17 @@ export default function AdminPropertyForm() {
               maps_link: String((data as { maps_link?: string }).maps_link ?? ''),
             });
             setImageUrls(data.images ?? []);
+            if (id) {
+              const ownerRes = await fetch(`${OWNER_API_URL}/api/owner-contact/${id}`);
+              const ownerData = await ownerRes.json();
+              if (ownerData.contact_name || ownerData.contact_phone) {
+                setFormData((prev) => ({
+                  ...prev,
+                  contact_name: ownerData.contact_name ?? '',
+                  contact_phone: ownerData.contact_phone ?? '',
+                }));
+              }
+            }
           }
         } catch (error) {
           console.error('Fetch error:', error);
@@ -410,13 +427,11 @@ export default function AdminPropertyForm() {
         formData.location || formData.title,
       );
 
-      const isLandType = false;
       const isPlotOrLand = PLOT_LAND_TYPES.includes(
         formData.type as (typeof PLOT_LAND_TYPES)[number],
       );
 
       let area_sqft = formData.area_sqft;
-      const landExtra: Record<string, string | number> = {};
 
       if (isPlotOrLand) {
         let acres = formData.land_acres ?? 0;
@@ -474,14 +489,16 @@ export default function AdminPropertyForm() {
           : {}),
       });
 
+      let propertyId: string | undefined;
       if (isEditMode && id) {
+        propertyId = id;
         let finalImages = [...imageUrls];
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
-          const uploaded = await uploadPropertyImages(pendingFiles, id);
+          const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           finalImages = [...finalImages, ...uploaded];
         }
-        await updateDoc(doc(db, 'properties', id), {
+        await updateDoc(doc(db, 'properties', propertyId), {
           ...payload,
           images: finalImages,
           updatedAt: serverTimestamp(),
@@ -492,11 +509,24 @@ export default function AdminPropertyForm() {
           images: [],
           createdAt: serverTimestamp(),
         });
+        propertyId = ref.id;
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
-          const uploaded = await uploadPropertyImages(pendingFiles, ref.id);
+          const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           await updateDoc(ref, sanitizeForFirestore({ images: uploaded }));
         }
+      }
+
+      if (propertyId && (formData.contact_name || formData.contact_phone)) {
+        fetch(`${OWNER_API_URL}/api/owner-contact`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            propertyId,
+            contact_name: formData.contact_name ?? '',
+            contact_phone: formData.contact_phone ?? '',
+          }),
+        }).catch(() => {});
       }
 
       pendingPreviews.forEach((url) => URL.revokeObjectURL(url));
@@ -587,7 +617,7 @@ export default function AdminPropertyForm() {
 
   const isBuildingType = BUILDING_TYPES.includes(formData.type);
   const isPlotTypeOnly = PLOT_TYPES.includes(formData.type);
-  const isLandType = false;
+
   const isPlotOrLand = PLOT_LAND_TYPES.includes(
     formData.type as (typeof PLOT_LAND_TYPES)[number],
   );
@@ -1238,52 +1268,6 @@ export default function AdminPropertyForm() {
                 </div>
               )}
 
-              {/* Agriculture-only fields — removed */}
-              {false && (
-                <>
-                  <div>
-                    <label className="block font-sans text-xs text-gray-500 mb-2">
-                      Survey Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 123/4"
-                      value={formData.survey_number ?? ''}
-                      onChange={(e) => updateFormData('survey_number', e.target.value)}
-                      className="admin-input-ghost"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-sans text-xs text-gray-500 mb-2">
-                      Water Source
-                    </label>
-                    <select
-                      value={formData.water_source ?? ''}
-                      onChange={(e) => updateFormData('water_source', e.target.value)}
-                      className="admin-select"
-                    >
-                      <option value="">Select...</option>
-                      {WATER_SOURCE_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="flex items-center gap-3 font-sans text-sm">
-                      <input
-                        type="checkbox"
-                        checked={formData.dc_conversion_done ?? false}
-                        onChange={(e) => updateFormData('dc_conversion_done', e.target.checked)}
-                        className="w-4 h-4"
-                      />
-                      DC Conversion Done
-                    </label>
-                  </div>
-                </>
-              )}
-
               {/* Dimensions — plots only */}
               {isPlotTypeOnly && (
                 <div>
@@ -1629,6 +1613,32 @@ export default function AdminPropertyForm() {
                   <option value="Agent">Agent</option>
                   <option value="Owner">Owner</option>
                 </select>
+              </div>
+
+              <div>
+                <label className="block font-sans text-xs text-gray-500 mb-2">
+                  Owner Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="Owner Name"
+                  value={formData.contact_name ?? ''}
+                  onChange={(e) => updateFormData('contact_name', e.target.value)}
+                  className="admin-input-ghost"
+                />
+              </div>
+
+              <div>
+                <label className="block font-sans text-xs text-gray-500 mb-2">
+                  Owner Number
+                </label>
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={formData.contact_phone ?? ''}
+                  onChange={(e) => updateFormData('contact_phone', e.target.value)}
+                  className="admin-input-ghost"
+                />
               </div>
 
               <div>

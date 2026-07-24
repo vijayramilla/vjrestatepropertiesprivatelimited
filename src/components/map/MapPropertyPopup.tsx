@@ -506,17 +506,10 @@ if (navigator.share) {
             <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Khata</p>
             <p className="font-semibold text-gray-900 mt-0.5">{property.khata && property.khata !== '—' ? property.khata : '—'}</p>
           </GlassCard>
-          {property.propertyType === 'Agriculture Land' ? (
-            <GlassCard compact>
-              <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">DC Conversion</p>
-              <p className="font-semibold text-gray-900 mt-0.5">{property.dcConversion ? 'Done' : 'Pending'}</p>
-            </GlassCard>
-          ) : (
-            <GlassCard compact>
+          <GlassCard compact>
               <p className="text-[10px] tracking-wide text-gray-400 uppercase font-semibold">Area</p>
               <p className="font-semibold text-gray-900 mt-0.5">{property.areaLabel || '—'}</p>
             </GlassCard>
-          )}
         </div>
 
         {showLoading && (

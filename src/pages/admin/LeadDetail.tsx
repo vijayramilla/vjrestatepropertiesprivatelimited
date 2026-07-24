@@ -40,7 +40,7 @@ const STATUS_FLOW = ['New Lead', 'Contacted', 'Property Shared', 'Site Visit Sch
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [lead, setLead] = useState<Lead | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);

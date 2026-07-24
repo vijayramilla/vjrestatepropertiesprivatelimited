@@ -2,6 +2,9 @@
 @import './styles/admin.css';
 @import './styles/properties-toolbar.css';
 @import './styles/about-page.css';
+@import '@fontsource/aileron/400.css';
+@import '@fontsource/aileron/600.css';
+@import '@fontsource/aileron/700.css';
 
 @tailwind base;
 @tailwind components;
@@ -37,7 +40,7 @@
     --primary: #18181b;
     --sidebar: #fafafa;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Aileron', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --secondary: #f4f4f5;
     --background: #ffffff;
     --font-serif: 'Poppins', system-ui, sans-serif;
@@ -76,7 +79,7 @@
     --primary: #fafafa;
     --sidebar: #171717;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    --font-sans: 'Aileron', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --secondary: #27272a;
     --background: #0a0a0a;
     --font-serif: 'Poppins', system-ui, sans-serif;
@@ -111,7 +114,7 @@
   }
 
   body {
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Aileron', 'Neue Haas Grotesk Display Pro 55 Roman', 'Neue Haas Grotesk Text Pro', 'Inter', system-ui, sans-serif;
     background-color: var(--background);
     color: var(--foreground);
     font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
@@ -640,6 +643,32 @@ input[type="range"]::-moz-range-thumb {
   font-family: 'Libre Baskerville', Georgia, serif !important;
 }
 
+.liquid-glass {
+  background: rgba(0, 0, 0, 0.4);
+  background-blend-mode: luminosity;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border: none;
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+.liquid-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.4px;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 20%,
+    rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%,
+    rgba(255,255,255,0.1) 80%, rgba(255,255,255,0.3) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 @keyframes slideUp {
   from {
     transform: translateY(100%);
@@ -676,4 +705,9 @@ input[type="range"]::-moz-range-thumb {
   font-size: 14px !important;
   font-weight: 600 !important;
   color: #111827 !important;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 4px #22c55e; }
+  50% { opacity: 0.3; box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e; }
 }

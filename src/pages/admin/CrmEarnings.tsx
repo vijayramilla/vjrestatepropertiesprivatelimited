@@ -61,7 +61,7 @@ function formatDisplayDate(d: string | null | undefined): string {
 }
 
 export default function CrmEarnings() {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [clients, setClients] = useState<SheetClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'Pending' | 'Received'>('all');

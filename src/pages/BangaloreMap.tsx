@@ -177,7 +177,7 @@ interface BangaloreMapProps {
   noHeaderOffset?: boolean;
 }
 
-export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapProps) {
+export default function BangaloreMap({ isLoaded, noHeaderOffset: _noHeaderOffset }: BangaloreMapProps) {
   const [properties, setProperties] = useState<MapProperty[]>([]);
   const [, setLoading] = useState(true);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -670,7 +670,7 @@ export default function BangaloreMap({ isLoaded, noHeaderOffset }: BangaloreMapP
           {activeCategories.length > 0 && (
           <div className="pointer-events-auto relative z-[40] flex items-center gap-2">
             {activeCategories.map((type) => {
-              const config = CATEGORY_CONFIG[type];
+              const config = CATEGORY_CONFIG[type as LandType];
               return (
                 <button
                   key={type}

@@ -14,6 +14,10 @@ export interface LandLocationValue {
   map_lat: number;
   map_lng: number;
   maps_link?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  fullAddress?: string;
 }
 
 export type { ResolvedMapsLink };

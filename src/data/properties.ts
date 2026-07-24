@@ -311,7 +311,7 @@ export function isLandOrPlotType(type: string): boolean {
 export function isLandOrPlotProperty(
   property: Pick<Property, "type" | "plot_subtype">,
 ): boolean {
-  return isPlotProperty(property.type) || (!!property.plot_subtype && isPlotProperty({ type: property.plot_subtype } as Property));
+  return isPlotProperty(property.type) || (!!property.plot_subtype && isPlotProperty(property.plot_subtype));
 }
 
 export function showsRentalIncome(

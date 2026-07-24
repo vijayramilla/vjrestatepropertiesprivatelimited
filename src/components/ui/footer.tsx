@@ -44,13 +44,16 @@ const footerConfig = {
         { label: 'Shortlist', to: '/shortlist' },
         { label: 'Latest Listings', to: '/properties' },
         { label: 'Investment Guide', to: '/about' },
+        { label: 'Bangalore Land Investment Guide', to: '/bangalore-land-investment-guide' },
         { label: 'Bangalore Areas', to: '/properties' },
+        // { label: 'AR Video', to: '/ar-video' },
       ],
     },
     {
       title: 'Tools & Resources',
       links: [
         { label: 'AI Property Valuation', to: '/property-valuation' },
+        { label: 'Vastu Calculator', to: '/vastu-calculator' },
         { label: 'EMI Calculator', to: '/emi-calculator' },
       ],
     },

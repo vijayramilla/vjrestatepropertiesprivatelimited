@@ -26,5 +26,10 @@ dist-ssr
 __pycache__/
 *.pyc
 
+build_err.txt
+build_out.txt
+open-design/
+supabase/.temp/
+
 # opencode config (contains secrets)
 opencode.json

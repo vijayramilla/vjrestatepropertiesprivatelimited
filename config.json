@@ -1,0 +1,15 @@
+{
+  "mcp": {
+    "open-design": {
+      "type": "local",
+      "command": [
+        "node",
+        "C:\\Users\\vijay\\Downloads\\vjrwebsite-main\\open-design\\apps\\daemon\\bin\\od.mjs",
+        "mcp",
+        "--daemon-url",
+        "http://127.0.0.1:7456"
+      ],
+      "enabled": true
+    }
+  }
+}

@@ -26,7 +26,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export default function AdminLeads() {
   const navigate = useNavigate();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');

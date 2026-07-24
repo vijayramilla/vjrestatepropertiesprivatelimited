@@ -35,16 +35,17 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
   }, [googleMapsApiKey]);
 
   useEffect(() => {
-    const key = 'gm_authFailure' as keyof Window;
-    const existing = (window)[key] as (() => void) | undefined;
-    (window)[key] = () => {
+    const w = window as unknown as Record<string, (() => void) | undefined>;
+    const key = 'gm_authFailure';
+    const existing = w[key];
+    w[key] = () => {
       console.error('[Maps] gm_authFailure fired — API key rejected or billing disabled');
       authFailedRef.current = true;
       setAuthFailure(true);
       if (typeof existing === 'function') existing();
     };
     return () => {
-      (window)[key] = existing as typeof window[typeof key];
+      w[key] = existing;
     };
   }, []);
 

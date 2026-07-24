@@ -31,7 +31,7 @@ export function getCardKathaValue(property: Pick<PropertyStatsView, 'katha'>): s
 interface PropertyKeyStatsProps {
   property: PropertyStatsView;
   className?: string;
-  variant?: 'card' | 'detail';
+  variant?: 'card' | 'detail' | 'compact';
 }
 
 function StatCell({
@@ -41,12 +41,14 @@ function StatCell({
 }: {
   label: string;
   value: string;
-  variant: 'card' | 'detail';
+  variant: 'card' | 'detail' | 'compact';
 }) {
   const valueClass =
     variant === 'detail'
       ? 'font-numeric text-[15px] text-[#000] font-semibold mt-1'
-      : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
+      : variant === 'compact'
+        ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
+        : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
 
   return (
     <div className="min-w-0">
@@ -54,7 +56,9 @@ function StatCell({
         className={
           variant === 'detail'
             ? 'font-sans text-[10px] font-medium text-[#aaa] uppercase tracking-[0.08em]'
-            : 'font-sans text-[10px] font-medium uppercase tracking-wide text-gray-400'
+            : variant === 'compact'
+              ? 'font-sans text-[7px] font-medium uppercase tracking-wide text-gray-400'
+              : 'font-sans text-[10px] font-medium uppercase tracking-wide text-gray-400'
         }
       >
         {label}
@@ -85,9 +89,11 @@ export default function PropertyKeyStats({
       ? `grid gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5 ${
           showRentalStats ? 'grid-cols-2 sm:grid-cols-4' : showPricePerSqft ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'
         }`
-      : `grid gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${
-          showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
-        }`;
+      : variant === 'compact'
+        ? `grid gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 grid-cols-2`
+        : `grid gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${
+            showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
+          }`;
 
   return (
     <div className={`${containerClass} ${className}`}>
