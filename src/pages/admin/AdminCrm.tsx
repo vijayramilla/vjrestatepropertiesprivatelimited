@@ -317,18 +317,10 @@ export default function AdminCrm() {
             />
           </Link>
           <StatCard
-            icon={<TrendingUp className="w-5 h-5" strokeWidth={1.5} />}
-            label="Commission Clients"
-            value={String(earningsMeta.count)}
-            subtext={`${earningsMeta.count > 0 ? ((earningsMeta.count / clients.length) * 100).toFixed(0) : 0}% of all clients`}
-            iconBg="bg-amber-100 dark:bg-amber-900/30"
-            iconColor="text-amber-600 dark:text-amber-400"
-          />
-          <StatCard
             icon={<Users className="w-5 h-5" strokeWidth={1.5} />}
-            label="Avg per Client"
-            value={clients.length > 0 ? `₹${formatIndian(Math.round(earningsMeta.total / clients.length))}` : '\u2014'}
-            subtext={clients.length > 0 ? formatLakhText(Math.round(earningsMeta.total / clients.length)) : ''}
+            label="Sellers"
+            value={String(clients.filter(c => c.client_role === 'Seller').length)}
+            subtext="Seller clients on file"
             iconBg="bg-purple-100 dark:bg-purple-900/30"
             iconColor="text-purple-600 dark:text-purple-400"
           />
