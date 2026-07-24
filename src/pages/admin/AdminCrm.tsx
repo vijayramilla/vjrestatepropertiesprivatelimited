@@ -80,7 +80,7 @@ export default function AdminCrm() {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<SheetClient>>({});
   const [saving, setSaving] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(window.innerWidth < 640);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: 'New Lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
   const [addSaving, setAddSaving] = useState(false);
@@ -334,7 +334,7 @@ export default function AdminCrm() {
           />
         </div>
 
-          <div className="relative w-full max-w-[720px] mb-7">
+          <div className="relative w-full max-w-[720px] mb-7 sm:mb-7">
             <Search className="absolute left-[18px] top-1/2 -translate-y-1/2 w-5 h-5 text-[#9ca3af] pointer-events-none" />
             <input
               ref={searchRef}
@@ -834,7 +834,7 @@ export default function AdminCrm() {
           </DialogHeader>
           <div className="space-y-3.5 pt-2">
             {addError && <p className="text-xs text-red-500">{addError}</p>}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Name *</label>
                 <input value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} placeholder="Client name"
@@ -854,7 +854,7 @@ export default function AdminCrm() {
                 <option value="Seller">Seller</option>
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Email</label>
                 <input value={addForm.email} onChange={e => setAddForm({...addForm, email: e.target.value})} placeholder="email@example.com" type="email"
@@ -892,7 +892,7 @@ export default function AdminCrm() {
                 </select>
               </div>
             )}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">{addForm.client_role === 'Seller' ? 'Price' : 'Budget'}</label>
                 <input value={addForm.budget} onChange={e => setAddForm({...addForm, budget: e.target.value})} placeholder={addForm.client_role === 'Seller' ? 'e.g. 1.5 Cr' : 'e.g. 1.5 Cr'}
@@ -904,7 +904,7 @@ export default function AdminCrm() {
                   className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Source</label>
                 <input value={addForm.source} onChange={e => setAddForm({...addForm, source: e.target.value})} placeholder="e.g. Instagram, Referral"

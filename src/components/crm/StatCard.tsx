@@ -30,7 +30,7 @@ export default function StatCard({
           </span>
         )}
       </div>
-      <div className="font-['Fraunces',serif] text-2xl font-bold text-foreground">{value}</div>
+      <div className="font-['Fraunces',serif] text-xl sm:text-2xl font-bold text-foreground">{value}</div>
       <div className="text-[12px] text-muted-foreground mt-1">{label}</div>
       {subtext && <div className="text-[10px] text-muted-foreground/70 mt-0.5">{subtext}</div>}
     </div>

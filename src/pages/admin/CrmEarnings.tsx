@@ -147,7 +147,7 @@ export default function CrmEarnings() {
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
           <div className="border border-border rounded-xl p-5 bg-card">
             <div className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground mb-1">Total Commission</div>
-            <div className="font-['Fraunces',serif] text-3xl font-bold text-emerald-600">
+            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-emerald-600">
               ₹{formatIndian(earningsData.total)}
             </div>
             <div className="text-xs text-emerald-400 mt-0.5">{formatLakhText(earningsData.total)}</div>
@@ -157,7 +157,7 @@ export default function CrmEarnings() {
               <Clock className="w-3.5 h-3.5 text-amber-500" />
               <span className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground">Pending Amount</span>
             </div>
-            <div className="font-['Fraunces',serif] text-3xl font-bold text-amber-600">
+            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-amber-600">
               ₹{formatIndian(earningsData.pendingTotal)}
             </div>
             <div className="text-xs text-amber-400 mt-0.5">{earningsData.pending.length} clients</div>
@@ -167,7 +167,7 @@ export default function CrmEarnings() {
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
               <span className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground">Amount Received</span>
             </div>
-            <div className="font-['Fraunces',serif] text-3xl font-bold text-emerald-600">
+            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-emerald-600">
               ₹{formatIndian(earningsData.receivedTotal)}
             </div>
             <div className="text-xs text-emerald-400 mt-0.5">{earningsData.received.length} clients</div>
@@ -211,31 +211,29 @@ export default function CrmEarnings() {
           <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             {filtered.map((c, idx) => (
               <div key={c.sno}
-                className="flex items-center justify-between px-6 py-4 border-b border-border hover:bg-accent/50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <span className="text-[11px] font-bold text-muted-foreground w-5 text-right">#{idx + 1}</span>
-                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-[12.5px] font-extrabold text-[#0a0d12] bg-gradient-to-br from-[#e8d8ae] to-[#c9a962]">
-                    {initials(c.name)}
-                  </div>
-                  <div>
-                    <div className="font-bold text-[13.5px] text-foreground">{c.name}</div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] text-muted-foreground">{c.status}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        (c.comm_status || 'Pending') === 'Received'
-                          ? 'bg-emerald-100 text-emerald-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {c.comm_status || 'Pending'}
-                      </span>
-                      <span className="text-[10.5px] text-muted-foreground/60">
-                        <Calendar className="w-2.5 h-2.5 inline mr-0.5" strokeWidth={1.5} />
-                        {formatDisplayDate(c.comm_date)}
-                      </span>
-                    </div>
+                className="flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-border hover:bg-accent/50 transition-colors">
+                <span className="text-[11px] font-bold text-muted-foreground w-5 shrink-0 text-right">#{idx + 1}</span>
+                <div className="w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-[12.5px] font-extrabold text-[#0a0d12] bg-gradient-to-br from-[#e8d8ae] to-[#c9a962]">
+                  {initials(c.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-bold text-[13.5px] text-foreground truncate">{c.name}</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-muted-foreground">{c.status}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      (c.comm_status || 'Pending') === 'Received'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {c.comm_status || 'Pending'}
+                    </span>
+                    <span className="text-[10.5px] text-muted-foreground/60">
+                      <Calendar className="w-2.5 h-2.5 inline mr-0.5" strokeWidth={1.5} />
+                      {formatDisplayDate(c.comm_date)}
+                    </span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="font-['Fraunces',serif] text-base font-semibold text-emerald-600">
                     ₹{formatIndian(c.commVal)}
                   </div>
@@ -245,7 +243,7 @@ export default function CrmEarnings() {
                 </div>
               </div>
             ))}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-accent/30">
+            <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-accent/30">
               <span className="text-sm font-bold text-foreground">
                 {statusFilter === 'all' ? 'Total' : statusFilter === 'Pending' ? 'Pending Total' : 'Received Total'}
                 {yearFilter !== 'all' ? ` (${yearFilter})` : ''}
