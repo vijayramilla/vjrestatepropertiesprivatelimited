@@ -11,7 +11,7 @@ import CrmRoute from './components/CrmRoute';
 import PageLoader from './components/PageLoader';
 import MapLoadingSkeleton from './components/map/MapLoadingSkeleton';
 
-const HomePage = lazy(() => import('./pages/HomePage'));
+
 const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
 const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
 const ShortlistPage = lazy(() => import('./pages/ShortlistPage'));
@@ -104,7 +104,6 @@ function AppRoutes() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<LazyPage><HomePage /></LazyPage>} />
         <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
         <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
@@ -127,7 +126,8 @@ function AppRoutes() {
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
 
-      <Route path="/map" element={<MapPage />} />
+      <Route path="/" element={<MapPage />} />
+      <Route path="/map" element={<Navigate to="/" replace />} />
       <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
       <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
       <Route

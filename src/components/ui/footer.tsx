@@ -19,6 +19,7 @@ const footerConfig = {
     {
       title: 'Company',
       links: [
+        { label: 'Home', to: '/' },
         { label: 'About Us', to: '/about' },
         { label: 'Blog', to: '/blog' },
         { label: 'Contact', to: '/contact' },
