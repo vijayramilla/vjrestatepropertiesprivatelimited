@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Pencil, Phone, MessageSquare, Search, ChevronRight, X, Check, IndianRupee, Users, TrendingUp, Plus, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -350,7 +351,7 @@ export default function AdminCrm() {
           </div>
 
           {loading ? (
-            <div className="text-center py-16 text-[#9ca3af] text-sm">Loading clients...</div>
+            <div className="flex justify-center py-16"><Spinner /></div>
           ) : clients.length === 0 ? (
             <div className="text-center py-16 text-[#9ca3af] text-sm">No client data available.</div>
           ) : (

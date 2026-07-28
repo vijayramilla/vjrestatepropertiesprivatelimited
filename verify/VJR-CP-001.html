@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>VJR CP Verification: VJR-CP-001</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f2a4a;
+  --navy-light: #1a4a7a;
+  --emerald: #059669;
+  --gold: #d4a853;
+  --white: #ffffff;
+  --gray-50: #f8f9fa;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-900: #111827;
+  --radius: 12px;
+  --radius-pill: 9999px;
+  --shadow-card: 0 4px 24px rgba(15, 42, 74, 0.06), 0 1px 4px rgba(15, 42, 74, 0.04);
+  --shadow-badge: 0 2px 8px rgba(5, 150, 105, 0.2);
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--gray-50);
+  color: var(--gray-900);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  animation: fadeIn 400ms ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { animation: none; }
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 520px;
+  padding: 40px 36px;
+  border: 1px solid var(--gray-200);
+}
+
+.logo-area {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  display: block;
+  flex-shrink: 0;
+}
+
+.logo-text-vjr {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.logo-text-estate {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: 0.14em;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.company-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-500);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+.tagline {
+  font-size: 13px;
+  color: var(--gray-500);
+  margin-top: 8px;
+  font-weight: 400;
+}
+
+.status-section {
+  text-align: center;
+  padding: 20px 0 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--emerald);
+  color: var(--white);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 20px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-badge);
+  letter-spacing: 0.02em;
+}
+
+.badge svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.last-verified {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-top: 10px;
+}
+
+.separator {
+  border: none;
+  border-top: 1px solid var(--gray-200);
+  margin: 16px 0 24px;
+}
+
+.profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 16px;
+}
+
+.avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: var(--navy);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.profile-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--navy);
+  line-height: 1.2;
+}
+
+.profile-desig {
+  font-size: 14px;
+  color: var(--gray-500);
+  font-weight: 500;
+}
+
+.profile-details {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  font-size: 14px;
+  text-align: left;
+  margin-top: 4px;
+}
+
+.detail-label {
+  color: var(--gray-400);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.detail-value {
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.detail-value em {
+  font-style: normal;
+  color: var(--gray-500);
+  font-weight: 400;
+}
+
+.cp-id {
+  font-family: 'SF Mono', 'Cascadia Code', 'JetBrains Mono', monospace;
+  color: var(--navy-light);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.disclaimer {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  padding: 16px 18px;
+  font-size: 12px;
+  color: var(--gray-600);
+  line-height: 1.6;
+  margin-top: 20px;
+}
+
+.report-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gray-200);
+}
+
+.report-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--navy);
+  margin-bottom: 12px;
+}
+
+.contact-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--gray-900);
+  padding: 4px 0;
+}
+
+.contact-row svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--gray-500);
+}
+
+.contact-row a {
+  color: var(--navy-light);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.contact-row a:hover {
+  text-decoration: underline;
+}
+
+.report-note {
+  font-size: 12px;
+  color: var(--gray-500);
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+.footer {
+  text-align: center;
+  padding: 20px 16px 8px;
+  max-width: 520px;
+  width: 100%;
+}
+
+.footer-text {
+  font-size: 11px;
+  color: var(--gray-400);
+  line-height: 1.5;
+}
+
+.footer-link {
+  font-size: 11px;
+  color: var(--navy-light);
+  text-decoration: none;
+}
+
+.footer-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  body { padding: 16px 12px; justify-content: flex-start; padding-top: 32px; }
+  .card { padding: 28px 20px; }
+  .avatar { width: 72px; height: 72px; font-size: 24px; }
+  .profile-name { font-size: 19px; }
+  .profile-details { font-size: 13px; gap: 4px 12px; }
+  .logo-icon { width: 30px; height: 30px; }
+  .logo-text-vjr { font-size: 19px; }
+  .logo-text-estate { font-size: 16px; }
+}
+</style>
+</head>
+<body>
+
+<div class="card" role="main" aria-label="Channel Partner Verification Card">
+
+  <div class="logo-area">
+    <div class="logo-row">
+      <img src="/favicon.png" alt="VJR Estate" class="logo-icon" width="36" height="36">
+      <span class="logo-text-vjr">VJR</span>
+      <span class="logo-text-estate">ESTATE</span>
+    </div>
+    <div class="company-sub">Properties Pvt Ltd</div>
+    <div class="tagline">Channel Partner Verification</div>
+  </div>
+
+  <div class="status-section">
+    <div class="badge">
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="status-badge">ACTIVE</span>
+    </div>
+    <div class="last-verified">Last verified: <span id="last-verified"></span></div>
+  </div>
+
+  <hr class="separator">
+
+  <div class="profile">
+    <div class="avatar" id="avatar" aria-hidden="true">MR</div>
+    <div>
+      <div class="profile-name" id="profile-name">Mandagiri Ravi</div>
+      <div class="profile-desig" id="profile-desig">Channel Partner</div>
+    </div>
+    <div class="profile-details">
+      <span class="detail-label">CP ID</span>
+      <span class="detail-value cp-id" id="cp-id">VJR-CP-001</span>
+      <span class="detail-label">Location</span>
+      <span class="detail-value" id="location">Bengaluru, Karnataka</span>
+      <span class="detail-label">Valid From</span>
+      <span class="detail-value" id="valid-from">01 January 2025</span>
+      <span class="detail-label">Valid Till</span>
+      <span class="detail-value" id="valid-till">31 December 2026</span>
+    </div>
+  </div>
+
+  <div class="disclaimer">
+    This individual is an authorized Channel Partner of VJR Estate Properties Pvt Ltd for sales and marketing purposes only. This does not confer employment, partnership, or authority to sign, execute, or commit VJR Estate Properties Pvt Ltd to any contract, guarantee, or obligation.
+  </div>
+
+  <div class="report-section">
+    <div class="report-title">Verify or Report</div>
+    <div class="contact-row">
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M2 4l6 4 6-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="1" y="3" width="14" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+      <a href="mailto:info@vjrestate.com" id="contact-email">info@vjrestate.com</a>
+    </div>
+    <div class="contact-row">
+      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        <path d="M14 11.5V13a1 1 0 01-1 1A11 11 0 012 3a1 1 0 011-1h1.5a1 1 0 011 .8l.5 2.5a1 1 0 01-.3.9l-1.3 1.3a8.5 8.5 0 004.3 4.3l1.3-1.3a1 1 0 01.9-.3l2.5.5a1 1 0 01.8 1z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span id="contact-phone">8088905957</span>
+    </div>
+    <div class="report-note">
+      If you suspect any fraudulent activity or unauthorized representation, please contact us immediately using the details above.
+    </div>
+  </div>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-text">
+    &copy; VJR Estate Properties Pvt Ltd &mdash; This page is generated for identity verification purposes only.
+  </div>
+  <a href="https://www.vjrestate.com" class="footer-link" target="_blank" rel="noopener">www.vjrestate.com</a>
+</footer>
+
+<script>
+// ponytail: EDIT THIS BLOCK for each new CP ID — everything below auto-populates
+const CP = {
+  id: 'VJR-CP-001',
+  name: 'Mandagiri Ravi',
+  designation: 'Channel Partner',
+  location: 'Bengaluru, Karnataka',
+  validFrom: '01 January 2025',
+  validTill: '31 December 2026',
+  photoInitials: 'MR',
+  status: 'ACTIVE',
+  phone: '8088905957',
+  email: 'info@vjrestate.com'
+};
+
+// ponytail: inline SVG avatar — no external image needed until real photos
+document.getElementById('avatar').textContent = CP.photoInitials;
+document.getElementById('status-badge').textContent = CP.status;
+document.getElementById('profile-name').textContent = CP.name;
+document.getElementById('profile-desig').textContent = CP.designation;
+document.getElementById('cp-id').textContent = CP.id;
+document.getElementById('location').textContent = CP.location;
+document.getElementById('valid-from').textContent = CP.validFrom;
+document.getElementById('valid-till').textContent = CP.validTill;
+document.getElementById('contact-phone').textContent = CP.phone;
+document.getElementById('contact-email').textContent = CP.email;
+document.getElementById('contact-email').href = 'mailto:' + CP.email;
+document.title = 'VJR CP Verification: ' + CP.id;
+
+// ponytail: client-side timestamp — no backend required for freshness
+document.getElementById('last-verified').textContent =
+  new Date().toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  });
+</script>
+</body>
+</html>
