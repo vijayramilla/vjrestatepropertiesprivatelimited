@@ -399,7 +399,6 @@ body {
 </footer>
 
 <script>
-// ponytail: EDIT THIS BLOCK for each new CP ID — everything below auto-populates
 const CP = {
   id: 'VJR-CP-001',
   name: 'Mandagiri Ravi',
@@ -413,7 +412,6 @@ const CP = {
   email: 'info@vjrestate.com'
 };
 
-// ponytail: inline SVG avatar — no external image needed until real photos
 document.getElementById('avatar').textContent = CP.photoInitials;
 document.getElementById('status-badge').textContent = CP.status;
 document.getElementById('profile-name').textContent = CP.name;
@@ -427,7 +425,6 @@ document.getElementById('contact-email').textContent = CP.email;
 document.getElementById('contact-email').href = 'mailto:' + CP.email;
 document.title = 'VJR CP Verification: ' + CP.id;
 
-// ponytail: client-side timestamp — no backend required for freshness
 document.getElementById('last-verified').textContent =
   new Date().toLocaleDateString('en-IN', {
     day: 'numeric', month: 'long', year: 'numeric',
