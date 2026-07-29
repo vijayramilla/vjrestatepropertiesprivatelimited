@@ -454,6 +454,211 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { data: data?.[0]?.sno ?? 0 };
     }
 
+    // Employees
+    case 'employees.list': {
+      const { search, department, status, sortBy, sortOrder } = params;
+      let query = supabaseAdmin.from('employees').select('*', { count: 'exact' });
+      if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,employee_id.ilike.%${search}%`);
+      if (department) query = query.eq('department', department);
+      if (status) query = query.eq('status', status);
+      const col = sortBy === 'joiningDate' ? 'joining_date' : sortBy === 'employeeId' ? 'employee_id' : 'created_at';
+      const order = sortOrder === 'asc' ? { ascending: true } : { ascending: false };
+      const { data, error } = await query.order(col, order);
+      if (error) throw new Error(error.message);
+      const all = data ?? [];
+      const stats = {
+        total: all.length,
+        active: all.filter((e: any) => e.status === 'Active').length,
+        onLeave: all.filter((e: any) => e.status === 'On Leave' || e.status === 'Leave').length,
+        newThisMonth: all.filter((e: any) => {
+          if (!e.joining_date) return false;
+          const d = new Date(e.joining_date);
+          const now = new Date();
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length,
+      };
+      return { data: all, stats };
+    }
+    case 'employees.get': {
+      const { id } = params;
+      const { data: emp, error } = await supabaseAdmin.from('employees').select('*').eq('id', id).single();
+      if (error) throw new Error(error.message);
+      const [histRes, attRes, leaveRes, payrollRes] = await Promise.all([
+        supabaseAdmin.from('employee_history').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
+        supabaseAdmin.from('employee_attendance').select('*').eq('employee_id', id).order('date', { ascending: false }).limit(31),
+        supabaseAdmin.from('employee_leaves').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
+        supabaseAdmin.from('employee_payroll').select('*').eq('employee_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
+      ]);
+      return { data: emp, history: histRes.data ?? [], attendance: attRes.data ?? [], leaves: leaveRes.data ?? [], payroll: payrollRes.data ?? [] };
+    }
+    case 'employees.create': {
+      const { _auth, ...fields } = params;
+      const payload: Record<string, unknown> = {};
+      if (fields.employeeId) payload.employee_id = fields.employeeId;
+      if (fields.name) payload.name = fields.name;
+      if (fields.email) payload.email = fields.email;
+      if (fields.phone) payload.phone = fields.phone;
+      if (fields.designation) payload.designation = fields.designation;
+      if (fields.department) payload.department = fields.department;
+      if (fields.joiningDate) payload.joining_date = fields.joiningDate;
+      if (fields.status) payload.status = fields.status;
+      if (fields.salary) payload.salary = fields.salary;
+      if (fields.address) payload.address = fields.address;
+      if (fields.emergencyContactName) payload.emergency_contact_name = fields.emergencyContactName;
+      if (fields.emergencyContactPhone) payload.emergency_contact_phone = fields.emergencyContactPhone;
+      if (fields.bankAccountNumber) payload.bank_account_number = fields.bankAccountNumber;
+      if (fields.bankName) payload.bank_name = fields.bankName;
+      if (fields.ifscCode) payload.ifsc_code = fields.ifscCode;
+      if (fields.panNumber) payload.pan_number = fields.panNumber;
+      if (fields.aadharNumber) payload.aadhar_number = fields.aadharNumber;
+      if (fields.uanNumber) payload.uan_number = fields.uanNumber;
+      if (fields.esiNumber) payload.esi_number = fields.esiNumber;
+      if (fields.profilePhotoUrl) payload.profile_photo_url = fields.profilePhotoUrl;
+      if (fields.notes) payload.notes = fields.notes;
+      const { data, error } = await supabaseAdmin.from('employees').insert(payload).select().single();
+      if (error) throw new Error(error.message);
+      if (data?.id) {
+        await supabaseAdmin.from('employee_history').insert({ employee_id: data.id, event_type: 'joined', title: 'Joined', description: `${data.name} joined as ${data.designation || 'employee'}`, event_date: data.joining_date, created_by: _auth.email });
+      }
+      return { data };
+    }
+    case 'employees.update': {
+      const { id, _auth, ...fields } = params;
+      const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (fields.name !== undefined) updates.name = fields.name;
+      if (fields.email !== undefined) updates.email = fields.email;
+      if (fields.phone !== undefined) updates.phone = fields.phone;
+      if (fields.designation !== undefined) updates.designation = fields.designation;
+      if (fields.department !== undefined) updates.department = fields.department;
+      if (fields.joiningDate !== undefined) updates.joining_date = fields.joiningDate;
+      if (fields.status !== undefined) updates.status = fields.status;
+      if (fields.salary !== undefined) updates.salary = fields.salary;
+      if (fields.address !== undefined) updates.address = fields.address;
+      if (fields.emergencyContactName !== undefined) updates.emergency_contact_name = fields.emergencyContactName;
+      if (fields.emergencyContactPhone !== undefined) updates.emergency_contact_phone = fields.emergencyContactPhone;
+      if (fields.bankAccountNumber !== undefined) updates.bank_account_number = fields.bankAccountNumber;
+      if (fields.bankName !== undefined) updates.bank_name = fields.bankName;
+      if (fields.ifscCode !== undefined) updates.ifsc_code = fields.ifscCode;
+      if (fields.panNumber !== undefined) updates.pan_number = fields.panNumber;
+      if (fields.aadharNumber !== undefined) updates.aadhar_number = fields.aadharNumber;
+      if (fields.uanNumber !== undefined) updates.uan_number = fields.uanNumber;
+      if (fields.esiNumber !== undefined) updates.esi_number = fields.esiNumber;
+      if (fields.profilePhotoUrl !== undefined) updates.profile_photo_url = fields.profilePhotoUrl;
+      if (fields.notes !== undefined) updates.notes = fields.notes;
+      const { error } = await supabaseAdmin.from('employees').update(updates).eq('id', id);
+      if (error) throw new Error(error.message);
+      if (fields.addHistory) {
+        await supabaseAdmin.from('employee_history').insert({ employee_id: id, event_type: fields.historyType ?? 'updated', title: fields.historyTitle ?? 'Updated', description: fields.historyDesc ?? '', created_by: _auth.email });
+      }
+      const { data } = await supabaseAdmin.from('employees').select('*').eq('id', id).single();
+      return { data };
+    }
+    case 'employees.delete': {
+      const { id } = params;
+      await supabaseAdmin.from('employee_history').delete().eq('employee_id', id);
+      await supabaseAdmin.from('employee_attendance').delete().eq('employee_id', id);
+      await supabaseAdmin.from('employee_leaves').delete().eq('employee_id', id);
+      await supabaseAdmin.from('employee_payroll').delete().eq('employee_id', id);
+      const { error } = await supabaseAdmin.from('employees').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+      return { message: 'Employee deleted' };
+    }
+    case 'employees.history': {
+      const { employeeId } = params;
+      const { data, error } = await supabaseAdmin.from('employee_history').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+    case 'employees.addHistory': {
+      const { employeeId, eventType, title, description, eventDate, createdBy } = params;
+      const { data, error } = await supabaseAdmin.from('employee_history').insert({ employee_id: employeeId, event_type: eventType ?? 'note', title: title ?? '', description: description ?? '', event_date: eventDate ?? new Date().toISOString().split('T')[0], created_by: createdBy ?? '' }).select().single();
+      if (error) throw new Error(error.message);
+      return { data };
+    }
+    case 'employees.attendance': {
+      const { employeeId, month, year } = params;
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+      const { data, error } = await supabaseAdmin.from('employee_attendance').select('*').eq('employee_id', employeeId).gte('date', startDate).lte('date', endDate).order('date', { ascending: true });
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+    case 'employees.setAttendance': {
+      const { employeeId, date, checkIn, checkOut, status, notes } = params;
+      const payload: Record<string, unknown> = { employee_id: employeeId, date, status: status ?? 'Present', notes: notes ?? '' };
+      if (checkIn) payload.check_in = checkIn;
+      if (checkOut) payload.check_out = checkOut;
+      const { data: existing } = await supabaseAdmin.from('employee_attendance').select('id').eq('employee_id', employeeId).eq('date', date).maybeSingle();
+      if (existing) {
+        const { error } = await supabaseAdmin.from('employee_attendance').update(payload).eq('id', existing.id);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabaseAdmin.from('employee_attendance').insert(payload);
+        if (error) throw new Error(error.message);
+      }
+      return { message: 'Attendance saved' };
+    }
+    case 'employees.leaves': {
+      const { employeeId } = params;
+      const { data, error } = await supabaseAdmin.from('employee_leaves').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+    case 'employees.applyLeave': {
+      const { employeeId, leaveType, startDate, endDate, reason, createdBy } = params;
+      const { data, error } = await supabaseAdmin.from('employee_leaves').insert({ employee_id: employeeId, leave_type: leaveType ?? '', start_date: startDate, end_date: endDate, reason: reason ?? '', created_by: createdBy ?? '' }).select().single();
+      if (error) throw new Error(error.message);
+      await supabaseAdmin.from('employee_history').insert({ employee_id: employeeId, event_type: 'leave', title: `${leaveType} Leave`, description: `${leaveType} leave from ${startDate} to ${endDate}`, created_by: createdBy });
+      return { data };
+    }
+    case 'employees.approveLeave': {
+      const { id, approvedBy } = params;
+      const { error } = await supabaseAdmin.from('employee_leaves').update({ status: 'Approved', approved_by: approvedBy ?? '' }).eq('id', id);
+      if (error) throw new Error(error.message);
+      return { message: 'Leave approved' };
+    }
+    case 'employees.rejectLeave': {
+      const { id } = params;
+      const { error } = await supabaseAdmin.from('employee_leaves').update({ status: 'Rejected' }).eq('id', id);
+      if (error) throw new Error(error.message);
+      return { message: 'Leave rejected' };
+    }
+    case 'employees.payroll': {
+      const { employeeId } = params;
+      const { data, error } = await supabaseAdmin.from('employee_payroll').select('*').eq('employee_id', employeeId).order('year', { ascending: false }).order('month', { ascending: false });
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+    case 'employees.generatePayroll': {
+      const { employeeId, month, year, createdBy } = params;
+      const { data: emp } = await supabaseAdmin.from('employees').select('salary').eq('id', employeeId).single();
+      const salary = emp?.salary ?? 0;
+      const basic = Math.round(salary * 0.5);
+      const hra = Math.round(salary * 0.2);
+      const allowances = Math.round(salary * 0.2);
+      const deductions = Math.round(salary * 0.1);
+      const net = salary - deductions;
+      const { data, error } = await supabaseAdmin.from('employee_payroll').insert({
+        employee_id: employeeId, month, year, basic_pay: basic, hra, allowances, deductions, net_pay: net, status: 'Pending',
+      }).select().single();
+      if (error) throw new Error(error.message);
+      await supabaseAdmin.from('employee_history').insert({
+        employee_id: employeeId, event_type: 'payroll', title: `Payroll ${month}/${year}`, description: `Payroll generated: ₹${net.toLocaleString()}`, created_by: createdBy,
+      });
+      return { data };
+    }
+    case 'employees.markPaid': {
+      const { id, paymentDate } = params;
+      const { error } = await supabaseAdmin.from('employee_payroll').update({ status: 'Paid', payment_date: paymentDate ?? new Date().toISOString().split('T')[0] }).eq('id', id);
+      if (error) throw new Error(error.message);
+      return { message: 'Payroll marked as paid' };
+    }
+    case 'employees.maxEmployeeId': {
+      const { data, error } = await supabaseAdmin.from('employees').select('employee_id').order('employee_id', { ascending: false }).limit(1);
+      if (error) throw new Error(error.message);
+      return { data: data?.[0]?.employee_id ?? null };
+    }
+
     default:
       throw new Error(`Unknown action: ${action}`);
   }

@@ -42,6 +42,9 @@ const LeadDetail = lazy(() => import('./pages/admin/LeadDetail'));
 const AdminAgents = lazy(() => import('./pages/admin/AdminAgents'));
 const AdminMongoDbData = lazy(() => import('./pages/admin/AdminMongoDbData'));
 const AdminProfile = lazy(() => import('./pages/crm/AdminProfile'));
+const AdminEmployeesList = lazy(() => import('./pages/admin/AdminEmployeesList'));
+const AdminEmployeeForm = lazy(() => import('./pages/admin/AdminEmployeeForm'));
+const AdminEmployeeDetail = lazy(() => import('./pages/admin/AdminEmployeeDetail'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
@@ -231,6 +234,38 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LazyPage><AdminOwnerContacts /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/employees"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminEmployeesList /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/employees/new"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminEmployeeForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/employees/:id"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminEmployeeDetail /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/employees/:id/edit"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminEmployeeForm /></LazyPage>
           </AdminRoute>
         }
       />

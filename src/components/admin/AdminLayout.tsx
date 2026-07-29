@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
@@ -16,6 +16,7 @@ const baseNavItems = [
   { icon: House, label: 'Properties', path: '/admin/properties', short: 'List' },
   { icon: Scroll, label: 'Listings', path: '/admin/listings', short: 'Listings' },
   { icon: Users, label: 'Users', path: '/admin/users', short: 'Users' },
+  { icon: Briefcase, label: 'Employees', path: '/admin/employees', short: 'Employees' },
   { icon: ChatCircle, label: 'Enquiries', path: '/admin/enquiries', short: 'Leads' },
   { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },

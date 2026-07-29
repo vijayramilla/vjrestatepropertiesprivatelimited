@@ -179,6 +179,60 @@ export const leadSupabase = {
     },
   },
 
+  employees: {
+    async list(params?: { search?: string; department?: string; status?: string; sortBy?: string; sortOrder?: string }): Promise<{ data: any[]; stats: { total: number; active: number; onLeave: number; newThisMonth: number } }> {
+      return callProxy('employees.list', params);
+    },
+    async get(id: string): Promise<{ data: any; history: any[]; attendance: any[]; leaves: any[]; payroll: any[] }> {
+      return callProxy('employees.get', { id });
+    },
+    async create(fields: Record<string, unknown>): Promise<{ data: any }> {
+      return callProxy('employees.create', fields);
+    },
+    async update(id: string, fields: Record<string, unknown>): Promise<{ data: any }> {
+      return callProxy('employees.update', { id, ...fields });
+    },
+    async delete(id: string): Promise<{ message: string }> {
+      return callProxy('employees.delete', { id });
+    },
+    async history(employeeId: string): Promise<{ data: any[] }> {
+      return callProxy('employees.history', { employeeId });
+    },
+    async addHistory(employeeId: string, eventType: string, title: string, description?: string, eventDate?: string): Promise<{ data: any }> {
+      return callProxy('employees.addHistory', { employeeId, eventType, title, description, eventDate });
+    },
+    async attendance(employeeId: string, month: number, year: number): Promise<{ data: any[] }> {
+      return callProxy('employees.attendance', { employeeId, month, year });
+    },
+    async setAttendance(employeeId: string, date: string, checkIn?: string, checkOut?: string, status?: string, notes?: string): Promise<{ message: string }> {
+      return callProxy('employees.setAttendance', { employeeId, date, checkIn, checkOut, status, notes });
+    },
+    async leaves(employeeId: string): Promise<{ data: any[] }> {
+      return callProxy('employees.leaves', { employeeId });
+    },
+    async applyLeave(employeeId: string, leaveType: string, startDate: string, endDate: string, reason?: string): Promise<{ data: any }> {
+      return callProxy('employees.applyLeave', { employeeId, leaveType, startDate, endDate, reason });
+    },
+    async approveLeave(id: string): Promise<{ message: string }> {
+      return callProxy('employees.approveLeave', { id });
+    },
+    async rejectLeave(id: string): Promise<{ message: string }> {
+      return callProxy('employees.rejectLeave', { id });
+    },
+    async payroll(employeeId: string): Promise<{ data: any[] }> {
+      return callProxy('employees.payroll', { employeeId });
+    },
+    async generatePayroll(employeeId: string, month: number, year: number): Promise<{ data: any }> {
+      return callProxy('employees.generatePayroll', { employeeId, month, year });
+    },
+    async markPaid(id: string, paymentDate?: string): Promise<{ message: string }> {
+      return callProxy('employees.markPaid', { id, paymentDate });
+    },
+    async maxEmployeeId(): Promise<{ data: string | null }> {
+      return callProxy('employees.maxEmployeeId', {});
+    },
+  },
+
   crmClients: {
     async list(): Promise<{ data: SheetClient[] }> {
       try {
