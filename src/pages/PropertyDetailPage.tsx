@@ -411,9 +411,11 @@ export default function PropertyDetailPage() {
               >
                 {getTopLabel(property)}
               </motion.h1>
-              <p className="text-[12px] text-[#aaa] mt-2" style={fontUI}>
-                Listed {property.listed_days_ago} days ago
-              </p>
+              {property.propertyCode && (
+                <p className="text-[12px] text-[#aaa] mt-2 font-mono" style={fontUI}>
+                  Property ID: <span className="font-semibold text-[#555]">{property.propertyCode}</span>
+                </p>
+              )}
               {isLandOrPlot && (
                 <div className="mt-5 border border-[#e8e8e8] bg-[#fafafa] px-5 py-4">
                   <p

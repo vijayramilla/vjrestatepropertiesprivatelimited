@@ -1,5 +1,6 @@
 export interface Property {
   id: string;
+  propertyCode?: string;
   name: string;
   title: string;
   type: "PG Building" | "Residential Rental Income" | "Commercial Properties" | "Residential Plot" | "Commercial Plot" | "JD Land";

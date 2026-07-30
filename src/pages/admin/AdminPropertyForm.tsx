@@ -5,6 +5,8 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
+  query,
   serverTimestamp,
   updateDoc,
 } from 'firebase/firestore';
@@ -43,6 +45,7 @@ import {
 } from '@/lib/propertyFilters';
 
 interface FormData {
+  propertyCode: string;
   title: string;
   type: string;
   commercial_subtype?: string;
@@ -197,6 +200,7 @@ export default function AdminPropertyForm() {
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [formData, setFormData] = useState<FormData>({
+    propertyCode: '',
     title: '',
     type: 'PG Buildings',
     area: '',
@@ -457,6 +461,7 @@ export default function AdminPropertyForm() {
         area_unit: _areaUnit,
         price_per_sqft: _pps,
         extra_details: _extra,
+        propertyCode: _propertyCode,
         ...restForm
       } = formData;
 
@@ -504,6 +509,19 @@ export default function AdminPropertyForm() {
           updatedAt: serverTimestamp(),
         });
       } else {
+        const allDocs = await getDocs(query(collection(db, 'properties')));
+        let maxNum = 0;
+        allDocs.forEach(d => {
+          const code = d.data().propertyCode as string | undefined;
+          if (code) {
+            const m = code.match(/^VJR-(\d+)$/);
+            if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+          }
+        });
+        const propertyCode = `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+        payload.propertyCode = propertyCode;
+        setFormData(prev => ({ ...prev, propertyCode }));
+
         const ref = await addDoc(collection(db, 'properties'), {
           ...payload,
           images: [],
@@ -786,6 +804,11 @@ export default function AdminPropertyForm() {
                   onChange={(e) => updateFormData('title', e.target.value)}
                   className="admin-input-ghost"
                 />
+                {formData.propertyCode && (
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Property ID: <span className="font-mono font-semibold text-black">{formData.propertyCode}</span>
+                  </p>
+                )}
                 {errors.title && (
                   <p className="mt-2 text-xs text-gray-500">{errors.title}</p>
                 )}

@@ -5,6 +5,7 @@ import {
   onSnapshot,
   deleteDoc,
   doc,
+  getDocs,
   updateDoc,
   query,
   orderBy,
@@ -37,6 +38,7 @@ const fadeUp = {
 
 interface Property {
   id: string;
+  propertyCode?: string;
   title: string;
   type: string;
   commercial_subtype?: string;
@@ -81,11 +83,13 @@ export default function AdminPropertiesList() {
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [idSearch, setIdSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { isLoaded, loadError } = useGoogleMapsLoader();
 
@@ -129,9 +133,11 @@ export default function AdminPropertiesList() {
       const matchesSearch =
         p.title.toLowerCase().includes(search.toLowerCase()) ||
         p.area.toLowerCase().includes(search.toLowerCase());
+      const matchesId =
+        !idSearch || (p.propertyCode?.toLowerCase() ?? '').includes(idSearch.toLowerCase());
       const matchesType = typeFilter === 'All Types' || p.type === typeFilter;
       const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-      return matchesSearch && matchesType && matchesStatus && !p.uid;
+      return matchesSearch && matchesId && matchesType && matchesStatus && !p.uid;
     })
     .sort((a, b) => {
       if (sortBy === 'Newest')
@@ -163,7 +169,32 @@ export default function AdminPropertiesList() {
     }
   };
 
+  const handleBackfillIds = async () => {
+    setBackfilling(true);
+    try {
+      const allDocs = await getDocs(query(collection(db, 'properties')));
+      let maxNum = 0;
+      allDocs.forEach(d => {
+        const code = d.data().propertyCode as string | undefined;
+        if (code) {
+          const m = code.match(/^VJR-(\d+)$/);
+          if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        }
+      });
+      const toUpdate = allDocs.docs.filter(d => !d.data().propertyCode && !d.data().uid);
+      for (const d of toUpdate) {
+        maxNum++;
+        await updateDoc(doc(db, 'properties', d.id), {
+          propertyCode: `VJR-${String(maxNum).padStart(4, '0')}`,
+        });
+      }
+    } finally {
+      setBackfilling(false);
+    }
+  };
+
   const adminProps = properties.filter((p) => !p.uid);
+  const missingCodeCount = adminProps.filter((p) => !p.propertyCode).length;
   const stats = [
     { label: 'Total Properties', value: adminProps.length },
     { label: 'PG Buildings', value: adminProps.filter((p) => p.type === 'PG Buildings').length },
@@ -194,8 +225,27 @@ export default function AdminPropertiesList() {
             ref={inputRef}
             type="search"
             placeholder="Search by title or locality..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="admin-input-ghost"
           />
+          <input
+            type="search"
+            placeholder="Search by ID..."
+            value={idSearch}
+            onChange={(e) => setIdSearch(e.target.value)}
+            className="admin-input-ghost"
+          />
+          {missingCodeCount > 0 && (
+            <button
+              type="button"
+              onClick={handleBackfillIds}
+              disabled={backfilling}
+              className="admin-btn-primary text-[11px] whitespace-nowrap"
+            >
+              {backfilling ? 'Assigning...' : `Assign IDs (${missingCodeCount})`}
+            </button>
+          )}
           <AdminFilterRow>
             <select
               value={typeFilter}
@@ -252,6 +302,9 @@ export default function AdminPropertiesList() {
                 <motion.article key={property.id} variants={fadeUp} className="admin-card p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-mono text-gray-400">
+                        {property.propertyCode}
+                      </p>
                       <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-black">
                         {property.title}
                       </p>
@@ -309,7 +362,8 @@ export default function AdminPropertiesList() {
 
               <motion.div variants={container} initial="initial" animate="animate" className="admin-card hidden overflow-hidden md:block">
               <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/50 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                <p className="col-span-2">Title</p>
+                <p className="col-span-1">ID</p>
+                <p className="col-span-1">Title</p>
                 <p className="col-span-1">Type</p>
                 <p className="col-span-1">Area</p>
                 <p className="col-span-1">Price</p>
@@ -326,7 +380,8 @@ export default function AdminPropertiesList() {
                   variants={fadeUp}
                   className="grid grid-cols-12 gap-4 border-b border-gray-50 px-5 py-3.5 transition-colors last:border-0 hover:bg-gray-50/40"
                 >
-                  <p className="col-span-3 truncate text-sm font-medium text-black">{property.title}</p>
+                  <p className="col-span-1 truncate text-[11px] font-mono text-gray-500">{property.propertyCode}</p>
+                  <p className="col-span-2 truncate text-sm font-medium text-black">{property.title}</p>
                   <div className="col-span-1">
                     <p className="text-xs text-gray-800">{property.type}</p>
                     {property.commercial_subtype && (

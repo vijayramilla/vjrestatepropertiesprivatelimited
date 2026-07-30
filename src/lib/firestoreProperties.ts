@@ -4,6 +4,7 @@ import { siteContact } from '@/data/siteContact';
 import { formatPrice, formatRental } from './formatPrice';
 
 export interface FirestorePropertyDoc {
+  propertyCode?: string;
   title?: string;
   type?: string;
   commercial_subtype?: string;
@@ -119,6 +120,7 @@ export function mapFirestoreToListing(id: string, data: FirestorePropertyDoc): L
           ? 'Pending'
           : undefined,
     listed_by: data.listed_by,
+    propertyCode: data.propertyCode ?? '',
   };
 }
 
@@ -185,5 +187,6 @@ export function mapFirestoreToProperty(id: string, data: FirestorePropertyDoc): 
     contact_name: data.contact_name || 'VJR Estate',
     contact_phone: data.contact_phone || siteContact.phoneDisplay,
     listed_by: data.listed_by,
+    propertyCode: data.propertyCode ?? '',
   };
 }
