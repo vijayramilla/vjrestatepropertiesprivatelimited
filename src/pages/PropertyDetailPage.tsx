@@ -52,6 +52,17 @@ import {
   getPlotSubtype,
   type Property,
 } from '../data/properties';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+  type CarouselApi,
+} from '@/components/ui/carousel';
 
 const fontHeading: CSSProperties = { fontFamily: "'Cormorant Garamond', Georgia, serif" };
 const fontUI: CSSProperties = { fontFamily: "'DM Sans', system-ui, sans-serif" };
@@ -124,7 +135,7 @@ function getAmenityIcon(name: string): Icon {
 function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <p
-      className="uppercase text-[#aaa] text-[10px] tracking-[0.16em]"
+      className="uppercase text-[#666] text-[11px] tracking-[0.18em]"
       style={fontUI}
     >
       {children}
@@ -142,6 +153,7 @@ export default function PropertyDetailPage() {
   const [shareFeedback, setShareFeedback] = useState('');
   const [waLoading, setWaLoading] = useState(false);
   const [waContactOpen, setWaContactOpen] = useState(false);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
 
   useEffect(() => {
     if (!id) return;
@@ -328,15 +340,16 @@ export default function PropertyDetailPage() {
             <ArrowLeft size={15} weight="regular" color="#444" />
             Back to Properties
           </button>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleShare}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 py-1.5 text-[12px] text-gray-700 transition hover:bg-gray-50 lg:hidden"
+            className="lg:hidden gap-1.5 text-[12px]"
             style={fontUI}
           >
             <ShareNetwork size={14} weight="duotone" color="#444" />
             Share
-          </button>
+          </Button>
           <p className="hidden text-[12px] text-[#bbb] lg:block" style={fontUI}>
             Home / Properties / {truncate(property.title, 28)}
           </p>
@@ -347,52 +360,81 @@ export default function PropertyDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-[61.8fr_38.2fr] gap-10 lg:gap-14">
           {/* Left column */}
           <div >
-            {/* Image placeholder */}
+            {/* Image carousel */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="relative w-full overflow-hidden bg-[#f2f2f2] aspect-square lg:aspect-[4/3]"
             >
-              {activeImage ? (
-                <LazyImage
-                  src={activeImage}
-                  alt={property.title}
-                  priority={true}
-                  className="absolute inset-0 w-full h-full object-cover object-center"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f2f2f2] to-[#e8e8e8]">
-                  <TypeIcon size={72} weight="thin" color="#d0d0d0" />
-                </div>
-              )}
-              <span
-                className="absolute top-0 left-0 bg-[#000] text-[#fff] uppercase text-[10px] tracking-[0.14em] px-3 py-[5px]"
-                style={fontUI}
-              >
-                {getImageBadge(property)}
-              </span>
-              <motion.button
-                type="button"
-                onClick={handleHeart}
-                whileTap={{ scale: 0.88 }}
-                transition={{ duration: 0.15 }}
-                className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center bg-[rgba(255,255,255,0.96)]"
-                aria-label="Toggle shortlist"
-              >
-                <Heart
-                  size={16}
-                  weight={saved ? 'fill' : 'regular'}
-                  color={saved ? '#000' : '#aaa'}
-                />
-              </motion.button>
-              <p
-                className="absolute bottom-0 right-0 text-[11px] text-[#aaa] italic p-3 bg-[rgba(255,255,255,0.85)]"
-                style={fontUI}
-              >
-                {galleryImages.length > 1 ? `${galleryImages.length} photos` : 'Property photo'}
-              </p>
+              <Carousel setApi={setCarouselApi} className="w-full bg-[#f2f2f2]">
+                <CarouselContent>
+                  {(galleryImages.length > 0 ? galleryImages : [null]).map((img, i) => (
+                    <CarouselItem key={i} className="relative aspect-[4/3] lg:aspect-[16/9]">
+                      {img ? (
+                        <LazyImage
+                          src={img}
+                          alt={`${property.title} ${i + 1}`}
+                          priority={i === 0}
+                          className="absolute inset-0 w-full h-full object-cover object-center"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f2f2f2] to-[#e8e8e8]">
+                          <TypeIcon size={72} weight="thin" color="#d0d0d0" />
+                        </div>
+                      )}
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                {galleryImages.length > 1 && (
+                  <>
+                    <CarouselPrevious className="left-3 h-9 w-9 rounded-full bg-white/90 border-0 shadow-md hover:bg-white" />
+                    <CarouselNext className="right-3 h-9 w-9 rounded-full bg-white/90 border-0 shadow-md hover:bg-white" />
+                  </>
+                )}
+                <span
+                  className="absolute top-0 left-0 z-10 bg-[#000] text-[#fff] uppercase text-[10px] tracking-[0.14em] px-3 py-[5px]"
+                  style={fontUI}
+                >
+                  {getImageBadge(property)}
+                </span>
+                <motion.button
+                  type="button"
+                  onClick={handleHeart}
+                  whileTap={{ scale: 0.88 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center bg-[rgba(255,255,255,0.96)]"
+                  aria-label="Toggle shortlist"
+                >
+                  <Heart
+                    size={16}
+                    weight={saved ? 'fill' : 'regular'}
+                    color={saved ? '#000' : '#aaa'}
+                  />
+                </motion.button>
+                {galleryImages.length > 1 && (
+                  <p
+                    className="absolute bottom-0 right-0 z-10 text-[11px] text-[#aaa] italic p-3 bg-[rgba(255,255,255,0.85)]"
+                    style={fontUI}
+                  >
+                    {galleryImages.length} photos
+                  </p>
+                )}
+              </Carousel>
             </motion.div>
+
+            {galleryImages.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
+                {galleryImages.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => carouselApi?.scrollTo(i)}
+                    className="shrink-0 w-[52px] h-[52px] rounded-lg overflow-hidden border-2 border-transparent hover:border-[#000] focus:border-[#000] transition-colors duration-200"
+                  >
+                    <LazyImage src={img} alt="" className="w-full h-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Property header — area row, then type-for-sale title, then meta */}
             <div className="mt-8">
@@ -406,20 +448,20 @@ export default function PropertyDetailPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="uppercase text-[34px] lg:text-[56px] text-[#000] font-normal leading-[1.1] tracking-[-0.01em] mt-3"
+                className="uppercase text-[28px] lg:text-[44px] text-[#000] font-bold leading-[1.05] tracking-[-0.03em] mt-3"
                 style={fontHeading}
               >
                 {getTopLabel(property)}
               </motion.h1>
               {property.propertyCode && (
-                <p className="text-[12px] text-[#aaa] mt-2 font-mono" style={fontUI}>
-                  Property ID: <span className="font-semibold text-[#555]">{property.propertyCode}</span>
-                </p>
+                <Badge variant="outline" className="mt-2 text-[11px] font-mono tracking-wide">
+                  ID: {property.propertyCode}
+                </Badge>
               )}
               {isLandOrPlot && (
-                <div className="mt-5 border border-[#e8e8e8] bg-[#fafafa] px-5 py-4">
+                <div className="mt-5 border border-gray-100 bg-white shadow-sm px-5 py-3">
                   <p
-                    className="font-numeric text-[28px] font-medium leading-none text-[#000] lg:text-[32px]"
+                    className="font-numeric text-[24px] lg:text-[28px] font-medium leading-none text-[#000]"
                     style={fontPrice}
                   >
                     {formatCardTotalPrice(property.price)}
@@ -438,10 +480,24 @@ export default function PropertyDetailPage() {
               )}
             </div>
 
+            {(property.facing || property.katha || property.dimensions) && (
+              <div className="flex flex-wrap items-center gap-2 mt-6 mb-1">
+                {property.facing && (
+                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.facing} Facing</span>
+                )}
+                {property.katha && (
+                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.katha} Katha</span>
+                )}
+                {property.dimensions && (
+                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.dimensions}</span>
+                )}
+              </div>
+            )}
+
             {/* Investment highlights */}
             <div className="mt-8" >
               <SectionLabel>Investment Highlights</SectionLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3.5">
                 {(property.highlights ?? []).map((h, i) => (
                   <motion.div
                     key={h}
@@ -449,7 +505,7 @@ export default function PropertyDetailPage() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.04, duration: 0.35, ease: 'easeOut' }}
-                    className="group flex items-center gap-2.5 border border-[#e8e8e8] px-4 py-[11px] hover:bg-[#000] hover:border-[#000] transition-all duration-200 ease-out"
+                    className="group flex items-center gap-2.5 border border-[#e8e8e8] rounded-lg px-5 py-4 hover:bg-[#000] hover:border-[#000] hover:shadow-md transition-all duration-200 ease-out"
                   >
                     <CheckCircle
                       size={13}
@@ -477,7 +533,7 @@ export default function PropertyDetailPage() {
             {!isLandOrPlot && (property.amenities ?? []).length > 0 && (
               <div className="mt-9" >
                 <SectionLabel>Amenities &amp; Features</SectionLabel>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-3.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3.5">
                   {(property.amenities ?? []).map((amenity, i) => {
                     const AmenityIcon = getAmenityIcon(amenity);
                     return (
@@ -487,7 +543,7 @@ export default function PropertyDetailPage() {
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.035, duration: 0.35, ease: 'easeOut' }}
-                        className="group flex flex-col items-center gap-2.5 border border-[#ebebeb] px-2.5 py-4 text-center hover:bg-[#000] transition-colors duration-200"
+                        className="group flex flex-col items-center gap-2.5 border border-[#ebebeb] rounded-lg px-4 py-5 text-center hover:bg-[#000] hover:shadow-md transition-all duration-200"
                       >
                         <AmenityIcon
                           size={22}
@@ -508,14 +564,15 @@ export default function PropertyDetailPage() {
             )}
 
             {/* About */}
-            <div className="mt-9" >
+            <Separator className="mb-9" />
+            <div className="mt-9">
               <SectionLabel>About This Property</SectionLabel>
               <motion.p
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="text-[19px] text-[#333] leading-[1.72] tracking-[0.01em] mt-3.5"
+                className="text-[15px] lg:text-[16px] text-[#333] leading-[1.72] tracking-[0.01em] mt-3.5"
                 style={fontHeading}
               >
                 {property.description}
@@ -532,7 +589,7 @@ export default function PropertyDetailPage() {
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Monthly
                       </p>
-                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
                         {property.monthly_rental ?? '—'}
                       </p>
                     </div>
@@ -540,7 +597,7 @@ export default function PropertyDetailPage() {
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Annual
                       </p>
-                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
                         {property.annual_income ?? '—'}
                       </p>
                     </div>
@@ -548,7 +605,7 @@ export default function PropertyDetailPage() {
                       <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
                         Est. Yield
                       </p>
-                      <p className="mt-2 font-numeric text-[28px] font-medium leading-none text-[#000] sm:text-[34px]" style={fontPrice}>
+                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
                         {property.rental_yield ? `${property.rental_yield}%` : '—'}
                       </p>
                     </div>
@@ -560,15 +617,51 @@ export default function PropertyDetailPage() {
               </div>
             )}
 
+            {/* Nearby landmarks */}
+            <div className="mt-9">
+              <SectionLabel>Nearby Landmarks</SectionLabel>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3.5">
+                {[
+                  { label: 'Hospitals', detail: 'Within 5 km radius' },
+                  { label: 'Schools', detail: 'Within 3 km radius' },
+                  { label: 'Connectivity', detail: 'Well-connected via roads' },
+                ].map((item) => (
+                  <div key={item.label} className="border border-[#ebebeb] rounded-lg px-4 py-4">
+                    <p className="text-[10px] text-[#888] uppercase tracking-[0.12em]" style={fontUI}>{item.label}</p>
+                    <p className="text-[13px] text-[#000] mt-1.5" style={fontUI}>{item.detail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* FAQ */}
+            <div className="mt-9 mb-2">
+              <SectionLabel>Frequently Asked Questions</SectionLabel>
+              <div className="mt-3.5 space-y-[7px]">
+                {[
+                  { q: 'Is this property RERA approved?', a: 'Please contact our team for RERA documentation details.' },
+                  { q: 'What is the exact location?', a: `The property is located in ${property.area}, ${property.location}. Contact us for the exact address and directions.` },
+                  { q: 'Can I get home loan assistance?', a: 'Yes, we can connect you with trusted financial partners for loan assistance.' },
+                ].map((faq) => (
+                  <details key={faq.q} className="group border border-[#ebebeb] rounded-lg open:border-[#ccc] transition-colors">
+                    <summary className="flex items-center justify-between px-4 py-3.5 text-[13px] text-[#000] cursor-pointer list-none" style={fontUI}>
+                      {faq.q}
+                    </summary>
+                    <p className="px-4 pb-3.5 text-[12px] text-[#666] leading-relaxed" style={fontUI}>{faq.a}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+
           </div>
 
           {/* Right column — sticky panel (desktop) */}
-          <aside className="hidden lg:block" >
-            <div className="sticky top-[72px] border border-[#e8e8e8] bg-[#fff]" >
+            <aside className="hidden lg:block" >
+            <div className="sticky top-[72px] border border-[#e8e8e8] bg-[#fff] rounded-xl overflow-hidden" >
               <div className="bg-[#000] px-[26px] py-6" >
-                <p className="uppercase text-[9px] text-[#666] tracking-[0.16em]" style={fontUI}>
-                  Asking Price
-                </p>
+                 <p className="uppercase text-[10px] text-[#888] tracking-[0.18em]" style={fontUI}>
+                   Asking Price
+                 </p>
                 <p
                   className="text-[44px] text-[#fff] font-medium leading-none mt-1 tracking-tight"
                   style={fontPrice}
@@ -616,7 +709,7 @@ export default function PropertyDetailPage() {
                   onClick={handleWhatsApp}
                   disabled={waLoading}
                   whileTap={{ scale: 0.97 }}
-                  className="flex h-[46px] w-full items-center justify-center gap-2 border border-[#25D366] bg-[#25D366] text-[12px] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-70"
+                  className="flex h-[46px] w-full items-center justify-center gap-2 border border-[#25D366] bg-[#25D366] text-[12px] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-70 rounded-xl"
                   style={fontUI}
                 >
                   <WhatsappLogo size={16} weight="fill" color="#fff" />
@@ -627,7 +720,7 @@ export default function PropertyDetailPage() {
                   type="button"
                   onClick={handleHeart}
                   whileTap={{ scale: 0.94 }}
-                  className="w-full h-9 flex items-center justify-center gap-2 text-[12px] text-[#888] bg-transparent border-0"
+                  className="w-full h-9 flex items-center justify-center gap-2 text-[12px] text-[#888] bg-transparent border-0 hover:bg-gray-50 hover:border hover:border-gray-200 rounded-lg transition-all duration-200"
                   style={fontUI}
                 >
                   <Heart
@@ -638,15 +731,15 @@ export default function PropertyDetailPage() {
                   {saved ? 'Saved ✓' : 'Save to Shortlist'}
                 </motion.button>
 
-                <button
-                  type="button"
+                <Button
+                  variant="outline"
                   onClick={handleShare}
-                  className="flex h-11 w-full min-h-[44px] touch-manipulation items-center justify-center gap-2 rounded-lg border-2 border-gray-900 bg-white text-[12px] font-semibold text-gray-900 transition hover:bg-gray-50 active:scale-[0.98]"
+                  className="w-full h-11 text-[12px] font-semibold gap-2"
                   style={fontUI}
                 >
                   <ShareNetwork size={16} weight="duotone" color="#111" />
                   {shareFeedback || 'Share This Property'}
-                </button>
+                </Button>
               </div>
 
               <AnimatePresence>

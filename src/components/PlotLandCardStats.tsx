@@ -51,7 +51,7 @@ function StatCell({
 
   const valueClass =
     variant === 'detail'
-      ? 'font-numeric text-[15px] text-[#000] font-semibold mt-1'
+      ? 'font-numeric text-lg text-[#000] font-semibold mt-1'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
         : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
@@ -102,7 +102,7 @@ export default function PlotLandCardStats({
 
   const containerClass =
     variant === 'detail'
-      ? `grid grid-cols-2 gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5 ${className}`
+      ? `grid grid-cols-2 gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-6 ${className}`
       : variant === 'compact'
         ? `grid grid-cols-2 gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 ${className}`
         : `grid grid-cols-2 gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${className}`;

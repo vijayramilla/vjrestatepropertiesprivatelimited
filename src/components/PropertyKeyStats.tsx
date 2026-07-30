@@ -45,7 +45,7 @@ function StatCell({
 }) {
   const valueClass =
     variant === 'detail'
-      ? 'font-numeric text-[15px] text-[#000] font-semibold mt-1'
+      ? 'font-numeric text-lg text-[#000] font-semibold mt-1'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
         : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
@@ -86,7 +86,7 @@ export default function PropertyKeyStats({
       : '—';
   const containerClass =
     variant === 'detail'
-      ? `grid gap-4 bg-[#f9f9f9] border border-[#e8e8e8] p-5 ${
+      ? `grid gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-6 ${
           showRentalStats ? 'grid-cols-2 sm:grid-cols-4' : showPricePerSqft ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'
         }`
       : variant === 'compact'
