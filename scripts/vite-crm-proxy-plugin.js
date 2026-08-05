@@ -58,6 +58,10 @@ function supabaseFetch(method, path, body, baseUrl = REQ_URL, apiKey = REQ_KEY) 
   });
 }
 
+function employeeFetch(method, path, body) {
+  return supabaseFetch(method, path, body, CLI_URL, CLI_ANON);
+}
+
 function supabaseRpc(fn, args) {
   return fetch(`${REQ_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
@@ -242,6 +246,129 @@ async function executeAction(action, params) {
       await supabaseFetch('PATCH', `leads?assigned_agent=eq.${encodeURIComponent(id)}`, { assigned_agent: null, updated_at: new Date().toISOString() });
       await supabaseFetch('DELETE', `agents?id=eq.${id}`, null);
       return { message: 'Agent deleted' };
+    }
+    case 'employees.list': {
+      const { search, department, status } = params;
+      let path = 'employees?select=*';
+      const filters = [];
+      if (search) filters.push(`or=(name.ilike.%25${encodeURIComponent(search)}%25,email.ilike.%25${encodeURIComponent(search)}%25,employee_id.ilike.%25${encodeURIComponent(search)}%25)`);
+      if (department) filters.push(`department=eq.${encodeURIComponent(department)}`);
+      if (status) filters.push(`status=eq.${encodeURIComponent(status)}`);
+      filters.push('order=created_at.desc');
+      const { data } = await employeeFetch('GET', path + '&' + filters.join('&'), null);
+      const all = data ?? [];
+      const stats = {
+        total: all.length,
+        active: all.filter((e) => e.status === 'Active').length,
+        onLeave: all.filter((e) => e.status === 'On Leave' || e.status === 'Leave').length,
+        newThisMonth: all.filter((e) => {
+          if (!e.joining_date) return false;
+          const d = new Date(e.joining_date);
+          const now = new Date();
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length,
+      };
+      return { data: all, stats };
+    }
+    case 'employees.get': {
+      const { id } = params;
+      const { data } = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
+      return { data: data?.[0] ?? null };
+    }
+    case 'employees.create': {
+      const { _auth, ...fields } = params;
+      const payload = {};
+      for (const [k, v] of Object.entries(fields)) {
+        if (v !== undefined && v !== '') payload[k === 'employeeId' ? 'employee_id' : k] = v;
+      }
+      await employeeFetch('POST', 'employees', payload);
+      const { data } = await employeeFetch('GET', `employees?employee_id=eq.${encodeURIComponent(payload.employee_id || '')}&order=created_at.desc&limit=1`, null);
+      return { data: data?.[0] ?? null };
+    }
+    case 'employees.update': {
+      const { id, _auth, ...fields } = params;
+      const updates = { updated_at: new Date().toISOString() };
+      const MAP = { employeeId: 'employee_id', joiningDate: 'joining_date', emergencyContactName: 'emergency_contact_name', emergencyContactPhone: 'emergency_contact_phone', bankAccountNumber: 'bank_account_number', bankName: 'bank_name', ifscCode: 'ifsc_code', panNumber: 'pan_number', aadharNumber: 'aadhar_number', uanNumber: 'uan_number', esiNumber: 'esi_number', profilePhotoUrl: 'profile_photo_url' };
+      for (const [k, v] of Object.entries(fields)) {
+        if (v === undefined) continue;
+        const col = MAP[k] ?? k;
+        updates[col] = v;
+      }
+      await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, updates);
+      const { data } = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
+      return { data: data?.[0] ?? null };
+    }
+    case 'employees.delete': {
+      const { id } = params;
+      await employeeFetch('DELETE', `employees?id=eq.${encodeURIComponent(id)}`, null);
+      return { message: 'Employee deleted' };
+    }
+    case 'employees.maxEmployeeId': {
+      const { data } = await employeeFetch('GET', 'employees?select=employee_id&order=employee_id.desc&limit=1', null);
+      return { data: data?.[0]?.employee_id ?? null };
+    }
+    case 'employees.history': {
+      const { employeeId } = params;
+      const { data } = await employeeFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(employeeId)}&order=event_date.desc`, null);
+      return { data: data ?? [] };
+    }
+    case 'employees.addHistory': {
+      const { employeeId, eventType, title, description, eventDate } = params;
+      await employeeFetch('POST', 'employee_history', { employee_id: employeeId, event_type: eventType, title, description, event_date: eventDate, created_by: params._auth.email });
+      return { message: 'History added' };
+    }
+    case 'employees.attendance': {
+      const { employeeId, month, year } = params;
+      const { data } = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}`, null);
+      return { data: data ?? [] };
+    }
+    case 'employees.setAttendance': {
+      const { employeeId, date, checkIn, checkOut, status, notes } = params;
+      const existing = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}&date=eq.${encodeURIComponent(date)}&select=id`, null);
+      const body = { employee_id: employeeId, date, check_in: checkIn, check_out: checkOut, status, notes: notes ?? '' };
+      if (existing.data?.length) {
+        await employeeFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(existing.data[0].id)}`, body);
+      } else {
+        await employeeFetch('POST', 'employee_attendance', body);
+      }
+      return { message: 'Attendance saved' };
+    }
+    case 'employees.leaves': {
+      const { employeeId } = params;
+      const { data } = await employeeFetch('GET', `employee_leaves?employee_id=eq.${encodeURIComponent(employeeId)}&order=start_date.desc`, null);
+      return { data: data ?? [] };
+    }
+    case 'employees.applyLeave': {
+      const { employeeId, leaveType, startDate, endDate, reason } = params;
+      await employeeFetch('POST', 'employee_leaves', { employee_id: employeeId, leave_type: leaveType, start_date: startDate, end_date: endDate, reason: reason ?? '', status: 'Pending' });
+      return { message: 'Leave applied' };
+    }
+    case 'employees.approveLeave': {
+      const { id } = params;
+      await employeeFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(id)}`, { status: 'Approved' });
+      return { message: 'Leave approved' };
+    }
+    case 'employees.rejectLeave': {
+      const { id } = params;
+      await employeeFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(id)}`, { status: 'Rejected' });
+      return { message: 'Leave rejected' };
+    }
+    case 'employees.payroll': {
+      const { employeeId } = params;
+      const { data } = await employeeFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(employeeId)}&order=month.desc`, null);
+      return { data: data ?? [] };
+    }
+    case 'employees.generatePayroll': {
+      const { employeeId, month, year } = params;
+      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(employeeId)}&select=name,salary,employee_id`, null);
+      const e = emp.data?.[0] ?? {};
+      await employeeFetch('POST', 'employee_payroll', { employee_id: employeeId, month, year, gross_salary: e.salary ?? 0, status: 'Pending' });
+      return { message: 'Payroll generated' };
+    }
+    case 'employees.markPaid': {
+      const { id, paymentDate } = params;
+      await employeeFetch('PATCH', `employee_payroll?id=eq.${encodeURIComponent(id)}`, { status: 'Paid', payment_date: paymentDate ?? new Date().toISOString() });
+      return { message: 'Payroll marked paid' };
     }
     case 'followUps.list': {
       if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');

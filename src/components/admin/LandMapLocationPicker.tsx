@@ -163,7 +163,7 @@ export default function LandMapLocationPicker({
       }
 
       // Try backend resolution first (for short URLs and comprehensive parsing)
-      const backendResponse = await fetch('/.netlify/functions/resolve-maps-link', {
+      const backendResponse = await fetch('/api/resolve-maps-link', {
         method: 'POST',
         body: JSON.stringify({ mapLink: text }),
       }).then(r => r.json());

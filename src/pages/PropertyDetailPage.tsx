@@ -13,9 +13,7 @@ import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
 import PropertyDetailsPanel from '../components/PropertyDetailsPanel';
-import PropertyKeyStats from '../components/PropertyKeyStats';
-import PlotLandCardStats from '../components/PlotLandCardStats';
-import { propertyToStatsView } from '@/data/listingProperties';
+
 import {
   Buildings,
   HouseLine,
@@ -40,6 +38,7 @@ import {
   ArrowUp,
   WifiHigh,
   MapPin,
+  CaretDown,
   type Icon,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
@@ -154,6 +153,7 @@ export default function PropertyDetailPage() {
   const [waLoading, setWaLoading] = useState(false);
   const [waContactOpen, setWaContactOpen] = useState(false);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+  const [descExpanded, setDescExpanded] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -243,7 +243,6 @@ export default function PropertyDetailPage() {
   const isLandOrPlot = isLandOrPlotProperty(property);
   const showRental = showsRentalIncome(property);
   const TypeIcon = getCategoryIcon(property);
-  const statsView = propertyToStatsView(property);
   const plotAreaDisplay = formatArea(
     property.area_unit,
     property.area_sqft,
@@ -251,7 +250,6 @@ export default function PropertyDetailPage() {
     property.area_guntas,
   );
   const galleryImages = property.images ?? [];
-  const activeImage = galleryImages[0];
   const handleHeart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -473,11 +471,6 @@ export default function PropertyDetailPage() {
                   )}
                 </div>
               )}
-              {isLandOrPlot ? (
-                <PlotLandCardStats property={statsView} variant="detail" className="mt-4" />
-              ) : (
-                <PropertyKeyStats property={statsView} variant="detail" className="mt-5" />
-              )}
             </div>
 
             {(property.facing || property.katha || property.dimensions) && (
@@ -525,7 +518,6 @@ export default function PropertyDetailPage() {
 
             {/* Property details */}
             <div className="mt-9">
-              <SectionLabel>Property Details</SectionLabel>
               <PropertyDetailsPanel property={property} />
             </div>
 
@@ -567,55 +559,41 @@ export default function PropertyDetailPage() {
             <Separator className="mb-9" />
             <div className="mt-9">
               <SectionLabel>About This Property</SectionLabel>
-              <motion.p
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="text-[15px] lg:text-[16px] text-[#333] leading-[1.72] tracking-[0.01em] mt-3.5"
-                style={fontHeading}
-              >
-                {property.description}
-              </motion.p>
-            </div>
-
-            {/* Rental income snapshot */}
-            {showRental && (
-              <div className="mt-9" >
-                <SectionLabel>Rental Income Snapshot</SectionLabel>
-                <div className="mt-3.5 overflow-hidden rounded-xl border border-[#ebebeb] bg-[#f9f9f9]">
-                  <div className="grid grid-cols-1 gap-px bg-[#e0e0e0] sm:grid-cols-3">
-                    <div className="bg-[#f9f9f9] px-4 py-5 sm:border-r sm:border-[#e0e0e0]">
-                      <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
-                        Monthly
-                      </p>
-                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
-                        {property.monthly_rental ?? '—'}
-                      </p>
-                    </div>
-                    <div className="bg-[#f9f9f9] px-4 py-5 sm:border-r sm:border-[#e0e0e0]">
-                      <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
-                        Annual
-                      </p>
-                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
-                        {property.annual_income ?? '—'}
-                      </p>
-                    </div>
-                    <div className="bg-white px-4 py-5">
-                      <p className="uppercase text-[9px] text-[#aaa] tracking-[0.12em]" style={fontUI}>
-                        Est. Yield
-                      </p>
-                      <p className="mt-2 font-numeric text-[22px] sm:text-[26px] font-medium leading-none text-[#000]" style={fontPrice}>
-                        {property.rental_yield ? `${property.rental_yield}%` : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="border-t border-[#ebebeb] px-4 py-3 text-[11px] text-[#bbb]" style={fontUI}>
-                    Based on current occupancy. Actual returns may vary.
-                  </p>
-                </div>
+              <div className="relative mt-3.5">
+                <motion.p
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, ease: 'easeOut' }}
+                  className={`text-[15px] lg:text-[16px] text-[#333] leading-[1.72] tracking-[0.01em] ${
+                    !descExpanded ? 'line-clamp-4' : ''
+                  }`}
+                  style={fontHeading}
+                >
+                  {property.description}
+                </motion.p>
+                {property.description.length > 220 && (
+                  <>
+                    {!descExpanded && (
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setDescExpanded((v) => !v)}
+                      className="mt-2 flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#000] hover:opacity-70 transition-opacity"
+                      style={fontUI}
+                    >
+                      {descExpanded ? 'Read Less' : 'Read More'}
+                      <CaretDown
+                        size={13}
+                        weight="bold"
+                        className={`transition-transform duration-200 ${descExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+                  </>
+                )}
               </div>
-            )}
+            </div>
 
             {/* Nearby landmarks */}
             <div className="mt-9">
@@ -630,25 +608,6 @@ export default function PropertyDetailPage() {
                     <p className="text-[10px] text-[#888] uppercase tracking-[0.12em]" style={fontUI}>{item.label}</p>
                     <p className="text-[13px] text-[#000] mt-1.5" style={fontUI}>{item.detail}</p>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* FAQ */}
-            <div className="mt-9 mb-2">
-              <SectionLabel>Frequently Asked Questions</SectionLabel>
-              <div className="mt-3.5 space-y-[7px]">
-                {[
-                  { q: 'Is this property RERA approved?', a: 'Please contact our team for RERA documentation details.' },
-                  { q: 'What is the exact location?', a: `The property is located in ${property.area}, ${property.location}. Contact us for the exact address and directions.` },
-                  { q: 'Can I get home loan assistance?', a: 'Yes, we can connect you with trusted financial partners for loan assistance.' },
-                ].map((faq) => (
-                  <details key={faq.q} className="group border border-[#ebebeb] rounded-lg open:border-[#ccc] transition-colors">
-                    <summary className="flex items-center justify-between px-4 py-3.5 text-[13px] text-[#000] cursor-pointer list-none" style={fontUI}>
-                      {faq.q}
-                    </summary>
-                    <p className="px-4 pb-3.5 text-[12px] text-[#666] leading-relaxed" style={fontUI}>{faq.a}</p>
-                  </details>
                 ))}
               </div>
             </div>

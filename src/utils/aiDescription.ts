@@ -90,3 +90,90 @@ Rules:
     throw err;
   }
 }
+
+const TARGET_FORMAT = `Commercial Building for Sale - Kadubeesanahalli, Bangalore
+
+Premium income-generating commercial building located in the heart of Kadubeesanahalli, one of Bangalore's fastest-growing IT and business corridors. An excellent investment opportunity offering stable rental income and strong long-term appreciation.
+
+Property Details:
+- Location: Kadubeesanahalli, Bangalore
+- Site Area: 3,300 Sq.ft
+- Built-up Area: 10,600 Sq.ft
+
+Rental Details (Per Month):
+- Ground Floor: Rs.1,58,770
+- First Floor: Rs.1,27,563
+- Second Floor: Rs.95,000
+- Rooftop: Rs.36,640
+
+Financials:
+- Total Monthly Rental Income: Rs.4,17,973 (Approx. Rs.4.18 Lakhs)
+- Asking Price: Rs.7 Crores
+
+Investment Highlights:
+- Prime Commercial Location
+- Stable Monthly Rental Income
+- Multiple Rental Streams
+- High Demand Business Corridor
+- Excellent Capital Appreciation Potential
+- Ready-to-Own Income-Generating Asset`;
+
+export async function restructureDescription(raw: string): Promise<string> {
+  const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('VITE_OPENROUTER_API_KEY is missing from .env');
+  }
+
+  const prompt = `You are VJR Estate's property listing writer for Bangalore real estate.
+
+The admin pasted raw property details below. Restructure them into a clean, professional property description.
+
+Follow EXACTLY this structure and style (section order, headers, and bullet format must match this example):
+
+${TARGET_FORMAT}
+
+Rules:
+- First line: Title as "Property Type for Sale - Locality, Bangalore"
+- Second paragraph: 2-3 sentences of compelling intro (investment opportunity, stable income, appreciation)
+- Section headers: "Property Details:", "Rental Details (Per Month):", "Financials:", "Investment Highlights:"
+- Use "- " bullets under each section
+- Use Indian Rupee symbol or "Rs." and Indian number formats (lakhs/crores)
+- Keep every number/fact from the raw text; do NOT invent data
+- Turn leftover one-line selling points into the Investment Highlights bullets
+- Maximum 1100 characters
+- Output the description ONLY, no preamble, no code fences
+
+RAW PASTED DETAILS:
+${raw}`;
+
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+      'HTTP-Referer': import.meta.env.VITE_SITE_URL || 'https://vjrestate.com',
+      'X-Title': 'VJR Estate',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 700,
+      temperature: 0.4,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`AI API error ${response.status}: ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text: string | undefined = data?.choices?.[0]?.message?.content;
+
+  if (!text) {
+    throw new Error('AI returned no content');
+  }
+
+  return text.replace(/```/g, '').trim();
+}

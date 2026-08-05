@@ -10,6 +10,7 @@ import {
   AdminToolbar,
 } from '@/components/admin/AdminUi';
 import { MagnifyingGlass } from 'phosphor-react';
+import { leadSupabase } from '@/services/leadSupabase';
 
 const API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:5000';
 
@@ -18,24 +19,39 @@ interface OwnerContact {
   propertyId: string;
   contact_name: string;
   contact_phone: string;
+  agent_name?: string;
   updatedAt: string;
 }
 
 export default function AdminOwnerContacts() {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<OwnerContact[]>([]);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentFilter, setAgentFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
+    leadSupabase.employees
+      .list({ status: 'Active' })
+      .then((res: any) => {
+        setAgents((res.data ?? []).filter((e: any) => e.designation === 'Channel Partner'));
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
     setLoading(true);
-    const params = search ? `?q=${encodeURIComponent(search)}` : '';
-    fetch(`${API_URL}/api/owner-contacts${params}`)
+    const params = new URLSearchParams();
+    if (agentFilter) params.set('agent', agentFilter);
+    if (search) params.set('q', search);
+    const qs = params.toString();
+    fetch(`${API_URL}/api/owner-contacts${qs ? `?${qs}` : ''}`)
       .then((r) => r.json())
       .then((data) => setContacts(data ?? []))
       .catch(() => setContacts([]))
       .finally(() => setLoading(false));
-  }, [search]);
+  }, [search, agentFilter]);
 
   const filtered = contacts;
 
@@ -50,6 +66,18 @@ export default function AdminOwnerContacts() {
 
         <AdminToolbar>
           <AdminFilterRow>
+            <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="admin-input-ghost"
+            >
+              <option value="">All Agents</option>
+              {agents.map((a) => (
+                <option key={a.employee_id} value={a.employee_id}>
+                  {a.name} (CP ID: {a.employee_id})
+                </option>
+              ))}
+            </select>
             <div className="relative flex-1 min-w-0 max-w-xs">
               <MagnifyingGlass
                 size={16}
@@ -71,7 +99,7 @@ export default function AdminOwnerContacts() {
         ) : filtered.length === 0 ? (
           <AdminEmptyState
             title="No owner contacts found"
-            description={search ? 'Try a different search term.' : 'No owner contacts have been saved yet.'}
+            description={search || agentFilter ? 'Try a different filter.' : 'No owner contacts have been saved yet.'}
           />
         ) : (
           <div className="admin-card overflow-hidden">
@@ -92,6 +120,9 @@ export default function AdminOwnerContacts() {
                   <span className="text-sm font-medium text-indigo-600 truncate block">
                     {c.propertyId.slice(0, 12)}...
                   </span>
+                  {agentFilter && c.agent_name && (
+                    <span className="text-[11px] text-gray-400">Agent: {c.agent_name}</span>
+                  )}
                   <span className="text-[11px] text-gray-400">Click to edit</span>
                 </div>
                 <div className="col-span-3 text-sm text-gray-700">

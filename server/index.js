@@ -11,10 +11,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
+
 const ownerContactSchema = new mongoose.Schema({
   propertyId: { type: String, required: true, unique: true, index: true },
   contact_name: { type: String, default: '' },
   contact_phone: { type: String, default: '' },
+  type: { type: String, default: '' },
+  listed_by: { type: String, default: '' },
+  agent_id: { type: String, default: '' },
+  agent_name: { type: String, default: '' },
   updatedAt: { type: Date, default: Date.now },
 });
 
@@ -22,13 +28,21 @@ const OwnerContact = mongoose.model('OwnerContact', ownerContactSchema);
 
 app.post('/api/owner-contact', async (req, res) => {
   try {
-    const { propertyId, contact_name, contact_phone } = req.body;
+    const { propertyId, contact_name, contact_phone, type, listed_by, agent_id, agent_name } = req.body;
     if (!propertyId) {
       return res.status(400).json({ error: 'propertyId is required' });
     }
     const doc = await OwnerContact.findOneAndUpdate(
       { propertyId },
-      { contact_name: contact_name ?? '', contact_phone: contact_phone ?? '', updatedAt: new Date() },
+      {
+        contact_name: contact_name ?? '',
+        contact_phone: contact_phone ?? '',
+        type: type ?? '',
+        listed_by: listed_by ?? '',
+        agent_id: agent_id ?? '',
+        agent_name: agent_name ?? '',
+        updatedAt: new Date(),
+      },
       { upsert: true, new: true },
     );
     res.json(doc);
@@ -41,6 +55,7 @@ app.post('/api/owner-contact', async (req, res) => {
 app.get('/api/owner-contacts', async (req, res) => {
   try {
     const q = req.query.q;
+    const agent = req.query.agent;
     let filter = {};
     if (q) {
       filter = {
@@ -49,6 +64,9 @@ app.get('/api/owner-contacts', async (req, res) => {
           { contact_phone: { $regex: q, $options: 'i' } },
         ],
       };
+    }
+    if (agent) {
+      filter = { ...filter, agent_id: agent, type: { $in: BUILDING_TYPES } };
     }
     const docs = await OwnerContact.find(filter).sort({ updatedAt: -1 }).lean();
     res.json(docs);
@@ -61,7 +79,16 @@ app.get('/api/owner-contacts', async (req, res) => {
 app.get('/api/owner-contact/:propertyId', async (req, res) => {
   try {
     const doc = await OwnerContact.findOne({ propertyId: req.params.propertyId });
-    res.json(doc ? { contact_name: doc.contact_name, contact_phone: doc.contact_phone } : { contact_name: '', contact_phone: '' });
+    res.json(doc
+      ? {
+          contact_name: doc.contact_name,
+          contact_phone: doc.contact_phone,
+          type: doc.type,
+          listed_by: doc.listed_by,
+          agent_id: doc.agent_id,
+          agent_name: doc.agent_name,
+        }
+      : { contact_name: '', contact_phone: '', type: '', listed_by: '', agent_id: '', agent_name: '' });
   } catch (error) {
     console.error('GET /api/owner-contact error:', error);
     res.status(500).json({ error: 'Internal server error' });

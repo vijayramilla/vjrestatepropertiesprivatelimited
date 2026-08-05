@@ -19,7 +19,7 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
 
   const configError =
     !googleMapsApiKey
-      ? new Error('Missing VITE_GOOGLE_MAPS_API_KEY. Add it in Netlify environment variables.')
+      ? new Error('Missing VITE_GOOGLE_MAPS_API_KEY. Add it in Vercel environment variables.')
       : undefined;
 
   const authFailedRef = useRef(false);

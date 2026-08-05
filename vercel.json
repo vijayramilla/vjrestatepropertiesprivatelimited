@@ -1,7 +1,7 @@
 {
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/verify/(.*)", "destination": "/verify/$1" },
+    { "source": "/properties/:id", "destination": "/api/og-preview?id=:id" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

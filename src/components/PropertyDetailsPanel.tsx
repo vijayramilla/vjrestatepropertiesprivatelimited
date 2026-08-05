@@ -335,16 +335,19 @@ export default function PropertyDetailsPanel({ property }: { property: Property 
 
   return (
     <article className="mt-4 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
-      <header className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] bg-black px-4 py-4 sm:px-5">
-        <div>
-          <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-[#888]" style={fontUI}>
-            {getTypeLabel(property)}
-          </p>
-          <h3 className="mt-0.5 text-[15px] font-semibold text-white sm:text-[16px]" style={fontUI}>
-            Property Details
-          </h3>
+      <header className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] px-4 py-4 sm:px-5">
+        <div className="flex items-center gap-3">
+          <span className="h-6 w-1 rounded-full bg-black" />
+          <div>
+            <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-[#999]" style={fontUI}>
+              {getTypeLabel(property)}
+            </p>
+            <h3 className="mt-0.5 text-[16px] font-semibold text-black sm:text-[17px]" style={fontUI}>
+              Property Details
+            </h3>
+          </div>
         </div>
-        <span className="rounded-full border border-[#333] bg-[#111] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[#ccc]" style={fontUI}>
+        <span className="rounded-full border border-[#e8e8e8] bg-[#fafafa] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[#666]" style={fontUI}>
           Specs
         </span>
       </header>

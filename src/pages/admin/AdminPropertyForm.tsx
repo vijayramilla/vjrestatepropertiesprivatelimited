@@ -11,8 +11,10 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { leadSupabase } from '@/services/leadSupabase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import LazyImage from '@/components/common/LazyImage';
+import { restructureDescription } from '@/utils/aiDescription';
 import { formatPrice, formatRental, formatYield, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import {
   PLOT_LAND_TYPES,
@@ -90,6 +92,8 @@ interface FormData {
   listed_by?: string;
   contact_name?: string;
   contact_phone?: string;
+  agent_id?: string;
+  agent_name?: string;
 }
 
 const OWNER_API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:5000';
@@ -199,6 +203,8 @@ export default function AdminPropertyForm() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [aiDescLoading, setAiDescLoading] = useState(false);
+  const [aiDescError, setAiDescError] = useState('');
   const [formData, setFormData] = useState<FormData>({
     propertyCode: '',
     title: '',
@@ -242,10 +248,28 @@ export default function AdminPropertyForm() {
     listed_by: 'VJR Estate',
     contact_name: '',
     contact_phone: '',
+    agent_id: '',
+    agent_name: '',
   });
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
   const areaSearchRef = useRef<HTMLInputElement>(null);
   const { isLoaded, loadError } = useGoogleMapsLoader();
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    leadSupabase.employees
+      .list({ status: 'Active' })
+      .then((res: any) => {
+        if (cancelled) return;
+        const channel = (res.data ?? []).filter((e: any) => e.designation === 'Channel Partner');
+        setAgents(channel);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setAgentsLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (!isLoaded || loadError || !areaSearchRef.current) return;
@@ -332,6 +356,13 @@ export default function AdminPropertyForm() {
                   ...prev,
                   contact_name: ownerData.contact_name ?? '',
                   contact_phone: ownerData.contact_phone ?? '',
+                }));
+              }
+              if (ownerData.agent_id || ownerData.agent_name) {
+                setFormData((prev) => ({
+                  ...prev,
+                  agent_id: ownerData.agent_id ?? '',
+                  agent_name: ownerData.agent_name ?? '',
                 }));
               }
             }
@@ -471,6 +502,8 @@ export default function AdminPropertyForm() {
         area,
         location,
         area_sqft,
+        agent_id: formData.agent_id ?? '',
+        agent_name: formData.agent_name ?? '',
         ...(isPlotOrLand
           ? {
               area_unit: 'sqft',
@@ -535,7 +568,7 @@ export default function AdminPropertyForm() {
         }
       }
 
-      if (propertyId && (formData.contact_name || formData.contact_phone)) {
+      if (propertyId && (formData.contact_name || formData.contact_phone || formData.agent_id)) {
         fetch(`${OWNER_API_URL}/api/owner-contact`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -543,6 +576,10 @@ export default function AdminPropertyForm() {
             propertyId,
             contact_name: formData.contact_name ?? '',
             contact_phone: formData.contact_phone ?? '',
+            type: canonicalPropertyType(formData.type),
+            listed_by: formData.listed_by ?? '',
+            agent_id: formData.agent_id ?? '',
+            agent_name: formData.agent_name ?? '',
           }),
         }).catch(() => {});
       }
@@ -616,6 +653,21 @@ export default function AdminPropertyForm() {
       );
     } else {
       updateFormData('amenities', [...formData.amenities, amenity]);
+    }
+  };
+
+  const handleAIDescription = async () => {
+    if (!formData.description.trim() || aiDescLoading) return;
+    setAiDescLoading(true);
+    setAiDescError('');
+    try {
+      const result = await restructureDescription(formData.description);
+      updateFormData('description', result.slice(0, 1200));
+    } catch (err: any) {
+      setAiDescError(err?.message || 'AI restructuring failed. Check console.');
+      console.error('AI description error:', err);
+    } finally {
+      setAiDescLoading(false);
     }
   };
 
@@ -1599,22 +1651,35 @@ export default function AdminPropertyForm() {
 
           {/* SECTION 8: DESCRIPTION */}
           <div className="admin-section">
-            <h2 className="admin-section-title">Description</h2>
+            <div className="flex items-center justify-between">
+              <h2 className="admin-section-title">Description</h2>
+              <button
+                type="button"
+                onClick={handleAIDescription}
+                disabled={aiDescLoading || !formData.description.trim()}
+                className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+              >
+                {aiDescLoading ? 'Restructuring…' : 'AI · Format'}
+              </button>
+            </div>
 
             <div className="relative">
               <textarea
-                placeholder="Write a compelling description of this property..."
+                placeholder="Paste raw property details, then click AI · Format to restructure them automatically..."
                 value={formData.description}
                 onChange={(e) =>
-                  updateFormData('description', e.target.value.slice(0, 500))
+                  updateFormData('description', e.target.value.slice(0, 1200))
                 }
                 className="admin-textarea"
               />
               <p
                 className="mt-2 text-right text-[11px] text-gray-400"
               >
-                {formData.description.length} / 500 characters
+                {formData.description.length} / 1200 characters
               </p>
+              {aiDescError && (
+                <p className="mt-2 text-xs text-red-600">{aiDescError}</p>
+              )}
             </div>
           </div>
 
@@ -1629,7 +1694,13 @@ export default function AdminPropertyForm() {
                 </label>
                 <select
                   value={formData.listed_by ?? 'VJR Estate'}
-                  onChange={(e) => updateFormData('listed_by', e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    updateFormData('listed_by', v);
+                    if (v === 'Agent') {
+                      updateFormData('agent_id', formData.agent_id ?? '');
+                    }
+                  }}
                   className="admin-select"
                 >
                   <option value="VJR Estate">VJR Estate</option>
@@ -1638,31 +1709,60 @@ export default function AdminPropertyForm() {
                 </select>
               </div>
 
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Owner Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="Owner Name"
-                  value={formData.contact_name ?? ''}
-                  onChange={(e) => updateFormData('contact_name', e.target.value)}
-                  className="admin-input-ghost"
-                />
-              </div>
+              {formData.listed_by === 'Agent' ? (
+                <div>
+                  <label className="block font-sans text-xs text-gray-500 mb-2">
+                    Channel Partner Agent
+                  </label>
+                  <select
+                    value={formData.agent_id ?? ''}
+                    onChange={(e) => {
+                      const agent = agents.find((a) => a.employee_id === e.target.value);
+                      updateFormData('agent_id', e.target.value);
+                      updateFormData('agent_name', agent?.name ?? '');
+                    }}
+                    className="admin-select"
+                  >
+                    <option value="">Select agent</option>
+                    {agents.map((a) => (
+                      <option key={a.employee_id} value={a.employee_id}>
+                        {a.name} (CP ID: {a.employee_id})
+                      </option>
+                    ))}
+                  </select>
+                  {agentsLoading && (
+                    <p className="mt-1 text-[11px] text-gray-400">Loading agents...</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">
+                      Owner Name
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Owner Name"
+                      value={formData.contact_name ?? ''}
+                      onChange={(e) => updateFormData('contact_name', e.target.value)}
+                      className="admin-input-ghost"
+                    />
+                  </div>
 
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Owner Number
-                </label>
-                <input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={formData.contact_phone ?? ''}
-                  onChange={(e) => updateFormData('contact_phone', e.target.value)}
-                  className="admin-input-ghost"
-                />
-              </div>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">
+                      Owner Number
+                    </label>
+                    <input
+                      type="tel"
+                      placeholder="Phone Number"
+                      value={formData.contact_phone ?? ''}
+                      onChange={(e) => updateFormData('contact_phone', e.target.value)}
+                      className="admin-input-ghost"
+                    />
+                  </div>
+                </>
+              )}
 
               <div>
                 <label className="block font-sans text-xs text-gray-500 mb-2">

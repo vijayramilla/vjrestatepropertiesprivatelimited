@@ -1,5 +1,3 @@
-import { Handler } from '@netlify/functions';
-
 interface ResolveResponse {
   success: boolean;
   lat?: number;
@@ -13,28 +11,17 @@ interface ResolveResponse {
   errorStage?: string;
 }
 
-/**
- * Backend serverless function to resolve Google Maps links
- * Handles short URLs, coordinates, place IDs, and forward geocoding
- * Replaces failed client-side approach with server-side resolution
- */
-const handler: Handler = async (event): Promise<{ statusCode: number; body: string }> => {
-  try {
-    if (event.httpMethod !== 'POST') {
-      return {
-        statusCode: 405,
-        body: JSON.stringify({ success: false, error: 'Method not allowed', errorStage: 'http' })
-      };
-    }
+export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ success: false, error: 'Method not allowed', errorStage: 'http' });
+  }
 
-    const body = JSON.parse(event.body || '{}');
+  try {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body ?? {});
     const { mapLink } = body;
 
     if (!mapLink || typeof mapLink !== 'string') {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ success: false, error: 'mapLink is required', errorStage: 'input' })
-      };
+      return res.status(400).json({ success: false, error: 'mapLink is required', errorStage: 'input' });
     }
 
     console.log('🔄 [resolve-maps-link] Processing:', mapLink);
@@ -45,14 +32,11 @@ const handler: Handler = async (event): Promise<{ statusCode: number; body: stri
       console.log('📍 Detected short URL, attempting to resolve...');
       const resolved = await resolveShortUrl(mapLink);
       if (!resolved) {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            success: false,
-            error: 'Could not resolve this short link — it may be expired or invalid',
-            errorStage: 'short-url-resolution'
-          })
-        };
+        return res.status(400).json({
+          success: false,
+          error: 'Could not resolve this short link — it may be expired or invalid',
+          errorStage: 'short-url-resolution'
+        });
       }
       resolvedUrl = resolved;
       console.log('✓ Resolved to:', resolvedUrl);
@@ -63,16 +47,7 @@ const handler: Handler = async (event): Promise<{ statusCode: number; body: stri
     if (directCoords) {
       console.log('✓ Found coordinates in URL:', directCoords);
       const areaInfo = await getAreaFromCoordinates(directCoords.lat, directCoords.lng);
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          success: true,
-          lat: directCoords.lat,
-          lng: directCoords.lng,
-          ...areaInfo,
-          errorStage: 'none'
-        })
-      };
+      return res.status(200).json({ success: true, lat: directCoords.lat, lng: directCoords.lng, ...areaInfo, errorStage: 'none' });
     }
 
     // Step 3: Try to extract place_id and look it up via Places API
@@ -82,16 +57,7 @@ const handler: Handler = async (event): Promise<{ statusCode: number; body: stri
       const placeDetails = await getPlaceDetails(placeId);
       if (placeDetails) {
         const areaInfo = await getAreaFromCoordinates(placeDetails.lat, placeDetails.lng);
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            success: true,
-            lat: placeDetails.lat,
-            lng: placeDetails.lng,
-            ...areaInfo,
-            errorStage: 'none'
-          })
-        };
+        return res.status(200).json({ success: true, lat: placeDetails.lat, lng: placeDetails.lng, ...areaInfo, errorStage: 'none' });
       }
     }
 
@@ -102,48 +68,30 @@ const handler: Handler = async (event): Promise<{ statusCode: number; body: stri
       const coords = await geocodeAddress(placeName);
       if (coords) {
         const areaInfo = await getAreaFromCoordinates(coords.lat, coords.lng);
-        return {
-          statusCode: 200,
-          body: JSON.stringify({
-            success: true,
-            lat: coords.lat,
-            lng: coords.lng,
-            ...areaInfo,
-            errorStage: 'none'
-          })
-        };
+        return res.status(200).json({ success: true, lat: coords.lat, lng: coords.lng, ...areaInfo, errorStage: 'none' });
       } else {
-        return {
-          statusCode: 400,
-          body: JSON.stringify({
-            success: false,
-            error: `Could not find location for "${placeName}" — no results from geocoding API`,
-            errorStage: 'geocoding-no-results'
-          })
-        };
+        return res.status(400).json({
+          success: false,
+          error: `Could not find location for "${placeName}" — no results from geocoding API`,
+          errorStage: 'geocoding-no-results'
+        });
       }
     }
 
-    return {
-      statusCode: 400,
-      body: JSON.stringify({
-        success: false,
-        error: 'Could not extract location from this link — no coordinates or place name found',
-        errorStage: 'url-parsing'
-      })
-    };
+    return res.status(400).json({
+      success: false,
+      error: 'Could not extract location from this link — no coordinates or place name found',
+      errorStage: 'url-parsing'
+    });
   } catch (error) {
     console.error('❌ Backend error:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Internal server error',
-        errorStage: 'backend-exception'
-      })
-    };
+    return res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Internal server error',
+      errorStage: 'backend-exception'
+    });
   }
-};
+}
 
 /** Check if URL is a short link */
 function isShortUrl(url: string): boolean {
@@ -161,7 +109,7 @@ function isShortUrl(url: string): boolean {
 async function resolveShortUrl(shortUrl: string): Promise<string | null> {
   try {
     console.log('🔗 Following redirects for:', shortUrl);
-    
+
     const response = await fetch(shortUrl, {
       method: 'GET',
       redirect: 'follow',
@@ -405,5 +353,3 @@ async function getAreaFromCoordinates(lat: number, lng: number): Promise<{
     };
   }
 }
-
-export { handler };

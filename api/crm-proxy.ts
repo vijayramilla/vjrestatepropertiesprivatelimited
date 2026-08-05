@@ -457,7 +457,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     // Employees
     case 'employees.list': {
       const { search, department, status, sortBy, sortOrder } = params;
-      let query = supabaseAdmin.from('employees').select('*', { count: 'exact' });
+      let query = supabaseCli.from('employees').select('*', { count: 'exact' });
       if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,employee_id.ilike.%${search}%`);
       if (department) query = query.eq('department', department);
       if (status) query = query.eq('status', status);
@@ -481,13 +481,13 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
     case 'employees.get': {
       const { id } = params;
-      const { data: emp, error } = await supabaseAdmin.from('employees').select('*').eq('id', id).single();
+      const { data: emp, error } = await supabaseCli.from('employees').select('*').eq('id', id).single();
       if (error) throw new Error(error.message);
       const [histRes, attRes, leaveRes, payrollRes] = await Promise.all([
-        supabaseAdmin.from('employee_history').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
-        supabaseAdmin.from('employee_attendance').select('*').eq('employee_id', id).order('date', { ascending: false }).limit(31),
-        supabaseAdmin.from('employee_leaves').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
-        supabaseAdmin.from('employee_payroll').select('*').eq('employee_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
+        supabaseCli.from('employee_history').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
+        supabaseCli.from('employee_attendance').select('*').eq('employee_id', id).order('date', { ascending: false }).limit(31),
+        supabaseCli.from('employee_leaves').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
+        supabaseCli.from('employee_payroll').select('*').eq('employee_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       ]);
       return { data: emp, history: histRes.data ?? [], attendance: attRes.data ?? [], leaves: leaveRes.data ?? [], payroll: payrollRes.data ?? [] };
     }
@@ -515,10 +515,10 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (fields.esiNumber) payload.esi_number = fields.esiNumber;
       if (fields.profilePhotoUrl) payload.profile_photo_url = fields.profilePhotoUrl;
       if (fields.notes) payload.notes = fields.notes;
-      const { data, error } = await supabaseAdmin.from('employees').insert(payload).select().single();
+      const { data, error } = await supabaseCli.from('employees').insert(payload).select().single();
       if (error) throw new Error(error.message);
       if (data?.id) {
-        await supabaseAdmin.from('employee_history').insert({ employee_id: data.id, event_type: 'joined', title: 'Joined', description: `${data.name} joined as ${data.designation || 'employee'}`, event_date: data.joining_date, created_by: _auth.email });
+        await supabaseCli.from('employee_history').insert({ employee_id: data.id, event_type: 'joined', title: 'Joined', description: `${data.name} joined as ${data.designation || 'employee'}`, event_date: data.joining_date, created_by: _auth.email });
       }
       return { data };
     }
@@ -545,33 +545,33 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (fields.esiNumber !== undefined) updates.esi_number = fields.esiNumber;
       if (fields.profilePhotoUrl !== undefined) updates.profile_photo_url = fields.profilePhotoUrl;
       if (fields.notes !== undefined) updates.notes = fields.notes;
-      const { error } = await supabaseAdmin.from('employees').update(updates).eq('id', id);
+      const { error } = await supabaseCli.from('employees').update(updates).eq('id', id);
       if (error) throw new Error(error.message);
       if (fields.addHistory) {
-        await supabaseAdmin.from('employee_history').insert({ employee_id: id, event_type: fields.historyType ?? 'updated', title: fields.historyTitle ?? 'Updated', description: fields.historyDesc ?? '', created_by: _auth.email });
+        await supabaseCli.from('employee_history').insert({ employee_id: id, event_type: fields.historyType ?? 'updated', title: fields.historyTitle ?? 'Updated', description: fields.historyDesc ?? '', created_by: _auth.email });
       }
-      const { data } = await supabaseAdmin.from('employees').select('*').eq('id', id).single();
+      const { data } = await supabaseCli.from('employees').select('*').eq('id', id).single();
       return { data };
     }
     case 'employees.delete': {
       const { id } = params;
-      await supabaseAdmin.from('employee_history').delete().eq('employee_id', id);
-      await supabaseAdmin.from('employee_attendance').delete().eq('employee_id', id);
-      await supabaseAdmin.from('employee_leaves').delete().eq('employee_id', id);
-      await supabaseAdmin.from('employee_payroll').delete().eq('employee_id', id);
-      const { error } = await supabaseAdmin.from('employees').delete().eq('id', id);
+      await supabaseCli.from('employee_history').delete().eq('employee_id', id);
+      await supabaseCli.from('employee_attendance').delete().eq('employee_id', id);
+      await supabaseCli.from('employee_leaves').delete().eq('employee_id', id);
+      await supabaseCli.from('employee_payroll').delete().eq('employee_id', id);
+      const { error } = await supabaseCli.from('employees').delete().eq('id', id);
       if (error) throw new Error(error.message);
       return { message: 'Employee deleted' };
     }
     case 'employees.history': {
       const { employeeId } = params;
-      const { data, error } = await supabaseAdmin.from('employee_history').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
+      const { data, error } = await supabaseCli.from('employee_history').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
       if (error) throw new Error(error.message);
       return { data: data ?? [] };
     }
     case 'employees.addHistory': {
       const { employeeId, eventType, title, description, eventDate, createdBy } = params;
-      const { data, error } = await supabaseAdmin.from('employee_history').insert({ employee_id: employeeId, event_type: eventType ?? 'note', title: title ?? '', description: description ?? '', event_date: eventDate ?? new Date().toISOString().split('T')[0], created_by: createdBy ?? '' }).select().single();
+      const { data, error } = await supabaseCli.from('employee_history').insert({ employee_id: employeeId, event_type: eventType ?? 'note', title: title ?? '', description: description ?? '', event_date: eventDate ?? new Date().toISOString().split('T')[0], created_by: createdBy ?? '' }).select().single();
       if (error) throw new Error(error.message);
       return { data };
     }
@@ -579,7 +579,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       const { employeeId, month, year } = params;
       const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
       const endDate = new Date(year, month, 0).toISOString().split('T')[0];
-      const { data, error } = await supabaseAdmin.from('employee_attendance').select('*').eq('employee_id', employeeId).gte('date', startDate).lte('date', endDate).order('date', { ascending: true });
+      const { data, error } = await supabaseCli.from('employee_attendance').select('*').eq('employee_id', employeeId).gte('date', startDate).lte('date', endDate).order('date', { ascending: true });
       if (error) throw new Error(error.message);
       return { data: data ?? [] };
     }
@@ -588,73 +588,73 @@ async function executeAction(action: string, params: any): Promise<any> {
       const payload: Record<string, unknown> = { employee_id: employeeId, date, status: status ?? 'Present', notes: notes ?? '' };
       if (checkIn) payload.check_in = checkIn;
       if (checkOut) payload.check_out = checkOut;
-      const { data: existing } = await supabaseAdmin.from('employee_attendance').select('id').eq('employee_id', employeeId).eq('date', date).maybeSingle();
+      const { data: existing } = await supabaseCli.from('employee_attendance').select('id').eq('employee_id', employeeId).eq('date', date).maybeSingle();
       if (existing) {
-        const { error } = await supabaseAdmin.from('employee_attendance').update(payload).eq('id', existing.id);
+        const { error } = await supabaseCli.from('employee_attendance').update(payload).eq('id', existing.id);
         if (error) throw new Error(error.message);
       } else {
-        const { error } = await supabaseAdmin.from('employee_attendance').insert(payload);
+        const { error } = await supabaseCli.from('employee_attendance').insert(payload);
         if (error) throw new Error(error.message);
       }
       return { message: 'Attendance saved' };
     }
     case 'employees.leaves': {
       const { employeeId } = params;
-      const { data, error } = await supabaseAdmin.from('employee_leaves').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
+      const { data, error } = await supabaseCli.from('employee_leaves').select('*').eq('employee_id', employeeId).order('created_at', { ascending: false });
       if (error) throw new Error(error.message);
       return { data: data ?? [] };
     }
     case 'employees.applyLeave': {
       const { employeeId, leaveType, startDate, endDate, reason, createdBy } = params;
-      const { data, error } = await supabaseAdmin.from('employee_leaves').insert({ employee_id: employeeId, leave_type: leaveType ?? '', start_date: startDate, end_date: endDate, reason: reason ?? '', created_by: createdBy ?? '' }).select().single();
+      const { data, error } = await supabaseCli.from('employee_leaves').insert({ employee_id: employeeId, leave_type: leaveType ?? '', start_date: startDate, end_date: endDate, reason: reason ?? '', created_by: createdBy ?? '' }).select().single();
       if (error) throw new Error(error.message);
-      await supabaseAdmin.from('employee_history').insert({ employee_id: employeeId, event_type: 'leave', title: `${leaveType} Leave`, description: `${leaveType} leave from ${startDate} to ${endDate}`, created_by: createdBy });
+      await supabaseCli.from('employee_history').insert({ employee_id: employeeId, event_type: 'leave', title: `${leaveType} Leave`, description: `${leaveType} leave from ${startDate} to ${endDate}`, created_by: createdBy });
       return { data };
     }
     case 'employees.approveLeave': {
       const { id, approvedBy } = params;
-      const { error } = await supabaseAdmin.from('employee_leaves').update({ status: 'Approved', approved_by: approvedBy ?? '' }).eq('id', id);
+      const { error } = await supabaseCli.from('employee_leaves').update({ status: 'Approved', approved_by: approvedBy ?? '' }).eq('id', id);
       if (error) throw new Error(error.message);
       return { message: 'Leave approved' };
     }
     case 'employees.rejectLeave': {
       const { id } = params;
-      const { error } = await supabaseAdmin.from('employee_leaves').update({ status: 'Rejected' }).eq('id', id);
+      const { error } = await supabaseCli.from('employee_leaves').update({ status: 'Rejected' }).eq('id', id);
       if (error) throw new Error(error.message);
       return { message: 'Leave rejected' };
     }
     case 'employees.payroll': {
       const { employeeId } = params;
-      const { data, error } = await supabaseAdmin.from('employee_payroll').select('*').eq('employee_id', employeeId).order('year', { ascending: false }).order('month', { ascending: false });
+      const { data, error } = await supabaseCli.from('employee_payroll').select('*').eq('employee_id', employeeId).order('year', { ascending: false }).order('month', { ascending: false });
       if (error) throw new Error(error.message);
       return { data: data ?? [] };
     }
     case 'employees.generatePayroll': {
       const { employeeId, month, year, createdBy } = params;
-      const { data: emp } = await supabaseAdmin.from('employees').select('salary').eq('id', employeeId).single();
+      const { data: emp } = await supabaseCli.from('employees').select('salary').eq('id', employeeId).single();
       const salary = emp?.salary ?? 0;
       const basic = Math.round(salary * 0.5);
       const hra = Math.round(salary * 0.2);
       const allowances = Math.round(salary * 0.2);
       const deductions = Math.round(salary * 0.1);
       const net = salary - deductions;
-      const { data, error } = await supabaseAdmin.from('employee_payroll').insert({
+      const { data, error } = await supabaseCli.from('employee_payroll').insert({
         employee_id: employeeId, month, year, basic_pay: basic, hra, allowances, deductions, net_pay: net, status: 'Pending',
       }).select().single();
       if (error) throw new Error(error.message);
-      await supabaseAdmin.from('employee_history').insert({
+      await supabaseCli.from('employee_history').insert({
         employee_id: employeeId, event_type: 'payroll', title: `Payroll ${month}/${year}`, description: `Payroll generated: ₹${net.toLocaleString()}`, created_by: createdBy,
       });
       return { data };
     }
     case 'employees.markPaid': {
       const { id, paymentDate } = params;
-      const { error } = await supabaseAdmin.from('employee_payroll').update({ status: 'Paid', payment_date: paymentDate ?? new Date().toISOString().split('T')[0] }).eq('id', id);
+      const { error } = await supabaseCli.from('employee_payroll').update({ status: 'Paid', payment_date: paymentDate ?? new Date().toISOString().split('T')[0] }).eq('id', id);
       if (error) throw new Error(error.message);
       return { message: 'Payroll marked as paid' };
     }
     case 'employees.maxEmployeeId': {
-      const { data, error } = await supabaseAdmin.from('employees').select('employee_id').order('employee_id', { ascending: false }).limit(1);
+      const { data, error } = await supabaseCli.from('employees').select('employee_id').order('employee_id', { ascending: false }).limit(1);
       if (error) throw new Error(error.message);
       return { data: data?.[0]?.employee_id ?? null };
     }
