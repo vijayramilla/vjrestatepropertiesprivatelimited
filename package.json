@@ -58,6 +58,7 @@
     "react-globe.gl": "^2.38.0",
     "react-router-dom": "^7.17.0",
     "recharts": "^3.9.1",
+    "sharp": "^0.35.3",
     "tailwind-merge": "^3.6.0",
     "three": "^0.160.0"
   },

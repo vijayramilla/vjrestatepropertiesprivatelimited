@@ -21,7 +21,9 @@ export default async function handler(req: any, res: any) {
         meta = {
           title: property.title,
           description: property.description || `${property.location || ''} — ${property.type || 'Property'}`,
-          image: property.image ? (property.image.startsWith('http') ? property.image : `${origin}${property.image}`) : meta.image,
+          image: property.image
+            ? `${origin}/api/og-image?id=${encodeURIComponent(id)}`
+            : meta.image,
         };
       }
     } catch (e) {
