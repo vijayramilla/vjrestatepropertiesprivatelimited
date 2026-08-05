@@ -30,12 +30,16 @@ export default async function handler(req: any, res: any) {
   }
 
   const tags = [
+    `<title>${escapeHtml(meta.title)}</title>`,
+    `<meta name="description" content="${escapeHtml(meta.description)}" />`,
     `<meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />`,
     `<meta property="og:title" content="${escapeHtml(meta.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(meta.description)}" />`,
     `<meta property="og:type" content="website" />`,
     `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
     `<meta property="og:image" content="${escapeHtml(meta.image)}" />`,
+    `<meta property="og:image:width" content="1200" />`,
+    `<meta property="og:image:height" content="630" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(meta.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(meta.description)}" />`,
@@ -43,7 +47,7 @@ export default async function handler(req: any, res: any) {
   ].join('\n    ');
 
   const html = await fetchAppShell(origin);
-  const injected = injectMeta(html, tags);
+  const injected = id ? replaceSocialMeta(html, tags) : injectMeta(html, tags);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.status(200).end(injected);
@@ -64,6 +68,16 @@ function injectMeta(html: string, tags: string): string {
   return html.includes('<head>')
     ? html.replace('<head>', `<head>\n    ${tags}`)
     : `${tags}\n${html}`;
+}
+
+function replaceSocialMeta(html: string, tags: string): string {
+  const cleaned = html
+    .replace(/<title>[^<]*<\/title>/i, '')
+    .replace(/<meta[^>]+name=["']description["'][^>]*>/gi, '')
+    .replace(/<link[^>]+rel=["']canonical["'][^>]*>/gi, '')
+    .replace(/<meta[^>]+property=["']og:[^"']*["'][^>]*>/gi, '')
+    .replace(/<meta[^>]+name=["']twitter:[^"']*["'][^>]*>/gi, '');
+  return injectMeta(cleaned, tags);
 }
 
 async function fetchProperty(id: string): Promise<{ title: string; description: string; location: string; type: string; image: string } | null> {
