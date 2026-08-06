@@ -1,8 +1,8 @@
 import sharp from 'sharp';
 
 const WIDTH = 1200;
-const PHOTO_HEIGHT = 660;
-const PANEL_HEIGHT = 240;
+const PHOTO_HEIGHT = 400;
+const PANEL_HEIGHT = 230;
 const HEIGHT = PHOTO_HEIGHT + PANEL_HEIGHT;
 const BLACK = '#111827';
 const GRAY = '#f3f4f6';
