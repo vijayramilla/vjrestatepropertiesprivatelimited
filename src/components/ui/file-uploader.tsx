@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Upload, X, FileText, Image, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
+import { Upload, X, Image, CheckCircle, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import NorthDial from '@/components/vastu/NorthDial';
 import { analyzeFloorPlan, type ApiResponse } from '@/lib/vastuAnalysis';
 
@@ -71,9 +71,6 @@ export default function FileUploader() {
 
   const scoreColor = (s: number) =>
     s >= 80 ? 'text-emerald-600' : s >= 60 ? 'text-amber-600' : 'text-red-600';
-
-  const scoreBg = (s: number) =>
-    s >= 80 ? 'bg-emerald-100' : s >= 60 ? 'bg-amber-100' : 'bg-red-100';
 
   return (
     <div className="w-full max-w-2xl mx-auto">

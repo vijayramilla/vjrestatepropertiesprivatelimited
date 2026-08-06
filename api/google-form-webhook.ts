@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
   process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '',
 );
 
-const API_KEY = 'vjr-lead-webhook-key-2026';
+const API_KEY = process.env.VJR_LEAD_WEBHOOK_KEY ?? 'vjr-lead-webhook-key-2026';
 
 async function generateLeadId(): Promise<string> {
   const { data } = await supabase

@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { where, orderBy } from 'firebase/firestore';
-import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
@@ -46,11 +45,16 @@ export default function MyListingsPage() {
   }, [user]);
 
   useEffect(() => {
-    const unsub = subscribePropertyLeads((allLeads) => {
-      setLeads(allLeads);
-    });
+    if (!user) return;
+    const unsub = subscribePropertyLeads(
+      (allLeads) => {
+        setLeads(allLeads);
+      },
+      undefined,
+      user.uid,
+    );
     return unsub;
-  }, []);
+  }, [user]);
 
   const propertyIds = useMemo(() => new Set(properties.map((p) => p.id)), [properties]);
 
@@ -73,7 +77,6 @@ export default function MyListingsPage() {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-        <Navbar />
         <div className="pt-14 md:pt-16" />
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">
           <div className="animate-pulse space-y-6">
@@ -93,7 +96,6 @@ export default function MyListingsPage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-        <Navbar />
         <div className="pt-14 md:pt-16" />
         <div className="mx-auto max-w-md px-4 py-24 text-center sm:px-6">
           <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
@@ -115,7 +117,6 @@ export default function MyListingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-      <Navbar />
       <div className="pt-14 md:pt-16">
         <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
           <div className="flex items-end justify-between">

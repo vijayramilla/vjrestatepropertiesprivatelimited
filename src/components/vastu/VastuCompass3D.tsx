@@ -14,14 +14,12 @@ function ZoneArc({
   hoveredZone,
   setHoveredZone,
   setSelectedZone,
-  clockOffset,
 }: {
   zone: VastuZone;
   index: number;
   hoveredZone: string | null;
   setHoveredZone: (id: string | null) => void;
   setSelectedZone: (zone: VastuZone | null) => void;
-  clockOffset: number;
 }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const startAngle = (index * Math.PI * 2) / 8 + Math.PI;
@@ -133,7 +131,7 @@ function Scene({
   const mouseX = useRef(0);
   const mouseY = useRef(0);
 
-  useFrame(({ clock }) => {
+  useFrame(() => {
     if (groupRef.current) {
       groupRef.current.rotation.y += (mouseX.current * 0.02 - groupRef.current.rotation.y) * 0.02;
       groupRef.current.rotation.x += (mouseY.current * 0.02 - groupRef.current.rotation.x) * 0.02;
@@ -142,11 +140,6 @@ function Scene({
       }
     }
   });
-
-  const handlePointerMove = (e: any) => {
-    mouseX.current = (e.clientX / window.innerWidth) * 2 - 1;
-    mouseY.current = (e.clientY / window.innerHeight) * 2 - 1;
-  };
 
   return (
     <group ref={groupRef}>
@@ -163,7 +156,6 @@ function Scene({
           hoveredZone={hoveredZone}
           setHoveredZone={setHoveredZone}
           setSelectedZone={setSelectedZone}
-          clockOffset={0}
         />
       ))}
       <CenterOrb />
@@ -188,10 +180,8 @@ export default function VastuCompass3D({
   onZoneSelect?: (zone: VastuZone | null) => void;
 }) {
   const [hoveredZone, setHoveredZone] = useState<string | null>(null);
-  const [selectedZone, setSelectedZone] = useState<VastuZone | null>(null);
 
   const handleSelect = (zone: VastuZone | null) => {
-    setSelectedZone(zone);
     onZoneSelect?.(zone);
   };
 

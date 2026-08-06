@@ -42,7 +42,7 @@ interface FirestoreDocLike {
 function toDashboardProp(doc: FirestoreDocLike): DashboardProperty {
   const data = doc.data?.() ?? doc
   return {
-    id: doc.id ?? data.id,
+    id: doc.id ?? data.id ?? '',
     title: data.title ?? 'Untitled',
     type: data.type ?? '',
     location: data.location ?? data.area ?? '',
@@ -50,7 +50,7 @@ function toDashboardProp(doc: FirestoreDocLike): DashboardProperty {
     price: data.price ?? 0,
     price_label: data.price_label ?? '',
     area_sqft: data.area_sqft ?? 0,
-    monthly_rental: data.monthly_rental ?? null,
+    monthly_rental: data.monthly_rental ?? undefined,
     images: data.images ?? [],
     image: data.images?.[0] ?? '',
   }

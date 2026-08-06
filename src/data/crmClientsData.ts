@@ -40,7 +40,7 @@ interface RawRow {
   source: string;
 }
 
-function parseBudget(b: string): number {
+export function parseBudget(b: string): number {
   const cleaned = b.replace(/[^0-9.]/g, '');
   const num = parseFloat(cleaned);
   if (b.toLowerCase().includes('cr')) return num;

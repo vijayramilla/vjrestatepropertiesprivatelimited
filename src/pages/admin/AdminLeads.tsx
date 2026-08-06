@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
-import type { Lead, LeadStatus, LeadPriority, Agent } from '@/types/lead';
+import type { Lead, Agent } from '@/types/lead';
 import { LEAD_STATUSES, LEAD_PRIORITIES } from '@/types/lead';
-import { Search, RefreshCw, ChevronDown, Users, UserCog } from 'lucide-react';
+import { Search, RefreshCw, Users, UserCog } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   'New Lead': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -34,7 +34,6 @@ export default function AdminLeads() {
   const [priorityFilter, setPriorityFilter] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
-  const [sources, setSources] = useState<string[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilter, setAgentFilter] = useState('');
 
@@ -65,7 +64,6 @@ export default function AdminLeads() {
   }, [fetchLeads]);
 
   useEffect(() => {
-    leadSupabase.getSources().then((res) => setSources(res.data)).catch(() => {});
     leadSupabase.agents.list().then((res) => setAgents(res.data)).catch(() => {});
   }, []);
 
@@ -200,7 +198,7 @@ export default function AdminLeads() {
                         <span className="text-[11px] text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground whitespace-nowrap">{new Date(lead.createdAt).toLocaleDateString('en-IN')}</td>
+                    <td className="px-4 py-3 text-[11px] text-muted-foreground whitespace-nowrap">{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}</td>
                   </tr>
                 ))}
               </tbody>

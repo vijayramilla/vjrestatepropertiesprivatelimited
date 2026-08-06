@@ -33,6 +33,7 @@ export interface ListingProperty {
   katha?: string;
   dc_conversion?: string;
   listed_by?: string;
+  propertyCode?: string;
 }
 
 export function isAgricultureLandListing(

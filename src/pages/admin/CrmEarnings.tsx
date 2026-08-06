@@ -8,16 +8,6 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
-function toLakhs(val: string | number | undefined | null): string {
-  if (val === undefined || val === null || val === '') return '\u2014';
-  const num = typeof val === 'string' ? parseFloat(val) : val;
-  if (isNaN(num)) return '\u2014';
-  if (num >= 10000000) return `${(num / 10000000).toFixed(1).replace(/\.0$/, '')}Cr`;
-  if (num >= 100000) return `${(num / 100000).toFixed(1).replace(/\.0$/, '')}L`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1).replace(/\.0$/, '')}K`;
-  return String(num);
-}
-
 function formatIndian(num: number): string {
   if (isNaN(num)) return '\u2014';
   const str = Math.round(num).toString();

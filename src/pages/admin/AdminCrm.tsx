@@ -1,16 +1,15 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { leadSupabase } from '@/services/leadSupabase';
-import { getCrmClients, type SheetClient } from '@/data/crmClientsData';
+import { getCrmClients, parseBudget, type SheetClient } from '@/data/crmClientsData';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Pencil, Phone, MessageSquare, Search, ChevronRight, X, Check, IndianRupee, Users, TrendingUp, Plus, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Pencil, Phone, MessageSquare, Search, X, Check, IndianRupee, Users, TrendingUp, Plus, ExternalLink, ToggleLeft, ToggleRight } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import StatCard from '@/components/crm/StatCard';
 
@@ -18,9 +17,17 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
+function parseDateSafe(d: string | null | undefined): Date | null {
+  if (!d) return null;
+  const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
 function formatDate(d: string | null) {
   if (!d) return null;
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dt = parseDateSafe(d);
+  if (!dt) return '—';
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function toLakhs(val: string | number | undefined | null): string {
@@ -86,6 +93,7 @@ export default function AdminCrm() {
   const [addForm, setAddForm] = useState({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: 'New Lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [perms, setPerms] = useState<string[] | null>(null);
   const canEdit = perms === null || perms.length === 0;
   const searchRef = useRef<HTMLInputElement>(null);
@@ -169,7 +177,7 @@ export default function AdminCrm() {
     if (sortKey === 'budget-asc') list.sort((a, b) => a.budget_val - b.budget_val);
     if (sortKey === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
     if (sortKey === 'date')
-      list.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+      list.sort((a, b) => (parseDateSafe(b.date)?.getTime() ?? 0) - (parseDateSafe(a.date)?.getTime() ?? 0));
 
     return list;
   }, [clients, search, activeFilter, sortKey]);
@@ -180,9 +188,9 @@ export default function AdminCrm() {
     setEditData({});
   }
 
-  function startEdit() {
-    if (!selectedClient) return;
+  function startEdit() {    if (!selectedClient) return;
     setEditing(true);
+    setSaveError('');
     setEditData({ ...selectedClient });
   }
 
@@ -194,12 +202,39 @@ export default function AdminCrm() {
   async function saveEdit() {
     if (!selectedClient || !editData) return;
     setSaving(true);
-    const merged = { ...selectedClient, ...editData };
-    await leadSupabase.crmClients.upsert(merged);
-    setClients((prev) => prev.map((c) => (c.sno === merged.sno ? merged : c)));
-    setSelectedClient(merged);
-    setEditing(false);
-    setSaving(false);
+    const merged: SheetClient = {
+      ...selectedClient,
+      ...editData,
+      budget_val: parseBudget((editData.budget ?? selectedClient.budget) || ''),
+    };
+    try {
+      await leadSupabase.crmClients.upsert(merged);
+      setClients((prev) => prev.map((c) => (c.sno === merged.sno ? merged : c)));
+      setSelectedClient(merged);
+      setEditing(false);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save client');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function persistClient(updated: SheetClient) {
+    setSelectedClient(updated);
+    setClients((prev) => prev.map((c) => (c.sno === updated.sno ? updated : c)));
+    try {
+      await leadSupabase.crmClients.upsert(updated);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save client');
+      const ref = await leadSupabase.crmClients.list();
+      if (ref.data.length > 0) {
+        const found = ref.data.find((c) => c.sno === updated.sno);
+        if (found) {
+          setSelectedClient(found);
+          setClients((prev) => prev.map((c) => (c.sno === found.sno ? found : c)));
+        }
+      }
+    }
   }
 
   async function handleAddClient() {
@@ -243,7 +278,7 @@ export default function AdminCrm() {
       setAddOpen(false);
       setAddForm({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: 'New Lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
     } catch (err) {
-      setAddError(err?.message || 'Failed to add client');
+      setAddError(err instanceof Error ? err.message : 'Failed to add client');
     } finally {
       setAddSaving(false);
     }
@@ -469,10 +504,11 @@ export default function AdminCrm() {
           {selectedClient && (
             <>
               <SheetHeader className="p-7 pb-5 border-b border-[#f0f0f0] bg-gradient-to-b from-[rgba(201,169,98,0.06)] to-transparent relative">
-                <div className="flex items-center justify-between">
+<div className="flex items-center justify-between">
                   <div className="w-16 h-16 rounded-full flex items-center justify-center font-['Fraunces',serif] text-[22px] font-semibold text-[#0a0d12] bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] shadow-[0_0_0_4px_rgba(201,169,98,0.12)] mb-3.5">
                     {initials(selectedClient.name)}
                   </div>
+                  {saveError && <p className="text-xs text-red-500">{saveError}</p>}
                   <div className="flex gap-1.5">
                     {editing ? (
                       <>
@@ -569,9 +605,7 @@ export default function AdminCrm() {
                       {canEdit ? (
                         <select value={selectedClient.client_role || 'Buyer'} onChange={async (e) => {
                           const updated = { ...selectedClient, client_role: e.target.value };
-                          setSelectedClient(updated);
-                          setClients(prev => prev.map(c => c.sno === updated.sno ? updated : c));
-                          await leadSupabase.crmClients.upsert(updated);
+                          await persistClient(updated);
                         }}
                           className={`w-full h-9 px-3 rounded-xl border text-sm font-bold outline-none transition-colors ${
                             (selectedClient.client_role || 'Buyer') === 'Buyer'
@@ -610,7 +644,7 @@ export default function AdminCrm() {
                   <FieldDisplay label="Lead Date Logged" edit={editing} value={editData.date ?? selectedClient.date ?? ''} onChange={(v) => setEditData({ ...editData, date: v })}>
                     <span className="font-semibold text-sm">
                       {selectedClient.date
-                        ? new Date(selectedClient.date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
+                        ? (parseDateSafe(selectedClient.date)?.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) ?? '—')
                         : 'Not yet logged'}
                     </span>
                   </FieldDisplay>
@@ -659,9 +693,7 @@ export default function AdminCrm() {
                           <button type="button" onClick={async () => {
                             if (step === selectedClient.status) return;
                             const updated = { ...selectedClient, status: step };
-                            setSelectedClient(updated);
-                            setClients((prev) => prev.map((c) => (c.sno === updated.sno ? updated : c)));
-                            await leadSupabase.crmClients.upsert(updated);
+                            await persistClient(updated);
                           }}
                             className="text-[11px] font-medium transition-colors cursor-pointer group border-none bg-transparent p-0 hover:opacity-80"
                           >
@@ -754,9 +786,7 @@ export default function AdminCrm() {
                           onClick={async () => {
                             const newStatus = (selectedClient.comm_status || 'Pending') === 'Pending' ? 'Received' : 'Pending';
                             const updated = { ...selectedClient, comm_status: newStatus };
-                            setSelectedClient(updated);
-                            setClients(prev => prev.map(c => c.sno === updated.sno ? updated : c));
-                            await leadSupabase.crmClients.upsert(updated);
+                            await persistClient(updated);
                           }}
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
                             (selectedClient.comm_status || 'Pending') === 'Received'
@@ -777,7 +807,7 @@ export default function AdminCrm() {
                         className="w-full bg-transparent border-b border-[#c9a962] text-sm outline-none font-['Manrope',sans-serif]" type="date" />
                     ) : (
                       <span className="font-semibold text-sm">
-                        {selectedClient.comm_date ? new Date(selectedClient.comm_date + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : '\u2014'}
+                        {selectedClient.comm_date ? (parseDateSafe(selectedClient.comm_date)?.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) ?? '—') : '\u2014'}
                       </span>
                     )}
                   </div>

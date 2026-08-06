@@ -1,5 +1,3 @@
-import Navbar from '@/components/Navbar';
-
 const sections = [
   {
     title: '1. Platform Role',
@@ -71,7 +69,6 @@ const sections = [
 export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-      <Navbar />
       <div className="pt-14 md:pt-16">
         <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
           <div className="text-center">

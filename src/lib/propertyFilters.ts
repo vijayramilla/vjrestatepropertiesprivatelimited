@@ -178,7 +178,6 @@ export function propertyMatchesLocality(
     if (fieldCompact.includes(filterCompact) || filterCompact.includes(fieldCompact)) {
       if (filterCompact.length >= 3) return true;
     }
-
     if (
       filterPrimaryToken.length >= 3 &&
       fieldPrimaryToken.length >= 3 &&

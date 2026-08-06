@@ -8,7 +8,6 @@ import { formatPrice, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import { computePlotLandAreaSqft, sqftToAcresGuntas } from '@/lib/plotLandForm';
 import type { AreaUnit } from '@/lib/plotLandForm';
 import { KARNATAKA_KATHA_GROUPS, KARNATAKA_KATHA_CUSTOM_VALUE, findKathaOption } from '@/data/karnatakaKathas';
-import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
@@ -265,7 +264,6 @@ export default function ListPropertyPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-      <Navbar />
       <div className="pt-14 md:pt-16">
         <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
           {submitted ? (

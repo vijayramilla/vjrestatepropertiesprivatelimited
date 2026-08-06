@@ -61,6 +61,38 @@ function mapActivityLog(row: any): ActivityLog {
   return { _id: row.id, lead: row.lead_id ?? '', action: row.action ?? '', description: row.description ?? '', performedBy: row.performed_by ?? '', createdAt: row.created_at ?? '' };
 }
 
+function normalizeClient(row: any): SheetClient {
+  return {
+    sno: row.sno ?? 0,
+    name: row.name ?? '',
+    phone: row.phone ?? '',
+    email: row.email ?? '',
+    type: row.type ?? '',
+    budget: row.budget ?? '',
+    budget_val: row.budget_val ?? 0,
+    location: row.location ?? '',
+    closed_price: row.closed_price ?? '',
+    closing_timeline: row.closing_timeline ?? '',
+    requirements: row.requirements ?? '',
+    status: row.status ?? 'New Lead',
+    date: row.date ?? null,
+    notes: row.notes ?? '',
+    buyer_comm_pct: row.buyer_comm_pct ?? '',
+    buyer_comm_val: row.buyer_comm_val ?? '',
+    seller_comm_pct: row.seller_comm_pct ?? '',
+    seller_comm_val: row.seller_comm_val ?? '',
+    total_comm: row.total_comm ?? '',
+    paid_comm: row.paid_comm ?? '',
+    comm_status: row.comm_status ?? '',
+    my_share: row.my_share ?? '',
+    source: row.source ?? '',
+    client_role: row.client_role ?? 'Buyer',
+    property_link: row.property_link ?? '',
+    comm_date: row.comm_date ?? null,
+    property_subtype: row.property_subtype ?? '',
+  };
+}
+
 export const leadSupabase = {
   async list(params?: {
     search?: string; status?: string; priority?: string; source?: string; agent?: string;
@@ -237,11 +269,11 @@ export const leadSupabase = {
     async list(): Promise<{ data: SheetClient[] }> {
       try {
         const res = await callProxy('crmClients.list', {});
-        if (res.data && res.data.length > 0) return { data: res.data };
+        if (res.data && res.data.length > 0) return { data: res.data.map(normalizeClient) };
       } catch {}
       try {
         const { data, error } = await supabase.from('crm_clients').select('*').order('sno', { ascending: true });
-        if (!error && data && data.length > 0) return { data: data as unknown as SheetClient[] };
+        if (!error && data && data.length > 0) return { data: (data as unknown as SheetClient[]).map(normalizeClient) };
       } catch {}
       return { data: [] };
     },

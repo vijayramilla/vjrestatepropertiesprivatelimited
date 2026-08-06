@@ -299,7 +299,7 @@ async function executeAction(action, params) {
     case 'admin.verify': {
       const { _auth } = params;
       let dbRow = null;
-      try { const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(_auth.email)}&select=id,email,display_name,role,permissions`, null); dbRow = data?.[0] ?? null; } catch {}
+      try { const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(_auth.email)}&select=id,email,display_name,role,permissions,created_at`, null); dbRow = data?.[0] ?? null; } catch {}
       const role = _auth.role ?? null;
       const permissions = _auth.permissions ?? null;
       return { data: dbRow, email: _auth.email, role, permissions };
@@ -308,9 +308,10 @@ async function executeAction(action, params) {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       let rows = [];
       if (params._auth.role === 'super_admin') {
-        try { const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions', null); rows = (data ?? []).filter((a) => a?.email); } catch {}
+        try { const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions,created_at', null); rows = (data ?? []).filter((a) => a?.email); } catch (e) { console.error('[dev-crm-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e); }
       }
-      return { data: [...buildSuperAdminRows(), ...rows] };
+      const superRows = buildSuperAdminRows().filter((r) => !rows.some((db) => db.email === r.email));
+      return { data: [...superRows, ...rows] };
     }
     case 'admin.add': {
       if (!hasPerm(params._auth, 'manage_admins')) throw new Error('Forbidden');
@@ -338,7 +339,7 @@ async function executeAction(action, params) {
       if (displayName !== undefined) updates.display_name = displayName;
       if (permissions !== undefined) updates.permissions = permissions;
       await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(email)}`, updates);
-      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,email,display_name,role,permissions`, null);
+      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,email,display_name,role,permissions,created_at`, null);
       return { data: data?.[0] ?? null };
     }
     case 'crmClients.list': {

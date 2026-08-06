@@ -4,7 +4,6 @@ import StatCard from '@/components/crm/StatCard';
 import {
   Database,
   HardDrive,
-  Server,
   FileText,
   RefreshCw,
   Table2,
@@ -282,10 +281,11 @@ export default function AdminMongoDbData() {
                           borderRadius: '8px',
                           fontSize: '12px',
                         }}
-                        formatter={(value: number | string, name: string) => {
-                          if (name === 'size') return [`${value} KB`, 'Data Size'];
-                          return [value, name];
-                        }}
+                        formatter={(value: unknown, name: unknown) => {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (name === 'size') return [`${v ?? 0} KB`, 'Data Size'];
+  return [v ?? '', name];
+}}
                       />
                       <Bar dataKey="size" radius={[0, 4, 4, 0]}>
                         {chartData.map((_, i) => (

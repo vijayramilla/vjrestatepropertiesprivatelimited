@@ -5,6 +5,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  where,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -56,8 +57,12 @@ export async function savePropertyLead(input: PropertyLeadInput): Promise<void> 
 export function subscribePropertyLeads(
   onData: (leads: PropertyLead[]) => void,
   onError?: (error: Error) => void,
+  uid?: string,
 ): Unsubscribe {
-  const q = query(collection(db, 'property_leads'), orderBy('createdAt', 'desc'));
+  // Non-admin owners must be scoped to their own leads or Firestore rules reject the query.
+  const q = uid
+    ? query(collection(db, 'property_leads'), where('ownerUid', '==', uid), orderBy('createdAt', 'desc'))
+    : query(collection(db, 'property_leads'), orderBy('createdAt', 'desc'));
   return onSnapshot(
     q,
     (snap) => {

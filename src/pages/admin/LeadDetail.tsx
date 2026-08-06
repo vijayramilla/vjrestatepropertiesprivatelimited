@@ -2,22 +2,17 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
-import type { Lead, Agent, FollowUp, ActivityLog } from '@/types/lead';
-import { LEAD_STATUSES, LEAD_PRIORITIES } from '@/types/lead';
+import type { Lead, Agent, ActivityLog } from '@/types/lead';
+import { LEAD_PRIORITIES } from '@/types/lead';
 import {
   ArrowLeft,
-  Phone,
-  Mail,
   MapPin,
   IndianRupee,
   Calendar,
-  Clock,
   FileText,
   UserPlus,
   Trash2,
   Plus,
-  CheckCircle2,
-  XCircle,
   RefreshCw,
   Pencil,
   Check,
@@ -45,6 +40,7 @@ export default function LeadDetail() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   const [newNote, setNewNote] = useState('');
   const [newFollowUpDate, setNewFollowUpDate] = useState('');
@@ -54,6 +50,7 @@ export default function LeadDetail() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [actionError, setActionError] = useState('');
   const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
@@ -66,13 +63,15 @@ export default function LeadDetail() {
 
   const fetchLead = useCallback(async () => {
     if (!id) return;
+    setError('');
     try {
       const res = await leadSupabase.get(id);
       setLead(res.data);
       const actRes = await leadSupabase.getActivities(id);
       setActivities(actRes.data);
-    } catch {
-      //
+    } catch (err) {
+      setLead(null);
+      setError(err instanceof Error ? err.message : 'Failed to load lead');
     } finally {
       setLoading(false);
     }
@@ -83,7 +82,7 @@ export default function LeadDetail() {
     leadSupabase.agents.list().then((r) => setAgents((r.data ?? []).filter(a => a.active !== false))).catch(() => {});
   }, []);
 
-  if (loading || !lead) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground text-sm">
         Loading lead...
@@ -91,45 +90,76 @@ export default function LeadDetail() {
     );
   }
 
+  if (error || !lead) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-sm font-semibold text-foreground">{error || 'Lead not found'}</p>
+          <p className="mt-1 text-xs text-muted-foreground">It may have been deleted or the server is unreachable.</p>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/requirements')}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> Back to Requirements
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const r = lead.requirement;
 
-  const handleStatusChange = async (status: string) => {
-    await leadSupabase.updateStatus(id!, status);
-    await fetchLead();
+  const runAction = async (fn: () => Promise<void>) => {
+    setActionError('');
+    try {
+      await fn();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Action failed');
+    }
   };
 
-  const handleAssignAgent = async (agentId: string) => {
-    await leadSupabase.assignAgent(id!, agentId || null);
-    await fetchLead();
-  };
+  const handleStatusChange = (status: string) =>
+    runAction(async () => { await leadSupabase.updateStatus(id!, status); await fetchLead(); });
 
-  const handleAddNote = async () => {
+  const handleAssignAgent = (agentId: string) =>
+    runAction(async () => { await leadSupabase.assignAgent(id!, agentId || null); await fetchLead(); });
+
+  const handleAddNote = () => {
     if (!newNote.trim()) return;
-    await leadSupabase.addNote(id!, newNote.trim());
-    setNewNote('');
-    await fetchLead();
+    return runAction(async () => {
+      await leadSupabase.addNote(id!, newNote.trim());
+      setNewNote('');
+      await fetchLead();
+    });
   };
 
-  const handleAddFollowUp = async () => {
+  const handleAddFollowUp = () => {
     if (!newFollowUpDate) return;
-    await leadSupabase.followUps.create(id!, new Date(newFollowUpDate).toISOString(), newFollowUpNote);
-    setNewFollowUpDate('');
-    setNewFollowUpNote('');
-    await fetchLead();
+    return runAction(async () => {
+      await leadSupabase.followUps.create(id!, new Date(newFollowUpDate).toISOString(), newFollowUpNote);
+      setNewFollowUpDate('');
+      setNewFollowUpNote('');
+      await fetchLead();
+    });
   };
 
-  const handleAddSiteVisit = async () => {
+  const handleAddSiteVisit = () => {
     if (!newVisitDate) return;
-    await leadSupabase.siteVisits.create(id!, new Date(newVisitDate).toISOString(), newVisitLocation);
-    setNewVisitDate('');
-    setNewVisitLocation('');
-    await fetchLead();
+    return runAction(async () => {
+      await leadSupabase.siteVisits.create(id!, new Date(newVisitDate).toISOString(), newVisitLocation);
+      setNewVisitDate('');
+      setNewVisitLocation('');
+      await fetchLead();
+    });
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!confirm('Delete this lead?')) return;
-    await leadSupabase.remove(id!);
-    navigate('/crm/requirements');
+    return runAction(async () => {
+      await leadSupabase.remove(id!);
+      navigate('/crm/requirements');
+    });
   };
 
   function startEditing() {
@@ -175,6 +205,12 @@ export default function LeadDetail() {
         >
           <ArrowLeft className="w-3.5 h-3.5" /> Back to Requirements
         </button>
+
+        {actionError && (
+          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">
+            {actionError}
+          </p>
+        )}
 
         <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
           <div className="w-full min-w-0">
@@ -451,7 +487,9 @@ function isLost(status: string) {
   return status === 'Lost';
 }
 
-function formatDate(d: string | Date) {
+function formatDate(d: string | Date | null | undefined) {
+  if (!d) return '—';
   const date = typeof d === 'string' ? new Date(d) : d;
+  if (isNaN(date.getTime())) return '—';
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }

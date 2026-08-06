@@ -11,7 +11,6 @@ import {
   assignablePermissions,
   canAssignPermission,
   isSuperAdminEmail,
-  SUPER_ADMIN_EMAILS,
 } from '@/lib/crmAdminConfig';
 
 interface AdminUser {
@@ -210,12 +209,8 @@ export default function AdminProfile() {
       const list = await leadSupabase.admin.list();
       setAdmins(list.data ?? []);
     } catch (err: any) {
-      if (isSuperAdminEmail(user.email)) {
-        setAdmins([]);
-      } else {
-        setAdmins([]);
-        setListError(err.message || 'Failed to load admin users');
-      }
+      setAdmins([]);
+      setListError(err.message || 'Failed to load admin users');
     } finally {
       setLoading(false);
     }

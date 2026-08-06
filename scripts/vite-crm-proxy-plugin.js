@@ -417,7 +417,7 @@ async function executeAction(action, params) {
     case 'admin.verify': {
       const { _auth } = params;
       let dbRow = null;
-      try { const r = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(_auth.email)}&select=id,email,display_name,role,permissions`, null); dbRow = r.data?.[0] ?? null; } catch {}
+      try { const r = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(_auth.email)}&select=id,email,display_name,role,permissions,created_at`, null); dbRow = r.data?.[0] ?? null; } catch {}
       return { data: dbRow, email: _auth.email, role: _auth.role ?? null, permissions: _auth.permissions ?? null };
     }
     case 'admin.list': {
@@ -425,11 +425,14 @@ async function executeAction(action, params) {
       let rows = [];
       if (params._auth.role === 'super_admin') {
         try {
-          const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions', null);
+          const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions,created_at', null);
           rows = (data ?? []).filter((a) => a?.email);
-        } catch {}
+        } catch (e) {
+          console.error('[dev-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e);
+        }
       }
-      return { data: [...buildSuperAdminRows(), ...rows] };
+      const superRows = buildSuperAdminRows().filter((r) => !rows.some((db) => db.email === r.email));
+      return { data: [...superRows, ...rows] };
     }
     case 'admin.add': {
       if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
@@ -464,7 +467,7 @@ async function executeAction(action, params) {
       if (displayName !== undefined) updates.display_name = displayName;
       if (permissions !== undefined) updates.permissions = scopePermissions(params._auth, permissions);
       await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(email)}`, updates);
-      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,email,display_name,role,permissions`, null);
+      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,email,display_name,role,permissions,created_at`, null);
       return { data: data?.[0] ?? null };
     }
     case 'admin.updateAvatar': {

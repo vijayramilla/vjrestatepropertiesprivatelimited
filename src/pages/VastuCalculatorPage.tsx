@@ -17,7 +17,6 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import VastuCompass3D from '@/components/vastu/VastuCompass3D';
 import FileUploader from '@/components/ui/file-uploader';
 import VastuScoreGauge from '@/components/vastu/VastuScoreGauge';

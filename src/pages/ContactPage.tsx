@@ -3,7 +3,6 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Phone, Mail, MapPin, Clock, MessageCircle, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Contact3DCard from '@/components/contact/Contact3DCard';
-import Navbar from '@/components/Navbar';
 import ContactFloatingOrb from '@/components/contact/ContactFloatingOrb';
 import { siteContact } from '@/data/siteContact';
 
@@ -72,7 +71,6 @@ export default function ContactPage() {
 
   return (
     <div className="contact-page min-h-screen overflow-hidden bg-white pt-[72px] text-black">
-      <Navbar />
       <div className="pointer-events-none fixed inset-0">
         <ContactFloatingOrb
           delay={0}

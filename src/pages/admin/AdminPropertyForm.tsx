@@ -100,15 +100,6 @@ const OWNER_API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:50
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
 const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
 
-const WATER_SOURCE_OPTIONS = [
-  'Borewell',
-  'Canal',
-  'Tank',
-  'River',
-  'Rain-fed',
-  'Not Available',
-] as const;
-
 const PROPERTY_TYPES = [
   'PG Buildings',
   'Residential Rental Income',
@@ -197,6 +188,7 @@ export default function AdminPropertyForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [customHighlight, setCustomHighlight] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [removedImageUrls, setRemovedImageUrls] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
@@ -496,6 +488,7 @@ export default function AdminPropertyForm() {
 
       const payload = sanitizeForFirestore({
         ...restForm,
+        ...(formData.propertyCode ? { propertyCode: formData.propertyCode } : {}),
         type: canonicalPropertyType(formData.type),
         area,
         location,
@@ -585,6 +578,10 @@ export default function AdminPropertyForm() {
       pendingPreviews.forEach((url) => URL.revokeObjectURL(url));
       setPendingFiles([]);
       setPendingPreviews([]);
+      removedImageUrls.forEach((url) => {
+        deletePropertyImageByUrl(url).catch(() => {});
+      });
+      setRemovedImageUrls([]);
       setToast('Property saved successfully');
       setTimeout(() => navigate('/admin/properties'), 1500);
     } catch (error) {
@@ -604,15 +601,9 @@ export default function AdminPropertyForm() {
     e.target.value = '';
   };
 
-  const removeExistingImage = async (url: string) => {
+  const removeExistingImage = (url: string) => {
     setImageUrls((prev) => prev.filter((u) => u !== url));
-    if (isEditMode) {
-      try {
-        await deletePropertyImageByUrl(url);
-      } catch {
-        // ignore storage cleanup errors
-      }
-    }
+    if (isEditMode) setRemovedImageUrls((prev) => [...prev, url]);
   };
 
   const removePendingImage = (index: number) => {

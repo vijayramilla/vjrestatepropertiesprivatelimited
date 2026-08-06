@@ -86,8 +86,6 @@ export default function FileUpload({ onFilesChange }: FileUploadProps) {
     if (e.target.files) handleFiles(e.target.files);
   };
 
-  const formatFileSize = (_bytes: number): string => "";
-
   return (
     <div className="w-full">
       <motion.div

@@ -10,7 +10,6 @@ import {
   House,
   Building,
   Key,
-  ArrowsLeftRight,
   Buildings,
   Warehouse,
   Tree,

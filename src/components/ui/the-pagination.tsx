@@ -34,8 +34,6 @@ function getVisiblePages(page: number, totalPages: number): (number | 'ellipsis'
 export function PropertyPagination({
   page,
   totalPages,
-  totalItems,
-  pageSize = PROPERTIES_PAGE_SIZE,
   onPageChange,
   className,
 }: PropertyPaginationProps) {

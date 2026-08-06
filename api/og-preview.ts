@@ -1,5 +1,5 @@
 const SITE_NAME = 'VJR Estate';
-const FALLBACK_IMAGE = '/og-default.jpg';
+const FALLBACK_IMAGE = '/og-image.png';
 
 export default async function handler(req: any, res: any) {
   const id = typeof req.query?.id === 'string' ? req.query.id : '';

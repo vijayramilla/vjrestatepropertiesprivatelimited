@@ -128,6 +128,7 @@ export default function Navbar() {
 
   useEffect(() => {
     setProfileOpen(false);
+    setHidden(false);
     if (!isHome) setOnHero(false);
   }, [location, isHome]);
 

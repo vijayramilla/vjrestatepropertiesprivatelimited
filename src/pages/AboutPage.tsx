@@ -12,7 +12,7 @@ import {
 } from '@phosphor-icons/react';
 import '@/styles/about-page.css';
 import { HeroGeometric } from '@/components/ui/shape-landing-hero';
-import Navbar from '@/components/Navbar';
+
 
 const fontHeading = { fontFamily: "'Libre Baskerville', Georgia, serif" };
 const fontBody = { fontFamily: "'Inter', system-ui, sans-serif" };
@@ -119,7 +119,6 @@ export default function AboutPage() {
 
   return (
     <div className="about-page about-scroll-page bg-white min-h-screen">
-      <Navbar />
       <HeroGeometric
         compact
         badge="Bangalore · Real Estate Investment Advisory"

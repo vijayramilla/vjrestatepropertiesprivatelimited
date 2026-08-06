@@ -338,7 +338,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'admin.verify': {
       const { _auth } = params;
       let dbRow = null;
-      try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions').eq('email', _auth.email).maybeSingle(); dbRow = data ?? null; } catch {}
+      try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at').eq('email', _auth.email).maybeSingle(); dbRow = data ?? null; } catch {}
       const role = _auth.role ?? null;
       const permissions = _auth.permissions ?? null;
       return { data: dbRow, email: _auth.email, role, permissions };
@@ -347,9 +347,10 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       let rows: any[] = [];
       if (params._auth.role === 'super_admin') {
-        try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions'); rows = (data ?? []).filter((a: { email: string }) => a?.email); } catch {}
+        try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at'); rows = (data ?? []).filter((a: { email: string }) => a?.email); } catch (e) { console.error('[crm-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e); }
       }
-      return { data: [...buildSuperAdminRows(), ...rows] };
+      const superRows = buildSuperAdminRows().filter(r => !rows.some((db: { email: string }) => db.email === r.email));
+      return { data: [...superRows, ...rows] };
     }
     case 'admin.add': {
       if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
@@ -388,7 +389,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (permissions !== undefined) updates.permissions = scopePermissions(params._auth, permissions);
       const { error } = await supabaseAdmin.from('admin_users').update(updates).eq('email', email);
       if (error) throw new Error(error.message);
-      const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions').eq('email', email).single();
+      const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at').eq('email', email).single();
       return { data };
     }
     case 'admin.updateAvatar': {

@@ -4,7 +4,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminBadge } from '@/components/admin/AdminUi';
 import { leadSupabase } from '@/services/leadSupabase';
 import { motion } from 'framer-motion';
-import { Plus, MagnifyingGlass, Users, CheckCircle, XCircle } from 'phosphor-react';
+import { Plus, MagnifyingGlass, Users, CheckCircle } from 'phosphor-react';
 
 const DEPARTMENTS = ['', 'Sales', 'Marketing', 'Operations', 'Finance', 'HR', 'IT', 'Legal'];
 const STATUSES = ['', 'Active', 'On Leave', 'Terminated', 'Inactive'];

@@ -24,7 +24,7 @@ function buildDetailRows(property: Property): DetailRow[] {
 
   if (property.type === 'PG Building') {
     return [
-      { label: getAreaSizeLabel(property.type), value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
+      { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
       { label: 'Plot Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
@@ -40,7 +40,7 @@ function buildDetailRows(property: Property): DetailRow[] {
 
   if (property.type === 'Residential Rental Income') {
     return [
-      { label: getAreaSizeLabel(property.type), value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
+      { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
       { label: 'Plot Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
@@ -112,12 +112,10 @@ function buildDetailRows(property: Property): DetailRow[] {
       'Mixed Use': [
         { label: 'Commercial Area', value: str(extra, 'Commercial Area') },
         { label: 'Residential Area', value: str(extra, 'Residential Area') },
-        { label: 'Total Floors', value: String(property.floor_count) },
       ],
       'Flex Space': [
         { label: 'Commercial Area', value: str(extra, 'Commercial Area') },
         { label: 'Residential Area', value: str(extra, 'Residential Area') },
-        { label: 'Total Floors', value: String(property.floor_count) },
       ],
     };
 

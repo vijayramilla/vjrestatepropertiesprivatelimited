@@ -718,14 +718,6 @@ function rectifyNorthAngle(north: NorthInfo): number {
   return 0;
 }
 
-function getRoomCentroid(rooms: ExtractedRoom[], id: string): Point | null {
-  const room = rooms.find(r => r.id === id);
-  if (!room) return null;
-  if (room.centroid) return room.centroid;
-  if (room.boundingBox) return { x: room.boundingBox.x + room.boundingBox.width / 2, y: room.boundingBox.y + room.boundingBox.height / 2 };
-  return null;
-}
-
 const ENTRANCE_ZONES: Record<string, 'auspicious' | 'neutral' | 'defective'> = {
   N: 'auspicious',
   NE: 'auspicious',
