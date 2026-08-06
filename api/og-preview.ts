@@ -18,18 +18,22 @@ export default async function handler(req: any, res: any) {
     try {
       const property = await fetchProperty(id);
       if (property) {
-        const description = [
+        const facts = [
+          property.price ? `Price: ₹${formatPrice(property.price)}` : '',
+          property.monthlyRental ? `Rent: ${property.monthlyRental}` : '',
+          property.katha ? `Katha: ${property.katha}` : '',
+        ]
+          .filter(Boolean)
+          .join(' | ');
+        const header = [
           property.type ? `${property.type.toUpperCase()} FOR SALE` : 'Property',
           property.location ? `${property.location}, Bangalore` : '',
-          property.price ? `Price: ₹${formatPrice(property.price)}` : '',
-          property.monthlyRental ? `Rental Income: ${property.monthlyRental}` : '',
-          property.katha ? `Katha: ${property.katha}` : '',
         ]
           .filter(Boolean)
           .join(' · ');
         meta = {
-          title: property.title,
-          description,
+          title: `${facts ? `${facts} — ` : ''}${property.title}`,
+          description: header,
           image: property.image
             ? `${origin}/api/og-image?id=${encodeURIComponent(id)}`
             : meta.image,
@@ -137,9 +141,9 @@ async function fetchProperty(id: string): Promise<{ title: string; location: str
 }
 
 function formatPrice(n: number): string {
-  if (n >= 10000000) return `${(n / 10000000).toFixed(n % 10000000 === 0 ? 0 : 1)} Cr`;
-  if (n >= 100000) return `${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)} L`;
-  return n.toLocaleString('en-IN');
+  if (n >= 10000000) return `₹${(n / 10000000).toFixed(n % 10000000 === 0 ? 0 : 1)} Cr`;
+  if (n >= 100000) return `₹${(n / 100000).toFixed(n % 100000 === 0 ? 0 : 1)} L`;
+  return `₹${n.toLocaleString('en-IN')}`;
 }
 
 function escapeHtml(s: string): string {
