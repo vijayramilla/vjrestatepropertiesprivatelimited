@@ -72,6 +72,7 @@ function NavIconAction({
 
 export default function Navbar() {
   const [onHero, setOnHero] = useState(true);
+  const [hidden, setHidden] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
   const profileRef = useRef<HTMLButtonElement>(null);
@@ -84,6 +85,7 @@ export default function Navbar() {
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
   const isMapPage = location.pathname === '/' || location.pathname === '/map' || location.pathname === '/list-property';
+  const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
 
@@ -130,6 +132,20 @@ export default function Navbar() {
   }, [location, isHome]);
 
   useEffect(() => {
+    if (!isProperties) return;
+    let prev = window.scrollY;
+    const handleScroll = () => {
+      const y = window.scrollY;
+      setHidden(y > 120 && y > prev);
+      prev = y;
+    };
+    setHidden(false);
+    prev = window.scrollY;
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [isProperties]);
+
+  useEffect(() => {
     if (!profileOpen) return;
     updateProfilePos();
     window.addEventListener('resize', updateProfilePos);
@@ -162,6 +178,7 @@ export default function Navbar() {
           background: isTransparent ? 'transparent' : 'rgba(255,255,255,0.97)',
           borderBottom: isTransparent ? 'none' : '1px solid #e8e8e8',
           backdropFilter: isTransparent ? 'none' : 'blur(12px)',
+          transform: hidden ? 'translateY(-100%)' : 'translateY(0)',
         }}
       >
         <div className="w-full h-full flex items-center justify-between px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">

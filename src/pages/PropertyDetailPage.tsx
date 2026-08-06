@@ -39,6 +39,8 @@ import {
   WifiHigh,
   MapPin,
   CaretDown,
+  ArrowRight,
+  X,
   type Icon,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
@@ -154,6 +156,7 @@ export default function PropertyDetailPage() {
   const [waContactOpen, setWaContactOpen] = useState(false);
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [descExpanded, setDescExpanded] = useState(false);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -203,6 +206,25 @@ export default function PropertyDetailPage() {
     });
     return () => setDefaultSiteMeta();
   }, [property]);
+
+  useEffect(() => {
+    document.body.style.overflow = viewerIndex !== null ? 'hidden' : '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [viewerIndex]);
+
+  useEffect(() => {
+    if (viewerIndex === null || !property) return;
+    const count = (property.images ?? []).length;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewerIndex(null);
+      else if (e.key === 'ArrowRight') setViewerIndex((i) => (i === null ? i : (i + 1) % count));
+      else if (e.key === 'ArrowLeft') setViewerIndex((i) => (i === null ? i : (i - 1 + count) % count));
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [viewerIndex, property]);
 
   if (loading) {
     return (
@@ -369,12 +391,19 @@ export default function PropertyDetailPage() {
                   {(galleryImages.length > 0 ? galleryImages : [null]).map((img, i) => (
                     <CarouselItem key={i} className="relative aspect-[4/3] lg:aspect-[16/9]">
                       {img ? (
-                        <LazyImage
-                          src={img}
-                          alt={`${property.title} ${i + 1}`}
-                          priority={i === 0}
-                          className="absolute inset-0 w-full h-full object-cover object-center"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(i)}
+                          className="absolute inset-0 block w-full h-full cursor-zoom-in"
+                          aria-label="View image full screen"
+                        >
+                          <LazyImage
+                            src={img}
+                            alt={`${property.title} ${i + 1}`}
+                            priority={i === 0}
+                            className="absolute inset-0 w-full h-full object-cover object-center"
+                          />
+                        </button>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#f2f2f2] to-[#e8e8e8]">
                           <TypeIcon size={72} weight="thin" color="#d0d0d0" />
@@ -446,7 +475,7 @@ export default function PropertyDetailPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="uppercase text-[28px] lg:text-[44px] text-[#000] font-bold leading-[1.05] tracking-[-0.03em] mt-3"
+                className="uppercase text-[22px] lg:text-[30px] text-[#000] font-bold leading-[1.05] tracking-[-0.03em] mt-3"
                 style={fontHeading}
               >
                 {getTopLabel(property)}
@@ -487,6 +516,11 @@ export default function PropertyDetailPage() {
               </div>
             )}
 
+            {/* Property details */}
+            <div className="mt-9">
+              <PropertyDetailsPanel property={property} />
+            </div>
+
             {/* Investment highlights */}
             <div className="mt-8" >
               <SectionLabel>Investment Highlights</SectionLabel>
@@ -514,11 +548,6 @@ export default function PropertyDetailPage() {
                   </motion.div>
                 ))}
               </div>
-            </div>
-
-            {/* Property details */}
-            <div className="mt-9">
-              <PropertyDetailsPanel property={property} />
             </div>
 
             {/* Amenities */}
@@ -833,6 +862,88 @@ export default function PropertyDetailPage() {
         onClose={() => setWaContactOpen(false)}
         onSubmit={submitWhatsAppEnquiry}
       />
+
+      <AnimatePresence>
+        {viewerIndex !== null && galleryImages.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-[80] flex flex-col bg-black/95"
+            onClick={() => setViewerIndex(null)}
+          >
+            <div className="flex shrink-0 items-center justify-between px-4 py-3 sm:px-6">
+              <p className="text-[12px] tracking-wide text-white/70" style={fontUI}>
+                {viewerIndex + 1} / {galleryImages.length}
+              </p>
+              <button
+                type="button"
+                onClick={() => setViewerIndex(null)}
+                aria-label="Close image viewer"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              >
+                <X size={20} weight="bold" />
+              </button>
+            </div>
+
+            <div className="relative flex min-h-0 flex-1 items-center justify-center px-4 sm:px-16">
+              {galleryImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewerIndex((viewerIndex - 1 + galleryImages.length) % galleryImages.length);
+                  }}
+                  aria-label="Previous image"
+                  className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:left-6"
+                >
+                  <ArrowLeft size={22} weight="bold" />
+                </button>
+              )}
+              <LazyImage
+                src={galleryImages[viewerIndex]}
+                alt={`${property.title} ${viewerIndex + 1}`}
+                className="max-h-full max-w-full object-contain"
+              />
+              {galleryImages.length > 1 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewerIndex((viewerIndex + 1) % galleryImages.length);
+                  }}
+                  aria-label="Next image"
+                  className="absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 sm:right-6"
+                >
+                  <ArrowRight size={22} weight="bold" />
+                </button>
+              )}
+            </div>
+
+            <div className="shrink-0 overflow-x-auto px-4 py-4 sm:px-6">
+              <div className="flex justify-center gap-2.5">
+                {galleryImages.map((img, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setViewerIndex(i);
+                    }}
+                    aria-label={`View image ${i + 1}`}
+                    className={`h-14 w-14 shrink-0 overflow-hidden rounded-lg border-2 transition-colors ${
+                      i === viewerIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <LazyImage src={img} alt="" className="h-full w-full object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

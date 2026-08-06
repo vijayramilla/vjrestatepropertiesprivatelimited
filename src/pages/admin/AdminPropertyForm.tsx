@@ -26,7 +26,7 @@ import {
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 import { uploadPropertyImages, deletePropertyImageByUrl } from '@/lib/propertyImages';
 import { AnimatePresence, motion } from 'framer-motion';
-import { XCircle } from 'phosphor-react';
+import { CheckCircle, XCircle } from 'phosphor-react';
 import {
   KARNATAKA_KATHA_GROUPS,
   KARNATAKA_KATHA_CUSTOM_VALUE,
@@ -35,7 +35,6 @@ import {
   getKathaSelectValue,
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
-import { BANGALORE_AREAS } from '@/data/properties';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import { landLocationFromPlace, type LandLocationValue } from '@/lib/mapGeocoding';
@@ -133,8 +132,6 @@ const COMMERCIAL_SUBTYPES = [
 ];
 
 const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
-
-const AREAS = [...BANGALORE_AREAS];
 
 const FACINGS = [
   'East',
@@ -282,6 +279,7 @@ export default function AdminPropertyForm() {
         const place = autocomplete.getPlace();
         const loc = landLocationFromPlace(place);
         if (!loc) return;
+        if (areaSearchRef.current) areaSearchRef.current.value = loc.area;
         setFormData((prev) => ({
           ...prev,
           area: loc.area,
@@ -1022,18 +1020,21 @@ export default function AdminPropertyForm() {
                   />
                 ) : (
                   <>
-                    <select
-                      value={formData.area}
-                      onChange={(e) => updateFormData('area', e.target.value)}
-                      className="admin-select"
-                    >
-                      <option value="">Select area...</option>
-                      {AREAS.map((a) => (
-                        <option key={a} value={a}>
-                          {a}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                      {formData.area ? (
+                        <div className="flex items-center gap-3">
+                          <CheckCircle size={20} weight="fill" className="shrink-0 text-green-600" />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">
+                              Selected Area
+                            </p>
+                            <p className="truncate text-sm font-medium text-gray-900">{formData.area}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No area selected — search above.</p>
+                      )}
+                    </div>
                     {errors.area && (
                       <p className="mt-2 text-xs text-red-600">{errors.area}</p>
                     )}

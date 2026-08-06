@@ -179,6 +179,7 @@ export default function PropertiesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [navbarHidden, setNavbarHidden] = useState(false);
   const [localityNotice, setLocalityNotice] = useState('');
   const [recentSearches, setRecentSearches] = useState<string[]>(loadRecentSearches);
   const [toolbarHeight, setToolbarHeight] = useState(TOOLBAR_HEIGHT);
@@ -250,6 +251,18 @@ export default function PropertiesPage() {
   }, [filtersOpen, sortOpen, isMobile]);
 
   useEffect(() => {
+    let prev = window.scrollY;
+    const handleScroll = () => {
+      const y = window.scrollY;
+      setNavbarHidden(y > 120 && y > prev);
+      prev = y;
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
     const el = toolbarRef.current;
     if (!el) return;
     const updateHeight = () => setToolbarHeight(el.getBoundingClientRect().height);
@@ -316,9 +329,7 @@ export default function PropertiesPage() {
 
   const showCategoryHeaders = selectedTypes.length !== 1;
 
-  const totalPages = showCategoryHeaders
-    ? 1
-    : Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
 
   const paginatedProperties = useMemo(() => {
     const start = (page - 1) * PROPERTIES_PAGE_SIZE;
@@ -339,10 +350,6 @@ export default function PropertiesPage() {
       listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   };
-
-  const resultStart =
-    filteredProperties.length === 0 ? 0 : (page - 1) * PROPERTIES_PAGE_SIZE + 1;
-  const resultEnd = Math.min(page * PROPERTIES_PAGE_SIZE, filteredProperties.length);
 
   const clearAllFilters = () => {
     setSelectedTypes([]);
@@ -374,10 +381,18 @@ export default function PropertiesPage() {
     });
   };
 
-  const localitySuggestions = useMemo(
-    () => filterLocalities(searchQuery, 20),
-    [searchQuery],
-  );
+  const localitySuggestions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const fromList = filterLocalities(searchQuery, 20);
+    const fromData = properties
+      .map((p) => p.area as string | undefined)
+      .filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
+      .map((a) => a.trim());
+    return Array.from(new Set([...fromList, ...fromData]))
+      .filter((a) => a.toLowerCase().includes(q))
+      .slice(0, 20);
+  }, [searchQuery, properties]);
   const isTypingLocality = searchQuery.trim().length > 0;
 
   const budgetPresets = budgetMode === 'price' ? PRICE_BUDGET_PRESETS : RENTAL_BUDGET_PRESETS;
@@ -576,7 +591,9 @@ export default function PropertiesPage() {
     <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-14 md:pt-16">
       <div
         ref={toolbarRef}
-        className="fixed inset-x-0 top-14 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg md:top-16"
+        className={`fixed inset-x-0 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg transition-all duration-300 ${
+          navbarHidden ? 'top-0' : 'top-14 md:top-16'
+        }`}
       >
         <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:px-12 xl:px-16">
           <div className="relative min-w-0 flex-1">
@@ -951,20 +968,6 @@ export default function PropertiesPage() {
           transition={{ duration: 0.4 }}
           className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
         >
-          <p className="text-[15px] text-gray-600">
-            {filteredProperties.length === 0 ? (
-              <>Showing <span className="font-semibold text-black">0</span> properties</>
-            ) : (
-              <>
-                Showing{' '}
-                <span className="font-semibold text-black">
-                  {resultStart}-{resultEnd}
-                </span>{' '}
-                of <span className="font-semibold text-black">{filteredProperties.length}</span>{' '}
-                {filteredProperties.length === 1 ? 'property' : 'properties'}
-              </>
-            )}
-          </p>
           <p className="text-[12px] text-gray-400">{SORT_LABELS[sortBy]}</p>
         </motion.div>
 
@@ -979,7 +982,7 @@ export default function PropertiesPage() {
             {showCategoryHeaders ? (
               <div className="space-y-10">
                 {PROPERTY_CATEGORIES.map((category) => {
-                  const items = filteredProperties.filter(
+                  const items = paginatedProperties.filter(
                     (p) => getPropertyCategory(p) === category,
                   );
                   if (items.length === 0) return null;
@@ -1022,16 +1025,14 @@ export default function PropertiesPage() {
               </div>
             )}
 
-            {!showCategoryHeaders && (
-              <PropertyPagination
-                page={page}
-                totalPages={totalPages}
-                totalItems={filteredProperties.length}
-                pageSize={PROPERTIES_PAGE_SIZE}
-                onPageChange={handlePageChange}
-                className="mt-8"
-              />
-            )}
+            <PropertyPagination
+              page={page}
+              totalPages={totalPages}
+              totalItems={filteredProperties.length}
+              pageSize={PROPERTIES_PAGE_SIZE}
+              onPageChange={handlePageChange}
+              className="mt-8"
+            />
           </>
         ) : (
           <motion.div

@@ -58,6 +58,24 @@ function matchToBangaloreCoordinates(areaName: string): string {
   return match || areaName;
 }
 
+/** Extract the most specific area/localality segment from a Google Places result. */
+export function extractLocality(place: google.maps.places.PlaceResult): string {
+  if (place.formatted_address) {
+    const first = place.formatted_address.split(',')[0]?.trim();
+    if (first) return first;
+  }
+
+  const components = place.address_components ?? [];
+  const priority = ['sublocality_level_1', 'sublocality', 'locality'];
+
+  for (const type of priority) {
+    const match = components.find((c) => c.types.includes(type));
+    if (match?.long_name) return match.long_name;
+  }
+
+  return '';
+}
+
 export function landLocationFromPlace(place: google.maps.places.PlaceResult): LandLocationValue | null {
   const loc = place.geometry?.location;
   if (!loc) return null;
@@ -65,9 +83,9 @@ export function landLocationFromPlace(place: google.maps.places.PlaceResult): La
   const lat = loc.lat();
   const lng = loc.lng();
   const area =
+    extractLocality(place) ||
     localityFromGooglePlace(place) ||
-    place.name ||
-    place.formatted_address?.split(',')[0]?.trim() ||
+    place.name?.trim() ||
     '';
 
   if (!area) return null;

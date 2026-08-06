@@ -18,9 +18,18 @@ export default async function handler(req: any, res: any) {
     try {
       const property = await fetchProperty(id);
       if (property) {
+        const description = [
+          property.type ? `${property.type.toUpperCase()} FOR SALE` : 'Property',
+          property.location ? `${property.location}, Bangalore` : '',
+          property.price ? `Price: ₹${formatPrice(property.price)}` : '',
+          property.monthlyRental ? `Rental Income: ${property.monthlyRental}` : '',
+          property.katha ? `Katha: ${property.katha}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ');
         meta = {
           title: property.title,
-          description: property.description || `${property.location || ''} — ${property.type || 'Property'}`,
+          description,
           image: property.image
             ? `${origin}/api/og-image?id=${encodeURIComponent(id)}`
             : meta.image,
@@ -82,7 +91,7 @@ function replaceSocialMeta(html: string, tags: string): string {
   return injectMeta(cleaned, tags);
 }
 
-async function fetchProperty(id: string): Promise<{ title: string; description: string; location: string; type: string; image: string } | null> {
+async function fetchProperty(id: string): Promise<{ title: string; location: string; type: string; price: number; monthlyRental: string; katha: string; image: string } | null> {
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
   if (!projectId) {
     console.error('og-preview: VITE_FIREBASE_PROJECT_ID not set');
@@ -110,18 +119,19 @@ async function fetchProperty(id: string): Promise<{ title: string; description: 
   };
 
   const title = getString('title') || getString('propertyCode') || 'Untitled Property';
-  const location = getString('location') || getString('area') || '';
+  const location = getString('area') || getString('location') || '';
   const type = getString('type') || '';
   const price = getNumber('price');
-  const priceLabel = getString('price_label');
-  const description = getString('description') ||
-    `${location || 'Prime location'}${price ? ` · ₹${formatPrice(price)}` : ''} — ${type || 'Property'}`;
+  const monthlyRental = getString('monthly_rental_label') || '';
+  const katha = getString('katha') || '';
 
   return {
     title: `${title}${location ? ` | ${location}` : ''} — ${SITE_NAME}`,
-    description,
     location,
     type,
+    price,
+    monthlyRental,
+    katha,
     image: getArrayFirst('images') || getString('cover_image') || '',
   };
 }

@@ -41,8 +41,6 @@ export function PropertyPagination({
 }: PropertyPaginationProps) {
   if (totalPages <= 1) return null;
 
-  const start = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
-  const end = Math.min(page * pageSize, totalItems);
   const visiblePages = getVisiblePages(page, totalPages);
 
   return (
@@ -50,14 +48,6 @@ export function PropertyPagination({
       aria-label="Property results pagination"
       className={cn('flex flex-col items-center gap-4 pt-2', className)}
     >
-      <p className="text-center text-[12px] text-gray-500">
-        Showing{' '}
-        <span className="font-semibold text-black">
-          {start}-{end}
-        </span>{' '}
-        of <span className="font-semibold text-black">{totalItems}</span> properties
-      </p>
-
       <div className="flex w-full max-w-md flex-wrap items-center justify-center gap-1 sm:gap-1.5">
         <button
           type="button"
