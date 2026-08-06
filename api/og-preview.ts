@@ -1,5 +1,8 @@
 const SITE_NAME = 'VJR Estate';
 const FALLBACK_IMAGE = '/og-image.png';
+// Bump this whenever the OG card design/dimensions change so WhatsApp
+// (which caches link previews by exact URL) re-fetches the new image.
+const OG_IMAGE_VERSION = 'v2';
 
 export default async function handler(req: any, res: any) {
   const id = typeof req.query?.id === 'string' ? req.query.id : '';
@@ -19,7 +22,7 @@ export default async function handler(req: any, res: any) {
       const property = await fetchProperty(id);
       if (property) {
         const facts = [
-          property.price ? `Price: ₹${formatPrice(property.price)}` : '',
+          property.price ? `Price: ${formatPrice(property.price)}` : '',
           property.monthlyRental ? `Rent: ${property.monthlyRental}` : '',
           property.katha ? `Katha: ${property.katha}` : '',
         ]
@@ -35,7 +38,7 @@ export default async function handler(req: any, res: any) {
           title: `${facts ? `${facts} — ` : ''}${property.title}`,
           description: header,
           image: property.image
-            ? `${origin}/api/og-image?id=${encodeURIComponent(id)}`
+            ? `${origin}/api/og-image?id=${encodeURIComponent(id)}&v=${OG_IMAGE_VERSION}`
             : meta.image,
         };
       }
@@ -65,6 +68,7 @@ export default async function handler(req: any, res: any) {
   const injected = id ? replaceSocialMeta(html, tags) : injectMeta(html, tags);
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   res.status(200).end(injected);
 }
 

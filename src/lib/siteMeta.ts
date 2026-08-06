@@ -31,19 +31,28 @@ export function setDefaultSiteMeta() {
   setMeta('twitter:image', `${origin}/og-image.png`);
 }
 
+// Keep in sync with OG_IMAGE_VERSION in api/og-preview.ts — bumping it forces
+// WhatsApp/social scrapers to re-crawl the preview instead of using a stale one.
+const OG_IMAGE_VERSION = 'v2';
+
 export function setPropertyShareMeta(property: {
   id: string;
   title: string;
   area: string;
   type: string;
   priceLabel: string;
+  /** Any image URL; only used as a "has image" check (the sized card is always served). */
   imageUrl?: string;
 }) {
   const title = `${property.title} — ${SITE_NAME}`;
   const description = `${property.type} in ${property.area}, Bangalore · ${property.priceLabel}`;
   const origin = getSiteOrigin();
   const url = getPropertyShareUrl(property.id);
-  const image = property.imageUrl ?? `${origin}/og-image.png`;
+  // For properties with photos serve the sized card; otherwise the static fallback
+  // (the card endpoint returns 404 for image-less properties).
+  const image = property.imageUrl
+    ? `${origin}/api/og-image?id=${encodeURIComponent(property.id)}&v=${OG_IMAGE_VERSION}`
+    : `${origin}/og-image.png`;
 
   document.title = title;
   setMeta('description', description);
