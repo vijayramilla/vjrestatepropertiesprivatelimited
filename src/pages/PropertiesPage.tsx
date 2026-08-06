@@ -969,7 +969,7 @@ export default function PropertiesPage() {
         </motion.div>
 
         {loading ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="aspect-[4/3] animate-pulse rounded-xl bg-gray-200 md:rounded-2xl" />
             ))}
@@ -991,7 +991,7 @@ export default function PropertiesPage() {
                           ({items.length})
                         </span>
                       </h2>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
                         {items.map((property, index) => (
                           <motion.div
                             key={property.id}
@@ -1008,7 +1008,7 @@ export default function PropertiesPage() {
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3 lg:gap-6">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
                 {paginatedProperties.map((property, index) => (
                   <motion.div
                     key={property.id}

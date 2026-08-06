@@ -48,7 +48,7 @@ function StatCell({
       ? 'font-numeric text-lg text-[#000] font-semibold mt-1'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
-        : 'font-numeric text-[13px] font-semibold text-gray-900 mt-0.5 truncate';
+        : 'font-numeric text-[15px] font-semibold text-gray-900 truncate';
 
   return (
     <div className="min-w-0">
@@ -58,7 +58,7 @@ function StatCell({
             ? 'font-sans text-[10px] font-medium text-[#aaa] uppercase tracking-[0.08em]'
             : variant === 'compact'
               ? 'font-sans text-[7px] font-medium uppercase tracking-wide text-gray-400'
-              : 'font-sans text-[10px] font-medium uppercase tracking-wide text-gray-400'
+              : 'font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400'
         }
       >
         {label}
@@ -91,7 +91,7 @@ export default function PropertyKeyStats({
         }`
       : variant === 'compact'
         ? `grid gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 grid-cols-2`
-        : `grid gap-x-3 gap-y-2.5 border-t border-gray-100 pt-2.5 mt-2.5 ${
+        : `grid gap-x-4 gap-y-[10px] border-t border-[#F3F4F6] pt-3 mt-3 ${
             showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
           }`;
 

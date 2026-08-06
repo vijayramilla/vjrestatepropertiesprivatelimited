@@ -134,8 +134,8 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
       initial={{ opacity: 1, y: 0 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, delay: index * 0.05, ease: 'easeOut' }}
-      whileHover={{ y: -2 }}
-      className="group flex w-full flex-col overflow-hidden rounded-xl md:rounded-2xl border border-gray-200 bg-white shadow-sm transition-shadow duration-200 hover:shadow-md"
+      whileHover={{ y: -4 }}
+      className="group flex w-full flex-col overflow-hidden rounded-2xl border border-black/[0.04] bg-white shadow-[0_4px_6px_rgba(0,0,0,0.04),0_12px_30px_rgba(0,0,0,0.08)] transition-all duration-300 hover:shadow-[0_8px_12px_rgba(0,0,0,0.06),0_20px_48px_rgba(0,0,0,0.12)]"
     >
       <Link
         to={`/properties/${property.id}`}
@@ -147,7 +147,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           });
         }}
       >
-          <div className={`relative w-full overflow-hidden bg-gray-100 ${compact ? 'aspect-[2/1]' : 'aspect-[4/3] sm:aspect-square md:aspect-[4/3]'}`}>
+          <div className={`relative w-full overflow-hidden bg-gray-100 ${compact ? 'aspect-[2/1]' : 'aspect-[16/9]'}`}>
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
           {coverImage && !imgError ? (
             <LazyImage
@@ -155,7 +155,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
               alt={saleTitle}
               priority={index === 0}
               onError={() => setImgError(true)}
-              className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.03]"
+              className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-950">
@@ -168,39 +168,39 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           )}
 
           {imageCount > 0 && (
-            <span className={`absolute left-2 top-2 z-10 rounded bg-black/70 font-medium text-white ${compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-2 py-0.5 text-[10px]'}`} style={{ fontFamily: DM_SANS }}>
+            <span className={`absolute z-10 rounded-md bg-black/55 font-semibold text-white backdrop-blur-[4px] ${compact ? 'left-1.5 top-1.5 flex items-center gap-1 px-1.5 py-0.5 text-[8px]' : 'left-3 top-3 flex items-center gap-[5px] px-2.5 py-1 text-[12px]'}`} style={{ fontFamily: DM_SANS }}>
               {imageCount} {imageCount === 1 ? 'Photo' : 'Photos'}
             </span>
           )}
 
-          <button type="button" onClick={handleHeart} className={`absolute right-2 top-2 z-10 flex items-center justify-center rounded-full bg-white/95 shadow-sm ${compact ? 'h-6 w-6' : 'h-8 w-8'}`} aria-label="Save property">
+          <button type="button" onClick={handleHeart} className={`absolute top-3 z-10 flex items-center justify-center rounded-full bg-white shadow-[0_2px_8px_rgba(0,0,0,0.15)] ${compact ? 'right-1.5 h-6 w-6' : 'right-3 h-9 w-9'}`} aria-label="Save property">
             <motion.span key={saved ? 'saved' : 'unsaved'} initial={{ scale: 1 }} animate={{ scale: [1, 1.25, 1] }} transition={{ type: 'tween', duration: 0.3, ease: 'easeInOut' }}>
-              <Heart size={compact ? 10 : 14} weight={saved ? 'fill' : 'regular'} color={saved ? '#111827' : '#6b7280'} />
+              <Heart size={compact ? 10 : 16} weight={saved ? 'fill' : 'regular'} color={saved ? '#111827' : '#6b7280'} />
             </motion.span>
           </button>
         </div>
 
-        <div className={compact ? 'px-2 py-1.5' : 'px-3.5 pb-3 pt-3 md:p-5'}>
-          <h3 className={`line-clamp-2 font-semibold leading-snug text-gray-900 ${compact ? 'text-[11px]' : 'text-base md:text-xl'}`} style={{ fontFamily: DM_SANS }}>
+        <div className={compact ? 'px-2 py-1.5' : 'px-[18px] pb-[18px] pt-4'}>
+          <h3 className={`line-clamp-2 font-bold leading-snug text-gray-900 ${compact ? 'text-[11px]' : 'text-lg md:text-xl'}`} style={{ fontFamily: DM_SANS }}>
             {saleTitle}
           </h3>
 
-          <p className={`flex items-center gap-1 text-gray-500 ${compact ? 'mt-0.5 text-[9px]' : 'mt-1 text-[12px]'}`} style={{ fontFamily: DM_SANS }}>
-            <MapPin size={compact ? 9 : 12} weight="regular" color="#9ca3af" className="shrink-0" />
+          <p className={`flex items-center gap-1 text-gray-500 ${compact ? 'mt-0.5 text-[9px]' : 'mt-1 text-[13px]'}`} style={{ fontFamily: DM_SANS }}>
+            <MapPin size={compact ? 9 : 13} weight="regular" color="#9ca3af" className="shrink-0" />
             <span className="truncate">{cityName}</span>
           </p>
 
-          <div className={`border-t border-gray-100 ${compact ? 'mt-1 pt-1' : 'mt-2.5 pt-2.5'}`}>
+          <div className={`border-t border-[#F3F4F6] ${compact ? 'mt-1 pt-1' : 'mt-3 pt-3'}`}>
             {!isPlotOrLand && (
-              <p className="text-[8px] font-medium uppercase tracking-wide text-gray-400" style={{ fontFamily: DM_SANS }}>
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400" style={{ fontFamily: DM_SANS }}>
                 Price
               </p>
             )}
-            <p className={`font-numeric font-bold leading-none text-gray-900 ${compact ? 'text-xs mt-0' : 'mt-0.5 text-2xl md:text-3xl lg:text-4xl'}`}>
+            <p className={`font-numeric font-extrabold leading-none tracking-tight text-gray-900 ${compact ? 'text-xs mt-0' : 'mt-0.5 text-[26px]'}`}>
               {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}
             </p>
             {isPlotOrLand && (property.price_per_sqft ?? 0) > 0 && (
-              <p className={`font-numeric text-gray-500 ${compact ? 'mt-0 text-[9px]' : 'mt-1 text-sm md:text-base'}`} style={{ fontFamily: DM_SANS }}>
+              <p className={`font-numeric text-gray-500 ${compact ? 'mt-0 text-[9px]' : 'mt-1 text-[13px]'}`} style={{ fontFamily: DM_SANS }}>
                 {formatCardPricePerSqft(property.price_per_sqft)}
               </p>
             )}
@@ -214,18 +214,18 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
         </div>
       </Link>
 
-      <div className={`relative mt-auto border-t border-gray-100 ${compact ? 'px-2 pb-1.5 pt-0.5' : 'px-3.5 pb-3.5 pt-2.5'}`}>
-        <div className={`flex ${compact ? 'gap-0.5' : 'gap-2'}`}>
-          <button type="button" onClick={handleShare} aria-label="Share property" className={`flex flex-1 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-700 transition-colors hover:bg-gray-50 active:scale-[0.98] ${compact ? 'h-6 min-h-0 gap-0.5 text-[8px]' : 'h-10 min-h-[44px] gap-1 touch-manipulation'}`}>
-            <ShareNetwork size={compact ? 9 : 15} weight="duotone" className="text-gray-600" />
-            <span className={`font-medium uppercase tracking-wide ${compact ? 'text-[8px]' : 'text-[10px]'} text-gray-700`} style={{ fontFamily: DM_SANS }}>
+      <div className={`relative mt-auto border-t border-[#F3F4F6] ${compact ? 'px-2 pb-1.5 pt-0.5' : 'px-[18px] pb-[18px] pt-[14px]'}`}>
+        <div className={`flex ${compact ? 'gap-0.5' : 'gap-[10px]'}`}>
+          <button type="button" onClick={handleShare} aria-label="Share property" className={`flex flex-1 items-center justify-center rounded-xl border-[1.5px] border-gray-200 bg-white text-gray-700 transition-colors hover:bg-gray-50 active:scale-[0.98] ${compact ? 'h-6 min-h-0 gap-0.5 text-[8px]' : 'h-11 min-h-[44px] gap-[6px] touch-manipulation'}`}>
+            <ShareNetwork size={compact ? 9 : 16} weight="duotone" className="text-gray-600" />
+            <span className={`font-semibold ${compact ? 'text-[8px] uppercase tracking-wide' : 'text-[13px]'} text-gray-700`} style={{ fontFamily: DM_SANS }}>
               {shareLabel}
             </span>
           </button>
 
-          <button type="button" onClick={handleWhatsApp} disabled={waLoading} aria-label="WhatsApp enquiry" className={`flex flex-1 items-center justify-center rounded-lg bg-gray-900 text-white transition-colors hover:bg-gray-800 active:scale-[0.98] disabled:opacity-70 ${compact ? 'h-6 min-h-0 gap-0.5 text-[8px]' : 'h-10 min-h-[44px] gap-1 touch-manipulation'}`}>
-            <WhatsappLogo size={compact ? 9 : 15} weight="fill" color="#fff" />
-            <span className={`font-medium uppercase tracking-wide ${compact ? 'text-[8px]' : 'text-[10px]'} text-white`} style={{ fontFamily: DM_SANS }}>
+          <button type="button" onClick={handleWhatsApp} disabled={waLoading} aria-label="WhatsApp enquiry" className={`flex items-center justify-center rounded-xl border-none bg-[#25D366] text-white shadow-[0_4px_12px_rgba(37,211,102,0.3)] transition-colors hover:bg-[#1ebe5b] active:scale-[0.98] disabled:opacity-70 ${compact ? 'h-6 min-h-0 flex-1 gap-0.5 text-[8px]' : 'h-11 min-h-[44px] flex-[1.6] gap-[6px] touch-manipulation'}`}>
+            <WhatsappLogo size={compact ? 9 : 16} weight="fill" color="#fff" />
+            <span className={`font-bold ${compact ? 'text-[8px] uppercase tracking-wide' : ''} text-white`} style={{ fontFamily: DM_SANS }}>
               {waLoading ? '...' : 'WhatsApp'}
             </span>
           </button>
