@@ -227,7 +227,7 @@ export default function ContactPage() {
                   href={siteContact.mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="hoverable inline-flex w-fit items-center gap-2 border border-black/25 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.16em] text-black transition-colors hover:border-black hover:bg-black hover:text-white"
+                  className="hoverable inline-flex w-fit items-center gap-2 border border-[#0A1628]/25 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.16em] text-[#0A1628] transition-colors hover:border-[#0A1628] hover:bg-[#0A1628] hover:text-white"
                   style={{ fontFamily: DM_SANS }}
                 >
                   Open in Maps
@@ -266,7 +266,7 @@ export default function ContactPage() {
             >
               <a
                 href={`tel:${siteContact.phoneTel}`}
-                className="hoverable inline-flex items-center gap-3 rounded-full bg-black px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#222]"
+                className="hoverable inline-flex items-center gap-3 rounded-full bg-[#0A1628] px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#1E3852]"
                 style={{ fontFamily: DM_SANS }}
               >
                 <Phone size={18} />
@@ -274,7 +274,7 @@ export default function ContactPage() {
               </a>
               <a
                 href={`mailto:${siteContact.email}`}
-                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-black bg-transparent px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-black transition-colors hover:bg-black hover:text-white"
+                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-[#0A1628] bg-transparent px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-[#0A1628] transition-colors hover:bg-[#0A1628] hover:text-white"
                 style={{ fontFamily: DM_SANS }}
               >
                 <Mail size={18} />
@@ -282,7 +282,7 @@ export default function ContactPage() {
               </a>
               <Link
                 to="/submit-requirement"
-                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-black/20 bg-[#f5f5f5] px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-black transition-colors hover:border-black hover:bg-white"
+                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-[#0A1628]/20 bg-[#f5f5f5] px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-[#0A1628] transition-colors hover:border-[#0A1628] hover:bg-white"
                 style={{ fontFamily: DM_SANS }}
               >
                 Submit Your Property

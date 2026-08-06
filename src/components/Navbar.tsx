@@ -90,13 +90,13 @@ export default function Navbar() {
   const hasShortlist = shortlistCount > 0;
 
   const isTransparent = isHome && onHero && !isMapPage;
-  const iconColor = isTransparent ? '#ffffff' : '#000000';
+  const iconColor = isTransparent ? '#ffffff' : '#0A1628';
   const iconMuted = isTransparent ? 'rgba(255,255,255,0.72)' : '#888888';
   const labelColor = isTransparent ? 'rgba(255,255,255,0.55)' : '#888888';
-  const logoColor = isTransparent ? '#ffffff' : '#000000';
+  const logoColor = isTransparent ? '#ffffff' : '#0A1628';
   const dividerColor = isTransparent ? 'rgba(255,255,255,0.18)' : '#e8e8e8';
-  const badgeBg = isTransparent ? '#ffffff' : '#000000';
-  const badgeText = isTransparent ? '#000000' : '#ffffff';
+  const badgeBg = isTransparent ? '#ffffff' : '#0A1628';
+  const badgeText = isTransparent ? '#0A1628' : '#ffffff';
 
   const updateProfilePos = useCallback(() => {
     if (!profileRef.current) return;

@@ -35,7 +35,7 @@ export default function HomeGlobalInvestors() {
             </p>
             <Link
               to="/properties"
-              className="inline-flex items-center gap-2 font-sans text-[13px] uppercase tracking-[0.1em] text-black border border-black px-7 py-3.5 hover:bg-black hover:text-white transition-colors"
+              className="inline-flex items-center gap-2 font-sans text-[13px] uppercase tracking-[0.1em] text-[#0A1628] border border-[#0A1628] px-7 py-3.5 hover:bg-[#0A1628] hover:text-white transition-colors"
             >
               Explore Bangalore Properties
               <ArrowRight size={16} />

@@ -33,3 +33,4 @@ supabase/.temp/
 
 # opencode config (contains secrets)
 opencode.json
+*.tsbuildinfo

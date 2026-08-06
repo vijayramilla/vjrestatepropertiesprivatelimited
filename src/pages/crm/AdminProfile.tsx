@@ -399,7 +399,7 @@ export default function AdminProfile() {
               {canManage && (
                 <button
                   onClick={openAdd}
-                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-black hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-3 py-1.5 rounded-md transition-colors"
+                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-[#0A1628] hover:bg-[#0A1628]/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-3 py-1.5 rounded-md transition-colors"
                 >
                   <Plus className="w-3 h-3" strokeWidth={2} />
                   Add Admin
@@ -527,7 +527,7 @@ export default function AdminProfile() {
             <button
               onClick={handleAdd}
               disabled={saving || !formEmail}
-              className="w-full text-xs font-medium text-white bg-black hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-4 py-2.5 rounded-md transition-colors disabled:opacity-50"
+              className="w-full text-xs font-medium text-white bg-[#0A1628] hover:bg-[#0A1628]/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-4 py-2.5 rounded-md transition-colors disabled:opacity-50"
             >
               {saving ? 'Adding...' : 'Add Admin'}
             </button>
@@ -549,7 +549,7 @@ export default function AdminProfile() {
             <button
               onClick={handleEdit}
               disabled={saving}
-              className="w-full text-xs font-medium text-white bg-black hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-4 py-2.5 rounded-md transition-colors disabled:opacity-50"
+              className="w-full text-xs font-medium text-white bg-[#0A1628] hover:bg-[#0A1628]/80 dark:bg-white dark:text-black dark:hover:bg-white/80 px-4 py-2.5 rounded-md transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save Permissions'}
             </button>

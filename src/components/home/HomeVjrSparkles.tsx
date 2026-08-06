@@ -4,7 +4,7 @@ import { SparklesCore } from '@/components/ui/sparkles';
 
 export default function HomeVjrSparkles() {
   return (
-    <section className="relative flex h-[32rem] w-full flex-col items-center justify-center overflow-hidden bg-black md:h-[40rem]">
+    <section className="relative flex h-[32rem] w-full flex-col items-center justify-center overflow-hidden bg-[#0A1628] md:h-[40rem]">
       <h2 className="relative z-20 font-serif text-4xl font-normal tracking-[-0.02em] text-white md:text-7xl lg:text-8xl">
         VJR ESTATE
       </h2>

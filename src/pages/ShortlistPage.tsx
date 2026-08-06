@@ -54,7 +54,7 @@ export default function ShortlistPage() {
             </p>
             <Link
               to="/properties"
-              className="inline-block mt-8 font-sans text-xs text-black border border-black px-7 py-2.5 hover:bg-black hover:text-white transition-colors"
+              className="inline-block mt-8 font-sans text-xs text-[#0A1628] border border-[#0A1628] px-7 py-2.5 hover:bg-[#0A1628] hover:text-white transition-colors"
             >
               Browse Properties
             </Link>
@@ -70,7 +70,7 @@ export default function ShortlistPage() {
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="font-sans text-xs text-[#888] border border-[#e5e5e5] px-6 py-2.5 hover:border-black hover:text-black transition-colors"
+                className="font-sans text-xs text-[#888] border border-[#e5e5e5] px-6 py-2.5 hover:border-[#0A1628] hover:text-[#0A1628] transition-colors"
               >
                 Clear All Saved
               </button>

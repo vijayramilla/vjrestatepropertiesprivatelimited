@@ -52,7 +52,7 @@ export default function BlogPostPage() {
 
   return (
     <div className="bg-white">
-      <section className="bg-black px-4 py-16 sm:px-8 sm:py-20">
+      <section className="bg-[#0A1628] px-4 py-16 sm:px-8 sm:py-20">
         <motion.div
           initial={{ opacity: 0, y: 32 }}
           animate={{ opacity: 1, y: 0 }}
@@ -185,7 +185,7 @@ export default function BlogPostPage() {
               .map((related) => (
                 <Link key={related.slug} to={`/blog/${related.slug}`}>
                   <div className="group rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-500 hover:shadow-xl hover:-translate-y-0.5">
-                    <Badge className="mb-3 w-fit bg-black text-[9px] font-semibold uppercase tracking-[0.16em] text-white">
+                    <Badge className="mb-3 w-fit bg-[#0A1628] text-[9px] font-semibold uppercase tracking-[0.16em] text-white">
                       {related.category}
                     </Badge>
                     <h3 className="font-serif text-base font-bold leading-snug text-black">

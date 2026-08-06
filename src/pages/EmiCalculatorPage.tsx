@@ -125,7 +125,7 @@ export default function EmiCalculatorPage() {
           </div>
           <motion.div
             className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.15)] md:h-16 md:w-16 ${
-              isDark ? 'bg-gradient-to-br from-white to-gray-300' : 'bg-gradient-to-br from-black to-gray-800'
+              isDark ? 'bg-gradient-to-br from-white to-gray-300' : 'bg-gradient-to-br from-[#0A1628] to-[#1E3852]'
             }`}
             animate={{ y: [0, -5, 0] }}
             transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
@@ -136,7 +136,7 @@ export default function EmiCalculatorPage() {
           <h1 className={`font-serif text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl ${
             isDark ? 'text-white' : 'text-black'
           }`}>
-            <span className={`bg-gradient-to-r ${isDark ? 'from-white via-gray-300 to-white' : 'from-black via-gray-700 to-black'} bg-clip-text text-transparent`}>
+            <span className={`bg-gradient-to-r ${isDark ? 'from-white via-gray-300 to-white' : 'from-[#0A1628] via-[#1E3852] to-[#0A1628]'} bg-clip-text text-transparent`}>
               EMI Calculator
             </span>
           </h1>
@@ -154,7 +154,7 @@ export default function EmiCalculatorPage() {
               <div className={`rounded-2xl border p-5 shadow-sm md:p-7 ${cardClass} relative before:absolute before:-inset-px before:rounded-2xl before:bg-gradient-to-b before:from-gray-900/10 before:via-transparent before:to-transparent before:pointer-events-none`}>
                 <div className="mb-5 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isDark ? 'bg-white/10' : 'bg-black'}`}>
+                    <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${isDark ? 'bg-white/10' : 'bg-[#0A1628]'}`}>
                       <Calculator size={12} className={isDark ? 'text-white' : 'text-white'} />
                     </div>
                     <h2 className={`text-xs font-semibold uppercase tracking-[0.15em] ${textAccent}`}>Loan Details</h2>
@@ -225,7 +225,7 @@ export default function EmiCalculatorPage() {
                       onClick={() => setActiveTab(tab.id)}
                       className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all ${
                         activeTab === tab.id
-                          ? isDark ? 'bg-white text-black' : 'bg-black text-white'
+                          ? isDark ? 'bg-white text-black' : 'bg-[#0A1628] text-white'
                           : isDark ? 'text-white/50 hover:bg-white/5' : 'text-gray-500 hover:bg-gray-100'
                       }`}
                     >
@@ -320,7 +320,7 @@ export default function EmiCalculatorPage() {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
                   <TiltCard intensity={8}>
                     <div className={`relative overflow-hidden rounded-2xl p-6 shadow-[0_12px_40px_rgba(0,0,0,0.2)] md:p-7 ${
-                      isDark ? 'bg-gradient-to-br from-white/10 via-white/5 to-white/10' : 'bg-gradient-to-br from-black via-gray-900 to-black'
+                      isDark ? 'bg-gradient-to-br from-white/10 via-white/5 to-white/10' : 'bg-gradient-to-br from-[#0A1628] via-[#14263A] to-[#0A1628]'
                     }`}>
                       <div className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-b from-white/20 via-transparent to-transparent opacity-50" aria-hidden />
                       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(255,255,255,0.1),transparent)]" />
@@ -398,7 +398,7 @@ export default function EmiCalculatorPage() {
 
                       <div className="flex gap-3">
                         <div className={`flex flex-1 items-center gap-2 rounded-lg px-3 py-2 ${isDark ? 'bg-white/5' : 'bg-black/[0.03]'}`}>
-                          <span className="h-2.5 w-2.5 rounded-full bg-black" />
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#0A1628]" />
                           <div>
                             <p className={`text-[10px] font-medium ${textMuted}`}>Principal</p>
                             <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-black'}`}>{snapshot.principalPct.toFixed(0)}%</p>

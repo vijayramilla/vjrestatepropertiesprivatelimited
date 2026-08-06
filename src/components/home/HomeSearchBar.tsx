@@ -73,7 +73,7 @@ export default function HomeSearchBar() {
             className={`px-4 sm:px-5 py-2.5 rounded-t-lg text-sm font-semibold whitespace-nowrap transition-all duration-200 ${
               activeTab === tab
                 ? 'bg-white/20 text-white'
-                : 'bg-black/50 text-white/80 hover:bg-white/10 hover:text-white'
+                : 'bg-[#0A1628]/50 text-white/80 hover:bg-white/10 hover:text-white'
             }`}
           >
             {tab === 'List Property' ? (
@@ -126,7 +126,7 @@ export default function HomeSearchBar() {
 
           <button
             onClick={handleSearch}
-            className="px-6 py-2.5 bg-gray-900 text-white rounded-lg text-sm font-bold hover:bg-black transition-colors flex items-center justify-center gap-2 shrink-0"
+            className="px-6 py-2.5 bg-[#0A1628] text-white rounded-lg text-sm font-bold hover:bg-[#1E3852] transition-colors flex items-center justify-center gap-2 shrink-0"
           >
             <Search size={16} />
             Search

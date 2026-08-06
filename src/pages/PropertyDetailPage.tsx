@@ -12,7 +12,7 @@ import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
-import PropertyDetailsPanel from '../components/PropertyDetailsPanel';
+import PropertyDetailsPanel, { PropertyAtAGlance } from '../components/PropertyDetailsPanel';
 
 import {
   Buildings,
@@ -54,7 +54,6 @@ import {
   type Property,
 } from '../data/properties';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import {
   Carousel,
@@ -132,15 +131,17 @@ function getAmenityIcon(name: string): Icon {
   return map[name] ?? Shield;
 }
 
-
-function SectionLabel({ children }: { children: ReactNode }) {
+function SectionHeader({ children }: { children: ReactNode }) {
   return (
-    <p
-      className="uppercase text-[#666] text-[11px] tracking-[0.18em]"
-      style={fontUI}
-    >
-      {children}
-    </p>
+    <div className="flex items-center gap-2.5">
+      <span className="h-4 w-1 shrink-0 rounded-full bg-[#C9A84C]" />
+      <h2
+        className="text-[17px] font-bold tracking-tight text-[#111] sm:text-[18px]"
+        style={fontUI}
+      >
+        {children}
+      </h2>
+    </div>
   );
 }
 
@@ -160,7 +161,7 @@ export default function PropertyDetailPage() {
 
   useEffect(() => {
     if (!id) return;
-    
+
     const fetchProperty = async () => {
       try {
         const docSnap = await getDoc(doc(db, 'properties', id));
@@ -344,7 +345,7 @@ export default function PropertyDetailPage() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="bg-[#fff] min-h-screen pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
+      className="bg-[#f7f8fa] min-h-screen pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] lg:pb-0"
     >
       {/* Top nav */}
       <nav
@@ -377,14 +378,15 @@ export default function PropertyDetailPage() {
       </nav>
 
       <div className="w-full px-4 lg:px-12 xl:px-16 pt-8 lg:pt-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[61.8fr_38.2fr] gap-10 lg:gap-14">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-10 lg:gap-12">
           {/* Left column */}
-          <div >
+          <div>
             {/* Image carousel */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="overflow-hidden rounded-2xl border border-[#e8e8ea] shadow-[0_1px_3px_rgba(0,0,0,0.04)]"
             >
               <Carousel setApi={setCarouselApi} className="w-full bg-[#f2f2f2]">
                 <CarouselContent>
@@ -419,7 +421,7 @@ export default function PropertyDetailPage() {
                   </>
                 )}
                 <span
-                  className="absolute top-0 left-0 z-10 bg-[#000] text-[#fff] uppercase text-[10px] tracking-[0.14em] px-3 py-[5px]"
+                  className="absolute top-0 left-0 z-10 bg-[#C9A84C] text-[#0A1628] uppercase text-[10px] font-bold tracking-[0.14em] px-3 py-[5px] rounded-br-lg"
                   style={fontUI}
                 >
                   {getImageBadge(property)}
@@ -429,22 +431,23 @@ export default function PropertyDetailPage() {
                   onClick={handleHeart}
                   whileTap={{ scale: 0.88 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center bg-[rgba(255,255,255,0.96)]"
+                  className="absolute top-3 right-3 z-10 w-9 h-9 flex items-center justify-center bg-[rgba(255,255,255,0.96)] rounded-full shadow-md"
                   aria-label="Toggle shortlist"
                 >
                   <Heart
                     size={16}
                     weight={saved ? 'fill' : 'regular'}
-                    color={saved ? '#000' : '#aaa'}
+                    color={saved ? '#C9A84C' : '#aaa'}
                   />
                 </motion.button>
                 {galleryImages.length > 1 && (
-                  <p
-                    className="absolute bottom-0 right-0 z-10 text-[11px] text-[#aaa] italic p-3 bg-[rgba(255,255,255,0.85)]"
+                  <span
+                    className="absolute bottom-4 right-4 z-10 flex items-center gap-1.5 rounded-full bg-[#0A1628] px-4 py-2 text-[12px] font-semibold text-white shadow-lg"
                     style={fontUI}
                   >
-                    {galleryImages.length} photos
-                  </p>
+                    <Camera size={13} weight="fill" />
+                    +{galleryImages.length} Photos
+                  </span>
                 )}
               </Carousel>
             </motion.div>
@@ -455,7 +458,7 @@ export default function PropertyDetailPage() {
                   <button
                     key={i}
                     onClick={() => carouselApi?.scrollTo(i)}
-                    className="shrink-0 w-[52px] h-[52px] rounded-lg overflow-hidden border-2 border-transparent hover:border-[#000] focus:border-[#000] transition-colors duration-200"
+                    className="shrink-0 w-[52px] h-[52px] rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C9A84C] focus:border-[#C9A84C] transition-colors duration-200"
                   >
                     <LazyImage src={img} alt="" className="w-full h-full object-cover" />
                   </button>
@@ -463,11 +466,11 @@ export default function PropertyDetailPage() {
               </div>
             )}
 
-            {/* Property header — area row, then type-for-sale title, then meta */}
+            {/* Property header — location, title, id */}
             <div className="mt-8">
               <div className="flex items-center gap-[5px]">
-                <MapPin size={12} weight="thin" color="#aaa" />
-                <span className="text-[12px] text-[#aaa]" style={fontUI}>
+                <MapPin size={13} weight="fill" color="#C9A84C" />
+                <span className="text-[12px] text-[#666]" style={fontUI}>
                   {property.area}, Bangalore
                 </span>
               </div>
@@ -475,56 +478,46 @@ export default function PropertyDetailPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="uppercase text-[22px] lg:text-[30px] text-[#000] font-bold leading-[1.05] tracking-[-0.03em] mt-3"
-                style={fontHeading}
+                className="mt-2.5 text-[24px] font-bold leading-[1.12] tracking-[-0.01em] text-[#111] lg:text-[32px]"
+                style={fontUI}
               >
                 {getTopLabel(property)}
               </motion.h1>
               {property.propertyCode && (
-                <Badge variant="outline" className="mt-2 text-[11px] font-mono tracking-wide">
+                <Badge variant="outline" className="mt-3 bg-white text-[11px] font-mono tracking-wide">
                   ID: {property.propertyCode}
                 </Badge>
               )}
-              {isLandOrPlot && (
-                <div className="mt-5 border border-gray-100 bg-white shadow-sm px-5 py-3">
-                  <p
-                    className="font-numeric text-[24px] lg:text-[28px] font-medium leading-none text-[#000]"
-                    style={fontPrice}
-                  >
-                    {formatCardTotalPrice(property.price)}
-                  </p>
-                  {(property.price_per_sqft ?? 0) > 0 && (
-                    <p className="mt-1.5 font-numeric text-[15px] font-semibold text-[#555]" style={fontUI}>
-                      {formatCardPricePerSqft(property.price_per_sqft)}
-                    </p>
-                  )}
-                </div>
-              )}
+            </div>
+
+            {/* At-a-glance key specs */}
+            <div className="mt-6">
+              <PropertyAtAGlance property={property} />
             </div>
 
             {(property.facing || property.katha || property.dimensions) && (
               <div className="flex flex-wrap items-center gap-2 mt-6 mb-1">
                 {property.facing && (
-                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.facing} Facing</span>
+                  <span className="inline-block bg-white border border-[#e8e8ea] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.facing} Facing</span>
                 )}
                 {property.katha && (
-                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.katha} Katha</span>
+                  <span className="inline-block bg-white border border-[#e8e8ea] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.katha} Katha</span>
                 )}
                 {property.dimensions && (
-                  <span className="inline-block bg-[#f4f4f4] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.dimensions}</span>
+                  <span className="inline-block bg-white border border-[#e8e8ea] text-[11px] text-[#333] px-3 py-1.5 rounded-full tracking-wide" style={fontUI}>{property.dimensions}</span>
                 )}
               </div>
             )}
 
             {/* Property details */}
-            <div className="mt-9">
+            <div className="mt-10">
               <PropertyDetailsPanel property={property} />
             </div>
 
-            {/* Investment highlights */}
-            <div className="mt-8" >
-              <SectionLabel>Investment Highlights</SectionLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3.5">
+            {/* Property highlights */}
+            <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+              <SectionHeader>Property Highlights</SectionHeader>
+              <div className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
                 {(property.highlights ?? []).map((h, i) => (
                   <motion.div
                     key={h}
@@ -532,17 +525,12 @@ export default function PropertyDetailPage() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                     transition={{ delay: i * 0.04, duration: 0.35, ease: 'easeOut' }}
-                    className="group flex items-center gap-2.5 border border-[#e8e8e8] rounded-lg px-5 py-4 hover:bg-[#000] hover:border-[#000] hover:shadow-md transition-all duration-200 ease-out"
+                    className="flex items-center gap-3"
                   >
-                    <CheckCircle
-                      size={13}
-                      weight="regular"
-                      className="text-[#000] group-hover:text-[#fff] shrink-0"
-                    />
-                    <span
-                      className="text-[13px] text-[#000] group-hover:text-[#fff]"
-                      style={fontUI}
-                    >
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#22C26E]/15">
+                      <CheckCircle size={12} weight="bold" className="text-[#22C26E]" />
+                    </span>
+                    <span className="text-[13.5px] text-[#333]" style={fontUI}>
                       {h}
                     </span>
                   </motion.div>
@@ -552,9 +540,9 @@ export default function PropertyDetailPage() {
 
             {/* Amenities */}
             {!isLandOrPlot && (property.amenities ?? []).length > 0 && (
-              <div className="mt-9" >
-                <SectionLabel>Amenities &amp; Features</SectionLabel>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3.5">
+              <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+                <SectionHeader>Amenities &amp; Features</SectionHeader>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 lg:grid-cols-4">
                   {(property.amenities ?? []).map((amenity, i) => {
                     const AmenityIcon = getAmenityIcon(amenity);
                     return (
@@ -564,17 +552,10 @@ export default function PropertyDetailPage() {
                         whileInView={{ opacity: 1, scale: 1 }}
                         viewport={{ once: true }}
                         transition={{ delay: i * 0.035, duration: 0.35, ease: 'easeOut' }}
-                        className="group flex flex-col items-center gap-2.5 border border-[#ebebeb] rounded-lg px-4 py-5 text-center hover:bg-[#000] hover:shadow-md transition-all duration-200"
+                        className="flex items-center gap-3 rounded-xl border border-[#f0f1f3] px-3.5 py-3 hover:border-[#C9A84C]/50 hover:bg-[#FBF7EC] transition-colors duration-200"
                       >
-                        <AmenityIcon
-                          size={22}
-                          weight="thin"
-                          className="text-[#000] group-hover:text-[#fff]"
-                        />
-                        <span
-                          className="text-[11px] text-[#444] group-hover:text-[#fff]"
-                          style={fontUI}
-                        >
+                        <AmenityIcon size={19} weight="regular" className="shrink-0 text-[#C9A84C]" />
+                        <span className="text-[12.5px] text-[#333]" style={fontUI}>
                           {amenity}
                         </span>
                       </motion.div>
@@ -585,19 +566,18 @@ export default function PropertyDetailPage() {
             )}
 
             {/* About */}
-            <Separator className="mb-9" />
-            <div className="mt-9">
-              <SectionLabel>About This Property</SectionLabel>
-              <div className="relative mt-3.5">
+            <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+              <SectionHeader>About This Property</SectionHeader>
+              <div className="relative mt-4">
                 <motion.p
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.5, ease: 'easeOut' }}
-                  className={`text-[15px] lg:text-[16px] text-[#333] leading-[1.72] tracking-[0.01em] ${
+                  className={`text-[14.5px] lg:text-[15px] text-[#333] leading-[1.75] tracking-[0.005em] ${
                     !descExpanded ? 'line-clamp-4' : ''
                   }`}
-                  style={fontHeading}
+                  style={fontUI}
                 >
                   {property.description}
                 </motion.p>
@@ -609,7 +589,7 @@ export default function PropertyDetailPage() {
                     <button
                       type="button"
                       onClick={() => setDescExpanded((v) => !v)}
-                      className="mt-2 flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#000] hover:opacity-70 transition-opacity"
+                      className="mt-2 flex items-center gap-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#0A1628] hover:opacity-70 transition-opacity"
                       style={fontUI}
                     >
                       {descExpanded ? 'Read Less' : 'Read More'}
@@ -625,17 +605,17 @@ export default function PropertyDetailPage() {
             </div>
 
             {/* Nearby landmarks */}
-            <div className="mt-9">
-              <SectionLabel>Nearby Landmarks</SectionLabel>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3.5">
+            <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+              <SectionHeader>Nearby Landmarks</SectionHeader>
+              <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 {[
                   { label: 'Hospitals', detail: 'Within 5 km radius' },
                   { label: 'Schools', detail: 'Within 3 km radius' },
                   { label: 'Connectivity', detail: 'Well-connected via roads' },
                 ].map((item) => (
-                  <div key={item.label} className="border border-[#ebebeb] rounded-lg px-4 py-4">
-                    <p className="text-[10px] text-[#888] uppercase tracking-[0.12em]" style={fontUI}>{item.label}</p>
-                    <p className="text-[13px] text-[#000] mt-1.5" style={fontUI}>{item.detail}</p>
+                  <div key={item.label} className="rounded-xl border border-[#f0f1f3] bg-[#fafbfc] px-4 py-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a8f98]" style={fontUI}>{item.label}</p>
+                    <p className="mt-1.5 text-[13px] font-medium text-[#111]" style={fontUI}>{item.detail}</p>
                   </div>
                 ))}
               </div>
@@ -643,49 +623,50 @@ export default function PropertyDetailPage() {
 
           </div>
 
-          {/* Right column — sticky panel (desktop) */}
-            <aside className="hidden lg:block" >
-            <div className="sticky top-[72px] border border-[#e8e8e8] bg-[#fff] rounded-xl overflow-hidden" >
-              <div className="bg-[#000] px-[26px] py-6" >
-                 <p className="uppercase text-[10px] text-[#888] tracking-[0.18em]" style={fontUI}>
-                   Asking Price
-                 </p>
+          {/* Right column — sticky contact card (desktop) */}
+          <aside className="hidden lg:block">
+            <div className="sticky top-[72px] overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
+              {/* Price */}
+              <div className="border-b border-[#eef0f2] px-6 py-6">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a8f98]" style={fontUI}>
+                  Asking Price
+                </p>
                 <p
-                  className="text-[44px] text-[#fff] font-medium leading-none mt-1 tracking-tight"
+                  className="mt-1.5 text-[40px] font-bold leading-none tracking-tight text-[#111]"
                   style={fontPrice}
                 >
                   {formatCardTotalPrice(property.price)}
                 </p>
-                <p className="text-[13px] text-[#888] mt-2" style={fontUI}>
+                <p className="mt-2.5 text-[12.5px] text-[#666]" style={fontUI}>
                   {showRental ? (
                     <>
                       Monthly Income ·{' '}
-                      <span className="text-[#ccc]">{property.monthly_rental ?? '—'}</span>
+                      <span className="font-semibold text-[#22C26E]">{property.monthly_rental ?? '—'}</span>
                     </>
                   ) : (
                     <>
                       {(property.price_per_sqft ?? 0) > 0 && (
-                        <span className="text-[#ccc]">
+                        <span className="font-semibold text-[#A98C3B]">
                           {formatCardPricePerSqft(property.price_per_sqft)}
                         </span>
                       )}
                       {(property.price_per_sqft ?? 0) > 0 && plotAreaDisplay !== '—' && ' · '}
                       {plotAreaDisplay !== '—' && (
-                        <span className="text-[#ccc]">{plotAreaDisplay}</span>
+                        <span className="text-[#333]">{plotAreaDisplay}</span>
                       )}
                     </>
                   )}
                 </p>
               </div>
 
-              <div className="px-[26px] py-[22px] flex flex-col gap-2.5" >
+              <div className="px-6 py-5 flex flex-col gap-2.5">
                 <motion.button
                   type="button"
                   onClick={() => setShowBooking((open) => !open)}
-                  whileHover={{ backgroundColor: '#222' }}
+                  whileHover={{ backgroundColor: '#1E3852' }}
                   whileTap={{ scale: 0.97 }}
                   transition={{ duration: 0.2 }}
-                  className="flex h-[50px] w-full items-center justify-center gap-2.5 bg-[#000] text-[13px] font-semibold uppercase tracking-[0.1em] text-[#fff]"
+                  className="flex h-[50px] w-full items-center justify-center gap-2.5 rounded-xl bg-[#0A1628] text-[13px] font-semibold uppercase tracking-[0.08em] text-[#fff] shadow-[0_8px_20px_rgba(10,22,40,0.28)]"
                   style={fontUI}
                 >
                   <CalendarBlank size={15} weight="regular" color="#fff" />
@@ -697,7 +678,7 @@ export default function PropertyDetailPage() {
                   onClick={handleWhatsApp}
                   disabled={waLoading}
                   whileTap={{ scale: 0.97 }}
-                  className="flex h-[46px] w-full items-center justify-center gap-2 border border-[#25D366] bg-[#25D366] text-[12px] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-70 rounded-xl"
+                  className="flex h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-[12px] font-semibold uppercase tracking-[0.06em] text-white shadow-[0_8px_20px_rgba(37,211,102,0.28)] disabled:opacity-70"
                   style={fontUI}
                 >
                   <WhatsappLogo size={16} weight="fill" color="#fff" />
@@ -708,13 +689,13 @@ export default function PropertyDetailPage() {
                   type="button"
                   onClick={handleHeart}
                   whileTap={{ scale: 0.94 }}
-                  className="w-full h-9 flex items-center justify-center gap-2 text-[12px] text-[#888] bg-transparent border-0 hover:bg-gray-50 hover:border hover:border-gray-200 rounded-lg transition-all duration-200"
+                  className="w-full h-10 flex items-center justify-center gap-2 rounded-xl border border-[#e0e2e5] bg-white text-[12.5px] font-semibold text-[#444] hover:border-[#C9A84C]/60 hover:text-[#0A1628] transition-colors duration-200"
                   style={fontUI}
                 >
                   <Heart
                     size={13}
                     weight={saved ? 'fill' : 'regular'}
-                    color={saved ? '#000' : '#bbb'}
+                    color={saved ? '#C9A84C' : '#999'}
                   />
                   {saved ? 'Saved ✓' : 'Save to Shortlist'}
                 </motion.button>
@@ -722,10 +703,10 @@ export default function PropertyDetailPage() {
                 <Button
                   variant="outline"
                   onClick={handleShare}
-                  className="w-full h-11 text-[12px] font-semibold gap-2"
+                  className="w-full h-11 text-[12.5px] font-semibold gap-2 rounded-xl border-[#e0e2e5]"
                   style={fontUI}
                 >
-                  <ShareNetwork size={16} weight="duotone" color="#111" />
+                  <ShareNetwork size={16} weight="duotone" color="#C9A84C" />
                   {shareFeedback || 'Share This Property'}
                 </Button>
               </div>
@@ -748,8 +729,8 @@ export default function PropertyDetailPage() {
                 )}
               </AnimatePresence>
 
-              <div className="px-[26px] py-4 border-t border-[#f0f0f0]" >
-                <p className="text-[11px] text-[#bbb] text-center" style={fontUI}>
+              <div className="px-6 py-4 border-t border-[#f0f1f3]" >
+                <p className="text-[11px] text-[#999] text-center" style={fontUI}>
                   VJR Estate Properties Pvt. Ltd. · {siteContact.addressShort}
                 </p>
               </div>
@@ -784,10 +765,10 @@ export default function PropertyDetailPage() {
             type="button"
             onClick={handleShare}
             aria-label="Share property"
-            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-gray-900 bg-white px-3 active:scale-[0.98] sm:min-w-[80px]"
+            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-[#0A1628] bg-white px-3 active:scale-[0.98] sm:min-w-[80px]"
           >
-            <ShareNetwork size={18} weight="duotone" color="#111" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-900" style={fontUI}>
+            <ShareNetwork size={18} weight="duotone" color="#0A1628" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
               Share
             </span>
           </button>
@@ -795,7 +776,7 @@ export default function PropertyDetailPage() {
           <button
             type="button"
             onClick={() => setShowBooking(true)}
-            className="flex min-h-[48px] min-w-[96px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#000] px-4 active:scale-[0.98] sm:min-w-[108px]"
+            className="flex min-h-[48px] min-w-[96px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl bg-[#0A1628] px-4 active:scale-[0.98] sm:min-w-[108px]"
             style={fontUI}
           >
             <CalendarBlank size={18} weight="regular" color="#fff" />

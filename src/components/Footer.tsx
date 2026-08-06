@@ -13,14 +13,14 @@ const quickLinks = [
 
 export default function Footer() {
   return (
-    <footer className="bg-black text-white">
+    <footer className="bg-[#0A1628] text-white">
       <div className="max-w-7xl mx-auto px-8 py-20">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12" style={{ gridTemplateColumns: '38.2% 23.6% 38.2%' }}>
           <div className="space-y-6">
             <h2 className="font-display text-[28px] text-white" style={{ letterSpacing: '-0.02em' }}>VJR Estate</h2>
             <p className="text-gray-400 text-sm leading-relaxed max-w-sm">Buy verified rental income properties in Bangalore. Investment opportunities with proven returns.</p>
             <div className="flex gap-4">
-              <a href="https://wa.me/918088905957" target="_blank" rel="noopener noreferrer" className="hoverable flex items-center justify-center w-10 h-10 border border-gray-700 text-white transition-colors hover:bg-white hover:text-black">
+              <a href="https://wa.me/918088905957" target="_blank" rel="noopener noreferrer" className="hoverable flex items-center justify-center w-10 h-10 border border-gray-700 text-white transition-colors hover:border-[#C9A84C] hover:bg-[#C9A84C] hover:text-[#0A1628]">
                 <MessageCircle size={18} />
               </a>
             </div>

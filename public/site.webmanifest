@@ -5,7 +5,7 @@
   "start_url": "https://vjrestate.com/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0a0a0a",
+  "theme_color": "#0A1628",
   "icons": [
     {
       "src": "/favicon.png",

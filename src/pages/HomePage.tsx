@@ -25,7 +25,7 @@ export default function HomePage() {
   return (
     <div className="bg-white">
       {/* Hero */}
-      <section className="relative w-full min-h-screen overflow-hidden bg-black">
+      <section className="relative w-full min-h-screen overflow-hidden bg-[#0A1628]">
         <video
           autoPlay
           loop
@@ -36,7 +36,7 @@ export default function HomePage() {
           <source src={BG_VIDEO} type="video/mp4" />
         </video>
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/40 z-10" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0A1628]/70 via-transparent to-[#0A1628]/50 z-10" />
 
         <div className="relative z-20 flex flex-col justify-center min-h-screen px-6 md:px-12 lg:px-16 pt-32">
           <FadeIn delay={200} duration={1000} className="mb-8 max-w-3xl">

@@ -194,7 +194,7 @@ export default function AboutPage() {
               initial="hidden"
               animate={visionInView ? 'visible' : 'hidden'}
               variants={slideRight}
-              className="about-slide-panel rounded-2xl border border-black bg-black p-8 text-white shadow-lg sm:p-10"
+              className="about-slide-panel rounded-2xl border border-[#0A1628] bg-[#0A1628] p-8 text-white shadow-lg sm:p-10"
             >
               <PremiumIcon icon={Eye} dark />
               <h3 className="mt-6 text-[22px] text-white sm:text-[26px]" style={fontHeading}>
@@ -231,7 +231,7 @@ export default function AboutPage() {
               >
                 Our Journey
               </h2>
-              <div className="mt-8 hidden h-px w-12 bg-black lg:block" />
+              <div className="mt-8 hidden h-px w-12 bg-[#C9A84C] lg:block" />
             </div>
             <div className="space-y-6 text-[15px] leading-[1.78] text-[#444] sm:text-[16px]" style={fontBody}>
               <p>VJR Estate began as a personal pursuit, not a business plan.</p>
@@ -250,7 +250,7 @@ export default function AboutPage() {
       </SlideSection>
 
       {/* Founders */}
-      <section id="founders" className="about-snap-section bg-black py-16 sm:py-24 lg:py-32">
+      <section id="founders" className="about-snap-section bg-[#0A1628] py-16 sm:py-24 lg:py-32">
         <div className="mx-auto max-w-6xl px-5 sm:px-8">
           <motion.div
             initial={{ opacity: 0, y: 40 }}

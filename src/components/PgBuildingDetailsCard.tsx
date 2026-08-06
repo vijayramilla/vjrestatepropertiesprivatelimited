@@ -65,7 +65,7 @@ export default function PgBuildingDetailsCard({ property }: { property: Property
 
   return (
     <article className="mt-4 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white shadow-sm">
-      <header className="flex items-center justify-between gap-3 bg-[#000] px-4 py-3.5 sm:px-5">
+      <header className="flex items-center justify-between gap-3 bg-[#0A1628] px-4 py-3.5 sm:px-5">
         <div className="min-w-0">
           <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-[#666]" style={fontUI}>
             PG Building

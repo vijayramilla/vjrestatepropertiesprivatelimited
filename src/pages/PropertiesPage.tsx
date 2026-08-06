@@ -482,7 +482,7 @@ export default function PropertiesPage() {
               type="button"
               onClick={() => setBudgetMode('price')}
               className={`min-h-[36px] flex-1 rounded-lg px-4 text-[12px] font-semibold uppercase tracking-wide transition sm:flex-none ${
-                budgetMode === 'price' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                budgetMode === 'price' ? 'bg-[#0A1628] text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
               Price
@@ -491,7 +491,7 @@ export default function PropertiesPage() {
               type="button"
               onClick={() => setBudgetMode('rental')}
               className={`min-h-[36px] flex-1 rounded-lg px-4 text-[12px] font-semibold uppercase tracking-wide transition sm:flex-none ${
-                budgetMode === 'rental' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
+                budgetMode === 'rental' ? 'bg-[#0A1628] text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
               Rental
@@ -575,7 +575,7 @@ export default function PropertiesPage() {
                 setSortOpen(false);
               }}
               className={`flex min-h-[48px] w-full items-center justify-between rounded-xl px-4 py-3 text-left text-[15px] transition ${
-                sortBy === option ? 'bg-black font-medium text-white' : 'text-gray-700 hover:bg-gray-50'
+                sortBy === option ? 'bg-[#0A1628] font-medium text-white' : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
               {SORT_LABELS[option]}
@@ -671,7 +671,7 @@ export default function PropertiesPage() {
             <SlidersHorizontal size={16} />
             <span className="hidden sm:inline">Filters</span>
             {hasActiveFilters && (
-              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-black px-1 text-[9px] font-bold text-white ring-2 ring-white">
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#0A1628] px-1 text-[9px] font-bold text-white ring-2 ring-white">
                 {activeFilterChips.length}
               </span>
             )}
@@ -710,7 +710,7 @@ export default function PropertiesPage() {
                         setSortOpen(false);
                       }}
                       className={`flex min-h-[44px] w-full items-center justify-between px-4 py-3 text-left text-[14px] transition ${
-                        sortBy === option ? 'bg-black font-medium text-white' : 'text-gray-600 hover:bg-gray-50'
+                        sortBy === option ? 'bg-[#0A1628] font-medium text-white' : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
                       {SORT_LABELS[option]}
@@ -773,7 +773,7 @@ export default function PropertiesPage() {
               <div className="mx-auto flex max-h-[min(65dvh,560px)] max-w-7xl flex-col">
                 <div className="prop-sheet-handle lg:hidden" />
                 {localityNotice && (
-                  <p className="mx-3 mt-2 rounded-lg bg-black px-3 py-2 text-center text-[12px] font-medium text-white sm:mx-6">
+                  <p className="mx-3 mt-2 rounded-lg bg-[#0A1628] px-3 py-2 text-center text-[12px] font-medium text-white sm:mx-6">
                     {localityNotice}
                   </p>
                 )}
@@ -797,7 +797,7 @@ export default function PropertiesPage() {
                             onClick={() => selectLocalitySuggestion(loc)}
                             className={`flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-3 text-left text-[14px] transition active:bg-gray-100 ${
                               selectedLocations.includes(loc)
-                                ? 'bg-gray-900/5 font-medium text-gray-900'
+                                ? 'bg-[#0A1628]/5 font-medium text-[#0A1628]'
                                 : 'text-gray-700 hover:bg-gray-50'
                             }`}
                           >
@@ -837,8 +837,8 @@ export default function PropertiesPage() {
                               disabled={!isSelected && localitySlotsLeft <= 0}
                               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[12px] font-medium transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${
                                 isSelected
-                                  ? 'border-black bg-black text-white'
-                                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-400'
+                                  ? 'border-[#0A1628] bg-[#0A1628] text-white'
+                                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A84C]'
                               }`}
                             >
                               <MapPin size={11} className={isSelected ? 'text-white' : 'text-gray-400'} />

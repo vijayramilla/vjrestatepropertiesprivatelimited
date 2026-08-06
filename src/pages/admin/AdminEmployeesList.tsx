@@ -64,7 +64,7 @@ export default function AdminEmployeesList() {
           <button
             type="button"
             onClick={() => navigate('/admin/employees/new')}
-            className="flex min-h-[44px] items-center gap-2 rounded-lg bg-black px-4 text-sm font-medium text-white hover:bg-gray-800"
+            className="flex min-h-[44px] items-center gap-2 rounded-lg bg-[#0A1628] px-4 text-sm font-medium text-white hover:bg-[#1E3852]"
           >
             <Plus size={18} />
             Add Employee

@@ -159,7 +159,7 @@ function formatKathaValue(katha?: string): string {
   return value;
 }
 
-function getHeroMetrics(property: Property): DetailRow[] {
+export function getHeroMetrics(property: Property): DetailRow[] {
   if (property.type === 'PG Building') {
     return [
       { label: 'Total Rooms', value: property.total_units > 0 ? String(property.total_units) : '—' },
@@ -300,24 +300,51 @@ function groupRows(rows: DetailRow[]): { title: string; rows: DetailRow[] }[] {
 
 function HeroMetric({ label, value }: DetailRow) {
   return (
-    <div className="flex min-h-[76px] flex-col justify-center border border-[#e8e8e8] bg-white px-4 py-3.5">
-      <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-[#999]" style={fontUI}>
+    <div className="flex min-h-[92px] flex-col justify-center px-5 py-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a8f98]" style={fontUI}>
         {label}
       </p>
-      <p className="mt-1.5 font-numeric text-[17px] font-semibold leading-tight text-black sm:text-[19px]" style={fontUI}>
+      <p className="mt-1.5 font-numeric text-[19px] font-bold tracking-tight text-[#111] sm:text-[21px]" style={fontUI}>
         {value}
       </p>
     </div>
   );
 }
 
+/** Housing.com-style at-a-glance key specs strip. */
+export function PropertyAtAGlance({ property }: { property: Property }) {
+  const metrics = getHeroMetrics(property);
+  if (metrics.length === 0) return null;
+
+  return (
+    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:grid-cols-4">
+      {metrics.map((metric, i) => (
+        <div
+          key={metric.label}
+          className={
+            i === 0
+              ? ''
+              : i === 1
+                ? 'border-l border-[#eef0f2]'
+                : i === 2
+                  ? 'border-t border-[#eef0f2] sm:border-l sm:border-t-0'
+                  : 'border-l border-t border-[#eef0f2] sm:border-t-0'
+          }
+        >
+          <HeroMetric {...metric} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SpecRow({ label, value }: DetailRow) {
   return (
-    <div className="flex min-h-[48px] items-center justify-between gap-4 border-b border-[#f0f0f0] px-4 py-3 last:border-b-0 sm:px-5">
-      <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[#999]" style={fontUI}>
+    <div className="flex min-h-[46px] items-center justify-between gap-4 border-b border-[#f2f3f5] px-5 py-3 last:border-b-0">
+      <span className="text-[12px] text-[#666]" style={fontUI}>
         {label}
       </span>
-      <span className="max-w-[55%] text-right text-[13px] font-medium leading-snug text-black sm:text-[14px]" style={fontUI}>
+      <span className="max-w-[55%] text-right text-[13px] font-semibold leading-snug text-[#111]" style={fontUI}>
         {value}
       </span>
     </div>
@@ -332,36 +359,23 @@ export default function PropertyDetailsPanel({ property }: { property: Property 
   const groups = groupRows(detailRows);
 
   return (
-    <article className="mt-4 overflow-hidden rounded-xl border border-[#e8e8e8] bg-white">
-      <header className="flex items-center justify-between gap-3 border-b border-[#e8e8e8] px-4 py-4 sm:px-5">
-        <div className="flex items-center gap-3">
-          <span className="h-6 w-1 rounded-full bg-black" />
-          <div>
-            <p className="text-[9px] font-medium uppercase tracking-[0.18em] text-[#999]" style={fontUI}>
-              {getTypeLabel(property)}
-            </p>
-            <h3 className="mt-0.5 text-[16px] font-semibold text-black sm:text-[17px]" style={fontUI}>
-              Property Details
-            </h3>
-          </div>
+    <section className="overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
+      <header className="flex items-center gap-2.5 border-b border-[#eef0f2] px-5 py-4">
+        <span className="h-4 w-1 shrink-0 rounded-full bg-[#C9A84C]" />
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#A98C3B]" style={fontUI}>
+            {getTypeLabel(property)}
+          </p>
+          <h3 className="mt-0.5 text-[17px] font-bold tracking-tight text-[#111]" style={fontUI}>
+            Property Details
+          </h3>
         </div>
-        <span className="rounded-full border border-[#e8e8e8] bg-[#fafafa] px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-[#666]" style={fontUI}>
-          Specs
-        </span>
       </header>
 
-      {heroMetrics.length > 0 && (
-        <div className="grid grid-cols-2 gap-px bg-[#e8e8e8] p-px sm:grid-cols-4">
-          {heroMetrics.map((metric) => (
-            <HeroMetric key={metric.label} {...metric} />
-          ))}
-        </div>
-      )}
-
       {groups.map((group) => (
-        <section key={group.title} className="border-t border-[#e8e8e8]">
-          <div className="bg-[#fafafa] px-4 py-2.5 sm:px-5">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#666]" style={fontUI}>
+        <section key={group.title} className="border-t border-[#eef0f2]">
+          <div className="bg-[#fafbfc] px-5 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#555]" style={fontUI}>
               {group.title}
             </p>
           </div>
@@ -372,6 +386,6 @@ export default function PropertyDetailsPanel({ property }: { property: Property 
           </div>
         </section>
       ))}
-    </article>
+    </section>
   );
 }

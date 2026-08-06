@@ -93,7 +93,7 @@ export default function RequirementsBoardPage() {
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-black px-4 py-12 md:px-8 md:py-16"
+        className="bg-[#0A1628] px-4 py-12 md:px-8 md:py-16"
       >
         <div className="mx-auto max-w-5xl">
           <p
@@ -212,7 +212,7 @@ export default function RequirementsBoardPage() {
                   <button
                     type="button"
                     onClick={() => setMatchTarget(req)}
-                    className="h-11 w-full border border-black bg-black text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-white hover:text-black"
+                    className="h-11 w-full border border-[#0A1628] bg-[#0A1628] text-xs font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-[#C9A84C] hover:border-[#C9A84C] hover:text-[#0A1628]"
                   >
                     I Have a Matching Property
                   </button>

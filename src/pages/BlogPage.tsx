@@ -50,7 +50,7 @@ export default function BlogPage() {
                 onClick={() => setActive(cat)}
                 className={`rounded-full px-4 py-1.5 text-[12px] font-medium transition-all ${
                   active === cat
-                    ? 'bg-black text-white'
+                    ? 'bg-[#0A1628] text-white'
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >

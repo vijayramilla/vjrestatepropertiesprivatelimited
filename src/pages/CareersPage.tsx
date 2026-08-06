@@ -247,7 +247,7 @@ export default function CareersPage() {
       </SlideSection>
 
       {/* Advantages & Perquisites */}
-      <section className="about-snap-section bg-black py-16 sm:py-24 lg:py-32">
+      <section className="about-snap-section bg-[#0A1628] py-16 sm:py-24 lg:py-32">
         <div className="mx-auto max-w-6xl px-5 sm:px-8">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
@@ -328,7 +328,7 @@ export default function CareersPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-8% 0px' }}
                 transition={{ duration: 0.4, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
-                className="about-slide-panel flex cursor-pointer flex-col items-center rounded-xl border border-[#e8e8e8] bg-white p-5 text-center transition-colors hover:border-black sm:p-6"
+                className="about-slide-panel flex cursor-pointer flex-col items-center rounded-xl border border-[#e8e8e8] bg-white p-5 text-center transition-colors hover:border-[#C9A84C] sm:p-6"
               >
                 <PremiumIcon icon={dept.icon} />
                 <h3 className="mt-3 text-[13px] font-medium text-black sm:text-[14px]">

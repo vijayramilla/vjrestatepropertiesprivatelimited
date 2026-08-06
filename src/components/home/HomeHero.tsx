@@ -201,7 +201,7 @@ export default function HomeHero({
                     {selectedLocalities.map((loc) => (
                       <span
                         key={loc}
-                        className="inline-flex max-w-[140px] items-center gap-0.5 rounded-full bg-black py-0.5 pl-2 pr-0.5 text-[10px] font-medium text-white sm:max-w-[160px] sm:text-[11px]"
+                        className="inline-flex max-w-[140px] items-center gap-0.5 rounded-full bg-[#0A1628] py-0.5 pl-2 pr-0.5 text-[10px] font-medium text-white sm:max-w-[160px] sm:text-[11px]"
                       >
                         <span className="truncate">{loc}</span>
                         <button
@@ -251,7 +251,7 @@ export default function HomeHero({
                   onClick={onSearch}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="group hidden min-h-[60px] w-[130px] shrink-0 items-center justify-center gap-2 bg-black text-white transition-colors hover:bg-[#111] md:flex"
+                  className="group hidden min-h-[60px] w-[130px] shrink-0 items-center justify-center gap-2 bg-[#0A1628] text-white transition-colors hover:bg-[#1E3852] md:flex"
                   style={{
                     fontFamily: DM_SANS,
                     fontSize: '12px',
@@ -279,7 +279,7 @@ export default function HomeHero({
                   >
                     <div className="max-h-[min(45vh,320px)] overflow-y-auto overscroll-contain p-3 md:p-4">
                       {localityNotice && (
-                        <p className="mb-2 rounded-lg bg-black px-3 py-2 text-center text-[11px] font-medium text-white">
+                        <p className="mb-2 rounded-lg bg-[#0A1628] px-3 py-2 text-center text-[11px] font-medium text-white">
                           {localityNotice}
                         </p>
                       )}
