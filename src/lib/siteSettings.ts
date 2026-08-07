@@ -1,3 +1,4 @@
+import { startTransition } from 'react';
 import { db } from './firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
@@ -38,7 +39,13 @@ async function tryWrite(path: string, value: boolean): Promise<boolean> {
 const FIREBASE_PATHS = ['settings/general', 'properties/_config_'];
 
 export function subscribeToSettings(onChange: (settings: SiteSettings) => void): () => void {
+  // Local read is synchronous inside the effect — safe, keeps loading=false instant.
   onChange(readLocal());
+
+  // Defer Firestore dispatches outside the commit phase: Firestore can deliver
+  // cached snapshots synchronously, and React 18.3.1 crashes with
+  // "Should have a queue" when setState runs during that window.
+  const notify = (settings: SiteSettings) => startTransition(() => onChange(settings));
 
   let unsubscribed = false;
   const unsubs: (() => void)[] = [];
@@ -53,7 +60,7 @@ export function subscribeToSettings(onChange: (settings: SiteSettings) => void):
           const data = snap.data() as Partial<SiteSettings>;
           const merged = { ...DEFAULT_SETTINGS, ...data };
           writeLocal(merged);
-          onChange(merged);
+          notify(merged);
         }
       },
       () => {

@@ -14,6 +14,7 @@ import {
   type Unsubscribe,
   type Timestamp,
 } from 'firebase/firestore';
+import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { formatINR } from '@/lib/formatPrice';
 
@@ -220,7 +221,7 @@ export function subscribeRequirements(
           ...emptyPrivateFields(),
         } as RequirementDoc;
       });
-      onData(items);
+      startTransition(() => onData(items));
     },
     (err) => {
       console.error('requirements listener error:', err);
@@ -238,20 +239,22 @@ export function subscribeAdminRequirements(
   let privateById = new Map<string, RequirementPrivateDoc>();
 
   const emit = () => {
-    onData(
-      publicItems.map((item) => {
-        const privateDoc = privateById.get(item.id!);
-        const legacyPrivate = readPrivateFromLegacy(item as unknown as Record<string, unknown>);
-        const hasLegacy =
-          legacyPrivate.buyerName.length > 0 || legacyPrivate.buyerPhone.length > 0;
+    startTransition(() => {
+      onData(
+        publicItems.map((item) => {
+          const privateDoc = privateById.get(item.id!);
+          const legacyPrivate = readPrivateFromLegacy(item as unknown as Record<string, unknown>);
+          const hasLegacy =
+            legacyPrivate.buyerName.length > 0 || legacyPrivate.buyerPhone.length > 0;
 
-        return {
-          ...stripPrivateRequirementFields(item as unknown as Record<string, unknown>),
-          ...(privateDoc ?? (hasLegacy ? legacyPrivate : emptyPrivateFields())),
-          id: item.id,
-        } as RequirementDoc;
-      }),
-    );
+          return {
+            ...stripPrivateRequirementFields(item as unknown as Record<string, unknown>),
+            ...(privateDoc ?? (hasLegacy ? legacyPrivate : emptyPrivateFields())),
+            id: item.id,
+          } as RequirementDoc;
+        }),
+      );
+    });
   };
 
   const unsubPublic = onSnapshot(
@@ -295,7 +298,7 @@ export function subscribeOpenRequirementsCount(
   const q = query(collection(db, 'requirements'), where('status', '==', 'open'));
   return onSnapshot(
     q,
-    (snap) => onCount(snap.size),
+    (snap) => startTransition(() => onCount(snap.size)),
     (err) => console.error('open requirements count error:', err),
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -12,7 +12,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { PropertyPagination, PROPERTIES_PAGE_SIZE } from '@/components/ui/the-pagination';
 import { PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import {
@@ -27,8 +26,7 @@ import {
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
 import { formatPrice } from '@/lib/formatPrice';
-import { subscribeProperties } from '@/lib/firestoreHelpers';
-import { usePropertiesCache } from '@/hooks/usePropertiesCache';
+import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { Button } from '@/components/ui/liquid-glass-button';
 
 type SortOption = 'price_asc' | 'price_desc' | 'rental_desc' | 'newest';
@@ -55,6 +53,8 @@ const TRENDING_SEARCHES: TrendingItem[] = [
 const PRICE_SLIDER_MAX = 100_000_000;
 const RENTAL_SLIDER_MAX = 500_000;
 const TOOLBAR_HEIGHT = 44;
+/** Properties revealed per batch — scroll or "Show More" reveals all of them. */
+const LOAD_MORE_STEP = 20;
 
 const SORT_LABELS: Record<SortOption, string> = {
   newest: 'Newest First',
@@ -158,22 +158,15 @@ interface PropertyListItem extends PropertyFilterInput {
 
 export default function PropertiesPage() {
   const [searchParams] = useSearchParams();
-  const { getCached, setCache } = usePropertiesCache('all-properties');
-  const [properties, setProperties] = useState<PropertyListItem[]>(() => {
-    const cached = getCached('all-properties');
-    return (cached ?? []) as unknown as PropertyListItem[];
-  });
-  const [loading, setLoading] = useState(() => {
-    const cached = getCached('all-properties');
-    return !cached;
-  });
+  const { properties: feed, loading } = usePropertiesFeed();
+  const properties = feed as unknown as PropertyListItem[];
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_SLIDER_MAX]);
   const [rentalRange, setRentalRange] = useState<[number, number]>([0, UNLIMITED_FILTER_MAX]);
   const [budgetMode, setBudgetMode] = useState<BudgetMode>('price');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
-  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(LOAD_MORE_STEP);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -197,19 +190,6 @@ export default function PropertiesPage() {
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
   }, []);
-
-  useEffect(() => {
-    const unsub = subscribeProperties(
-      (docs) => {
-        const mapped = docs.map(({ id, data }) => ({ id, ...data }));
-        setCache('all-properties', mapped as unknown[]);
-        setProperties(mapped);
-        setLoading(false);
-      },
-      () => setLoading(false),
-    );
-    return () => unsub();
-  }, [setCache]);
 
   useEffect(() => {
     const typeParam = searchParams.get('type');
@@ -311,45 +291,45 @@ export default function PropertiesPage() {
         });
         break;
       case 'newest':
-        sorted.sort((a, b) => {
-          const byCat = categoryIndex(a) - categoryIndex(b);
-          if (byCat !== 0) return byCat;
-          const aTime = a.createdAt && typeof a.createdAt === 'object' && 'toDate' in a.createdAt && typeof (a.createdAt as Record<string, unknown>).toDate === 'function'
-            ? (a.createdAt as { toDate: () => Date }).toDate().getTime()
-            : new Date(a.createdAt as string | number | Date).getTime();
-          const bTime = b.createdAt && typeof b.createdAt === 'object' && 'toDate' in b.createdAt && typeof (b.createdAt as Record<string, unknown>).toDate === 'function'
-            ? (b.createdAt as { toDate: () => Date }).toDate().getTime()
-            : new Date(b.createdAt as string | number | Date).getTime();
-          return bTime - aTime;
-        });
-        break;
+        // Feed is already sorted newest-first once at fetch time, and
+        // filterProperties preserves order — no per-comparison date parsing.
+        return filtered;
     }
     return sorted;
   }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
 
   const showCategoryHeaders = selectedTypes.length !== 1;
 
-  const totalPages = Math.max(1, Math.ceil(filteredProperties.length / PROPERTIES_PAGE_SIZE));
+  // Progressive reveal — starts with one batch, then grows on scroll /
+  // "Show More" until every filtered property is on the page.
+  const visibleProperties = useMemo(
+    () => filteredProperties.slice(0, visibleCount),
+    [filteredProperties, visibleCount],
+  );
 
-  const paginatedProperties = useMemo(() => {
-    const start = (page - 1) * PROPERTIES_PAGE_SIZE;
-    return filteredProperties.slice(start, start + PROPERTIES_PAGE_SIZE);
-  }, [filteredProperties, page]);
+  const hasMore = visibleCount < filteredProperties.length;
+
+  const loadMore = useCallback(() => {
+    setVisibleCount((c) => Math.min(filteredProperties.length, c + LOAD_MORE_STEP));
+  }, [filteredProperties.length]);
 
   useEffect(() => {
-    setPage(1);
+    setVisibleCount(LOAD_MORE_STEP);
   }, [selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
 
+  const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
-
-  const handlePageChange = (nextPage: number) => {
-    setPage(nextPage);
-    window.requestAnimationFrame(() => {
-      listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  };
+    const el = sentinelRef.current;
+    if (!el || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) loadMore();
+      },
+      { rootMargin: '600px 0px' },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   const clearAllFilters = () => {
     setSelectedTypes([]);
@@ -972,9 +952,17 @@ export default function PropertiesPage() {
         </motion.div>
 
         {loading ? (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="aspect-[4/3] animate-pulse rounded-xl bg-gray-200 md:rounded-2xl" />
+              <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white shadow-sm">
+                <div className="aspect-[16/9] bg-gray-200" />
+                <div className="space-y-2 p-4">
+                  <div className="h-3 w-4/5 rounded bg-gray-200" />
+                  <div className="h-2.5 w-1/2 rounded bg-gray-100" />
+                  <div className="h-4 w-2/3 rounded bg-gray-200" />
+                  <div className="h-8 rounded-xl bg-gray-100" />
+                </div>
+              </div>
             ))}
           </div>
         ) : filteredProperties.length > 0 ? (
@@ -982,7 +970,7 @@ export default function PropertiesPage() {
             {showCategoryHeaders ? (
               <div className="space-y-10">
                 {PROPERTY_CATEGORIES.map((category) => {
-                  const items = paginatedProperties.filter(
+                  const items = visibleProperties.filter(
                     (p) => getPropertyCategory(p) === category,
                   );
                   if (items.length === 0) return null;
@@ -994,15 +982,16 @@ export default function PropertiesPage() {
                           ({items.length})
                         </span>
                       </h2>
-                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
                         {items.map((property, index) => (
                           <motion.div
                             key={property.id}
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.4, delay: index * 0.05 }}
+                            className="h-full"
                           >
-                            <PropertyCard property={property as never} index={index} />
+                            <PropertyCard property={property as never} index={index} listing />
                           </motion.div>
                         ))}
                       </div>
@@ -1011,28 +1000,37 @@ export default function PropertiesPage() {
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-3 lg:gap-6">
-                {paginatedProperties.map((property, index) => (
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
+                {visibleProperties.map((property, index) => (
                   <motion.div
                     key={property.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.4, delay: index * 0.05 }}
+                    className="h-full"
                   >
-                    <PropertyCard property={property as never} index={index} />
+                    <PropertyCard property={property as never} index={index} listing />
                   </motion.div>
                 ))}
               </div>
             )}
 
-            <PropertyPagination
-              page={page}
-              totalPages={totalPages}
-              totalItems={filteredProperties.length}
-              pageSize={PROPERTIES_PAGE_SIZE}
-              onPageChange={handlePageChange}
-              className="mt-8"
-            />
+            {hasMore && (
+              <div ref={sentinelRef} className="mt-10 flex flex-col items-center gap-3">
+                <p className="text-[12px] text-gray-400">
+                  Showing {visibleProperties.length} of {filteredProperties.length}{' '}
+                  {filteredProperties.length === 1 ? 'property' : 'properties'}
+                </p>
+                <Button
+                  type="button"
+                  onClick={loadMore}
+                  variant="default"
+                  className="h-auto px-8 py-3 text-[13px] uppercase tracking-[0.1em]"
+                >
+                  Show More Properties
+                </Button>
+              </div>
+            )}
           </>
         ) : (
           <motion.div

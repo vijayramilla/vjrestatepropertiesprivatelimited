@@ -7,6 +7,7 @@ import {
   type QuerySnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { normalizePropertyRecord } from '@/lib/propertyFilters';
 
@@ -47,7 +48,10 @@ export function subscribeProperties(
         id: d.id,
         data: normalizePropertyRecord(d.data()),
       }));
-      onData(sortDocsByNewest(docs));
+      // Defer the state update out of the commit phase: Firestore delivers
+      // cached snapshots synchronously, and React 18.3.1 crashes with
+      // "Should have a queue" when setState runs during that window.
+      startTransition(() => onData(sortDocsByNewest(docs)));
     },
     (error) => {
       console.error('Firestore properties listener error:', error);

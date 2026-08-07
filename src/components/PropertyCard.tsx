@@ -57,12 +57,13 @@ interface PropertyCardProps {
   property: CardInput;
   index?: number;
   compact?: boolean;
+  listing?: boolean;
 }
 
-export default function PropertyCard({ property, index = 0, compact = false }: PropertyCardProps) {
-  const listing = isFullListing(property)
+export default function PropertyCard({ property, index = 0, compact = false, listing: listingVariant = false }: PropertyCardProps) {
+  const cardListing = isFullListing(property)
     ? property
     : mapFirestoreToListing(String(property.id), toFirestoreDoc(property));
 
-  return <PropertyListingCard property={listing} index={index} compact={compact} />;
+  return <PropertyListingCard property={cardListing} index={index} compact={compact} listing={listingVariant} />;
 }

@@ -1,12 +1,9 @@
 import sharp from 'sharp';
 
 const WIDTH = 1200;
-const PHOTO_HEIGHT = 400;
-const PANEL_HEIGHT = 230;
-const HEIGHT = PHOTO_HEIGHT + PANEL_HEIGHT;
-const BLACK = '#111827';
-const GRAY = '#f3f4f6';
-const GREEN = '#25D366';
+const HEIGHT = 630;
+const GOLD = '#C9A84C';
+const GREEN = '#4ADE80';
 
 export default async function handler(req: any, res: any) {
   const id = typeof req.query?.id === 'string' ? req.query.id : '';
@@ -26,25 +23,27 @@ export default async function handler(req: any, res: any) {
     if (!imgRes.ok) throw new Error(`image fetch failed: ${imgRes.status}`);
     const buf = Buffer.from(await imgRes.arrayBuffer());
 
+    // Full-bleed photo — the whole 1200x630 card is the property image,
+    // like housing.com previews. Text sits on top of a dark gradient.
     const photo = await sharp(buf)
-      .resize(WIDTH, PHOTO_HEIGHT, { fit: 'cover' })
+      .resize(WIDTH, HEIGHT, { fit: 'cover' })
       .toBuffer();
 
-    const svg = buildPanelSvg(property);
+    const svg = buildOverlaySvg(property);
 
     const jpeg = await sharp({
       create: {
         width: WIDTH,
         height: HEIGHT,
         channels: 3,
-        background: '#ffffff',
+        background: '#0b0f19',
       },
     })
       .composite([
         { input: photo, top: 0, left: 0 },
-        { input: Buffer.from(svg), top: PHOTO_HEIGHT, left: 0 },
+        { input: Buffer.from(svg), top: 0, left: 0 },
       ])
-      .jpeg({ quality: 82, mozjpeg: true })
+      .jpeg({ quality: 85, mozjpeg: true })
       .toBuffer();
 
     res.setHeader('Content-Type', 'image/jpeg');
@@ -60,25 +59,65 @@ function escapeSvg(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function buildPanelSvg(p: OgProperty): string {
-  const typeLine = escapeSvg(`${p.type.toUpperCase()} FOR SALE`);
-  const locationLine = escapeSvg(`${p.address || 'Prime Location'}, Bangalore`);
+function truncate(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s;
+}
+
+function buildOverlaySvg(p: OgProperty): string {
+  const typeText = escapeSvg(truncate(`${p.type.toUpperCase()} · FOR SALE`, 30));
+  // Rough glyph width at 19px + 1.5 letter-spacing, sized to the pill.
+  const typePillW = Math.min(470, Math.max(200, typeText.length * 11 + 70));
+  const typePillX = WIDTH - 48 - typePillW;
+  const locationLine = escapeSvg(
+    truncate(p.address ? `${p.address}, Bangalore` : 'Bangalore', 66),
+  );
   const priceLine = escapeSvg(p.priceLabel);
-  const extras: string[] = [];
-  if (p.monthlyRental) extras.push(`Rental Income: ${escapeSvg(p.monthlyRental)}`);
+
+  const extras: { text: string; green: boolean }[] = [];
+  if (p.monthlyRental) extras.push({ text: `Rental Income ${escapeSvg(p.monthlyRental)}`, green: true });
   if (p.katha && p.katha !== '—' && p.katha !== 'Not Available') {
-    extras.push(`Katha: ${escapeSvg(p.katha)}`);
+    extras.push({ text: `Katha ${escapeSvg(p.katha)}`, green: false });
   }
-  const extrasLine = escapeSvg(extras.join('   ·   '));
+  const extrasTspans = extras
+    .map((e, i) => {
+      const sep = i > 0 ? '   ·   ' : '';
+      const fill = e.green ? GREEN : 'rgba(255,255,255,0.72)';
+      return `<tspan fill="${fill}">${sep}${e.text}</tspan>`;
+    })
+    .join('');
 
   return `
-  <svg width="${WIDTH}" height="${PANEL_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
-    <rect width="${WIDTH}" height="${PANEL_HEIGHT}" fill="white"/>
-    <rect x="0" y="0" width="12" height="${PANEL_HEIGHT}" fill="black"/>
-    <text x="44" y="58" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="1" fill="#6b7280">${typeLine}</text>
-    <text x="44" y="116" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="700" fill="${BLACK}">${priceLine}</text>
-    <text x="44" y="172" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="400" fill="#4b5563">${locationLine}</text>
-    <text x="44" y="212" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="400" fill="#9ca3af">${extrasLine}</text>
+  <svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="topFade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="rgba(0,0,0,0.62)"/>
+        <stop offset="1" stop-color="rgba(0,0,0,0)"/>
+      </linearGradient>
+      <linearGradient id="bottomFade" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="rgba(0,0,0,0)"/>
+        <stop offset="0.55" stop-color="rgba(0,0,0,0.55)"/>
+        <stop offset="1" stop-color="rgba(0,0,0,0.92)"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="${WIDTH}" height="150" fill="url(#topFade)"/>
+    <rect x="0" y="190" width="${WIDTH}" height="440" fill="url(#bottomFade)"/>
+
+    <!-- Brand chip -->
+    <rect x="48" y="40" width="10" height="34" fill="${GOLD}"/>
+    <text x="70" y="66" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" letter-spacing="3" fill="#ffffff">VJR ESTATE</text>
+
+    <!-- Type chip -->
+    <rect x="${typePillX}" y="40" width="${typePillW}" height="44" rx="22" fill="rgba(0,0,0,0.55)"/>
+    <text x="${WIDTH - 48 - 20}" y="69" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="600" letter-spacing="1.5" fill="#ffffff">${typeText}</text>
+
+    <!-- Price -->
+    <text x="48" y="466" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800" letter-spacing="-1" fill="#ffffff">${priceLine}</text>
+
+    <!-- Location -->
+    <text x="48" y="526" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="400" fill="rgba(255,255,255,0.9)">${locationLine}</text>
+
+    <!-- Extras (rental income in green) -->
+    <text x="48" y="580" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="500">${extrasTspans}</text>
   </svg>`;
 }
 

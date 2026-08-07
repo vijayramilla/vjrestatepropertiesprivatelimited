@@ -7,6 +7,7 @@ interface LazyImageProps {
   width?: number
   height?: number
   priority?: boolean
+  fetchPriority?: 'high' | 'low' | 'auto'
   placeholder?: string
   onLoad?: () => void
   onError?: () => void
@@ -22,6 +23,7 @@ export default function LazyImage({
   width,
   height,
   priority = false,
+  fetchPriority,
   placeholder = SVG_PLACEHOLDER,
   onLoad,
   onError,
@@ -73,6 +75,7 @@ export default function LazyImage({
       height={height}
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"
+      {...(fetchPriority ? { fetchpriority: fetchPriority } : {})}
       onLoad={() => {
         setIsLoaded(true)
         onLoad?.()

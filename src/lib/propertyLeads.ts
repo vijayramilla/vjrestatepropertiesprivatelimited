@@ -8,6 +8,7 @@ import {
   where,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 
@@ -92,7 +93,7 @@ export function subscribePropertyLeads(
           createdAt,
         };
       });
-      onData(leads);
+      startTransition(() => onData(leads));
     },
     (error) => {
       console.error('property_leads listener error:', error);

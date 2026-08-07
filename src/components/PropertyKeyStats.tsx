@@ -31,39 +31,45 @@ export function getCardKathaValue(property: Pick<PropertyStatsView, 'katha'>): s
 interface PropertyKeyStatsProps {
   property: PropertyStatsView;
   className?: string;
-  variant?: 'card' | 'detail' | 'compact';
+  variant?: 'card' | 'detail' | 'compact' | 'listing';
 }
 
 function StatCell({
   label,
   value,
   variant,
+  valueClassName = '',
 }: {
   label: string;
   value: string;
-  variant: 'card' | 'detail' | 'compact';
+  variant: 'card' | 'detail' | 'compact' | 'listing';
+  valueClassName?: string;
 }) {
   const valueClass =
     variant === 'detail'
       ? 'font-numeric text-lg text-[#000] font-semibold mt-1'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
-        : 'font-numeric text-[15px] font-semibold text-gray-900 truncate';
+        : variant === 'listing'
+          ? 'font-numeric text-[13px] font-semibold text-gray-900 truncate'
+          : 'font-numeric text-[15px] font-semibold text-gray-900 truncate';
 
   return (
-    <div className="min-w-0">
+    <div className={variant === 'listing' ? 'shrink-0' : 'min-w-0'}>
       <p
         className={
           variant === 'detail'
             ? 'font-sans text-[10px] font-medium text-[#aaa] uppercase tracking-[0.08em]'
             : variant === 'compact'
               ? 'font-sans text-[7px] font-medium uppercase tracking-wide text-gray-400'
-              : 'font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400'
+              : variant === 'listing'
+                ? 'font-sans text-[9px] font-medium uppercase tracking-wide text-gray-400'
+                : 'font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400'
         }
       >
         {label}
       </p>
-      <p className={valueClass}>{value}</p>
+      <p className={valueClass + (valueClassName ? ` ${valueClassName}` : '')}>{value}</p>
     </div>
   );
 }
@@ -91,14 +97,21 @@ export default function PropertyKeyStats({
         }`
       : variant === 'compact'
         ? `grid gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 grid-cols-2`
-        : `grid gap-x-4 gap-y-[10px] border-t border-[#F3F4F6] pt-3 mt-3 ${
-            showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
-          }`;
+        : variant === 'listing'
+          ? 'flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#F3F4F6] pt-2 mt-2'
+          : `grid gap-x-4 gap-y-[10px] border-t border-[#F3F4F6] pt-3 mt-3 ${
+              showRentalStats ? 'grid-cols-2' : showPricePerSqft ? 'grid-cols-2' : 'grid-cols-2'
+            }`;
 
   return (
     <div className={`${containerClass} ${className}`}>
       {showRentalStats && (
-        <StatCell label="Monthly Income" value={property.monthly_rental} variant={variant} />
+        <StatCell
+          label="Monthly Income"
+          value={property.monthly_rental}
+          variant={variant}
+          valueClassName="!text-[#22C26E]"
+        />
       )}
       <StatCell label={areaLabel} value={areaValue} variant={variant} />
       {showPricePerSqft && (

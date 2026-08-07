@@ -33,7 +33,7 @@ export function setDefaultSiteMeta() {
 
 // Keep in sync with OG_IMAGE_VERSION in api/og-preview.ts — bumping it forces
 // WhatsApp/social scrapers to re-crawl the preview instead of using a stale one.
-const OG_IMAGE_VERSION = 'v2';
+const OG_IMAGE_VERSION = 'v3';
 
 export function setPropertyShareMeta(property: {
   id: string;

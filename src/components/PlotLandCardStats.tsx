@@ -14,7 +14,7 @@ function AreaValueOnly({
   className = '',
 }: {
   value: string;
-  variant: 'card' | 'detail' | 'compact';
+  variant: 'card' | 'detail' | 'compact' | 'listing';
   className?: string;
 }) {
   const valueClass =
@@ -22,10 +22,12 @@ function AreaValueOnly({
       ? 'font-numeric text-[15px] text-[#000] font-semibold'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
-        : 'font-numeric text-[15px] font-semibold text-gray-900 truncate';
+        : variant === 'listing'
+          ? 'font-numeric text-[13px] font-semibold text-gray-900 truncate'
+          : 'font-numeric text-[15px] font-semibold text-gray-900 truncate';
 
   return (
-    <div className={`min-w-0 ${className}`}>
+    <div className={`${variant === 'listing' ? 'shrink-0' : 'min-w-0'} ${className}`}>
       <p className={valueClass}>{value}</p>
     </div>
   );
@@ -39,7 +41,7 @@ function StatCell({
 }: {
   label: string;
   value: string;
-  variant: 'card' | 'detail' | 'compact';
+  variant: 'card' | 'detail' | 'compact' | 'listing';
   className?: string;
 }) {
   const labelClass =
@@ -47,17 +49,21 @@ function StatCell({
       ? 'font-sans text-[10px] font-medium text-[#aaa] uppercase tracking-[0.08em]'
       : variant === 'compact'
         ? 'font-sans text-[7px] font-medium uppercase tracking-wide text-gray-400'
-        : 'font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400';
+        : variant === 'listing'
+          ? 'font-sans text-[9px] font-medium uppercase tracking-wide text-gray-400'
+          : 'font-sans text-[10px] font-bold uppercase tracking-[0.06em] text-gray-400';
 
   const valueClass =
     variant === 'detail'
       ? 'font-numeric text-lg text-[#000] font-semibold mt-1'
       : variant === 'compact'
         ? 'font-numeric text-[10px] font-semibold text-gray-900 truncate'
-        : 'font-numeric text-[15px] font-semibold text-gray-900 mt-0.5 truncate';
+        : variant === 'listing'
+          ? 'font-numeric text-[13px] font-semibold text-gray-900 truncate'
+          : 'font-numeric text-[15px] font-semibold text-gray-900 mt-0.5 truncate';
 
   return (
-    <div className={`min-w-0 ${className}`}>
+    <div className={`${variant === 'listing' ? 'shrink-0' : 'min-w-0'} ${className}`}>
       <p className={labelClass} style={{ fontFamily: DM_SANS }}>
         {label}
       </p>
@@ -80,7 +86,7 @@ function formatFacing(facing?: string): string {
 
 interface PlotLandCardStatsProps {
   property: PropertyStatsView;
-  variant?: 'card' | 'detail' | 'compact';
+  variant?: 'card' | 'detail' | 'compact' | 'listing';
   className?: string;
 }
 
@@ -105,7 +111,9 @@ export default function PlotLandCardStats({
       ? `grid grid-cols-2 gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-6 ${className}`
       : variant === 'compact'
         ? `grid grid-cols-2 gap-x-1 gap-y-0.5 border-t border-gray-100 pt-1 mt-1 ${className}`
-        : `grid grid-cols-2 gap-x-4 gap-y-[10px] border-t border-[#F3F4F6] pt-3 mt-3 ${className}`;
+        : variant === 'listing'
+          ? `flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-[#F3F4F6] pt-2 mt-2 ${className}`
+          : `grid grid-cols-2 gap-x-4 gap-y-[10px] border-t border-[#F3F4F6] pt-3 mt-3 ${className}`;
 
   if (isLand) {
     const dcValue = property.dc_conversion ?? '—';
