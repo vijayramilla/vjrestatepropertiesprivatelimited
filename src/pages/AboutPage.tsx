@@ -5,13 +5,12 @@ import {
   Compass,
   Eye,
   MapTrifold,
-  Scales,
   UserCircle,
-  UsersThree,
   type Icon,
 } from '@phosphor-icons/react';
 import '@/styles/about-page.css';
 import { HeroGeometric } from '@/components/ui/shape-landing-hero';
+import LazyImage from '@/components/common/LazyImage';
 
 
 const fontHeading = { fontFamily: "'Libre Baskerville', Georgia, serif" };
@@ -101,13 +100,8 @@ const founders = [
     name: 'Mr. Vijay Ram Illa',
     role: 'Founder & CEO',
     icon: UserCircle,
+    image: '/images/vijay-ram-illa.png',
     bio: 'Vijay Ram Illa founded VJR Estate Properties Private Limited while still in his teenage years, driven by an early, independent fascination with Bangalore\'s real estate market. What began as self-directed research into property cycles, rental yields, and investment patterns became the foundation of VJR Estate\'s investment philosophy. As Founder & CEO, Vijay leads the company\'s overall vision, strategy, and direction, shaping VJR Estate\'s approach to asset selection, investor relationships, and long-term growth across Bangalore\'s real estate market.',
-  },
-  {
-    name: 'Mr. Devendr Reddy',
-    role: 'Director',
-    icon: UsersThree,
-    bio: 'Devendr Reddy serves as a strategic partner at VJR Estate, contributing deep expertise in property evaluation and client relationship management. He plays a key role in supporting the company\'s real estate operations, from assessing property quality and investment viability, to building lasting relationships with buyers, sellers, and investors. His ground-level understanding of Bangalore\'s property market strengthens every transaction VJR Estate facilitates.',
   },
 ];
 
@@ -259,7 +253,7 @@ export default function AboutPage() {
             transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
             className="mb-12 text-center lg:mb-16"
           >
-            <SectionLabel dark>Our Founders</SectionLabel>
+            <SectionLabel dark>Founder</SectionLabel>
             <h2
               className="mt-4 text-white"
               style={{
@@ -269,7 +263,7 @@ export default function AboutPage() {
                 letterSpacing: '-0.02em',
               }}
             >
-              Our Founders
+              The Founder
             </h2>
           </motion.div>
 
@@ -285,8 +279,20 @@ export default function AboutPage() {
                   transition={{ duration: 0.85, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
                   className="about-slide-panel rounded-2xl border border-[#222] bg-[#0a0a0a] p-8 sm:p-10"
                 >
-                  <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
-                    <PremiumIcon icon={FounderIcon} dark size="lg" />
+                  <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:gap-8">
+                    {founder.image ? (
+                      <div className="relative shrink-0 rounded-2xl border border-[#2a2a2a] bg-[#111] p-1">
+                        <LazyImage
+                          src={founder.image}
+                          alt={founder.name}
+                          width={180}
+                          height={180}
+                          className="h-40 w-40 rounded-xl object-cover sm:h-44 sm:w-44"
+                        />
+                      </div>
+                    ) : (
+                      <PremiumIcon icon={FounderIcon} dark size="lg" />
+                    )}
                     <div className="min-w-0 flex-1">
                       <h3 className="text-[22px] text-white sm:text-[24px]" style={fontHeading}>
                         {founder.name}
@@ -308,39 +314,6 @@ export default function AboutPage() {
           </div>
         </div>
       </section>
-
-      {/* Our Brands */}
-      <SlideSection id="brands" className="py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-4xl px-5 sm:px-8">
-          <PremiumIcon icon={Scales} size="lg" />
-          <SectionLabel>Our Brands</SectionLabel>
-          <h2
-            className="mt-4 text-black"
-            style={{
-              ...fontHeading,
-              fontSize: 'clamp(2rem, 5vw, 3rem)',
-              lineHeight: 1.12,
-              letterSpacing: '-0.02em',
-            }}
-          >
-            Our Brands
-          </h2>
-          <motion.div
-            initial={{ opacity: 0, y: 48 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: '-10% 0px' }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="about-slide-panel mt-10 rounded-2xl border border-[#e8e8e8] bg-white p-8 shadow-sm sm:p-10"
-          >
-            <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-[#aaa]" style={fontBody}>
-              Legal Estate
-            </p>
-            <p className="mt-4 text-[15px] leading-[1.78] text-[#444] sm:text-[16px]" style={fontBody}>
-              VJR Estate&apos;s dedicated legal and title verification arm, supporting every transaction with structured due diligence, documentation review, and compliance-driven execution, ensuring investors acquire real estate with complete legal clarity.
-            </p>
-          </motion.div>
-        </div>
-      </SlideSection>
     </div>
   );
 }

@@ -1016,7 +1016,8 @@ export default function PropertiesPage() {
             )}
 
             {hasMore && (
-              <div ref={sentinelRef} className="mt-10 flex flex-col items-center gap-3">
+              <div className="mt-10 flex flex-col items-center gap-3">
+                <div ref={sentinelRef} aria-hidden className="h-px w-full" />
                 <p className="text-[12px] text-gray-400">
                   Showing {visibleProperties.length} of {filteredProperties.length}{' '}
                   {filteredProperties.length === 1 ? 'property' : 'properties'}

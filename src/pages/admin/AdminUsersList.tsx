@@ -109,8 +109,10 @@ export default function AdminUsersList() {
               createdAt: data.createdAt || 'Unknown',
               suspended: data.suspended || false,
               loginCount: data.loginCount || 0,
-              location: data.location ?? data.gpsLocation,
-            gpsLocation: data.gpsLocation,
+              // location > gps > ip: users with only IP-based login tracking
+              // (never granted GPS) still show their city instead of "Unknown".
+              location: data.location ?? data.gpsLocation ?? data.ipLocation,
+              gpsLocation: data.gpsLocation,
               loginHistory: data.loginHistory,
             });
           });

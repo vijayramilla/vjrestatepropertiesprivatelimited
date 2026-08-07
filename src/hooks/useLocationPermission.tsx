@@ -12,6 +12,9 @@ import LocationPermissionModal from '@/components/LocationPermissionModal';
 import {
   buildGpsLocation,
   saveGpsLocation,
+  enrichGpsWithArea,
+  saveIpLocation,
+  fetchUserLocation,
   LOCATION_GRANTED_KEY,
   LOCATION_SKIPPED_KEY,
   LOCATION_SESSION_KEY,
@@ -59,12 +62,26 @@ function requestBrowserLocation(): Promise<void> {
         const user = auth.currentUser;
         if (user) {
           await saveGpsLocation(user, gps);
+          // Reverse-geocode the exact pin to a readable area in the background
+          // so the admin panel shows the neighbourhood, not just coordinates.
+          void enrichGpsWithArea(user, gps);
         }
 
         resolve();
       },
-      () => resolve(),
-      { enableHighAccuracy: true, timeout: 10000 },
+      () => {
+        // GPS denied/unavailable — fall back to IP-based location in the
+        // background so the admin panel never shows "Unknown" for a user who
+        // shared their location. Not awaited: navigation must not be delayed.
+        const user = auth.currentUser;
+        if (user) {
+          void fetchUserLocation().then((ipLoc) => {
+            if (ipLoc) return saveIpLocation(user, ipLoc);
+          });
+        }
+        resolve();
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   });
 }

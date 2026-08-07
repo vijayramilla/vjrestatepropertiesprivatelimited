@@ -7,6 +7,8 @@ export interface GpsLocation {
   lng: number;
   accuracy: 'gps';
   timestamp: string;
+  /** Reverse-geocoded area label (e.g. "Koramangala") added after capture. */
+  area?: string;
 }
 
 export interface UserLocation {
@@ -29,6 +31,7 @@ export interface UserDoc {
   suspended: boolean;
   location?: UserLocation | GpsLocation;
   gpsLocation?: GpsLocation;
+  ipLocation?: UserLocation;
   loginHistory?: Array<{
     at: string;
     city: string;
@@ -83,7 +86,8 @@ export async function fetchUserLocation(): Promise<UserLocation | null> {
 function formatLocation(loc: UserLocation | GpsLocation | null | undefined): string {
   if (!loc) return 'Unknown';
   if ('accuracy' in loc && loc.accuracy === 'gps') {
-    return `GPS (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})`;
+    const coords = `GPS (${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)})`;
+    return loc.area ? `${loc.area} · ${coords}` : coords;
   }
   const ipLoc = loc as UserLocation;
   const parts = [ipLoc.city, ipLoc.region, ipLoc.country].filter((p) => p && p !== 'Unknown');
@@ -121,30 +125,60 @@ export function buildGpsLocation(lat: number, lng: number): GpsLocation {
   };
 }
 
+/** Create or update the user's own doc with the given payload. */
+async function upsertUserDoc(user: User, payload: Record<string, unknown>): Promise<void> {
+  const ref = doc(db, 'users', user.uid);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    await updateDoc(ref, payload);
+  } else {
+    await setDoc(ref, {
+      email: user.email ?? 'Unknown',
+      displayName: user.displayName ?? '',
+      photoURL: user.photoURL ?? '',
+      loginCount: 0,
+      lastLogin: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      suspended: false,
+      ...payload,
+    });
+  }
+}
+
+export async function saveIpLocation(user: User, loc: UserLocation): Promise<void> {
+  try {
+    await upsertUserDoc(user, { ipLocation: loc, lastSeen: new Date().toISOString() });
+  } catch (err) {
+    console.warn('IP location save skipped:', err);
+  }
+}
+
+/**
+ * Reverse-geocode the GPS pin to a readable area label and store it, so the
+ * admin panel shows the exact neighbourhood alongside the coordinates.
+ * Non-blocking — the raw GPS is saved first, this enriches it afterwards.
+ */
+export async function enrichGpsWithArea(user: User, gps: GpsLocation): Promise<void> {
+  try {
+    // Lazy import: the Google Maps parser stack stays out of the main bundle
+    // and only loads when a GPS pin is actually being enriched.
+    const { getLocalityFromCoords } = await import('./mapGeocoding');
+    const area = await getLocalityFromCoords(gps.lat, gps.lng);
+    if (!area || area === 'Bangalore') return;
+    const enriched = { ...gps, area };
+    await upsertUserDoc(user, { location: enriched, gpsLocation: enriched });
+  } catch (err) {
+    console.warn('GPS area enrich skipped:', err);
+  }
+}
+
 export async function saveGpsLocation(user: User, gps: GpsLocation): Promise<void> {
   try {
-    const ref = doc(db, 'users', user.uid);
-    const existing = await getDoc(ref);
-    const payload = {
+    await upsertUserDoc(user, {
       location: gps,
       gpsLocation: gps,
       lastSeen: new Date().toISOString(),
-    };
-
-    if (existing.exists()) {
-      await updateDoc(ref, payload);
-    } else {
-      await setDoc(ref, {
-        email: user.email ?? 'Unknown',
-        displayName: user.displayName ?? '',
-        photoURL: user.photoURL ?? '',
-        loginCount: 0,
-        lastLogin: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        suspended: false,
-        ...payload,
-      });
-    }
+    });
   } catch (err) {
     console.warn('GPS location save skipped:', err);
   }
