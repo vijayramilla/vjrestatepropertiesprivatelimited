@@ -2,6 +2,7 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/properties/:id", "destination": "/api/og-preview?id=:id" },
+    { "source": "/legal/:path*", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [

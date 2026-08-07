@@ -337,6 +337,15 @@ function AppRoutes() {
   );
 }
 
+function AppRoutesWrapper() {
+  const isLegal = window.location.pathname.startsWith('/legal');
+  return (
+    <BrowserRouter basename={isLegal ? '/legal' : undefined}>
+      <AppRoutes />
+    </BrowserRouter>
+  );
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -344,9 +353,7 @@ function App() {
         <ShortlistProvider>
           <GoogleMapsProvider>
             <SiteSettingsProvider>
-              <BrowserRouter>
-                <AppRoutes />
-              </BrowserRouter>
+              <AppRoutesWrapper />
             </SiteSettingsProvider>
           </GoogleMapsProvider>
         </ShortlistProvider>

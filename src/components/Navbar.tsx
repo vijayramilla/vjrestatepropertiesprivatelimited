@@ -88,6 +88,7 @@ export default function Navbar() {
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
+  const legalPath = location.pathname.startsWith('/legal') ? '/' : '/legal';
 
   const isTransparent = isHome && onHero && !isMapPage;
   const iconColor = isTransparent ? '#ffffff' : '#0A1628';
@@ -373,6 +374,15 @@ export default function Navbar() {
                   {label}
                 </Link>
               ))}
+              <a
+                href={legalPath}
+                onClick={() => setProfileOpen(false)}
+                className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                style={{ fontFamily: DM_SANS }}
+              >
+                <Info size={15} weight="thin" color="#aaaaaa" />
+                Legal Estate
+              </a>
 
               {showAdminDashboard && (
                 <>
