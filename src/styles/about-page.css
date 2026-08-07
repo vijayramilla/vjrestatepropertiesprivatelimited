@@ -19,6 +19,20 @@
   will-change: transform, opacity;
 }
 
+/* Founder portrait: slow orbit ring around the photograph */
+@keyframes founder-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.founder-orbit-ring {
+  animation: founder-orbit 40s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .about-scroll-page {
     scroll-behavior: auto;
@@ -26,5 +40,9 @@
 
   .about-slide-panel {
     will-change: auto;
+  }
+
+  .founder-orbit-ring {
+    animation: none;
   }
 }

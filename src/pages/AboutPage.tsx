@@ -2,14 +2,22 @@ import { useRef } from 'react';
 import { motion, useInView, type Variants } from 'framer-motion';
 import {
   Buildings,
+  BuildingOffice,
   Compass,
+  Crown,
   Eye,
+  LinkedinLogo,
+  MapPin,
   MapTrifold,
+  Quotes,
   UserCircle,
   type Icon,
 } from '@phosphor-icons/react';
 import '@/styles/about-page.css';
 import { HeroGeometric } from '@/components/ui/shape-landing-hero';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import LazyImage from '@/components/common/LazyImage';
 
 
@@ -101,11 +109,12 @@ const founders = [
     role: 'Founder & CEO',
     icon: UserCircle,
     image: '/images/vijay-ram-illa.png',
-    bio: 'Vijay Ram Illa founded VJR Estate Properties Private Limited while still in his teenage years, driven by an early, independent fascination with Bangalore\'s real estate market. What began as self-directed research into property cycles, rental yields, and investment patterns became the foundation of VJR Estate\'s investment philosophy. As Founder & CEO, Vijay leads the company\'s overall vision, strategy, and direction, shaping VJR Estate\'s approach to asset selection, investor relationships, and long-term growth across Bangalore\'s real estate market.',
+    bio: 'Vijay Ram Illa is the Founder & CEO of VJR Estate Properties Private Limited, leading its rise as one of Bangalore\'s most trusted authorities in real estate investment advisory. His command of Bangalore\'s property cycles, rental yields, and capital appreciation trends, built through independent, rigorous study, forms the foundation of VJR Estate\'s investment philosophy, positioning the company as a market authority that shapes opportunity rather than responding to it. As Founder & CEO, Vijay sets the vision, strategy, and direction across the business, leading asset selection with institutional discipline, governing investor relationships with a long-term partnership mindset, and steering growth across Bangalore\'s most competitive real estate corridors as a decisive force in the market.',
   },
 ];
 
 export default function AboutPage() {
+  const founder = founders[0];
   const missionRef = useRef<HTMLDivElement>(null);
   const visionRef = useRef<HTMLDivElement>(null);
   const missionInView = useInView(missionRef, { once: true, margin: '-10% 0px' });
@@ -244,14 +253,18 @@ export default function AboutPage() {
       </SlideSection>
 
       {/* Founders */}
-      <section id="founders" className="about-snap-section bg-[#0A1628] py-16 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <section id="founders" className="about-snap-section relative overflow-hidden bg-[#0A1628] py-14 sm:py-20 lg:py-24">
+        {/* Ambient gold glows */}
+        <div aria-hidden className="pointer-events-none absolute -top-32 right-0 h-96 w-96 rounded-full bg-[#C9A84C]/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -left-32 bottom-0 h-96 w-96 rounded-full bg-[#C9A84C]/10 blur-3xl" />
+
+        <div className="relative mx-auto max-w-6xl px-5 sm:px-8">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-10% 0px' }}
             transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-12 text-center lg:mb-16"
+            className="mb-10 text-center lg:mb-14"
           >
             <SectionLabel dark>Founder</SectionLabel>
             <h2
@@ -265,53 +278,166 @@ export default function AboutPage() {
             >
               The Founder
             </h2>
+            <p className="mx-auto mt-4 max-w-md text-[13px] text-[#888]" style={fontBody}>
+              The vision, values, and discipline behind VJR Estate.
+            </p>
+            <div className="mx-auto mt-6 h-px w-16 bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent" />
           </motion.div>
 
-          <div className="space-y-6 lg:space-y-8">
-            {founders.map((founder, index) => {
-              const FounderIcon = founder.icon;
-              return (
-                <motion.article
-                  key={founder.name}
-                  initial={{ opacity: 0, x: index % 2 === 0 ? -80 : 80 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true, margin: '-8% 0px' }}
-                  transition={{ duration: 0.85, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
-                  className="about-slide-panel rounded-2xl border border-[#222] bg-[#0a0a0a] p-8 sm:p-10"
-                >
-                  <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start sm:gap-8">
-                    {founder.image ? (
-                      <div className="relative shrink-0 rounded-2xl border border-[#2a2a2a] bg-[#111] p-1">
+          <motion.div
+            initial={{ opacity: 0, y: 48 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-8% 0px' }}
+            transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <Card className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-white/[0.07] to-white/[0.02] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.7)] backdrop-blur-xl">
+              {/* Top gold hairline */}
+              <div aria-hidden className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/60 to-transparent" />
+              <CardContent className="p-6 sm:p-8 lg:p-10">
+                <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[0.36fr_0.64fr] lg:gap-12">
+                  {/* Portrait */}
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true, margin: '-8% 0px' }}
+                    transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                    className="relative mx-auto w-full max-w-[220px] sm:max-w-[260px]"
+                  >
+                    {/* Gold glow */}
+                    <div aria-hidden className="absolute -inset-6 rounded-full bg-[#C9A84C]/15 blur-3xl" />
+
+                    {/* Rotating orbit ring */}
+                    <div aria-hidden className="founder-orbit-ring absolute -inset-3 rounded-full border border-dashed border-[#C9A84C]/25" />
+
+                    {/* Gold conic frame around the portrait */}
+                    <div className="relative aspect-square rounded-full bg-[conic-gradient(from_140deg,#C9A84C,#6d5716,#C9A84C,#f4e9c0,#C9A84C,#6d5716,#C9A84C)] p-[2.5px] shadow-[0_0_40px_-12px_rgba(201,168,76,0.4)] transition-shadow duration-500 hover:shadow-[0_0_60px_-8px_rgba(201,168,76,0.5)]">
+                      <div className="h-full w-full overflow-hidden rounded-full border-2 border-[#0A1628] bg-[#0A1628]">
                         <LazyImage
                           src={founder.image}
                           alt={founder.name}
-                          width={180}
-                          height={180}
-                          className="h-40 w-40 rounded-xl object-cover sm:h-44 sm:w-44"
+                          width={260}
+                          height={260}
+                          priority
+                          className="h-full w-full object-cover transition-transform duration-700 hover:scale-105"
                         />
                       </div>
-                    ) : (
-                      <PremiumIcon icon={FounderIcon} dark size="lg" />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-[22px] text-white sm:text-[24px]" style={fontHeading}>
+                    </div>
+
+                    {/* Role chip, fixed to the bottom of the portrait */}
+                    <div className="absolute -bottom-3 left-1/2 -translate-x-1/2">
+                      <Badge className="gap-1.5 whitespace-nowrap border border-[#C9A84C]/40 bg-[#0A1628]/90 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-[#E8D48B] shadow-lg backdrop-blur-md">
+                        <Crown size={12} weight="fill" aria-hidden />
+                        {founder.role}
+                      </Badge>
+                    </div>
+                  </motion.div>
+
+                  {/* Content */}
+                  <div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="h-px w-10 bg-[#C9A84C]" />
+                      <span className="text-[10px] font-medium uppercase tracking-[0.24em] text-[#C9A84C]" style={fontBody}>
+                        Founder &amp; CEO
+                      </span>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3"
+                    >
+                      <h3
+                        className="text-white"
+                        style={{
+                          ...fontHeading,
+                          fontSize: 'clamp(1.5rem, 2.6vw, 2rem)',
+                          lineHeight: 1.2,
+                          letterSpacing: '-0.01em',
+                        }}
+                      >
                         {founder.name}
                       </h3>
-                      <p
-                        className="mt-2 inline-block rounded-full border border-[#333] bg-[#111] px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-[#888]"
+                      <a
+                        href="https://www.linkedin.com/in/vijay-ram-illa/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3.5 py-1.5 text-[11px] font-medium text-[#c9c9d2] transition-colors duration-300 hover:border-[#C9A84C]/50 hover:text-[#E8D48B]"
                         style={fontBody}
                       >
-                        {founder.role}
-                      </p>
-                      <p className="mt-6 text-[15px] leading-[1.78] text-[#aaa] sm:text-[16px]" style={fontBody}>
+                        <LinkedinLogo size={14} weight="fill" aria-hidden />
+                        LinkedIn
+                      </a>
+                    </motion.div>
+
+                    <motion.div
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.26, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <Separator className="my-5 bg-white/10" />
+                      <p className="text-[14px] leading-[1.75] text-[#b9b9c4] sm:text-[15px]" style={fontBody}>
                         {founder.bio}
                       </p>
-                    </div>
+                    </motion.div>
+
+                    {/* Pull quote */}
+                    <motion.blockquote
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.34, ease: [0.22, 1, 0.36, 1] }}
+                      className="relative mt-6 border-l-2 border-[#C9A84C] pl-5"
+                    >
+                      <Quotes
+                        className="absolute -top-1 left-4 h-5 w-5 rotate-180 text-[#C9A84C]/30"
+                        weight="fill"
+                        aria-hidden
+                      />
+                      <p className="text-[15px] italic leading-[1.7] text-[#E8E6DF] sm:text-[16px]" style={fontHeading}>
+                        A market authority that shapes opportunity rather than responding to it.
+                      </p>
+                    </motion.blockquote>
+
+                    {/* Key facts */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 24 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.6, delay: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                      className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2"
+                    >
+                      {[
+                        { icon: BuildingOffice, value: 'VJR Estate', label: 'Founded' },
+                        { icon: MapPin, value: 'Bangalore', label: 'Headquarters' },
+                      ].map((fact) => (
+                        <div
+                          key={fact.label}
+                          className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3.5 transition-colors duration-300 hover:border-[#C9A84C]/40"
+                        >
+                          <fact.icon size={18} weight="duotone" className="text-[#C9A84C]" />
+                          <p className="mt-3 text-[13px] font-medium text-white sm:text-[14px]" style={fontHeading}>
+                            {fact.value}
+                          </p>
+                          <p className="mt-0.5 text-[10px] uppercase tracking-[0.16em] text-[#7d7d88]" style={fontBody}>
+                            {fact.label}
+                          </p>
+                        </div>
+                      ))}
+                    </motion.div>
                   </div>
-                </motion.article>
-              );
-            })}
-          </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
         </div>
       </section>
     </div>
