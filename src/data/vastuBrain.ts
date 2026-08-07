@@ -781,8 +781,8 @@ class VastuBrainEngine {
     const northAngle = rectifyNorthAngle(floorPlan.north);
     const brahmasthan = checkBrahmasthan(floorPlan.rooms, center);
 
-    let roomVerdicts: RoomVastuVerdict[] = [];
-    let zoneContents: Record<string, string[]> = {};
+    const roomVerdicts: RoomVastuVerdict[] = [];
+    const zoneContents: Record<string, string[]> = {};
     for (const z of ZONES) zoneContents[z.name] = [];
     for (const z of ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW']) {
       if (!zoneContents[z]) zoneContents[z] = [];
@@ -859,7 +859,7 @@ class VastuBrainEngine {
     }));
 
     let score = 100;
-    let recommendations: string[] = [];
+    const recommendations: string[] = [];
 
     for (const v of roomVerdicts) {
       if (v.verdict === 'good') continue;

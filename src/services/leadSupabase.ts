@@ -270,11 +270,11 @@ export const leadSupabase = {
       try {
         const res = await callProxy('crmClients.list', {});
         if (res.data && res.data.length > 0) return { data: res.data.map(normalizeClient) };
-      } catch {}
+      } catch { /* proxy unavailable, fall back to direct read */ }
       try {
         const { data, error } = await supabase.from('crm_clients').select('*').order('sno', { ascending: true });
         if (!error && data && data.length > 0) return { data: (data as unknown as SheetClient[]).map(normalizeClient) };
-      } catch {}
+      } catch { /* direct read unavailable */ }
       return { data: [] };
     },
     async upsert(client: SheetClient): Promise<{ data: SheetClient }> {
@@ -287,11 +287,11 @@ export const leadSupabase = {
       try {
         const res = await callProxy('crmClients.maxSno', {});
         if (res.data !== undefined) return res;
-      } catch {}
+      } catch { /* proxy unavailable, fall back to direct read */ }
       try {
         const { data } = await supabase.from('crm_clients').select('sno').order('sno', { ascending: false }).limit(1);
         return { data: data?.[0]?.sno ?? 0 };
-      } catch {}
+      } catch { /* direct read unavailable */ }
       return { data: 0 };
     },
   },

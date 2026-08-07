@@ -1,4 +1,5 @@
 import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from './firebase';
 
@@ -130,7 +131,7 @@ async function upsertUserDoc(user: User, payload: Record<string, unknown>): Prom
   const ref = doc(db, 'users', user.uid);
   const existing = await getDoc(ref);
   if (existing.exists()) {
-    await updateDoc(ref, payload);
+    await updateDoc(ref, payload as DocumentData);
   } else {
     await setDoc(ref, {
       email: user.email ?? 'Unknown',

@@ -324,7 +324,7 @@ export default function ListPropertyPage() {
               <p className="mt-1.5 text-xs text-gray-500">You need a Google account to submit a listing.</p>
               <button
                 type="button"
-                onClick={async () => { try { await signInWithGoogle(); setShowSignIn(false); } catch {} }}
+                onClick={async () => { try { await signInWithGoogle(); setShowSignIn(false); } catch (e) { console.warn('Sign-in cancelled or failed:', e); } }}
                 disabled={authLoading}
                 className="mt-6 inline-flex items-center gap-3 rounded-xl border-2 border-gray-200 bg-white px-7 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
               >

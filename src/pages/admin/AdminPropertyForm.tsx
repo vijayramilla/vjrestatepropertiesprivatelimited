@@ -288,7 +288,7 @@ export default function AdminPropertyForm() {
     if (!isEditMode && state?.defaultType) {
       setFormData((prev) => ({ ...prev, type: state.defaultType! }));
     }
-  }, []);
+  }, [isEditMode, location.state]);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -476,6 +476,7 @@ export default function AdminPropertyForm() {
 
       const mergedExtraDetails = formData.extra_details;
 
+      /* eslint-disable @typescript-eslint/no-unused-vars -- keys are deliberately stripped from the persisted payload */
       const {
         land_acres,
         land_guntas,
@@ -485,6 +486,7 @@ export default function AdminPropertyForm() {
         propertyCode: _propertyCode,
         ...restForm
       } = formData;
+      /* eslint-enable @typescript-eslint/no-unused-vars */
 
       const payload = sanitizeForFirestore({
         ...restForm,

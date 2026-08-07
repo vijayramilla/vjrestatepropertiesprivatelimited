@@ -125,7 +125,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (error) throw new Error(error.message);
       const rows = data ?? [];
       const agentIds: string[] = [...new Set(rows.map(r => r.assigned_agent).filter(Boolean))];
-      let agentMap: Record<string, any> = {};
+      const agentMap: Record<string, any> = {};
       if (agentIds.length > 0) {
         const { data: agents } = await supabaseAdmin.from('agents').select('id,name,email').in('id', agentIds);
         if (agents) agents.forEach(a => { agentMap[a.id] = a; });
@@ -245,7 +245,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'agents.list': {
       if (!hasPerm(params._auth, 'agents.view') && !hasPerm(params._auth, 'agents.edit') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
       let agents: any[] = [];
-      try { const { data } = await supabaseAdmin.from('agents').select('*'); agents = data ?? []; } catch {}
+      try { const { data } = await supabaseAdmin.from('agents').select('*'); agents = data ?? []; } catch (e) { console.warn('[crm-proxy] agents.list failed:', e); }
       return { data: agents };
     }
 
@@ -338,7 +338,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'admin.verify': {
       const { _auth } = params;
       let dbRow = null;
-      try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at').eq('email', _auth.email).maybeSingle(); dbRow = data ?? null; } catch {}
+      try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at').eq('email', _auth.email).maybeSingle(); dbRow = data ?? null; } catch (e) { console.warn('[crm-proxy] admin.verify failed:', e); }
       const role = _auth.role ?? null;
       const permissions = _auth.permissions ?? null;
       return { data: dbRow, email: _auth.email, role, permissions };

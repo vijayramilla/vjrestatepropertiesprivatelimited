@@ -197,7 +197,7 @@ export default function LandMapLocationPicker({
       };
 
       setLinkError(errorMessages[errorStage] || 'Could not find this location. Please try a different link or address.');
-    } catch (err) {
+    } catch {
       // Fallback to original client-side approach if backend fails
       try {
         await applyResolvedLocation(text);

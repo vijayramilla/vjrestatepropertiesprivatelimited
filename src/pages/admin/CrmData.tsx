@@ -120,10 +120,10 @@ END;$$;`;
       headers: { Authorization: `Bearer ${MANAGEMENT_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: SQL }),
     });
-  }, []);
+  }, [SQL]);
 
   const fetchDbStats = useCallback(async () => {
-    try { await ensureFunction(); } catch {}
+    try { await ensureFunction(); } catch { /* the SQL function may already exist */ }
     try {
       const client = supabase;
       const { data, error: rpcErr } = await client.rpc('get_db_stats');

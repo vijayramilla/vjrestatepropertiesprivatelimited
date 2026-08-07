@@ -83,7 +83,7 @@ export class GoogleMapsAdvancedParser {
   static safeDecodeURI(url: string): string {
     try {
       return decodeURIComponent(url);
-    } catch (_e) {
+    } catch {
       console.log('Could not decode URI, using as-is');
       return url;
     }
@@ -243,7 +243,7 @@ export class GoogleMapsAdvancedParser {
       }
 
       return { lat: latNum, lng: lngNum };
-    } catch (_e) { /* ist ignore: invalid input */ }
+    } catch { /* ist ignore: invalid input */ }
     return null;
   }
 

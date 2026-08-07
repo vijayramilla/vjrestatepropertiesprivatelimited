@@ -51,7 +51,7 @@ export default function AdminEmployeeDetail() {
     try {
       const res = await leadSupabase.employees.attendance(id, attMonth, attYear);
       setAttendance(res.data ?? []);
-    } catch {}
+    } catch { /* attendance may be unavailable */ }
   }, [id, attMonth, attYear]);
 
   useEffect(() => { fetch(); }, [fetch]);

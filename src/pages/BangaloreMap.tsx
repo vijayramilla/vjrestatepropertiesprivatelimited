@@ -177,7 +177,7 @@ interface BangaloreMapProps {
   noHeaderOffset?: boolean;
 }
 
-export default function BangaloreMap({ isLoaded, noHeaderOffset: _noHeaderOffset }: BangaloreMapProps) {
+export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const [properties, setProperties] = useState<MapProperty[]>([]);
   const [, setLoading] = useState(true);
   const mapRef = useRef<google.maps.Map | null>(null);

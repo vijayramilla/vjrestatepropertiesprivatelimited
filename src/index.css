@@ -114,7 +114,7 @@
   }
 
   body {
-    font-family: 'Aileron', 'Neue Haas Grotesk Display Pro 55 Roman', 'Neue Haas Grotesk Text Pro', 'Inter', system-ui, sans-serif;
+    font-family: 'Aileron', 'Inter', system-ui, sans-serif;
     background-color: var(--background);
     color: var(--foreground);
     font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;

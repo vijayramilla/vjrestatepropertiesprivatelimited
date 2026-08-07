@@ -1,16 +1,3 @@
-interface ResolveResponse {
-  success: boolean;
-  lat?: number;
-  lng?: number;
-  areaName?: string;
-  city?: string;
-  state?: string;
-  pincode?: string;
-  fullAddress?: string;
-  error?: string;
-  errorStage?: string;
-}
-
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed', errorStage: 'http' });

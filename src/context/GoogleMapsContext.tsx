@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useJsApiLoader } from '@react-google-maps/api';
+import { useJsApiLoader, type Libraries } from '@react-google-maps/api';
 
 const GOOGLE_MAPS_LOADER_ID = 'vjr-google-maps-loader';
-const GOOGLE_MAPS_LIBRARIES = ['places'] as const;
+// Module-level constant so the array reference is stable across renders;
+// recreating it each render makes the maps loader reload unintentionally.
+const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
 
 interface GoogleMapsContextValue {
   isLoaded: boolean;
@@ -52,7 +54,7 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey,
-    libraries: [...GOOGLE_MAPS_LIBRARIES] as const,
+    libraries: GOOGLE_MAPS_LIBRARIES,
   });
 
   useEffect(() => {
