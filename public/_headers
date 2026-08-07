@@ -1,0 +1,14 @@
+/*  SPA fallback: serve index.html for client-side routes  */
+/index.html                 200
+
+# Hashed build assets are cache-immutable (keeps old hashes from being served as HTML on back/refresh)
+/js/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# Never cache the app shell
+/index.html
+  Cache-Control: no-store
