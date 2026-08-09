@@ -729,3 +729,15 @@ input[type="range"]::-moz-range-thumb {
     animation: none !important;
   }
 }
+
+/* Prevent iOS Safari / Android auto-zoom when focusing inputs on mobile.
+   Browsers zoom the page into a focused form control whose font-size is
+   under 16px, which breaks the layout of the search bar and the chat input.
+   !important is required to beat Tailwind's text-* utilities. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
