@@ -3,33 +3,42 @@ import { db } from './firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 const LS_KEY = 'vjr_mapOnly';
+const LS_KEY_NEXA = 'vjr_nexaEnabled';
 
 export interface SiteSettings {
   mapOnly: boolean;
+  nexaEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: SiteSettings = {
   mapOnly: false,
+  nexaEnabled: true,
 };
 
 function readLocal(): SiteSettings {
+  const settings: SiteSettings = { ...DEFAULT_SETTINGS };
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw !== null) return { mapOnly: raw === 'true' };
+    if (raw !== null) settings.mapOnly = raw === 'true';
   } catch { /* ignore */ }
-  return DEFAULT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(LS_KEY_NEXA);
+    if (raw !== null) settings.nexaEnabled = raw === 'true';
+  } catch { /* ignore */ }
+  return settings;
 }
 
 function writeLocal(s: Partial<SiteSettings>): void {
   try {
     if (s.mapOnly !== undefined) localStorage.setItem(LS_KEY, String(s.mapOnly));
+    if (s.nexaEnabled !== undefined) localStorage.setItem(LS_KEY_NEXA, String(s.nexaEnabled));
   } catch { /* ignore */ }
 }
 
-async function tryWrite(path: string, value: boolean): Promise<boolean> {
+async function tryWrite(path: string, settings: Partial<SiteSettings>): Promise<boolean> {
   try {
     const ref = doc(db, path);
-    await setDoc(ref, { mapOnly: value }, { merge: true });
+    await setDoc(ref, settings, { merge: true });
     return true;
   } catch {
     return false;
@@ -79,11 +88,10 @@ export function subscribeToSettings(onChange: (settings: SiteSettings) => void):
 export async function updateSiteSettings(settings: Partial<SiteSettings>): Promise<void> {
   writeLocal(settings);
 
-  const value = settings.mapOnly ?? false;
   const errors: string[] = [];
 
   for (const path of FIREBASE_PATHS) {
-    const ok = await tryWrite(path, value);
+    const ok = await tryWrite(path, settings);
     if (ok) return;
     errors.push(path);
   }

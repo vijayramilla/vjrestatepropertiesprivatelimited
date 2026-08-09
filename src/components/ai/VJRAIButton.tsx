@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Bot, X, Sparkles } from 'lucide-react';
+import { useSiteSettings } from '@/context/SiteSettingsContext';
 import VJRAIPanel from './VJRAIPanel';
 import type { UserRole } from '../../ai/ragEngine';
 
@@ -19,6 +20,10 @@ export default function VJRAIButton({
   const [isOpen, setIsOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const reduceMotion = useReducedMotion();
+  const { nexaEnabled } = useSiteSettings();
+
+  // Site-wide toggle: admin can hide the Nexa bot entirely from Settings.
+  if (!nexaEnabled) return null;
 
   return (
     <>

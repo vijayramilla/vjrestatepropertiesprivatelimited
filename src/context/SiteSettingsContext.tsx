@@ -3,17 +3,19 @@ import { subscribeToSettings, updateSiteSettings, type SiteSettings } from '@/li
 
 interface SiteSettingsContextValue {
   mapOnly: boolean;
+  nexaEnabled: boolean;
   loading: boolean;
   toggling: boolean;
   error: string | null;
   toggleMapOnly: () => Promise<void>;
+  toggleNexaEnabled: () => Promise<void>;
   clearError: () => void;
 }
 
 const SiteSettingsContext = createContext<SiteSettingsContextValue | null>(null);
 
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<SiteSettings>({ mapOnly: false });
+  const [settings, setSettings] = useState<SiteSettings>({ mapOnly: false, nexaEnabled: true });
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,16 +43,31 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const toggleNexaEnabled = useCallback(async () => {
+    setError(null);
+    setToggling(true);
+    try {
+      await updateSiteSettings({ nexaEnabled: !settingsRef.current.nexaEnabled });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to update setting';
+      setError(msg);
+    } finally {
+      setToggling(false);
+    }
+  }, []);
+
   const clearError = useCallback(() => setError(null), []);
 
   return (
     <SiteSettingsContext.Provider
       value={{
         mapOnly: settings.mapOnly,
+        nexaEnabled: settings.nexaEnabled,
         loading,
         toggling,
         error,
         toggleMapOnly,
+        toggleNexaEnabled,
         clearError,
       }}
     >
