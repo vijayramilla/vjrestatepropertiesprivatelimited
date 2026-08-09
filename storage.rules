@@ -12,5 +12,10 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin() || (request.auth != null && request.auth.uid == uid);
     }
+
+    match /auctions/{uid}/{auctionId}/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+    }
   }
 }

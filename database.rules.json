@@ -1,0 +1,10 @@
+{
+  "rules": {
+    "auctions": {
+      "$auctionId": {
+        ".read": true,
+        ".write": "auth != null && newData.hasChildren(['currentBid', 'totalBids']) && !newData.hasChildren(['status', 'title', 'images']) && newData.child('currentBid').isNumber() && newData.child('totalBids').isNumber()"
+      }
+    }
+  }
+}

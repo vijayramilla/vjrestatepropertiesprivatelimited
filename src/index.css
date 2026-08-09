@@ -711,3 +711,21 @@ input[type="range"]::-moz-range-thumb {
   0%, 100% { opacity: 1; box-shadow: 0 0 4px #22c55e; }
   50% { opacity: 0.3; box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e; }
 }
+
+/* Auction page status badges & live indicators */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-ping,
+  .animate-pulse {
+    animation: none !important;
+  }
+}

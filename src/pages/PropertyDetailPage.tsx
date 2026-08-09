@@ -11,6 +11,7 @@ import { shareProperty } from '@/utils/shareProperty';
 import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
+import VJRAIButton from '../components/ai/VJRAIButton';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
 import PropertyDetailsPanel, { PropertyAtAGlance } from '../components/PropertyDetailsPanel';
 
@@ -925,6 +926,8 @@ export default function PropertyDetailPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <VJRAIButton userRole="public" />
     </motion.div>
   );
 }

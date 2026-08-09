@@ -13,6 +13,7 @@ import {
   GlobeHemisphereWest,
   PlusCircle,
   Buildings,
+  Gavel,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -134,16 +135,26 @@ export default function Navbar() {
 
   useEffect(() => {
     if (!isProperties) return;
+    // Hide-on-scroll only on mobile; the header stays pinned on desktop.
+    const mq = window.matchMedia('(max-width: 767px)');
+    const isMobileView = () => mq.matches;
     let prev = window.scrollY;
     const handleScroll = () => {
       const y = window.scrollY;
-      setHidden(y > 120 && y > prev);
+      setHidden(isMobileView() && y > 120 && y > prev);
       prev = y;
+    };
+    const handleResize = () => {
+      if (!isMobileView()) setHidden(false);
     };
     setHidden(false);
     prev = window.scrollY;
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleResize);
+    };
   }, [isProperties]);
 
   useEffect(() => {
@@ -209,7 +220,8 @@ export default function Navbar() {
           <div className="hidden md:flex flex-1 items-center justify-center gap-8">
             {[
               { label: 'Properties', path: '/properties' },
-              { label: 'Land Map', path: '/map', icon: true },
+              { label: 'Auctions', path: '/auctions', icon: 'gavel' },
+              { label: 'Land Map', path: '/map', icon: 'globe' },
               { label: 'Blog', path: '/blog' },
               { label: 'Vastu', path: '/vastu-calculator' },
               { label: 'About', path: '/about' },
@@ -235,7 +247,8 @@ export default function Navbar() {
                       : 0.85,
                 }}
               >
-                {icon && <GlobeHemisphereWest size={14} weight="regular" />}
+                {icon === 'gavel' && <Gavel size={14} weight="regular" />}
+                {icon === 'globe' && <GlobeHemisphereWest size={14} weight="regular" />}
                 {label}
               </Link>
             ))}

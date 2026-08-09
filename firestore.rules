@@ -104,5 +104,39 @@ service cloud.firestore {
       allow update: if isAdmin() || (isOwner(userId) && userCannotChangeSuspension());
       allow delete: if isAdmin();
     }
+
+    function isValidBidUpdate() {
+      return request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['currentBid', 'totalBids'])
+        && request.resource.data.currentBid is number
+        && request.resource.data.currentBid > resource.data.currentBid
+        && request.resource.data.totalBids is number
+        && request.resource.data.totalBids == resource.data.totalBids + 1;
+    }
+
+    function isValidBidCreate() {
+      return request.resource.data.keys().hasAll(['auctionId', 'bidderId', 'bidderName', 'amount', 'isWinning'])
+        && request.resource.data.bidderId == request.auth.uid
+        && request.resource.data.auctionId is string
+        && request.resource.data.bidderName is string
+        && request.resource.data.bidderName.size() > 0
+        && request.resource.data.bidderName.size() <= 60
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.isWinning is bool;
+    }
+
+    match /auctions/{auctionId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isValidBidUpdate();
+      allow delete: if isAdmin();
+    }
+
+    match /auction_bids/{bidId} {
+      allow create: if isValidBidCreate();
+      allow read: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.bidderId);
+      allow update, delete: if isAdmin();
+    }
   }
 }

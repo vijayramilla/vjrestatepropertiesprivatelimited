@@ -306,9 +306,6 @@ export default function AboutPage() {
                     {/* Gold glow */}
                     <div aria-hidden className="absolute -inset-6 rounded-full bg-[#C9A84C]/15 blur-3xl" />
 
-                    {/* Rotating orbit ring */}
-                    <div aria-hidden className="founder-orbit-ring absolute -inset-3 rounded-full border border-dashed border-[#C9A84C]/25" />
-
                     {/* Gold conic frame around the portrait */}
                     <div className="relative aspect-square rounded-full bg-[conic-gradient(from_140deg,#C9A84C,#6d5716,#C9A84C,#f4e9c0,#C9A84C,#6d5716,#C9A84C)] p-[2.5px] shadow-[0_0_40px_-12px_rgba(201,168,76,0.4)] transition-shadow duration-500 hover:shadow-[0_0_60px_-8px_rgba(201,168,76,0.5)]">
                       <div className="h-full w-full overflow-hidden rounded-full border-2 border-[#0A1628] bg-[#0A1628]">

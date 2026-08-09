@@ -5,6 +5,7 @@ import HomeListingsSection from '../components/home/HomeListingsSection';
 import HomePropertyGrid from '../components/home/HomePropertyGrid';
 import HomeSquareYardsExtra from '../components/home/HomeSquareYardsExtra';
 import HomeSearchBar from '../components/home/HomeSearchBar';
+import VJRAIButton from '../components/ai/VJRAIButton';
 
 const HomeVjrSparkles = lazy(() => import('../components/home/HomeVjrSparkles'));
 
@@ -66,6 +67,8 @@ export default function HomePage() {
       <Suspense fallback={<SectionFallback minHeight="32rem" />}>
         <HomeVjrSparkles />
       </Suspense>
+
+      <VJRAIButton userRole="public" />
     </div>
   );
 }

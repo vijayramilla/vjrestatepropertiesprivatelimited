@@ -33,6 +33,7 @@ const footerConfig = {
       title: 'Properties',
       links: [
         { label: 'All Properties', to: '/properties' },
+        { label: 'Auctions', to: '/auctions' },
         { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
         { label: 'Residential', to: '/properties?type=Residential%20Rental%20Income' },
         { label: 'Commercial', to: '/properties?type=Commercial%20Properties' },

@@ -54,6 +54,9 @@ const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const CareersPage = lazy(() => import('./pages/CareersPage'));
 const VastuCalculatorPage = lazy(() => import('./pages/VastuCalculatorPage'));
 const BangaloreLandInvestmentGuide = lazy(() => import('./pages/BangaloreLandInvestmentGuide'));
+const AuctionsPage = lazy(() => import('./pages/AuctionsPage'));
+const AdminAuctions = lazy(() => import('./pages/admin/AdminAuctions'));
+const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
 // const ARVideoPage = lazy(() => import('./pages/ARVideoPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -126,6 +129,7 @@ function AppRoutes() {
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
+        <Route path="/auctions" element={<LazyPage><AuctionsPage /></LazyPage>} />
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
 
@@ -234,6 +238,30 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LazyPage><AdminOwnerContacts /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/auctions"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminAuctions /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/auctions/new"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminAuctionForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/auctions/:id/edit"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminAuctionForm /></LazyPage>
           </AdminRoute>
         }
       />

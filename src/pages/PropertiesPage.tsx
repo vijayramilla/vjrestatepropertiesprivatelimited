@@ -10,9 +10,13 @@ import {
   Clock,
   MapPin,
   TrendingUp,
+  Sparkles,
+  Building2,
+  IndianRupee,
+  Ruler,
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
+import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import {
   filterProperties,
@@ -26,8 +30,20 @@ import {
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
 import { formatPrice } from '@/lib/formatPrice';
+import {
+  parseSmartQuery,
+  matchesMinArea,
+  priceRangeLabel,
+  rentalRangeLabel,
+} from '@/lib/smartSearch';
 import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { Button } from '@/components/ui/liquid-glass-button';
+import VJRAIButton from '../components/ai/VJRAIButton';
+import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
+import {
+  fetchBangalorePlacesSuggestions,
+  type GooglePlacesSuggestion,
+} from '@/lib/googlePlacesSearch';
 
 type SortOption = 'price_asc' | 'price_desc' | 'rental_desc' | 'newest';
 type BudgetMode = 'price' | 'rental';
@@ -64,6 +80,13 @@ const SORT_LABELS: Record<SortOption, string> = {
 };
 
 const RECENT_SEARCHES_KEY = 'vjr-recent-searches';
+
+const SMART_EXAMPLES = [
+  'PG building in Whitefield under ₹2 Cr',
+  'Commercial plot near Electronic City',
+  'Rental income above ₹50K',
+  '1500 sq ft in HSR Layout',
+];
 
 function budgetToPriceRange(budget: string): [number, number] {
   const preset = PRICE_BUDGET_PRESETS.find((p) => p.label === budget);
@@ -168,6 +191,8 @@ export default function PropertiesPage() {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [visibleCount, setVisibleCount] = useState(LOAD_MORE_STEP);
   const [searchQuery, setSearchQuery] = useState('');
+  const [minAreaSqft, setMinAreaSqft] = useState<number | null>(null);
+  const [googlePlaces, setGooglePlaces] = useState<GooglePlacesSuggestion[]>([]);
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
@@ -183,6 +208,8 @@ export default function PropertiesPage() {
   const sortRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const listingsRef = useRef<HTMLDivElement>(null);
+
+  const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');
@@ -231,16 +258,18 @@ export default function PropertiesPage() {
   }, [filtersOpen, sortOpen, isMobile]);
 
   useEffect(() => {
+    // The header is hidden on scroll only on mobile; on desktop it stays
+    // pinned, so the toolbar must never jump up over it.
     let prev = window.scrollY;
     const handleScroll = () => {
       const y = window.scrollY;
-      setNavbarHidden(y > 120 && y > prev);
+      setNavbarHidden(isMobile && y > 120 && y > prev);
       prev = y;
     };
     handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isMobile]);
 
   useEffect(() => {
     const el = toolbarRef.current;
@@ -250,15 +279,18 @@ export default function PropertiesPage() {
     const ro = new ResizeObserver(updateHeight);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [searchOpen, sortOpen, selectedTypes.length, searchQuery, priceRange, rentalRange]);
+  }, [searchOpen, sortOpen, selectedTypes.length, searchQuery, priceRange, rentalRange, minAreaSqft]);
 
   const filteredProperties = useMemo(() => {
-    const filtered = filterProperties(properties, {
+    let filtered = filterProperties(properties, {
       types: selectedTypes,
       localities: selectedLocations,
       priceRange,
       rentalRange,
     });
+    if (minAreaSqft) {
+      filtered = filtered.filter((p) => matchesMinArea(p, minAreaSqft));
+    }
     const sorted = [...filtered];
     const categoryIndex = (p: PropertyListItem) => {
       const cat = getPropertyCategory(p);
@@ -296,7 +328,7 @@ export default function PropertiesPage() {
         return filtered;
     }
     return sorted;
-  }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
+  }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, sortBy, minAreaSqft]);
 
   const showCategoryHeaders = selectedTypes.length !== 1;
 
@@ -315,7 +347,7 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     setVisibleCount(LOAD_MORE_STEP);
-  }, [selectedTypes, selectedLocations, priceRange, rentalRange, sortBy]);
+  }, [selectedTypes, selectedLocations, priceRange, rentalRange, sortBy, minAreaSqft]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -335,6 +367,7 @@ export default function PropertiesPage() {
     setSelectedTypes([]);
     setPriceRange([0, PRICE_SLIDER_MAX]);
     setRentalRange([0, UNLIMITED_FILTER_MAX]);
+    setMinAreaSqft(null);
   };
 
   const clearEverything = () => {
@@ -371,9 +404,48 @@ export default function PropertiesPage() {
       .map((a) => a.trim());
     return Array.from(new Set([...fromList, ...fromData]))
       .filter((a) => a.toLowerCase().includes(q))
+      // Drop filterLocalities' raw-query fallback (it echoes the whole query
+      // back when nothing matches) unless the text is itself a known area.
+      .filter((a) => a.toLowerCase() !== q || (BANGALORE_AREAS as readonly string[]).includes(a))
       .slice(0, 20);
   }, [searchQuery, properties]);
   const isTypingLocality = searchQuery.trim().length > 0;
+
+  // Live natural-language parse of the search box — detects locality, type,
+  // budget, rental income, and min area, with a real match count.
+  const smart = useMemo(
+    () => parseSmartQuery(searchQuery, properties),
+    [searchQuery, properties],
+  );
+
+  // Google Places suggestions — covers every Bangalore locality A–Z, including
+  // areas missing from the static list, so no location is ever left out.
+  useEffect(() => {
+    if (!searchOpen || !searchQuery.trim() || !mapsLoaded) {
+      setGooglePlaces([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const results = await fetchBangalorePlacesSuggestions(searchQuery);
+      if (!cancelled) setGooglePlaces(results);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, searchOpen, mapsLoaded]);
+
+  // Google suggestions already covered by the canonical locality list or by
+  // the smart-parse chips (which for multi-word queries may not surface in
+  // localitySuggestions at all).
+  const googlePlacesToShow = useMemo(() => {
+    if (googlePlaces.length === 0) return [];
+    const known = new Set<string>();
+    localitySuggestions.forEach((l) => known.add(l.toLowerCase()));
+    smart.localities.forEach((l) => known.add(l.toLowerCase()));
+    return googlePlaces.filter((g) => !known.has(g.locality.toLowerCase()));
+  }, [googlePlaces, localitySuggestions, smart.localities]);
 
   const budgetPresets = budgetMode === 'price' ? PRICE_BUDGET_PRESETS : RENTAL_BUDGET_PRESETS;
   const activeBudgetRange = budgetMode === 'price' ? priceRange : rentalRange;
@@ -387,7 +459,8 @@ export default function PropertiesPage() {
   const hasActiveFilters =
     selectedTypes.length > 0 ||
     !isDefaultPrice ||
-    !isDefaultRental;
+    !isDefaultRental ||
+    minAreaSqft != null;
 
   const hasActiveSearch = selectedLocations.length > 0;
   const localitySlotsLeft = MAX_LOCALITY_SELECTIONS - selectedLocations.length;
@@ -410,11 +483,62 @@ export default function PropertiesPage() {
     });
   };
 
+  const applySmartSearch = () => {
+    if (!smart.showSmartBlock) return;
+
+    // If the smart parse found a type/budget but no area (e.g. a sub-locality
+    // missing from the static list), pull it from the top Google result.
+    const localities =
+      smart.localities.length > 0 && smart.localities[0]
+        ? smart.localities
+        : googlePlacesToShow[0]
+          ? [googlePlacesToShow[0].locality]
+          : [];
+
+    if (localities.length > 0) {
+      setSelectedLocations((prev) => {
+        const merged = normalizeLocalityList([...prev, ...localities]);
+        if (merged.length > MAX_LOCALITY_SELECTIONS) {
+          setLocalityNotice(`You can select up to ${MAX_LOCALITY_SELECTIONS} localities`);
+          window.setTimeout(() => setLocalityNotice(''), 2800);
+        }
+        return merged.slice(0, MAX_LOCALITY_SELECTIONS);
+      });
+      // Save each parsed locality individually so the Recent Searches list
+      // stays valid (re-applying a combined label would become a bogus chip).
+      localities.forEach((loc) => saveRecentSearch(loc));
+    }
+    if (smart.types.length > 0) setSelectedTypes(smart.types);
+    if (smart.priceRange) setPriceRange(smart.priceRange);
+    if (smart.rentalRange) setRentalRange(smart.rentalRange);
+    if (smart.minAreaSqft) setMinAreaSqft(smart.minAreaSqft);
+    setSearchQuery('');
+    setSearchOpen(false);
+    // Scroll to the freshly filtered results.
+    listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const selectGooglePlace = (suggestion: GooglePlacesSuggestion) => {
+    toggleLocation(suggestion.locality);
+    saveRecentSearch(suggestion.locality);
+    setSearchQuery('');
+    setSearchOpen(false);
+  };
+
   const handleSearchSubmit = () => {
+    // Natural-language queries (type + budget + area) beat the bare locality flow.
+    if (smart.showSmartBlock) {
+      applySmartSearch();
+      return;
+    }
     const resolved = resolveLocalityForSearch(searchQuery);
     if (resolved) {
       toggleLocation(resolved);
       saveRecentSearch(resolved);
+    } else if (googlePlacesToShow[0]) {
+      // Any Bangalore area Google knows about — the static list misses some.
+      toggleLocation(googlePlacesToShow[0].locality);
+      saveRecentSearch(googlePlacesToShow[0].locality);
     }
     setSearchQuery('');
     setSearchOpen(false);
@@ -521,6 +645,13 @@ export default function PropertiesPage() {
       onRemove: () => setRentalRange([0, UNLIMITED_FILTER_MAX]),
     });
   }
+  if (minAreaSqft) {
+    activeFilterChips.push({
+      key: 'area',
+      label: `${minAreaSqft.toLocaleString('en-IN')}+ sq.ft`,
+      onRemove: () => setMinAreaSqft(null),
+    });
+  }
 
   const sortSheet = (
     <>
@@ -617,7 +748,7 @@ export default function PropertiesPage() {
                     ? localitySlotsLeft > 0
                       ? `Add locality (${localitySlotsLeft} left)...`
                       : 'Maximum 4 localities selected'
-                    : 'Search locations...'
+                    : 'Search area, type or budget...'
                 }
                 disabled={localitySlotsLeft <= 0 && !searchQuery}
                 value={searchQuery}
@@ -760,43 +891,140 @@ export default function PropertiesPage() {
                 <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4">
                 {isTypingLocality ? (
                   <div>
-                    <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                      <span>Locations</span>
-                      {localitySuggestions.length > 0 && (
-                        <span className="normal-case tracking-normal text-gray-400">
-                          {localitySuggestions.length} match{localitySuggestions.length !== 1 ? 'es' : ''}
-                        </span>
-                      )}
-                    </p>
-                    {localitySuggestions.length > 0 ? (
-                      <div className="space-y-0.5">
-                        {localitySuggestions.map((loc) => (
-                          <button
-                            key={loc}
-                            type="button"
-                            onClick={() => selectLocalitySuggestion(loc)}
-                            className={`flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-3 text-left text-[14px] transition active:bg-gray-100 ${
-                              selectedLocations.includes(loc)
-                                ? 'bg-[#0A1628]/5 font-medium text-[#0A1628]'
-                                : 'text-gray-700 hover:bg-gray-50'
-                            }`}
-                          >
-                            <MapPin size={15} className="shrink-0 text-gray-400" />
-                            <span className="flex-1 truncate">{highlightMatch(loc, searchQuery.trim())}</span>
-                            {selectedLocations.includes(loc) ? (
-                              <span className="shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-medium text-white">
-                                Added
-                              </span>
-                            ) : (
-                              <span className="shrink-0 text-[11px] text-gray-400">+ Add</span>
-                            )}
-                          </button>
-                        ))}
+                    {smart.showSmartBlock ? (
+                      <div className="mb-4 rounded-2xl border border-[#C9A84C]/40 bg-gradient-to-br from-[#0A1628]/[0.04] to-[#C9A84C]/10 p-3.5">
+                        <p className="mb-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0A1628]">
+                          <Sparkles size={13} className="text-[#C9A84C]" />
+                          Smart Match
+                          <span className="ml-auto font-medium normal-case tracking-normal text-[#C9A84C]">
+                            {smart.matchCount} {smart.matchCount === 1 ? 'property' : 'properties'} found
+                          </span>
+                        </p>
+                        <div className="mb-3 flex flex-wrap gap-1.5">
+                          {smart.localities.map((loc) => (
+                            <span
+                              key={`loc-${loc}`}
+                              className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]"
+                            >
+                              <MapPin size={11} className="text-[#C9A84C]" />
+                              {loc}
+                            </span>
+                          ))}
+                          {smart.types.map((type) => (
+                            <span
+                              key={`type-${type}`}
+                              className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]"
+                            >
+                              <Building2 size={11} className="text-[#C9A84C]" />
+                              {type}
+                            </span>
+                          ))}
+                          {smart.priceRange && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
+                              <IndianRupee size={11} className="text-[#C9A84C]" />
+                              {priceRangeLabel(smart.priceRange)}
+                            </span>
+                          )}
+                          {smart.rentalRange && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
+                              <TrendingUp size={11} className="text-[#C9A84C]" />
+                              {rentalRangeLabel(smart.rentalRange)}
+                            </span>
+                          )}
+                          {smart.minAreaSqft && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
+                              <Ruler size={11} className="text-[#C9A84C]" />
+                              {smart.minAreaSqft.toLocaleString('en-IN')}+ sq.ft
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={applySmartSearch}
+                          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0A1628] px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#C9A84C] hover:text-[#0A1628]"
+                        >
+                          <Search size={14} />
+                          {smart.matchCount > 0
+                            ? `Show ${smart.matchCount} matching ${smart.matchCount === 1 ? 'property' : 'properties'}`
+                            : 'Apply filters'}
+                        </button>
                       </div>
                     ) : (
-                      <p className="rounded-xl bg-gray-50 px-3 py-4 text-center text-[13px] text-gray-500">
-                        No localities match &ldquo;{searchQuery.trim()}&rdquo;. Try a different spelling or area name.
-                      </p>
+                      <>
+                        <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          <span>Locations</span>
+                          {localitySuggestions.length > 0 && (
+                            <span className="normal-case tracking-normal text-gray-400">
+                              {localitySuggestions.length} match{localitySuggestions.length !== 1 ? 'es' : ''}
+                            </span>
+                          )}
+                        </p>
+                        {localitySuggestions.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {localitySuggestions.map((loc) => (
+                              <button
+                                key={loc}
+                                type="button"
+                                onClick={() => selectLocalitySuggestion(loc)}
+                                className={`flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-3 text-left text-[14px] transition active:bg-gray-100 ${
+                                  selectedLocations.includes(loc)
+                                    ? 'bg-[#0A1628]/5 font-medium text-[#0A1628]'
+                                    : 'text-gray-700 hover:bg-gray-50'
+                                }`}
+                              >
+                                <MapPin size={15} className="shrink-0 text-gray-400" />
+                                <span className="flex-1 truncate">{highlightMatch(loc, searchQuery.trim())}</span>
+                                {selectedLocations.includes(loc) ? (
+                                  <span className="shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-medium text-white">
+                                    Added
+                                  </span>
+                                ) : (
+                                  <span className="shrink-0 text-[11px] text-gray-400">+ Add</span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="rounded-xl bg-gray-50 px-3 py-4 text-center text-[13px] text-gray-500">
+                            No localities match &ldquo;{searchQuery.trim()}&rdquo;. Try a different spelling or area name.
+                          </p>
+                        )}
+                      </>
+                    )}
+
+                    {googlePlacesToShow.length > 0 && (
+                      <div className="mt-3 border-t border-gray-100 pt-3">
+                        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                          <MapPin size={12} className="text-[#C9A84C]" />
+                          More areas on Google Maps
+                          <span className="ml-auto normal-case tracking-normal text-gray-400">
+                            {googlePlacesToShow.length} found
+                          </span>
+                        </p>
+                        <div className="space-y-0.5">
+                          {googlePlacesToShow.map((suggestion) => (
+                            <button
+                              key={suggestion.placeId}
+                              type="button"
+                              onClick={() => selectGooglePlace(suggestion)}
+                              className="flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:bg-gray-50 active:bg-gray-100"
+                            >
+                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white">
+                                <MapPin size={14} className="text-[#C9A84C]" />
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[14px] font-medium text-gray-800">
+                                  {highlightMatch(suggestion.mainText, searchQuery.trim())}
+                                </span>
+                                <span className="block truncate text-[11px] text-gray-400">
+                                  {suggestion.secondaryText}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-[11px] font-medium text-gray-400">+ Add</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -826,6 +1054,29 @@ export default function PropertiesPage() {
                             </button>
                           );
                         })}
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <Sparkles size={12} className="text-[#C9A84C]" />
+                        Try a Smart Search
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {SMART_EXAMPLES.map((ex) => (
+                          <button
+                            key={ex}
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery(ex);
+                              setSearchOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[#C9A84C]/50 bg-[#C9A84C]/5 px-3 py-2 text-[12px] font-medium text-[#0A1628] transition hover:border-[#C9A84C] hover:bg-[#C9A84C]/15 active:scale-[0.97]"
+                          >
+                            <Sparkles size={11} className="text-[#C9A84C]" />
+                            {ex}
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -863,17 +1114,19 @@ export default function PropertiesPage() {
                     )}
 
                     <p className="mt-4 text-center text-[12px] text-gray-400">
-                      Pick up to {MAX_LOCALITY_SELECTIONS} locations. Use <strong className="font-semibold text-gray-600">Filters</strong> for property type &amp; budget.
+                      Type naturally — e.g. <strong className="font-semibold text-gray-600">&ldquo;PG in Whitefield under ₹2 Cr&rdquo;</strong> — and filters apply automatically.
                     </p>
                   </>
                 )}
                 </div>
 
-                <div className="shrink-0 border-t border-gray-100 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
-                  <button type="button" onClick={handleSearchSubmit} className="prop-apply-btn">
-                    Apply Search
-                  </button>
-                </div>
+                {!smart.showSmartBlock && (
+                  <div className="shrink-0 border-t border-gray-100 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+                    <button type="button" onClick={handleSearchSubmit} className="prop-apply-btn">
+                      Apply Search
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -1052,6 +1305,8 @@ export default function PropertiesPage() {
           </main>
         </div>
       </div>
+
+      <VJRAIButton userRole="public" />
     </div>
   );
 }

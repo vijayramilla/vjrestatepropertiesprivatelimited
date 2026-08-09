@@ -2,10 +2,11 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase, Scales } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
+import VJRAIButton from '@/components/ai/VJRAIButton';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -21,6 +22,7 @@ const baseNavItems = [
   { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
+  { icon: Scales, label: 'Auctions', path: '/admin/auctions', short: 'Auctions' },
   { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
   { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
   { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', short: 'Owners' },
@@ -255,6 +257,8 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
           })}
         </nav>
       </div>
+
+      <VJRAIButton userRole="admin" className="bottom-20 right-5 md:bottom-6 md:right-6" />
     </div>
   );
 }
