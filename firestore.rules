@@ -98,6 +98,13 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // Site-wide settings (Map Only Mode, Nexa bot visibility, etc.) are read by
+    // every visitor so toggles sync across users; only admins may change them.
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     match /users/{userId} {
       allow get, list: if isAdmin() || isOwner(userId);
       allow create: if isOwner(userId);

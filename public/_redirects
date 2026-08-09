@@ -1,1 +1,31 @@
-/*    /index.html   200
+# Static assets must NEVER be served as the SPA shell.
+# Without these rules, a request for a missing hashed asset (e.g. /js/old-hash.js
+# after a redeploy) would hit the catch-all and return index.html, causing the
+# browser error "'text/html' is not a valid JavaScript MIME type".
+# Existing files are still served first on Netlify/Cloudflare Pages, so these
+# only affect requests for assets that don't exist.
+/js/*.js         /index.html   404
+/js/*.mjs        /index.html   404
+/assets/*        /index.html   404
+/images/*        /index.html   404
+/*.js            /index.html   404
+/*.mjs           /index.html   404
+/*.css           /index.html   404
+/*.png           /index.html   404
+/*.jpg           /index.html   404
+/*.jpeg          /index.html   404
+/*.svg           /index.html   404
+/*.webp          /index.html   404
+/*.gif           /index.html   404
+/*.avif          /index.html   404
+/*.ico           /index.html   404
+/*.woff          /index.html   404
+/*.woff2         /index.html   404
+/*.ttf           /index.html   404
+/*.json          /index.html   404
+/*.map           /index.html   404
+/*.webmanifest   /index.html   404
+/*.txt           /index.html   404
+
+# SPA fallback: all page routes serve the app shell
+/*               /index.html   200
