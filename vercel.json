@@ -3,7 +3,7 @@
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/properties/:id", "destination": "/api/og-preview?id=:id" },
     { "source": "/legal/:path*", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "^/((?!.*\\.(?:js|mjs|css|png|jpe?g|svg|webp|avif|gif|ico|woff2?|ttf|eot|otf|txt|json|map|xml|webmanifest|gz|br)$).*)$", "destination": "/index.html" }
   ],
   "headers": [
     {
