@@ -1,4 +1,4 @@
-import { getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
+import { getJobShareUrl, getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
 
 const SITE_NAME = 'VJR Estate';
 const DEFAULT_TITLE = 'VJR Estate | Buy Rental Income Properties in Bangalore';
@@ -53,6 +53,45 @@ export function setPropertyShareMeta(property: {
   const image = property.imageUrl
     ? `${origin}/api/og-image?id=${encodeURIComponent(property.id)}&v=${OG_IMAGE_VERSION}`
     : `${origin}/og-image.png`;
+
+  document.title = title;
+  setMeta('description', description);
+  setMeta('og:title', title, true);
+  setMeta('og:description', description, true);
+  setMeta('og:site_name', SITE_NAME, true);
+  setMeta('og:type', 'website', true);
+  setMeta('og:url', url, true);
+  setMeta('og:image', image, true);
+  setMeta('twitter:title', title);
+  setMeta('twitter:description', description);
+  setMeta('twitter:image', image);
+}
+
+// Keep in sync with OG_JOB_IMAGE_VERSION in api/og-job-preview.ts.
+const OG_JOB_IMAGE_VERSION = 'v1';
+
+export function setJobShareMeta(job: {
+  id: string;
+  title: string;
+  department: string;
+  salary: string;
+  location: string;
+  type: string;
+  experience: string;
+}) {
+  const title = `Hiring: ${job.title} — ${SITE_NAME}`;
+  const description = [
+    job.department,
+    job.location,
+    job.type,
+    job.experience ? `${job.experience} exp` : '',
+    job.salary ? `Salary ${job.salary}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+  const origin = getSiteOrigin();
+  const url = getJobShareUrl(job.id);
+  const image = `${origin}/api/og-job-image?id=${encodeURIComponent(job.id)}&v=${OG_JOB_IMAGE_VERSION}`;
 
   document.title = title;
   setMeta('description', description);

@@ -26,16 +26,20 @@ import {
   CaretRight,
   Star,
   PaperPlaneTilt,
+  ShareNetwork,
+  Check,
 } from '@phosphor-icons/react';
 import {
   subscribeToJobs,
   submitJobApplication,
+  shareJob,
   formatSalary,
   type JobOpening,
   type Department,
 } from '@/lib/careers';
 import { useAuth } from '@/context/AuthContext';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
+import { setDefaultSiteMeta, setJobShareMeta } from '@/lib/siteMeta';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -199,6 +203,65 @@ function Confetti() {
   );
 }
 
+// ── Share button ────────────────────────────────────────────────────────
+
+function ShareJobButton({ job, variant = 'card' }: { job: JobOpening; variant?: 'card' | 'modal' }) {
+  const [feedback, setFeedback] = useState<'idle' | 'copied'>('idle');
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const result = await shareJob(job);
+    if (result === 'copied') {
+      setFeedback('copied');
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      timerRef.current = window.setTimeout(() => setFeedback('idle'), 2000);
+    }
+  };
+
+  if (variant === 'modal') {
+    return (
+      <button
+        type="button"
+        onClick={handleShare}
+        aria-label={`Share ${job.title}`}
+        className="flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[#e3e7ee] px-3.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#44566b] transition-all hover:border-[#0A1628] hover:text-[#0A1628]"
+      >
+        {feedback === 'copied' ? (
+          <Check size={14} weight="bold" className="text-emerald-600" />
+        ) : (
+          <ShareNetwork size={14} weight="bold" />
+        )}
+        {feedback === 'copied' ? 'Copied' : 'Share'}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleShare}
+      aria-label={`Share ${job.title}`}
+      title="Share this job"
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
+        feedback === 'copied'
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-600'
+          : 'border-[#e3e7ee] bg-white text-[#7c8a9a] hover:border-[#C9A84C] hover:bg-[#C9A84C]/5 hover:text-[#B8953A]'
+      }`}
+    >
+      {feedback === 'copied' ? <Check size={15} weight="bold" /> : <ShareNetwork size={15} weight="bold" />}
+    </button>
+  );
+}
+
 // ── Job card ────────────────────────────────────────────────────────────
 
 function JobCard({ job, onOpen }: { job: JobOpening; onOpen: () => void }) {
@@ -213,18 +276,21 @@ function JobCard({ job, onOpen }: { job: JobOpening; onOpen: () => void }) {
       onClick={onOpen}
     >
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: job.department_color }} />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7c8a9a]">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: job.department_color }} />
+          <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7c8a9a]">
             {job.department}
           </span>
         </div>
-        {job.isFeatured && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#0A1628] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
-            <Star size={10} weight="fill" />
-            Featured
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <ShareJobButton job={job} />
+          {job.isFeatured && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-[#0A1628] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-[#C9A84C]">
+              <Star size={10} weight="fill" />
+              Featured
+            </span>
+          )}
+        </div>
       </div>
 
       <h3 className="mt-4 text-xl font-semibold text-[#0A1628] transition-colors group-hover:text-[#0A1628]/80 sm:text-[22px]" style={{ letterSpacing: '-0.01em' }}>
@@ -530,15 +596,18 @@ function ApplyModal({
                 <span className="flex items-center gap-1.5"><CurrencyCircleDollar size={13} weight="bold" className="text-[#C9A84C]" />{formatSalary(job.salary)}</span>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              aria-label="Close"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e3e7ee] text-[#44566b] transition-all hover:border-[#0A1628] hover:text-[#0A1628] disabled:opacity-40"
-            >
-              <X size={18} weight="bold" />
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <ShareJobButton job={job} variant="modal" />
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={submitting}
+                aria-label="Close"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[#e3e7ee] text-[#44566b] transition-all hover:border-[#0A1628] hover:text-[#0A1628] disabled:opacity-40"
+              >
+                <X size={18} weight="bold" />
+              </button>
+            </div>
           </div>
 
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8">
@@ -816,6 +885,40 @@ export default function CareersPage() {
     });
     return () => unsub();
   }, []);
+
+  // Deep link: /careers?job=<id> auto-opens that job's apply modal so shared
+  // links land straight on the application form.
+  useEffect(() => {
+    if (jobs.length === 0) return;
+    const jobId = new URLSearchParams(window.location.search).get('job');
+    if (!jobId) return;
+    const match = jobs.find((j) => j.id === jobId);
+    if (match) {
+      setOpenJob(match);
+      // Clean the query so a refresh doesn't re-open the modal.
+      const url = new URL(window.location.href);
+      url.searchParams.delete('job');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, [jobs]);
+
+  // Keep social meta (title + OG image) in sync with the open job so shared
+  // links and in-app previews show the right card; reset when the modal closes.
+  useEffect(() => {
+    if (openJob) {
+      setJobShareMeta({
+        id: openJob.id,
+        title: openJob.title,
+        department: openJob.department,
+        salary: formatSalary(openJob.salary),
+        location: openJob.location,
+        type: openJob.type,
+        experience: openJob.experience,
+      });
+    } else {
+      setDefaultSiteMeta();
+    }
+  }, [openJob]);
 
   const visibleJobs = useMemo(() => {
     const list = activeDept === 'All' ? jobs : jobs.filter((j) => j.department === activeDept);

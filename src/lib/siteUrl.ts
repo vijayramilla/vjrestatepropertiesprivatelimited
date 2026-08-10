@@ -13,3 +13,10 @@ export function getPropertyShareUrl(propertyId: string | number): string {
   const id = encodeURIComponent(String(propertyId).trim());
   return `${origin}/properties/${id}`;
 }
+
+export function getJobShareUrl(jobId: string): string {
+  const origin = getSiteOrigin();
+  const id = encodeURIComponent(String(jobId).trim());
+  // Deep link that auto-opens the job's apply modal on the careers page.
+  return `${origin}/careers?job=${id}`;
+}

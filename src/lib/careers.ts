@@ -14,6 +14,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { getJobShareUrl } from '@/lib/siteUrl';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -420,6 +421,63 @@ export async function uploadResume(
 
 export function makeReferenceId(): string {
   return `VJR-${Date.now().toString(36).toUpperCase()}`;
+}
+
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // fall through to legacy copy
+    }
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Share a job opening. Uses the native OS share sheet (WhatsApp, Telegram,
+ * email, etc.) on supported devices; falls back to copying the deep link.
+ * @returns {'shared' | 'copied' | 'cancelled' | 'failed'}
+ */
+export async function shareJob(job: {
+  id: string;
+  title: string;
+  salary: string;
+  location: string;
+}): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
+  const url = getJobShareUrl(job.id);
+  const title = `Hiring: ${job.title} at VJR Estate`;
+  const text = `${title}\n${formatSalary(job.salary)} · ${job.location}\nApply here: ${url}`;
+
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ title, text, url });
+      return 'shared';
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return 'cancelled';
+      // NotAllowedError or any other failure — fall through to clipboard.
+    }
+  }
+
+  const copied = await copyTextToClipboard(text);
+  return copied ? 'copied' : 'failed';
 }
 
 /**

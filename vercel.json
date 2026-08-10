@@ -9,6 +9,16 @@
       "destination": "/api/og-preview?id=:id"
     },
     {
+      "source": "/careers",
+      "has": [
+        {
+          "type": "query",
+          "key": "job"
+        }
+      ],
+      "destination": "/api/og-job-preview"
+    },
+    {
       "source": "/legal/:path*",
       "destination": "/index.html"
     },
