@@ -98,7 +98,9 @@ export default async function handler(req: any, res: any) {
       try {
         const pages = await browser.pages();
         await Promise.all(pages.map((p) => p.close().catch(() => {})));
-      } catch {}
+      } catch {
+        // Best-effort cleanup — the handler result is already decided.
+      }
       await browser.close().catch(() => {});
     }
   }
