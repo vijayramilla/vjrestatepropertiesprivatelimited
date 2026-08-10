@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode, useEffect } from 'react';
+import { useState, useRef, type CSSProperties, type ReactNode, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
@@ -74,6 +74,39 @@ const fontPrice: CSSProperties = {
 };
 function truncate(str: string, len: number) {
   return str.length > len ? `${str.slice(0, len)}…` : str;
+}
+
+/** Rotating gold ring shown while the property PDF is being generated. */
+function PdfSpinner({ size = 15 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-block shrink-0 animate-spin rounded-full"
+      style={{
+        width: size,
+        height: size,
+        borderWidth: 2,
+        borderStyle: 'solid',
+        borderColor: 'rgba(201,168,76,0.25)',
+        borderTopColor: '#C9A84C',
+      }}
+    />
+  );
+}
+
+/** Three staggered gold dots that bounce while the PDF loads. */
+function PdfLoadingDots({ size = 4 }: { size?: number }) {
+  return (
+    <span aria-hidden="true" className="inline-flex items-end gap-[3px] pb-[2px]">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="pdf-dot"
+          style={{ width: size, height: size, animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </span>
+  );
 }
 
 function getTopLabel(property: Property): string {
@@ -160,7 +193,22 @@ export default function PropertyDetailPage() {
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [descExpanded, setDescExpanded] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const pdfResetTimer = useRef<number | null>(null);
+
+  // Single reset scheduler so a stale error/success timer can never fire
+  // mid-download and cut a new attempt short.
+  const schedulePdfReset = (ms: number) => {
+    if (pdfResetTimer.current !== null) window.clearTimeout(pdfResetTimer.current);
+    pdfResetTimer.current = window.setTimeout(() => {
+      pdfResetTimer.current = null;
+      setPdfState('idle');
+    }, ms);
+  };
+
+  useEffect(() => () => {
+    if (pdfResetTimer.current !== null) window.clearTimeout(pdfResetTimer.current);
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -331,10 +379,11 @@ export default function PropertyDetailPage() {
       a.click();
       a.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setPdfState('idle');
+      setPdfState('success');
+      schedulePdfReset(2000);
     } catch {
       setPdfState('error');
-      window.setTimeout(() => setPdfState('idle'), 4000);
+      schedulePdfReset(4000);
     }
   };
 
@@ -696,11 +745,34 @@ export default function PropertyDetailPage() {
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={pdfState === 'loading'}
-                  className="flex h-[42px] w-full items-center justify-center gap-2 rounded-xl border border-[#e0e2e5] bg-white text-[12px] font-semibold text-[#444] hover:border-[#C9A84C]/60 hover:text-[#0A1628] transition-colors duration-200 disabled:opacity-70"
+                  className={`relative flex h-[42px] w-full items-center justify-center gap-2 overflow-hidden rounded-xl border text-[12px] font-semibold transition-colors duration-200 ${
+                    pdfState === 'loading'
+                      ? 'border-[#C9A84C]/70 bg-[#FBF7EC] text-[#0A1628]'
+                      : pdfState === 'success'
+                        ? 'border-[#22C26E]/60 bg-[#F2FBF5] text-[#0A1628]'
+                        : 'border-[#e0e2e5] bg-white text-[#444] hover:border-[#C9A84C]/60 hover:text-[#0A1628]'
+                  }`}
                   style={fontUI}
                 >
-                  <FilePdf size={15} weight="fill" color="#C9A84C" />
-                  {pdfState === 'loading' ? 'Generating PDF...' : 'Download PDF'}
+                  {pdfState === 'loading' ? (
+                    <>
+                      <PdfSpinner size={15} />
+                      <span>Generating PDF</span>
+                      <PdfLoadingDots />
+                      <span aria-hidden="true" className="pdf-shimmer" />
+                      <span aria-hidden="true" className="pdf-progress absolute bottom-0 left-0 h-[3px] rounded-full bg-[#C9A84C]" />
+                    </>
+                  ) : pdfState === 'success' ? (
+                    <>
+                      <CheckCircle size={16} weight="fill" color="#22C26E" />
+                      Downloaded ✓
+                    </>
+                  ) : (
+                    <>
+                      <FilePdf size={15} weight="fill" color="#C9A84C" />
+                      Download PDF
+                    </>
+                  )}
                 </button>
                 {pdfState === 'error' && (
                   <p className="text-[11.5px] text-[#c0392b] text-center" style={fontUI}>
@@ -825,12 +897,33 @@ export default function PropertyDetailPage() {
             onClick={handleDownloadPdf}
             disabled={pdfState === 'loading'}
             aria-label="Download property PDF"
-            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-[#C9A84C] bg-white px-3 active:scale-[0.98] disabled:opacity-70 sm:min-w-[80px]"
+            aria-busy={pdfState === 'loading'}
+            className={`relative flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl border-2 bg-white px-3 active:scale-[0.98] sm:min-w-[80px] ${
+              pdfState === 'success' ? 'border-[#22C26E]' : 'border-[#C9A84C]'
+            }`}
           >
-            <FilePdf size={18} weight="fill" color="#C9A84C" />
+            {pdfState === 'loading' ? (
+              <PdfSpinner size={16} />
+            ) : pdfState === 'success' ? (
+              <CheckCircle size={18} weight="fill" color="#22C26E" />
+            ) : (
+              <FilePdf size={18} weight="fill" color="#C9A84C" />
+            )}
             <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
-              {pdfState === 'loading' ? 'PDF...' : 'PDF'}
+              {pdfState === 'loading' ? (
+                <span className="inline-flex items-center gap-[2px]">
+                  PDF
+                  <PdfLoadingDots size={3} />
+                </span>
+              ) : pdfState === 'success' ? (
+                'Done'
+              ) : (
+                'PDF'
+              )}
             </span>
+            {pdfState === 'loading' && (
+              <span aria-hidden="true" className="pdf-progress absolute bottom-0 left-0 h-[2px] rounded-full bg-[#C9A84C]" />
+            )}
           </button>
 
           <button

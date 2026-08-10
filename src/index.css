@@ -787,3 +787,69 @@ input[type="range"]::-moz-range-thumb {
     transform: none;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* PDF download loading animation                                     */
+/* ------------------------------------------------------------------ */
+@keyframes pdf-dot {
+  0%, 60%, 100% {
+    opacity: 0.2;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.pdf-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: #c9a84c;
+  animation: pdf-dot 1.1s ease-in-out infinite;
+}
+
+@keyframes pdf-shimmer {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(330%);
+  }
+}
+
+.pdf-shimmer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(201, 168, 76, 0.16), transparent);
+  animation: pdf-shimmer 1.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pdf-progress {
+  0% {
+    width: 10%;
+  }
+  55% {
+    width: 70%;
+  }
+  100% {
+    width: 94%;
+  }
+}
+
+.pdf-progress {
+  animation: pdf-progress 2.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pdf-dot,
+  .pdf-shimmer,
+  .pdf-progress {
+    animation: none !important;
+  }
+}
