@@ -42,6 +42,7 @@ import {
   CaretDown,
   ArrowRight,
   X,
+  FilePdf,
   type Icon,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
@@ -159,6 +160,7 @@ export default function PropertyDetailPage() {
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [descExpanded, setDescExpanded] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [pdfState, setPdfState] = useState<'idle' | 'loading' | 'error'>('idle');
 
   useEffect(() => {
     if (!id) return;
@@ -305,6 +307,35 @@ export default function PropertyDetailPage() {
   const handleWhatsApp = () => {
     if (waLoading) return;
     setWaContactOpen(true);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (pdfState === 'loading' || !property) return;
+    setPdfState('loading');
+    try {
+      const res = await fetch(`/api/properties/${encodeURIComponent(property.id)}/pdf`, {
+        method: 'GET',
+      });
+      if (!res.ok) throw new Error(`PDF request failed: ${res.status}`);
+      // Never save a non-PDF response (e.g. the SPA shell or an error page) as a .pdf file.
+      const contentType = res.headers.get('content-type') ?? '';
+      if (!contentType.includes('application/pdf')) {
+        throw new Error(`PDF endpoint returned ${contentType || 'unknown content type'}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Property-${property.propertyCode || property.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setPdfState('idle');
+    } catch {
+      setPdfState('error');
+      window.setTimeout(() => setPdfState('idle'), 4000);
+    }
   };
 
   const submitWhatsAppEnquiry = async ({ name, phone, lat, lng }: { name: string; phone: string; lat?: number; lng?: number }) => {
@@ -661,6 +692,21 @@ export default function PropertyDetailPage() {
               </div>
 
               <div className="px-6 py-5 flex flex-col gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={pdfState === 'loading'}
+                  className="flex h-[42px] w-full items-center justify-center gap-2 rounded-xl border border-[#e0e2e5] bg-white text-[12px] font-semibold text-[#444] hover:border-[#C9A84C]/60 hover:text-[#0A1628] transition-colors duration-200 disabled:opacity-70"
+                  style={fontUI}
+                >
+                  <FilePdf size={15} weight="fill" color="#C9A84C" />
+                  {pdfState === 'loading' ? 'Generating PDF...' : 'Download PDF'}
+                </button>
+                {pdfState === 'error' && (
+                  <p className="text-[11.5px] text-[#c0392b] text-center" style={fontUI}>
+                    Unable to generate the PDF. Please try again.
+                  </p>
+                )}
                 <motion.button
                   type="button"
                   onClick={() => setShowBooking((open) => !open)}
@@ -745,7 +791,7 @@ export default function PropertyDetailPage() {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e8e8e8] bg-white/95 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-stretch gap-2 px-3 py-2.5 lg:px-12 xl:px-16">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-stretch gap-2 px-3 py-2.5 lg:px-12 xl:px-16">
           <div className="flex min-h-[48px] min-w-0 flex-col justify-center pr-1">
             <p
               className="truncate text-[20px] font-medium leading-none tracking-tight text-[#000] sm:text-[22px]"
@@ -771,6 +817,19 @@ export default function PropertyDetailPage() {
             <ShareNetwork size={18} weight="duotone" color="#0A1628" />
             <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
               Share
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            disabled={pdfState === 'loading'}
+            aria-label="Download property PDF"
+            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-[#C9A84C] bg-white px-3 active:scale-[0.98] disabled:opacity-70 sm:min-w-[80px]"
+          >
+            <FilePdf size={18} weight="fill" color="#C9A84C" />
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
+              {pdfState === 'loading' ? 'PDF...' : 'PDF'}
             </span>
           </button>
 

@@ -31,6 +31,14 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 5173,
+    proxy: {
+      // Generate property PDFs through the deployed serverless function
+      // so local dev behaves exactly like production.
+      '/api/properties/': {
+        target: 'https://www.vjrestate.com',
+        changeOrigin: true,
+      },
+    },
   },
 
   resolve: {
