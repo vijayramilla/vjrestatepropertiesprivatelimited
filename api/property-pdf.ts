@@ -5,8 +5,10 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
 // Allow enough time + memory for the headless Chromium cold start on Vercel.
+// 300s (the Fluid Compute max) gives ample headroom for the 62MB Chromium
+// inflate + image loading on a cold instance.
 export const config = {
-  maxDuration: 60,
+  maxDuration: 300,
   memory: 1536,
 };
 
@@ -390,7 +392,9 @@ export function buildPdfHtml(fields: Fields, qrDataUrl: string): string {
     .map((x) => x.stringValue)
     .filter((s): s is string => !!s && isValidImageUrl(s));
   const heroImage = images[0] ?? '';
-  const galleryImages = images.slice(1);
+  // Cap the gallery so the embedded images stay well under Vercel's
+  // ~4.5MB serverless response limit even for image-heavy properties.
+  const galleryImages = images.slice(1, 9);
 
   // ---- Price line -------------------------------------------------
   const price = priceNum && priceNum > 0 ? formatPrice(priceNum) : cleanText(priceLabelRaw);
