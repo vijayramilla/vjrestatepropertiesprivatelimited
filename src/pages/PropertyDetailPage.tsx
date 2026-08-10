@@ -313,7 +313,7 @@ export default function PropertyDetailPage() {
     if (pdfState === 'loading' || !property) return;
     setPdfState('loading');
     try {
-      const res = await fetch(`/api/property-pdf/${encodeURIComponent(property.id)}`, {
+      const res = await fetch(`/api/property-pdf?id=${encodeURIComponent(property.id)}`, {
         method: 'GET',
       });
       if (!res.ok) throw new Error(`PDF request failed: ${res.status}`);

@@ -34,7 +34,7 @@ export default defineConfig({
     proxy: {
       // Generate property PDFs through the deployed serverless function
       // so local dev behaves exactly like production.
-      '/api/property-pdf/': {
+      '/api/property-pdf': {
         target: 'https://www.vjrestate.com',
         changeOrigin: true,
       },
