@@ -1,6 +1,11 @@
 import * as functions from 'firebase-functions'
 import * as https from 'https'
 import * as http from 'http'
+import * as admin from 'firebase-admin'
+
+if (!admin.apps.length) {
+  admin.initializeApp()
+}
 
 function followRedirects(
   url: string,
@@ -81,4 +86,42 @@ export const resolveMapUrl = functions
         'internal', err.message
       )
     }
+  })
+
+export const onApplicationSubmitted = functions
+  .region('asia-south1')
+  .firestore
+  .document('job_applications/{appId}')
+  .onCreate(async (snap) => {
+    const data = snap.data()
+    const { fullName, jobTitle, email, jobId, referenceId } = data as {
+      fullName?: string
+      jobTitle?: string
+      email?: string
+      jobId?: string
+      referenceId?: string
+    }
+
+    console.log('New application:', {
+      reference: referenceId ?? snap.id,
+      candidate: fullName ?? 'Unknown',
+      job: jobTitle ?? 'Unknown',
+      email: email ?? 'Unknown'
+    })
+
+    // Track application volume on the job opening (keeps public reads cheap).
+    if (jobId) {
+      try {
+        await admin
+          .firestore()
+          .doc(`job_openings/${jobId}`)
+          .update({
+            totalApplications: admin.firestore.FieldValue.increment(1)
+          })
+      } catch (err) {
+        console.error('Failed to increment job totalApplications:', err)
+      }
+    }
+
+    // TODO: send confirmation email via Resend / SendGrid once an API key is wired.
   })

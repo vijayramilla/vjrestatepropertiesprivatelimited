@@ -145,5 +145,48 @@ service cloud.firestore {
       allow read: if isAdmin() || (request.auth != null && request.auth.uid == resource.data.bidderId);
       allow update, delete: if isAdmin();
     }
+
+    function isValidJobApplicationCreate() {
+      // Applying requires a logged-in user (login gate in the apply modal)
+      // and the application must be tied to the signed-in account.
+      return request.auth != null
+        && request.resource.data.keys().hasAll([
+            'jobId', 'jobTitle', 'fullName', 'email', 'phone', 'status', 'referenceId', 'resumeUrl', 'pinCode', 'applicantUid'
+          ])
+        && request.resource.data.applicantUid == request.auth.uid
+        && request.resource.data.jobId is string
+        && request.resource.data.jobId.size() > 0
+        && request.resource.data.jobTitle is string
+        && request.resource.data.jobTitle.size() > 0
+        && request.resource.data.fullName is string
+        && request.resource.data.fullName.size() > 0
+        && request.resource.data.fullName.size() <= 120
+        && request.resource.data.email is string
+        && request.resource.data.email.size() > 5
+        && request.resource.data.email.size() <= 200
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 10
+        && request.resource.data.phone.size() <= 15
+        && request.resource.data.pinCode is string
+        && request.resource.data.pinCode.matches('[1-9][0-9]{5}')
+        && request.resource.data.status == 'Applied'
+        && request.resource.data.referenceId is string
+        && request.resource.data.referenceId.size() > 0
+        && request.resource.data.resumeUrl is string
+        && (!('applicantLat' in request.resource.data)
+          || request.resource.data.applicantLat is number)
+        && (!('applicantLng' in request.resource.data)
+          || request.resource.data.applicantLng is number);
+    }
+
+    match /job_openings/{jobId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /job_applications/{appId} {
+      allow create: if isValidJobApplicationCreate();
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

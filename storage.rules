@@ -17,5 +17,13 @@ service firebase.storage {
       allow read: if true;
       allow write: if isAdmin() || (request.auth != null && request.auth.uid == uid);
     }
+
+    match /resumes/{jobId}/{fileName} {
+      // Applicants are usually anonymous, so public create is required.
+      // The client validates pdf/doc/docx + 5MB; cap size here as a
+      // defense-in-depth guard (extension matching is done client-side).
+      allow create: if request.resource.size < 5 * 1024 * 1024;
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

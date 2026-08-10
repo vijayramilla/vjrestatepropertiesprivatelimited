@@ -57,6 +57,7 @@ const BangaloreLandInvestmentGuide = lazy(() => import('./pages/BangaloreLandInv
 const AuctionsPage = lazy(() => import('./pages/AuctionsPage'));
 const AdminAuctions = lazy(() => import('./pages/admin/AdminAuctions'));
 const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
+const AdminCareersPage = lazy(() => import('./pages/admin/AdminCareersPage'));
 // const ARVideoPage = lazy(() => import('./pages/ARVideoPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -294,6 +295,14 @@ function AppRoutes() {
         element={
           <AdminRoute>
             <LazyPage><AdminEmployeeForm /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/careers"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminCareersPage /></LazyPage>
           </AdminRoute>
         }
       />

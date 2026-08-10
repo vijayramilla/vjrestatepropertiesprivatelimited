@@ -14,6 +14,7 @@ import {
   PlusCircle,
   Buildings,
   Gavel,
+  Briefcase,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -31,6 +32,7 @@ const profileLinks = [
   { label: 'List Property', path: '/list-property', Icon: PlusCircle },
 
   { label: 'About Us', path: '/about', Icon: Info },
+  { label: 'Careers', path: '/careers', Icon: Briefcase },
   { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
   { label: 'Contact Us', path: '/contact', Icon: Phone },
 ];
@@ -225,6 +227,7 @@ export default function Navbar() {
               { label: 'Blog', path: '/blog' },
               { label: 'Vastu', path: '/vastu-calculator' },
               { label: 'About', path: '/about' },
+              { label: 'Careers', path: '/careers' },
               { label: 'Contact', path: '/contact' },
             ]
               .filter(() => !isMapPage)

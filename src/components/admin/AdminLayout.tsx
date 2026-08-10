@@ -5,6 +5,7 @@ import { signOut } from 'firebase/auth';
 import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase, Scales } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
+import { useUnreviewedApplicationsCount } from '@/hooks/useUnreviewedApplicationsCount';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
 import VJRAIButton from '@/components/ai/VJRAIButton';
 
@@ -23,6 +24,7 @@ const baseNavItems = [
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
   { icon: Scales, label: 'Auctions', path: '/admin/auctions', short: 'Auctions' },
+  { icon: Briefcase, label: 'Careers', path: '/admin/careers', short: 'Jobs' },
   { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
   { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
   { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', short: 'Owners' },
@@ -33,6 +35,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
   const location = useLocation();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const openRequirementsCount = useOpenRequirementsCount();
+  const unreviewedApplicationsCount = useUnreviewedApplicationsCount();
   const { mapOnly } = useSiteSettings();
 
   const isNavActive = (path: string) => {
@@ -94,6 +97,8 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
           const Icon = item.icon;
           const isActive = isNavActive(item.path);
           const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
+          const showCareersBadge =
+            item.path === '/admin/careers' && unreviewedApplicationsCount > 0;
           const showMapDot = item.path === '/admin/settings' && mapOnly;
           return (
             <button
@@ -116,6 +121,11 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
                 {showBadge && (
                   <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold text-black">
                     {openRequirementsCount > 99 ? '99+' : openRequirementsCount}
+                  </span>
+                )}
+                {showCareersBadge && (
+                  <span className="rounded-full bg-[#C9A84C] px-2 py-0.5 text-[10px] font-bold text-[#0A1628]">
+                    {unreviewedApplicationsCount > 99 ? '99+' : unreviewedApplicationsCount}
                   </span>
                 )}
               </span>
@@ -229,13 +239,15 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
             const Icon = item.icon;
             const isActive = isNavActive(item.path);
             const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
+            const showCareersBadge =
+              item.path === '/admin/careers' && unreviewedApplicationsCount > 0;
             const showMapDot = item.path === '/admin/settings' && mapOnly;
             return (
               <button
                 key={item.path}
                 type="button"
                 onClick={() => navigate(item.path)}
-                className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-200 ${
+                className={`relative flex min-w-[68px] flex-none flex-col items-center justify-center gap-0.5 py-2.5 transition-colors duration-200 ${
                   isActive ? 'text-white' : 'text-gray-500 hover:text-gray-300'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
@@ -249,6 +261,11 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
                 {showBadge && (
                   <span className="absolute right-[18%] top-1 min-w-[16px] rounded-full bg-white px-1 text-[8px] font-bold text-black">
                     {openRequirementsCount > 9 ? '9+' : openRequirementsCount}
+                  </span>
+                )}
+                {showCareersBadge && (
+                  <span className="absolute right-[18%] top-1 min-w-[16px] rounded-full bg-[#C9A84C] px-1 text-[8px] font-bold text-[#0A1628]">
+                    {unreviewedApplicationsCount > 9 ? '9+' : unreviewedApplicationsCount}
                   </span>
                 )}
                 <span className="text-[10px] font-semibold uppercase tracking-wide">{item.short}</span>
