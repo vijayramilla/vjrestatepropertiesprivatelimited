@@ -109,7 +109,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
       >
         <Card className="group overflow-hidden border-gray-100 shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
           <button type="button" onClick={goToDetail} className="w-full text-left cursor-pointer">
-            <div className="relative aspect-[16/10] w-full overflow-hidden bg-gray-100">
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
               <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
               {coverImage && !imgError ? (
                 <LazyImage src={coverImage} alt={saleTitle} priority={index === 0}
@@ -138,27 +138,27 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
               </button>
             </div>
 
-            <CardContent className="p-3.5">
-              <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-1">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-0.5">
                 <MapPin size={10} weight="fill" className="text-gray-300 shrink-0" />
                 <span className="truncate">{cityName}</span>
               </div>
 
-              <h3 className="text-sm font-semibold leading-snug text-gray-900 line-clamp-2 mb-2">
+              <h3 className="text-[13px] font-semibold leading-snug text-gray-900 line-clamp-2 mb-1.5">
                 {saleTitle}
               </h3>
 
-              <div className="flex items-baseline gap-1.5 mb-2.5">
-                <span className="text-lg font-bold text-gray-900 tracking-tight">
+              <div className="flex items-baseline gap-1.5 mb-2">
+                <span className="text-base font-bold text-gray-900 tracking-tight">
                   {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}
                 </span>
               </div>
 
               {detailChips.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   {detailChips.map((chip) => (
                     <span key={chip.label}
-                      className="inline-flex items-center rounded-md bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200/80">
+                      className="inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200/80">
                       {chip.value}
                     </span>
                   ))}
@@ -167,22 +167,22 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
             </CardContent>
           </button>
 
-          <CardFooter className="border-t border-gray-100 p-3.5 pt-3">
-            <div className="flex items-center gap-2 w-full">
+          <CardFooter className="border-t border-gray-100 p-3 pt-2.5">
+            <div className="flex items-center gap-1.5 w-full">
               <Button variant="outline" size="sm" onClick={handleShare}
-                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg">
-                <ShareNetwork size={12} weight="duotone" />
+                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg px-2 sm:h-7">
+                <ShareNetwork size={11} weight="duotone" />
                 {shareFeedback || 'Share'}
               </Button>
               <Button size="sm"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setContactOpen(true); }}
                 disabled={waLoading}
-                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg bg-gray-900 hover:bg-gray-800 text-white">
+                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg px-2 bg-gray-900 hover:bg-gray-800 text-white sm:h-7">
                 {waLoading ? '...' : 'WhatsApp'}
               </Button>
               <Button variant="outline" size="icon" onClick={goToDetail}
-                className="h-8 w-8 shrink-0 rounded-lg">
-                <ArrowRight size={12} weight="bold" />
+                className="h-8 w-8 shrink-0 rounded-lg sm:h-7 sm:w-7">
+                <ArrowRight size={11} weight="bold" />
               </Button>
             </div>
           </CardFooter>

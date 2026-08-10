@@ -1,26 +1,17 @@
-import { Suspense, lazy } from 'react';
 import FadeIn from '../components/FadeIn';
 import AnimatedHeading from '../components/AnimatedHeading';
 import HomeListingsSection from '../components/home/HomeListingsSection';
 import HomePropertyGrid from '../components/home/HomePropertyGrid';
 import HomeSquareYardsExtra from '../components/home/HomeSquareYardsExtra';
 import HomeSearchBar from '../components/home/HomeSearchBar';
+import HomeCategoryGrid from '../components/home/HomeCategoryGrid';
+import HomeHowItWorks from '../components/home/HomeHowItWorks';
+import HomeInsights from '../components/home/HomeInsights';
+import HomeContactCta from '../components/home/HomeContactCta';
 import VJRAIButton from '../components/ai/VJRAIButton';
-
-const HomeVjrSparkles = lazy(() => import('../components/home/HomeVjrSparkles'));
 
 const BG_VIDEO =
   'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260403_050628_c4e32401-fab4-4a27-b7a8-6e9291cd5959.mp4';
-
-function SectionFallback({ minHeight = '16rem' }: { minHeight?: string }) {
-  return (
-    <div
-      className="animate-pulse bg-gray-100"
-      style={{ minHeight }}
-      aria-hidden
-    />
-  );
-}
 
 export default function HomePage() {
   return (
@@ -41,6 +32,10 @@ export default function HomePage() {
 
         <div className="relative z-20 flex flex-col justify-center min-h-screen px-6 md:px-12 lg:px-16 pt-32">
           <FadeIn delay={200} duration={1000} className="mb-8 max-w-3xl">
+            <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C9A84C]">
+              <span className="inline-block h-px w-10 bg-[#C9A84C]" />
+              Bengaluru · Premium Real Estate
+            </p>
             <AnimatedHeading
               text="Bangalore Real Estate"
               className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 text-white"
@@ -60,13 +55,13 @@ export default function HomePage() {
       </section>
 
       {/* Cards below hero */}
+      <HomeCategoryGrid />
       <HomeListingsSection />
       <HomePropertyGrid />
       <HomeSquareYardsExtra />
-
-      <Suspense fallback={<SectionFallback minHeight="32rem" />}>
-        <HomeVjrSparkles />
-      </Suspense>
+      <HomeHowItWorks />
+      <HomeInsights />
+      <HomeContactCta />
 
       <VJRAIButton userRole="public" />
     </div>

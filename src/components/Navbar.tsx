@@ -87,12 +87,12 @@ export default function Navbar() {
   const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
-  const isMapPage = location.pathname === '/' || location.pathname === '/map' || location.pathname === '/list-property';
+  const isMapPage = location.pathname === '/map' || location.pathname === '/list-property';
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
 
-  const isTransparent = isHome && onHero && !isMapPage;
+  const isTransparent = isHome && onHero;
   const iconColor = isTransparent ? '#ffffff' : '#0A1628';
   const iconMuted = isTransparent ? 'rgba(255,255,255,0.72)' : '#888888';
   const labelColor = isTransparent ? 'rgba(255,255,255,0.55)' : '#888888';

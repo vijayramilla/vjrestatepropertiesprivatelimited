@@ -7,7 +7,7 @@ import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 function SkeletonCard() {
   return (
     <div className="overflow-hidden rounded-lg border border-gray-100 bg-white shadow-sm">
-      <div className="aspect-[16/10] bg-gray-100 animate-pulse" />
+      <div className="aspect-[16/9] bg-gray-100 animate-pulse" />
       <div className="p-3.5 space-y-2.5">
         <div className="h-3 w-1/3 rounded bg-gray-100 animate-pulse" />
         <div className="h-4 w-2/3 rounded bg-gray-100 animate-pulse" />
@@ -42,7 +42,7 @@ export default function HomeListingsSection() {
       (docs) => {
         if (cancelled) return;
         setLatestProperties(
-          docs.slice(0, 3).map(({ id, data }) => ({ id, ...data }) as HomeListingDoc),
+          docs.slice(0, 4).map(({ id, data }) => ({ id, ...data }) as HomeListingDoc),
         );
         setLoading(false);
       },
@@ -62,12 +62,13 @@ export default function HomeListingsSection() {
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p
-              className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#888]"
+              className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-[#C9A84C]"
               style={{ fontFamily: DM_SANS }}
             >
+              <span className="inline-block h-px w-6 bg-[#C9A84C]" />
                 Trending Now
               </p>
-              <h2 className="font-display mt-1 text-2xl text-black md:text-[28px]">Trending Picks</h2>
+              <h2 className="font-display mt-2 text-2xl text-[#0A1628] md:text-[28px]">Trending Picks</h2>
           </div>
           <Link
             to="/properties"
@@ -77,9 +78,9 @@ export default function HomeListingsSection() {
             View all properties
           </Link>
         </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
           {loading
-            ? [...Array(3)].map((_, i) => <SkeletonCard key={i} />)
+            ? [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
             : latestProperties.map((property, index) => (
                 <PremiumPropertyCard key={property.id} property={property} index={index} />
               ))}
