@@ -66,15 +66,16 @@ export function subscribeSupabaseTable<T>(
   onData: (rows: T[]) => void,
   options?: { filter?: (row: T) => boolean },
 ): () => void {
-  if (!client) return () => {};
+  if (!client) {
+    onData([]);
+    return () => {};
+  }
 
   let disposed = false;
   let channel: ReturnType<SupabaseClient['channel']> | null = null;
 
   const fetchAll = async () => {
     try {
-      // PostgREST caps a single response at 1000 rows; page through so feeds
-      // never silently truncate (Firestore had no such limit).
       const all: unknown[] = [];
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
@@ -90,7 +91,7 @@ export function subscribeSupabaseTable<T>(
       const rows = all as unknown as T[];
       onData(options?.filter ? rows.filter(options.filter) : rows);
     } catch (e: any) {
-      console.error(`[subscribeSupabaseTable] ${table} fetch failed:`, e?.message ?? e);
+      if (!disposed) onData([]);
     }
   };
 
