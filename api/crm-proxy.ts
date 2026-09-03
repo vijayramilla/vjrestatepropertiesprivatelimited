@@ -70,7 +70,7 @@ async function verifyToken(token: string): Promise<{ authorized: boolean; email:
     if (!error && admins?.length > 0) return { authorized: true, email: normalized, uid, role: admins[0].role, permissions: admins[0].permissions };
     return { authorized: false, email, uid };
   } catch {
-    return { authorized: false, email: '' };
+    return { authorized: false, email: '', uid: '' };
   }
 }
 
