@@ -13,6 +13,13 @@ window.onerror = (msg, _url, line, col, err) => {
   document.body.appendChild(div);
 };
 
+// When a lazy-loaded chunk fails to load (stale index.html after deploy),
+// reload once to fetch the fresh index.html with correct chunk hashes.
+window.addEventListener('vite:preloadError', (e) => {
+  e.preventDefault();
+  window.location.reload();
+});
+
 function deferAnalytics() {
   const run = () => {
     void import('./lib/firebase').then(({ initFirebaseAnalytics }) => initFirebaseAnalytics());
