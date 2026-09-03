@@ -89,8 +89,8 @@ export function subscribeSupabaseTable<T>(
       if (disposed) return;
       const rows = all as unknown as T[];
       onData(options?.filter ? rows.filter(options.filter) : rows);
-    } catch {
-      /* non-fatal — realtime refetch will retry */
+    } catch (e: any) {
+      console.error(`[subscribeSupabaseTable] ${table} fetch failed:`, e?.message ?? e);
     }
   };
 
