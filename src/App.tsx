@@ -8,6 +8,7 @@ import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsCon
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import CrmRoute from './components/CrmRoute';
+import EmployeeRoute from './components/EmployeeRoute';
 import PageLoader from './components/PageLoader';
 import MapLoadingSkeleton from './components/map/MapLoadingSkeleton';
 
@@ -25,6 +26,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const BangaloreMap = lazy(() => import('./pages/BangaloreMap'));
 const EmiCalculatorPage = lazy(() => import('./pages/EmiCalculatorPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
+const EmployeeLogin = lazy(() => import('./pages/crm/EmployeeLogin'));
 const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
 const AdminPropertyForm = lazy(() => import('./pages/admin/AdminPropertyForm'));
 const AdminLeadsList = lazy(() => import('./pages/admin/AdminLeadsList'));
@@ -36,17 +38,23 @@ const AdminListingsDashboard = lazy(() => import('./pages/admin/AdminListingsDas
 const AdminBlogPosts = lazy(() => import('./pages/admin/AdminBlogPosts'));
 const AdminBlogPostForm = lazy(() => import('./pages/admin/AdminBlogPostForm'));
 const AdminOwnerContacts = lazy(() => import('./pages/admin/AdminOwnerContacts'));
-const AdminCrm = lazy(() => import('./pages/admin/AdminCrm'));
+
 const CrmEarnings = lazy(() => import('./pages/admin/CrmEarnings'));
-const CrmData = lazy(() => import('./pages/admin/CrmData'));
 const AdminLeads = lazy(() => import('./pages/admin/AdminLeads'));
 const LeadDetail = lazy(() => import('./pages/admin/LeadDetail'));
 const AdminAgents = lazy(() => import('./pages/admin/AdminAgents'));
-const AdminMongoDbData = lazy(() => import('./pages/admin/AdminMongoDbData'));
 const AdminProfile = lazy(() => import('./pages/crm/AdminProfile'));
-const AdminEmployeesList = lazy(() => import('./pages/admin/AdminEmployeesList'));
-const AdminEmployeeForm = lazy(() => import('./pages/admin/AdminEmployeeForm'));
-const AdminEmployeeDetail = lazy(() => import('./pages/admin/AdminEmployeeDetail'));
+const CrmEmployees = lazy(() => import('./pages/crm/CrmEmployees'));
+const CrmStorage = lazy(() => import('./pages/crm/CrmStorage'));
+const CrmEvents = lazy(() => import('./pages/crm/CrmEvents'));
+const CrmHome = lazy(() => import('./pages/crm/CrmHome'));
+const CrmEmployeeForm = lazy(() => import('./pages/crm/CrmEmployeeForm'));
+const CrmEmployeeDetail = lazy(() => import('./pages/crm/CrmEmployeeDetail'));
+const CrmMyClients = lazy(() => import('./pages/crm/CrmMyClients'));
+const CrmLeads = lazy(() => import('./pages/crm/CrmLeads'));
+const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
+const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
+const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
 const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
@@ -60,6 +68,8 @@ const AuctionsPage = lazy(() => import('./pages/AuctionsPage'));
 const AdminAuctions = lazy(() => import('./pages/admin/AdminAuctions'));
 const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
 const AdminCareersPage = lazy(() => import('./pages/admin/AdminCareersPage'));
+const AdminStorage = lazy(() => import('./pages/admin/AdminStorage'));
+const AdminPayrollPage = lazy(() => import('./pages/admin/AdminPayrollPage'));
 // const ARVideoPage = lazy(() => import('./pages/ARVideoPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -124,8 +134,8 @@ function AppRoutes() {
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
-        <Route path="/vastu-calculator" element={<LazyPage><VastuCalculatorPage /></LazyPage>} />
-        <Route path="/property-valuation" element={<LazyPage><PremiumValuationPage /></LazyPage>} />
+        <Route path="/vastu-calculator" element={<Navigate to="/properties" replace />} />
+        <Route path="/property-valuation" element={<Navigate to="/properties" replace />} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
         <Route path="/bangalore-land-investment-guide" element={<LazyPage><BangaloreLandInvestmentGuide /></LazyPage>} />
@@ -137,8 +147,9 @@ function AppRoutes() {
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
 
-      <Route path="/map" element={<MapPage />} />
+      <Route path="/map" element={<Navigate to="/properties" replace />} />
       <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
+      <Route path="/employee-login" element={<LazyPage><EmployeeLogin /></LazyPage>} />
       <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
       <Route
         path="/admin/properties"
@@ -269,38 +280,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/employees"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminEmployeesList /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/employees/new"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminEmployeeForm /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/employees/:id"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminEmployeeDetail /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/employees/:id/edit"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminEmployeeForm /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
         path="/admin/careers"
         element={
           <AdminRoute>
@@ -309,10 +288,34 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/storage"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminStorage /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/payroll"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminPayrollPage /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
         path="/crm"
         element={
           <CrmRoute>
-            <LazyPage><AdminCrm /></LazyPage>
+            <LazyPage><CrmHome /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/leads"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmLeads /></LazyPage>
           </CrmRoute>
         }
       />
@@ -321,14 +324,6 @@ function AppRoutes() {
         element={
           <CrmRoute>
             <LazyPage><CrmEarnings /></LazyPage>
-          </CrmRoute>
-        }
-      />
-      <Route
-        path="/crm/data"
-        element={
-          <CrmRoute>
-            <LazyPage><CrmData /></LazyPage>
           </CrmRoute>
         }
       />
@@ -357,10 +352,90 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/crm/mongodb-data"
+        path="/crm/employees"
         element={
           <CrmRoute>
-            <LazyPage><AdminMongoDbData /></LazyPage>
+            <LazyPage><CrmEmployees /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/employees/new"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEmployeeForm /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/employees/:id"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEmployeeDetail /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/employees/:id/dashboard"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEmployeeDashboard /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/employees/:id/edit"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEmployeeForm /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/my-clients"
+        element={
+          <EmployeeRoute>
+            <LazyPage><CrmMyClients /></LazyPage>
+          </EmployeeRoute>
+        }
+      />
+      <Route
+        path="/crm/dashboard"
+        element={
+          <EmployeeRoute>
+            <LazyPage><CrmEmployeeDashboard /></LazyPage>
+          </EmployeeRoute>
+        }
+      />
+      <Route
+        path="/crm/storage"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmStorage /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/attendance"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmAttendance /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/geofences"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmGeofences /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/events"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmEvents /></LazyPage>
           </CrmRoute>
         }
       />

@@ -1,3 +1,7 @@
+/** Google Maps server key — env var wins, falls back to the current production key. */
+const MAPS_SERVER_KEY =
+  process.env.GOOGLE_MAPS_SERVER_KEY ?? 'AIzaSyBSalDHPAJQmCsZHXJdGx_mvoN9jRz1G4A';
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, error: 'Method not allowed', errorStage: 'http' });
@@ -180,11 +184,7 @@ function extractPlaceIdFromUrl(url: string): string | null {
 /** Get place details from Places API */
 async function getPlaceDetails(placeId: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
-    if (!apiKey) {
-      console.error('GOOGLE_MAPS_SERVER_KEY not configured');
-      return null;
-    }
+    const apiKey = MAPS_SERVER_KEY;
 
     const url = `https://places.googleapis.com/v1/places/${placeId}?fields=location&key=${apiKey}`;
     console.log('  📡 Calling Places API...');
@@ -246,11 +246,7 @@ function extractPlaceNameFromUrl(url: string): string | null {
 /** Forward geocode an address */
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
   try {
-    const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
-    if (!apiKey) {
-      console.error('GOOGLE_MAPS_SERVER_KEY not configured');
-      return null;
-    }
+    const apiKey = MAPS_SERVER_KEY;
 
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
     console.log('  📡 Calling Geocoding API...');
@@ -286,17 +282,7 @@ async function getAreaFromCoordinates(lat: number, lng: number): Promise<{
   fullAddress: string;
 }> {
   try {
-    const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY;
-    if (!apiKey) {
-      console.error('GOOGLE_MAPS_SERVER_KEY not configured');
-      return {
-        areaName: 'Unknown',
-        city: 'Unknown',
-        state: 'Unknown',
-        pincode: '',
-        fullAddress: `${lat}, ${lng}`
-      };
-    }
+    const apiKey = MAPS_SERVER_KEY;
 
     const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
     console.log('  📡 Calling Reverse Geocoding API...');

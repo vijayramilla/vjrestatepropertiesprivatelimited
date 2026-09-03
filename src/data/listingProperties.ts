@@ -62,7 +62,7 @@ export function getTypeBadgeLabel(type: string): string {
   if (type === 'PG Building') return 'PG BUILDING';
   if (type === 'Residential Rental') return 'RESIDENTIAL';
   if (type === 'Commercial') return 'COMMERCIAL';
-  return 'PLOT';
+  return 'OTHER';
 }
 
 export function isPlotType(type: string): boolean {

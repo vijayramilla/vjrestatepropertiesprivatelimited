@@ -196,9 +196,10 @@ export default function LeadDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[1600px] px-4 pb-6 pt-[74px] sm:px-6 lg:px-8 lg:py-8">
         <button
           onClick={() => navigate('/crm/requirements')}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-5 transition-colors"
@@ -212,60 +213,62 @@ export default function LeadDetail() {
           </p>
         )}
 
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
-          <div className="w-full min-w-0">
+        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-br from-[#0A1628] via-[#14263C] to-[#1E3852] p-5 shadow-[0_12px_32px_rgba(10,22,40,0.25)] sm:p-7">
+          <div className="pointer-events-none absolute -right-12 -top-16 h-52 w-52 rounded-full bg-[#C9A84C]/[0.16] blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-24 right-28 h-44 w-44 rounded-full bg-[#D6B85D]/[0.08] blur-2xl" />
+          <div className="relative">
             {editing ? (
-              <div className="space-y-2 mb-2">
-                <input value={editForm.name ?? ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-['Fraunces',serif] text-[26px] sm:text-[32px] font-semibold tracking-tight w-full bg-transparent border-b border-blue-400 outline-none pb-0.5" />
-                <div className="flex items-center gap-3 flex-wrap text-sm">
-                  <span className="font-mono text-blue-500">{lead.leadId}</span>
-                  <input value={editForm.phone ?? ''} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="h-8 px-2 rounded-lg border border-border bg-muted/30 text-sm outline-none focus:border-blue-400 w-[150px]" />
-                  <input value={editForm.email ?? ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="h-8 px-2 rounded-lg border border-border bg-muted/30 text-sm outline-none focus:border-blue-400 w-[200px]" placeholder="Email" />
-                  <span className="flex items-center gap-1 text-muted-foreground">
+              <div className="space-y-2">
+                <input value={editForm.name ?? ''} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="w-full border-b border-[#C9A84C]/50 bg-transparent pb-1 font-['Inter',sans-serif] text-[24px] font-semibold tracking-tight text-white outline-none sm:text-[30px]" />
+                <div className="flex flex-wrap items-center gap-2.5 text-sm">
+                  <span className="font-mono text-[#D6B85D]">{lead.leadId}</span>
+                  <input value={editForm.phone ?? ''} onChange={(e) => setEditForm({...editForm, phone: e.target.value})} className="h-9 w-[150px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#C9A84C]" />
+                  <input value={editForm.email ?? ''} onChange={(e) => setEditForm({...editForm, email: e.target.value})} className="h-9 w-[200px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#C9A84C]" placeholder="Email" />
+                  <span className="flex items-center gap-1 text-white/70">
                     Source:
-                    <input value={editForm.leadSource ?? ''} onChange={(e) => setEditForm({...editForm, leadSource: e.target.value})} className="h-8 px-2 rounded-lg border border-border bg-muted/30 text-sm outline-none focus:border-blue-400 w-[130px]" />
+                    <input value={editForm.leadSource ?? ''} onChange={(e) => setEditForm({...editForm, leadSource: e.target.value})} className="h-9 w-[130px] rounded-lg border border-white/15 bg-white/10 px-2.5 text-sm text-white outline-none placeholder:text-white/40 focus:border-[#C9A84C]" />
                   </span>
-                  <select value={editForm.priority ?? ''} onChange={(e) => setEditForm({...editForm, priority: e.target.value})} className="h-8 px-2 rounded-lg border border-border bg-muted/30 text-sm outline-none">
-                    {LEAD_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  <select value={editForm.priority ?? ''} onChange={(e) => setEditForm({...editForm, priority: e.target.value})} className="h-9 rounded-lg border border-white/15 bg-white/10 px-2.5 text-sm text-white outline-none">
+                    {LEAD_PRIORITIES.map((p) => <option key={p} value={p} className="text-[#0A1628]">{p}</option>)}
                   </select>
                 </div>
               </div>
             ) : (
               <>
-                <div className="flex items-center gap-3 mb-1 flex-wrap">
-                  <h1 className="font-['Fraunces',serif] text-[26px] sm:text-[32px] font-semibold tracking-tight m-0">{lead.name}</h1>
-                  <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${STATUS_COLORS[lead.status] ?? ''}`}>{lead.status}</span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${lead.priority === 'High' || lead.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{lead.priority}</span>
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="m-0 font-['Inter',sans-serif] text-[26px] font-semibold tracking-tight text-white sm:text-[34px]">{lead.name}</h1>
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-bold ${STATUS_COLORS[lead.status] ?? 'bg-gray-100 text-gray-600'}`}>{lead.status}</span>
+                  <span className={`rounded px-2 py-0.5 text-[10px] font-bold ${lead.priority === 'High' || lead.priority === 'Urgent' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}`}>{lead.priority}</span>
                 </div>
-                <p className="text-muted-foreground text-[13px] flex items-center gap-3 flex-wrap">
-                  <span className="font-mono text-blue-500">{lead.leadId}</span>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-white/75">
+                  <span className="font-mono text-[#D6B85D]">{lead.leadId}</span>
                   <span>{lead.phone}</span>
                   {lead.email && <span>{lead.email}</span>}
                   <span>Source: {lead.leadSource}</span>
-                </p>
+                </div>
               </>
             )}
           </div>
-          <div className="flex gap-2 w-full sm:w-auto">
+          <div className="relative mt-5 flex flex-wrap gap-2">
             {editing ? (
               <>
-                <button onClick={cancelEditing} className="flex-1 sm:flex-none px-4 py-2.5 rounded-full border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">
-                  <X className="w-3.5 h-3.5 inline mr-1" />Cancel
+                <button onClick={cancelEditing} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-white/20 px-4 py-2.5 text-xs font-bold text-white/80 transition-colors hover:bg-white/10">
+                  <X className="h-3.5 w-3.5" />Cancel
                 </button>
-                <button onClick={saveEditing} disabled={saving} className="flex-1 sm:flex-none px-4 py-2.5 rounded-full text-xs font-bold text-white bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all disabled:opacity-50">
-                  <Check className="w-3.5 h-3.5 inline mr-1" />{saving ? 'Saving...' : 'Save'}
+                <button onClick={saveEditing} disabled={saving} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] px-4 py-2.5 text-xs font-bold text-[#0A1628] shadow-[0_2px_8px_rgba(201,168,76,0.4)] transition-all disabled:opacity-50">
+                  <Check className="h-3.5 w-3.5" />{saving ? 'Saving...' : 'Save'}
                 </button>
               </>
             ) : (
               <>
                 {canEdit && (
-                  <button onClick={startEditing} className="flex-1 sm:flex-none px-4 py-2.5 rounded-full border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">
-                    <Pencil className="w-3.5 h-3.5 inline mr-1" />Edit
+                  <button onClick={startEditing} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-white/20 px-4 py-2.5 text-xs font-bold text-white/85 transition-colors hover:bg-white/10">
+                    <Pencil className="h-3.5 w-3.5" />Edit
                   </button>
                 )}
                 {canEdit && (
-                  <button onClick={handleDelete} className="flex-1 sm:flex-none px-4 py-2.5 rounded-full border border-red-200 text-xs font-bold text-red-500 bg-card hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                    <Trash2 className="w-3.5 h-3.5 inline mr-1" />Delete
+                  <button onClick={handleDelete} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-500/20">
+                    <Trash2 className="h-3.5 w-3.5" />Delete
                   </button>
                 )}
               </>
@@ -276,7 +279,7 @@ export default function LeadDetail() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-4 flex items-center gap-2">
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-4 flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" /> Requirements
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -313,7 +316,7 @@ export default function LeadDetail() {
             </div>
 
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-4">Lead Progress</h2>
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-4">Lead Progress</h2>
               <div className="flex items-center gap-0 mb-2">
                 {STATUS_FLOW.map((step, i) => {
                   const curIdx = STATUS_FLOW.indexOf(lead.status);
@@ -339,7 +342,7 @@ export default function LeadDetail() {
             </div>
 
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-4">Notes</h2>
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-4">Notes</h2>
               {canEdit && (
                 <div className="flex gap-2 mb-4">
                   <input
@@ -367,7 +370,7 @@ export default function LeadDetail() {
 
           <div className="space-y-6">
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-3 flex items-center gap-2">
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-3 flex items-center gap-2">
                 <UserPlus className="w-4 h-4 text-purple-500" /> Assigned Agent
               </h2>
               <select
@@ -388,7 +391,7 @@ export default function LeadDetail() {
             </div>
 
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-3 flex items-center gap-2">
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-3 flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-amber-500" /> Schedule Follow-up
               </h2>
               <div className="space-y-2.5 mb-4">
@@ -416,7 +419,7 @@ export default function LeadDetail() {
             </div>
 
             <div className="bg-card border border-border/60 rounded-xl p-6">
-              <h2 className="font-['Fraunces',serif] text-base font-semibold mb-3 flex items-center gap-2">
+              <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-3 flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-emerald-500" /> Site Visit
               </h2>
               <div className="space-y-2.5 mb-4">
@@ -444,7 +447,7 @@ export default function LeadDetail() {
         </div>
 
         <div className="bg-card border border-border/60 rounded-xl p-6 mb-8">
-          <h2 className="font-['Fraunces',serif] text-base font-semibold mb-4 flex items-center gap-2">
+          <h2 className="font-['Inter',sans-serif] text-base font-semibold mb-4 flex items-center gap-2">
             <RefreshCw className="w-4 h-4 text-muted-foreground" /> Activity History
           </h2>
           <div className="relative pl-6 space-y-0">
@@ -459,6 +462,7 @@ export default function LeadDetail() {
               </div>
             ))}
           </div>
+        </div>
         </div>
       </main>
     </div>

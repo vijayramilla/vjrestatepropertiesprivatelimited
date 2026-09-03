@@ -20,6 +20,7 @@ import { db, rtdb } from '@/lib/firebase'
 import { formatINR } from '@/lib/formatPrice'
 import type { Auction } from '@/data/auctionCategories'
 import GoogleSignInButton from '@/components/GoogleSignInButton'
+import { useSupabaseData, supabasePlaceBid } from '@/lib/supabaseData'
 
 type Step = 'bid' | 'confirm' | 'success' | 'notify'
 
@@ -93,27 +94,36 @@ export default function BidModal({
     setLoading(true)
     setError('')
     try {
-      // Save bid to Firestore
-      await addDoc(collection(db, 'auction_bids'), {
-        auctionId: auction.id,
-        bidderId: currentUser.uid,
-        bidderName: maskBidderName(currentUser.displayName || 'Anonymous'),
-        amount: bidAmount,
-        timestamp: serverTimestamp(),
-        isWinning: true,
-      })
+      if (useSupabaseData()) {
+        // Atomic, race-safe bid placement via the place_bid RPC (proxy + service role).
+        await supabasePlaceBid(
+          auction.id,
+          bidAmount,
+          maskBidderName(currentUser.displayName || 'Anonymous'),
+        )
+      } else {
+        // Save bid to Firestore
+        await addDoc(collection(db, 'auction_bids'), {
+          auctionId: auction.id,
+          bidderId: currentUser.uid,
+          bidderName: maskBidderName(currentUser.displayName || 'Anonymous'),
+          amount: bidAmount,
+          timestamp: serverTimestamp(),
+          isWinning: true,
+        })
 
-      // Update auction in Firestore
-      await updateDoc(doc(db, 'auctions', auction.id), {
-        currentBid: bidAmount,
-        totalBids: increment(1),
-      })
+        // Update auction in Firestore
+        await updateDoc(doc(db, 'auctions', auction.id), {
+          currentBid: bidAmount,
+          totalBids: increment(1),
+        })
 
-      // Mirror to Realtime Database for live updates (atomic increment)
-      await update(ref(rtdb, `auctions/${auction.id}`), {
-        currentBid: bidAmount,
-        totalBids: rtdbIncrement(1),
-      })
+        // Mirror to Realtime Database for live updates (atomic increment)
+        await update(ref(rtdb, `auctions/${auction.id}`), {
+          currentBid: bidAmount,
+          totalBids: rtdbIncrement(1),
+        })
+      }
 
       setStep('success')
     } catch (err) {

@@ -30,7 +30,7 @@ export default function AdminSettings() {
               </span>
             </div>
             <p className="text-sm text-gray-500">
-              When enabled, only the Land Map page will be visible to users.
+              When enabled, only the map page will be visible to users.
               All other pages, header, and footer will be hidden.
             </p>
           </div>
@@ -64,7 +64,7 @@ export default function AdminSettings() {
               <div className="text-sm text-yellow-800">
                 <p className="font-medium">Map Only Mode is active</p>
                 <p className="mt-1">
-                  Users will only see the Land Map page without header, footer, or navigation.
+                  Users will only see the map page without header, footer, or navigation.
                   They will be redirected to the map regardless of which URL they visit.
                 </p>
               </div>

@@ -13,6 +13,7 @@ import { fetchNearbyPlaces, type NearbyPlace } from '@/utils/fetchNearbyPlaces';
 import { generateAIAnalysis } from '@/utils/aiAnalyze';
 import { collection, onSnapshot, type QueryDocumentSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useSupabaseData, subscribeSupabaseTable, propertyRowToDoc } from '@/lib/supabaseData';
 import { setDefaultSiteMeta } from '@/lib/siteMeta';
 import { BANGALORE_COORDINATES, resolveMapLocalityName } from '@/data/bangaloreCoordinates';
 import {
@@ -284,7 +285,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const filterCount = (activeBudget.label !== 'All Budgets' ? 1 : 0) + (activeCategories.length > 0 && activeCategories.length < LAND_TYPES.length ? 1 : 0);
 
   useEffect(() => {
-    document.title = 'VJR Land Map | Plots & Land in Bangalore';
+    document.title = 'VJR Estate | Properties in Bangalore';
     return () => {
       setDefaultSiteMeta();
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
@@ -292,6 +293,28 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   }, []);
 
   useEffect(() => {
+    if (useSupabaseData()) {
+      // Supabase rows are mapped through the same doc shape so the existing
+      // mapFirestoreDoc logic keeps working unchanged.
+      const unsub = subscribeSupabaseTable<Record<string, unknown>>(
+        'properties',
+        (rows) => {
+          const data = rows
+            .map((row) => {
+              const docLike = {
+                id: String(row.id),
+                data: () => propertyRowToDoc(row as never),
+              } as unknown as QueryDocumentSnapshot;
+              return mapFirestoreDoc(docLike);
+            })
+            .filter((item): item is MapProperty => item !== null);
+          setProperties(data);
+          setLoading(false);
+        },
+      );
+      return () => unsub();
+    }
+
     const unsubscribe = onSnapshot(
       collection(db, 'properties'),
       (snapshot) => {

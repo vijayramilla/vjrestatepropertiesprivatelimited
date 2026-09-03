@@ -22,6 +22,8 @@ dist-ssr
 *.sw?
 .env
 .env.production
+.env.migration
+serviceAccountKey.json
 .bolt/
 __pycache__/
 *.pyc

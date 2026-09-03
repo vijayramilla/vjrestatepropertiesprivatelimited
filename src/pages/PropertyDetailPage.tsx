@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useSupabaseData, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice } from '@/lib/formatPrice';
 import { formatArea } from '@/lib/plotLandForm';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
@@ -215,11 +216,20 @@ export default function PropertyDetailPage() {
 
     const fetchProperty = async () => {
       try {
-        const docSnap = await getDoc(doc(db, 'properties', id));
-        if (docSnap.exists()) {
-          setProperty(mapFirestoreToProperty(docSnap.id, docSnap.data()));
+        if (useSupabaseData()) {
+          const doc = await supabaseGetProperty(id);
+          if (doc) {
+            setProperty(mapFirestoreToProperty(id, doc));
+          } else {
+            setProperty(null);
+          }
         } else {
-          setProperty(null);
+          const docSnap = await getDoc(doc(db, 'properties', id));
+          if (docSnap.exists()) {
+            setProperty(mapFirestoreToProperty(docSnap.id, docSnap.data()));
+          } else {
+            setProperty(null);
+          }
         }
       } catch (error) {
         console.error('Error fetching property:', error);

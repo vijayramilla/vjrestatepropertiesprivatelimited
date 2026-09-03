@@ -3,6 +3,7 @@ import { leadSupabase } from '@/services/leadSupabase';
 import { getCrmClients, type SheetClient } from '@/data/crmClientsData';
 import { IndianRupee, Clock, CheckCircle2, Calendar } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
+import { CrmPageBody, CrmPageHeader, CrmStatCard, CrmStatGrid, CrmChip, CrmCard, MotionReveal } from '@/components/crm/CrmUi';
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -117,79 +118,49 @@ export default function CrmEarnings() {
   }, [earningsData, statusFilter, yearFilter]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-12 h-12 rounded-xl bg-muted border border-border flex items-center justify-center">
-            <IndianRupee className="w-6 h-6 text-muted-foreground" />
-          </div>
-          <div>
-            <h1 className="font-['Fraunces',serif] text-[28px] font-semibold tracking-tight m-0 text-foreground">
-              Earnings
-            </h1>
-            <p className="text-muted-foreground text-[13.5px] mt-0.5">
-              {earningsData.clients.length} clients with commission
-            </p>
-          </div>
-        </div>
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <CrmPageBody>
+        <CrmPageHeader
+          eyebrow="Revenue"
+          title="Earnings"
+          description={`${earningsData.clients.length} clients with commission`}
+        />
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
-          <div className="border border-border rounded-xl p-5 bg-card">
-            <div className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground mb-1">Total Commission</div>
-            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-emerald-600">
-              ₹{formatIndian(earningsData.total)}
-            </div>
-            <div className="text-xs text-emerald-400 mt-0.5">{formatLakhText(earningsData.total)}</div>
-          </div>
-          <div className="border border-border rounded-xl p-5 bg-card">
-            <div className="flex items-center gap-2 mb-1">
-              <Clock className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground">Pending Amount</span>
-            </div>
-            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-amber-600">
-              ₹{formatIndian(earningsData.pendingTotal)}
-            </div>
-            <div className="text-xs text-amber-400 mt-0.5">{earningsData.pending.length} clients</div>
-          </div>
-          <div className="border border-border rounded-xl p-5 bg-card">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground">Amount Received</span>
-            </div>
-            <div className="font-['Fraunces',serif] text-2xl sm:text-3xl font-bold text-emerald-600">
-              ₹{formatIndian(earningsData.receivedTotal)}
-            </div>
-            <div className="text-xs text-emerald-400 mt-0.5">{earningsData.received.length} clients</div>
-          </div>
-          <div className="border border-border rounded-xl p-5 bg-card flex flex-col justify-center">
-            <div className="text-[10.5px] uppercase tracking-[1px] text-muted-foreground mb-1">Year Filter</div>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-muted-foreground" />
-              <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
-                className="flex-1 h-9 px-3 rounded-lg border border-border bg-card text-sm outline-none text-foreground">
-                <option value="all">All Years</option>
-                {earningsData.yearOptions.filter(y => y !== 'all').map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+        <CrmStatGrid>
+          <MotionReveal delay={0}>
+            <CrmStatCard icon={<IndianRupee className="h-5 w-5" strokeWidth={1.6} />} label="Total Commission" value={`₹${formatIndian(earningsData.total)}`} subtext={formatLakhText(earningsData.total)} tone="emerald" />
+          </MotionReveal>
+          <MotionReveal delay={0.05}>
+            <CrmStatCard icon={<Clock className="h-5 w-5" strokeWidth={1.6} />} label="Pending Amount" value={`₹${formatIndian(earningsData.pendingTotal)}`} subtext={`${earningsData.pending.length} clients`} tone="amber" />
+          </MotionReveal>
+          <MotionReveal delay={0.1}>
+            <CrmStatCard icon={<CheckCircle2 className="h-5 w-5" strokeWidth={1.6} />} label="Amount Received" value={`₹${formatIndian(earningsData.receivedTotal)}`} subtext={`${earningsData.received.length} clients`} tone="emerald" />
+          </MotionReveal>
+          <MotionReveal delay={0.15}>
+            <CrmCard className="flex flex-col justify-center p-4 sm:p-5">
+              <p className="mb-2 text-[10.5px] font-bold uppercase tracking-[1px] text-[#6b7280]">Year Filter</p>
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 shrink-0 text-[#9ca3af]" />
+                <select value={yearFilter} onChange={e => setYearFilter(e.target.value)}
+                  className="h-9 w-full flex-1 rounded-lg border border-black/10 bg-white px-3 text-sm text-[#0A1628] outline-none focus:border-[#C9A84C]/70">
+                  <option value="all">All Years</option>
+                  {earningsData.yearOptions.filter(y => y !== 'all').map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </CrmCard>
+          </MotionReveal>
+        </CrmStatGrid>
 
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           {(['all', 'Pending', 'Received'] as const).map((f) => (
-            <button key={f} onClick={() => setStatusFilter(f)}
-              className={`px-3.5 py-2 rounded-full border text-xs font-bold cursor-pointer transition-colors ${
-                statusFilter === f
-                  ? 'bg-emerald-100 border-emerald-300 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                  : 'bg-card border-border text-muted-foreground hover:bg-accent'
-              }`}>
+            <CrmChip key={f} active={statusFilter === f} onClick={() => setStatusFilter(f)}>
               {f === 'all' ? 'All' : f}
-              <span className="ml-1.5 opacity-60">
-                {f === 'all' ? earningsData.clients.length : f === 'Pending' ? earningsData.pending.length : earningsData.received.length}
-              </span>
-            </button>
+              <span className="opacity-60">{f === 'all' ? earningsData.clients.length : f === 'Pending' ? earningsData.pending.length : earningsData.received.length}</span>
+            </CrmChip>
           ))}
         </div>
 
@@ -198,7 +169,7 @@ export default function CrmEarnings() {
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground text-sm">No {statusFilter !== 'all' ? statusFilter.toLowerCase() + ' ' : ''}commissions found {yearFilter !== 'all' ? `for ${yearFilter}` : ''}.</div>
         ) : (
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.05)]">
             {filtered.map((c, idx) => (
               <div key={c.sno}
                 className="flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-border hover:bg-accent/50 transition-colors">
@@ -224,7 +195,7 @@ export default function CrmEarnings() {
                   </div>
                 </div>
                 <div className="text-right shrink-0">
-                  <div className="font-['Fraunces',serif] text-base font-semibold text-emerald-600">
+                  <div className="font-['Inter',sans-serif] text-base font-semibold text-emerald-600">
                     ₹{formatIndian(c.commVal)}
                   </div>
                   <div className="text-[10px] text-emerald-400 leading-tight">
@@ -239,7 +210,7 @@ export default function CrmEarnings() {
                 {yearFilter !== 'all' ? ` (${yearFilter})` : ''}
               </span>
               <div className="text-right">
-                <div className="font-['Fraunces',serif] text-xl font-bold text-emerald-600">
+                <div className="font-['Inter',sans-serif] text-xl font-bold text-emerald-600">
                   ₹{formatIndian(filtered.reduce((sum, c) => sum + c.commVal, 0))}
                 </div>
                 <div className="text-[10px] text-emerald-400 leading-tight">
@@ -249,6 +220,7 @@ export default function CrmEarnings() {
             </div>
           </div>
         )}
+        </CrmPageBody>
       </main>
     </div>
   );

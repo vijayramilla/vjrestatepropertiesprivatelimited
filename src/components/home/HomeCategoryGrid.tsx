@@ -4,9 +4,6 @@ import {
   Buildings,
   House,
   Warehouse,
-  Tree,
-  MapTrifold,
-  Gavel,
   ArrowRight,
 } from '@phosphor-icons/react';
 
@@ -40,27 +37,8 @@ const CATEGORIES: Category[] = [
     to: '/properties?type=Commercial Properties',
     gradient: 'from-[#14324B] to-[#0F4C3A]',
   },
-  {
-    label: 'Plots & Land',
-    desc: 'JD land & plots',
-    icon: Tree,
-    to: '/properties?type=Residential Plot,Commercial Plot,JD Land',
-    gradient: 'from-[#0F4C3A] to-[#166534]',
-  },
-  {
-    label: 'Land Map',
-    desc: 'Interactive Bangalore map',
-    icon: MapTrifold,
-    to: '/map',
-    gradient: 'from-[#166534] to-[#0A1628]',
-  },
-  {
-    label: 'Auctions',
-    desc: 'Bid on premium assets',
-    icon: Gavel,
-    to: '/auctions',
-    gradient: 'from-[#0A1628] to-[#3F2D0E]',
-  },
+
+
 ];
 
 export default function HomeCategoryGrid() {
@@ -91,7 +69,7 @@ export default function HomeCategoryGrid() {
           </Link>
         </motion.div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6 lg:gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:gap-4">
           {CATEGORIES.map((cat, i) => (
             <motion.div
               key={cat.label}

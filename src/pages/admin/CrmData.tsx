@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
-import StatCard from '@/components/crm/StatCard';
+import { CrmPageBody, CrmPageHeader, CrmStatCard, CrmStatGrid, CrmBtn, MotionReveal } from '@/components/crm/CrmUi';
 import {
   Database,
   HardDrive,
@@ -53,7 +53,7 @@ const PLAN_CAPACITIES: Record<string, number> = {
   enterprise: 100 * 1024 * 1024 * 1024,
 };
 const MANAGEMENT_KEY = import.meta.env.VITE_SUPABASE_MANAGEMENT_KEY ?? '';
-const PROJECT_REF = 'qrlkicsxnhaplwkotnyd';
+const PROJECT_REF = 'eimvaxrmiizdlgonhiov';
 
 function fmtBytes(bytes: number): string {
   if (!bytes || bytes <= 0) return '0 B';
@@ -192,39 +192,21 @@ END;$$;`;
   }));
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div className="w-full sm:w-auto">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-200/30 shrink-0">
-                <Database className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="font-['Fraunces',serif] text-[22px] sm:text-[28px] font-semibold tracking-tight m-0 truncate">
-                  {projectName || 'Database'} Data & Security
-                </h1>
-                <p className="text-muted-foreground text-[12px] sm:text-[13.5px] mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span>{planTier.charAt(0).toUpperCase() + planTier.slice(1)} plan &middot; {fmtBytes(capacity)} capacity</span>
-                  <span className="w-1 h-1 rounded-full bg-muted-foreground/30 hidden sm:inline-block" />
-                  <span className="flex items-center gap-1 text-[11px] sm:text-[13.5px]">
-                    <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-                    {lastRefreshed ? `Updated ${lastRefreshed.toLocaleTimeString()}` : 'Loading…'}
-                  </span>
-                </p>
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={fetchAll}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3 sm:px-4 sm:py-2.5 rounded-full border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent active:bg-accent/80 transition-all disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
-          </button>
-        </div>
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <CrmPageBody>
+        <CrmPageHeader
+          eyebrow="Infrastructure"
+          title={`${projectName || 'Database'} Data & Security`}
+          description={`${planTier.charAt(0).toUpperCase() + planTier.slice(1)} plan · ${fmtBytes(capacity)} capacity · ${lastRefreshed ? `Updated ${lastRefreshed.toLocaleTimeString()}` : 'Loading…'}`}
+          actions={
+            <CrmBtn variant="ghost" onClick={fetchAll} disabled={refreshing}>
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing…' : 'Refresh'}
+            </CrmBtn>
+          }
+        />
 
         {loading ? (
           <div className="text-center py-24 text-muted-foreground text-sm">Loading database metrics…</div>
@@ -238,45 +220,24 @@ END;$$;`;
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <StatCard
-                icon={<Database className="w-5 h-5" strokeWidth={1.5} />}
-                label="Database Size"
-                value={fmtBytes(dbSize)}
-                subtext={`${usedPercent.toFixed(1)}% of ${fmtBytes(capacity)} used`}
-                iconBg="bg-emerald-100 dark:bg-emerald-900/30"
-                iconColor="text-emerald-600 dark:text-emerald-400"
-                trend={usedPercent > 80 ? { direction: 'up', value: `${usedPercent.toFixed(0)}%` } : undefined}
-              />
-              <StatCard
-                icon={<HardDrive className="w-5 h-5" strokeWidth={1.5} />}
-                label="Storage Buckets"
-                value={String(buckets.length)}
-                subtext={`${totalBucketFiles} total files`}
-                iconBg="bg-blue-100 dark:bg-blue-900/30"
-                iconColor="text-blue-600 dark:text-blue-400"
-              />
-              <StatCard
-                icon={<Activity className="w-5 h-5" strokeWidth={1.5} />}
-                label="Available Space"
-                value={fmtBytes(available)}
-                subtext={usedPercent > 80 ? 'Running low — upgrade recommended' : 'Healthy'}
-                iconBg={usedPercent > 80 ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-emerald-100 dark:bg-emerald-900/30'}
-                iconColor={usedPercent > 80 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}
-              />
-              <StatCard
-                icon={<Wifi className="w-5 h-5" strokeWidth={1.5} />}
-                label="Active Connections"
-                value={String(dbStats?.active_connections ?? '—')}
-                subtext={`${dbStats?.total_tables ?? '—'} tables in database`}
-                iconBg="bg-purple-100 dark:bg-purple-900/30"
-                iconColor="text-purple-600 dark:text-purple-400"
-              />
-            </div>
+            <CrmStatGrid>
+              <MotionReveal delay={0}>
+                <CrmStatCard icon={<Database className="h-5 w-5" strokeWidth={1.6} />} label="Database Size" value={fmtBytes(dbSize)} subtext={`${usedPercent.toFixed(1)}% of ${fmtBytes(capacity)} used`} tone={usedPercent > 80 ? 'red' : 'emerald'} />
+              </MotionReveal>
+              <MotionReveal delay={0.05}>
+                <CrmStatCard icon={<HardDrive className="h-5 w-5" strokeWidth={1.6} />} label="Storage Buckets" value={String(buckets.length)} subtext={`${totalBucketFiles} total files`} tone="navy" />
+              </MotionReveal>
+              <MotionReveal delay={0.1}>
+                <CrmStatCard icon={<Activity className="h-5 w-5" strokeWidth={1.6} />} label="Available Space" value={fmtBytes(available)} subtext={usedPercent > 80 ? 'Running low — upgrade recommended' : 'Healthy'} tone={usedPercent > 80 ? 'amber' : 'emerald'} />
+              </MotionReveal>
+              <MotionReveal delay={0.15}>
+                <CrmStatCard icon={<Wifi className="h-5 w-5" strokeWidth={1.6} />} label="Active Connections" value={String(dbStats?.active_connections ?? '—')} subtext={`${dbStats?.total_tables ?? '—'} tables in database`} tone="purple" />
+              </MotionReveal>
+            </CrmStatGrid>
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
               <div className="lg:col-span-2 bg-card border border-border/60 rounded-xl p-6">
-                <h2 className="font-['Fraunces',serif] text-lg font-semibold mb-4">Storage Usage</h2>
+                <h2 className="font-['Inter',sans-serif] text-lg font-semibold mb-4">Storage Usage</h2>
                 <div className="relative">
                   <ResponsiveContainer width="100%" height={240}>
                     <PieChart>
@@ -298,7 +259,7 @@ END;$$;`;
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center">
-                      <div className="font-['Fraunces',serif] text-2xl font-bold text-foreground">{usedPercent.toFixed(0)}%</div>
+                      <div className="font-['Inter',sans-serif] text-2xl font-bold text-foreground">{usedPercent.toFixed(0)}%</div>
                       <div className="text-[10px] text-muted-foreground">used</div>
                     </div>
                   </div>
@@ -316,7 +277,7 @@ END;$$;`;
               </div>
 
               <div className="lg:col-span-3 bg-card border border-border/60 rounded-xl p-6">
-                <h2 className="font-['Fraunces',serif] text-lg font-semibold mb-4">Table Sizes (MB)</h2>
+                <h2 className="font-['Inter',sans-serif] text-lg font-semibold mb-4">Table Sizes (MB)</h2>
                 {tableChartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={tableChartData} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
@@ -353,7 +314,7 @@ END;$$;`;
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-card border border-border/60 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-['Fraunces',serif] text-lg font-semibold">Table Breakdown</h2>
+                  <h2 className="font-['Inter',sans-serif] text-lg font-semibold">Table Breakdown</h2>
                   <span className="text-[11px] text-muted-foreground">{dbStats?.tables.length ?? 0} tables</span>
                 </div>
                 <div className="overflow-x-auto">
@@ -385,7 +346,7 @@ END;$$;`;
 
               <div className="bg-card border border-border/60 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-['Fraunces',serif] text-lg font-semibold">Storage Buckets</h2>
+                  <h2 className="font-['Inter',sans-serif] text-lg font-semibold">Storage Buckets</h2>
                   <span className="text-[11px] text-muted-foreground">{buckets.length} buckets</span>
                 </div>
                 {buckets.length > 0 ? (
@@ -414,7 +375,7 @@ END;$$;`;
             </div>
 
             <div className="mb-8">
-              <h2 className="font-['Fraunces',serif] text-lg font-semibold mb-4 flex items-center gap-2">
+              <h2 className="font-['Inter',sans-serif] text-lg font-semibold mb-4 flex items-center gap-2">
                 <Shield className="w-5 h-5 text-emerald-500" />
                 Security & Protection
               </h2>
@@ -504,6 +465,7 @@ END;$$;`;
             </p>
           </>
         )}
+        </CrmPageBody>
       </main>
     </div>
   );

@@ -121,8 +121,8 @@ export default function ContactPage() {
               className="mx-auto max-w-2xl text-base leading-relaxed text-black/55 md:text-lg"
               style={{ fontFamily: DM_SANS }}
             >
-              Connect with our Bangalore real estate team for rental income assets, commercial
-              properties, plots, and premium investment opportunities.
+              Connect with our Bangalore real estate team for rental income assets,
+              commercial properties, and premium investment opportunities.
             </motion.p>
           </motion.div>
         </div>
@@ -179,7 +179,7 @@ export default function ContactPage() {
                 style={{ fontFamily: DM_SANS }}
               >
                 We specialise in connecting investors and buyers with verified rental buildings,
-                commercial assets, residential plots, and agriculture land across Bengaluru.
+                commercial assets, and income-generating properties across Bengaluru.
               </p>
               <p
                 className="text-base leading-relaxed text-black/55 md:text-lg"

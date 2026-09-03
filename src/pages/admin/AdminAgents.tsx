@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
+import { CrmPageBody, CrmPageHeader, CrmBtn } from '@/components/crm/CrmUi';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { Agent, Lead } from '@/types/lead';
-import { Search, RefreshCw, Plus, Pencil, Power, PowerOff, UserCog, Trash2, Phone, Mail, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, RefreshCw, Plus, Pencil, Power, PowerOff, Trash2, Phone, Mail, ChevronDown, ChevronRight } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
   'New Lead': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
@@ -162,32 +163,21 @@ export default function AdminAgents() {
   const totalAssigned = Object.values(leadsByAgent).reduce((sum, arr) => sum + arr.length, 0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-200/30 shrink-0">
-              <UserCog className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="font-['Fraunces',serif] text-[22px] sm:text-[28px] font-semibold tracking-tight m-0">Agents</h1>
-              <p className="text-muted-foreground text-[12px] sm:text-[13.5px] mt-0.5">
-                {agents.length} agents &middot; {totalAssigned} assigned requirements &middot; {unassignedLeads.length} unassigned
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 w-full sm:w-auto">
-            <button onClick={fetchData} className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-4 sm:py-2.5 rounded-full border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </button>
-            {canEdit && (
-              <button onClick={openAdd} className="inline-flex items-center justify-center gap-2 px-5 py-3 sm:px-4 sm:py-2.5 rounded-full text-xs font-bold text-white bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg shadow-emerald-200/30">
-                <Plus className="w-4 h-4" /> Add Agent
-              </button>
-            )}
-          </div>
-        </div>
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <CrmPageBody>
+        <CrmPageHeader
+          eyebrow="Team"
+          title="Agents"
+          description={`${agents.length} agents · ${totalAssigned} assigned requirements · ${unassignedLeads.length} unassigned`}
+          actions={
+            <>
+              <CrmBtn variant="ghost" onClick={fetchData}><RefreshCw className="h-3.5 w-3.5" /> Refresh</CrmBtn>
+              {canEdit && <CrmBtn variant="gold" onClick={openAdd}><Plus className="h-3.5 w-3.5" /> Add Agent</CrmBtn>}
+            </>
+          }
+        />
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
@@ -334,12 +324,13 @@ export default function AdminAgents() {
             )}
           </div>
         )}
+        </CrmPageBody>
       </main>
 
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-[420px]">
           <DialogHeader>
-            <DialogTitle className="font-['Fraunces',serif] text-xl">
+            <DialogTitle className="font-['Inter',sans-serif] text-xl">
               {editAgent ? 'Edit Agent' : 'Add Agent'}
             </DialogTitle>
           </DialogHeader>

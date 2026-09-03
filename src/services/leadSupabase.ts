@@ -1,5 +1,4 @@
 import { auth } from '@/lib/firebase';
-import { supabase } from '@/lib/supabase';
 import type { Lead, PaginatedResponse, Agent, FollowUp, SiteVisit, ActivityLog, LeadNote } from '@/types/lead';
 import type { SheetClient } from '@/data/crmClientsData';
 
@@ -90,6 +89,8 @@ function normalizeClient(row: any): SheetClient {
     property_link: row.property_link ?? '',
     comm_date: row.comm_date ?? null,
     property_subtype: row.property_subtype ?? '',
+    assigned_employee: row.assigned_employee ?? null,
+    assigned_employee_info: row.assigned_employee_info ?? null,
   };
 }
 
@@ -212,7 +213,7 @@ export const leadSupabase = {
   },
 
   employees: {
-    async list(params?: { search?: string; department?: string; status?: string; sortBy?: string; sortOrder?: string }): Promise<{ data: any[]; stats: { total: number; active: number; onLeave: number; newThisMonth: number } }> {
+    async list(params?: { search?: string; department?: string; status?: string; designation?: string; sortBy?: string; sortOrder?: string }): Promise<{ data: any[]; stats: { total: number; active: number; onLeave: number; newThisMonth: number } }> {
       return callProxy('employees.list', params);
     },
     async get(id: string): Promise<{ data: any; history: any[]; attendance: any[]; leaves: any[]; payroll: any[] }> {
@@ -251,7 +252,7 @@ export const leadSupabase = {
     async rejectLeave(id: string): Promise<{ message: string }> {
       return callProxy('employees.rejectLeave', { id });
     },
-    async payroll(employeeId: string): Promise<{ data: any[] }> {
+    async payroll(employeeId?: string): Promise<{ data: any[] }> {
       return callProxy('employees.payroll', { employeeId });
     },
     async generatePayroll(employeeId: string, month: number, year: number): Promise<{ data: any }> {
@@ -263,19 +264,137 @@ export const leadSupabase = {
     async maxEmployeeId(): Promise<{ data: string | null }> {
       return callProxy('employees.maxEmployeeId', {});
     },
+    async me(): Promise<{ data: any }> {
+      return callProxy('employees.me', {});
+    },
+    async clients(employeeId?: string): Promise<{ data: { employee: any; clients: any[] } }> {
+      return callProxy('employees.clients', { employeeId });
+    },
+    async assignClient(employeeId: string, sno: number): Promise<{ message: string }> {
+      return callProxy('employees.assignClient', { employeeId, sno });
+    },
+    async unassignClient(sno: number): Promise<{ message: string }> {
+      return callProxy('employees.unassignClient', { sno });
+    },
+    async logins(employeeId?: string, limit?: number): Promise<{ data: any[] }> {
+      return callProxy('employees.logins', { employeeId, limit });
+    },
+    async recordLogin(userAgent?: string): Promise<{ message: string }> {
+      return callProxy('employees.recordLogin', { userAgent });
+    },
+    async startSession(userAgent?: string): Promise<{ data: { id: string } }> {
+      return callProxy('employees.startSession', { userAgent });
+    },
+    async heartbeat(id: string): Promise<{ message: string }> {
+      return callProxy('employees.heartbeat', { id });
+    },
+    async endSession(id: string, durationSeconds?: number): Promise<{ message: string }> {
+      return callProxy('employees.endSession', { id, durationSeconds });
+    },
+    async sessionStats(employeeId?: string): Promise<{ data: any }> {
+      return callProxy('employees.sessionStats', { employeeId });
+    },
+    async uploadPhoto(employeeId: string, base64: string): Promise<{ data: { profilePhotoUrl: string } }> {
+      return callProxy('employees.uploadPhoto', { employeeId, base64 });
+    },
+    async faceVerify(base64: string, latitude: number | null, longitude: number | null, locationLabel?: string, employeeId?: string): Promise<{ data: any }> {
+      return callProxy('employees.faceVerify', { base64, latitude, longitude, locationLabel, employeeId });
+    },
+    async faceVerifications(employeeId?: string): Promise<{ data: any[]; lastFaceVerifiedAt: string | null }> {
+      return callProxy('employees.faceVerifications', { employeeId });
+    },
+    async requestFaceVerify(employeeId: string): Promise<{ data: { id: string; employee: string } }> {
+      return callProxy('employees.requestFaceVerify', { employeeId });
+    },
+    async pendingFaceVerify(): Promise<{ data: any | null }> {
+      return callProxy('employees.pendingFaceVerify', {});
+    },
+    async saveNotes(notes: string): Promise<{ message: string }> {
+      return callProxy('employees.saveNotes', { notes });
+    },
+    async updateClientDetail(sno: number, fields: { requirements?: string; notes?: string }): Promise<{ message: string }> {
+      return callProxy('employees.updateClientDetail', { sno, ...fields });
+    },
+
+    // ── Jibble-style attendance ────────────────────────────────────────────
+    async clockIn(latitude?: number | null, longitude?: number | null, locationLabel?: string, selfieUrl?: string, geofenceId?: string): Promise<{ data: any }> {
+      return callProxy('attendance.clockIn', { latitude, longitude, locationLabel, selfieUrl, geofenceId });
+    },
+    async clockOut(latitude?: number | null, longitude?: number | null, locationLabel?: string, selfieUrl?: string): Promise<{ message: string; workedMinutes: number; overtimeMinutes: number }> {
+      return callProxy('attendance.clockOut', { latitude, longitude, locationLabel, selfieUrl });
+    },
+    async startBreak(reason?: string): Promise<{ data: any }> {
+      return callProxy('attendance.startBreak', { reason });
+    },
+    async endBreak(): Promise<{ message: string; durationSeconds: number; autoClockOut?: boolean }> {
+      return callProxy('attendance.endBreak', {});
+    },
+    async activeBreak(): Promise<{ data: any }> {
+      return callProxy('attendance.activeBreak', {});
+    },
+    async today(employeeId?: string): Promise<{ data: any; breaks: any[] }> {
+      return callProxy('attendance.today', { employeeId });
+    },
+    async liveStatus(): Promise<{ onShift: any[]; done: any[]; total: number }> {
+      return callProxy('attendance.liveStatus', {});
+    },
+    async weeklyReport(startDate: string, endDate: string, employeeId?: string): Promise<{ data: any[]; summary: { totalWorkedMinutes: number; totalOvertimeMinutes: number; totalBreakMinutes: number; daysWorked: number } }> {
+      return callProxy('attendance.weeklyReport', { startDate, endDate, employeeId });
+    },
+  },
+
+  geofences: {
+    async list(): Promise<{ data: any[] }> {
+      return callProxy('geofences.list', {});
+    },
+    async create(name: string, latitude: number, longitude: number, radiusMeters?: number): Promise<{ data: any }> {
+      return callProxy('geofences.create', { name, latitude, longitude, radiusMeters });
+    },
+    async update(id: string, fields: { name?: string; latitude?: number; longitude?: number; radiusMeters?: number; isActive?: boolean }): Promise<{ message: string }> {
+      return callProxy('geofences.update', { id, ...fields });
+    },
+    async delete(id: string): Promise<{ message: string }> {
+      return callProxy('geofences.delete', { id });
+    },
+    async check(latitude: number, longitude: number): Promise<{ data: any[] }> {
+      return callProxy('geofences.check', { latitude, longitude });
+    },
+  },
+
+  events: {
+    async list(): Promise<{ data: any[] }> {
+      return callProxy('events.list', {});
+    },
+    async create(title: string, description?: string, eventType?: string, eventDate?: string | null, imageUrl?: string, targeting?: { targetDepartments?: string[]; targetDesignations?: string[]; targetEmployeeIds?: string[] }): Promise<{ data: any }> {
+      return callProxy('events.create', { title, description, eventType, eventDate, imageUrl, ...targeting });
+    },
+    async update(id: string, fields: Partial<{ title: string; description: string; eventType: string; eventDate: string | null; imageUrl: string; targetDepartments: string[]; targetDesignations: string[]; targetEmployeeIds: string[] }>): Promise<{ message: string }> {
+      return callProxy('events.update', { id, ...fields });
+    },
+    async delete(id: string): Promise<{ message: string }> {
+      return callProxy('events.delete', { id });
+    },
+  },
+
+  visits: {
+    async list(employeeId?: string, clientSno?: number): Promise<{ data: any[] }> {
+      return callProxy('visits.list', { employeeId, clientSno });
+    },
+    async add(clientSno: number, visitDate: string, notes?: string, employeeId?: string, visitTime?: string): Promise<{ data: any }> {
+      return callProxy('visits.add', { clientSno, visitDate, notes, employeeId, visitTime });
+    },
+    async updateStatus(id: string, status: string): Promise<{ message: string }> {
+      return callProxy('visits.updateStatus', { id, status });
+    },
   },
 
   crmClients: {
     async list(): Promise<{ data: SheetClient[] }> {
-      try {
-        const res = await callProxy('crmClients.list', {});
-        if (res.data && res.data.length > 0) return { data: res.data.map(normalizeClient) };
-      } catch { /* proxy unavailable, fall back to direct read */ }
-      try {
-        const { data, error } = await supabase.from('crm_clients').select('*').order('sno', { ascending: true });
-        if (!error && data && data.length > 0) return { data: (data as unknown as SheetClient[]).map(normalizeClient) };
-      } catch { /* direct read unavailable */ }
-      return { data: [] };
+      // Proxy only — the CRM project's tables are RLS-locked to the service role
+      // (20260820000000_crm_rls_lockdown.sql); a browser anon-key read would be
+      // both a privilege leak and impossible.
+      const res = await callProxy('crmClients.list', {});
+      return { data: (res.data ?? []).map(normalizeClient) };
     },
     async upsert(client: SheetClient): Promise<{ data: SheetClient }> {
       return callProxy('crmClients.upsert', { data: client });
@@ -284,15 +403,14 @@ export const leadSupabase = {
       return callProxy('crmClients.delete', { sno });
     },
     async maxSno(): Promise<{ data: number }> {
-      try {
-        const res = await callProxy('crmClients.maxSno', {});
-        if (res.data !== undefined) return res;
-      } catch { /* proxy unavailable, fall back to direct read */ }
-      try {
-        const { data } = await supabase.from('crm_clients').select('sno').order('sno', { ascending: false }).limit(1);
-        return { data: data?.[0]?.sno ?? 0 };
-      } catch { /* direct read unavailable */ }
-      return { data: 0 };
+      const res = await callProxy('crmClients.maxSno', {});
+      return { data: res.data ?? 0 };
+    },
+    async updateStatus(sno: number, status: string, note?: string): Promise<{ data: { sno: number; status: string } }> {
+      return callProxy('crmClients.updateStatus', { sno, status, note });
+    },
+    async activity(sno: number): Promise<{ data: any[] }> {
+      return callProxy('clients.activity', { sno });
     },
   },
 

@@ -1,6 +1,7 @@
 import { startTransition } from 'react';
 import { db } from './firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { useSupabaseData, subscribeSupabaseSettings, callDataProxy } from './supabaseData';
 
 const LS_KEY = 'vjr_mapOnly';
 const LS_KEY_NEXA = 'vjr_nexaEnabled';
@@ -56,6 +57,13 @@ export function subscribeToSettings(onChange: (settings: SiteSettings) => void):
   // "Should have a queue" when setState runs during that window.
   const notify = (settings: SiteSettings) => startTransition(() => onChange(settings));
 
+  if (useSupabaseData()) {
+    return subscribeSupabaseSettings((settings) => {
+      writeLocal(settings);
+      notify(settings);
+    });
+  }
+
   let unsubscribed = false;
   const unsubs: (() => void)[] = [];
 
@@ -87,6 +95,11 @@ export function subscribeToSettings(onChange: (settings: SiteSettings) => void):
 
 export async function updateSiteSettings(settings: Partial<SiteSettings>): Promise<void> {
   writeLocal(settings);
+
+  if (useSupabaseData()) {
+    await callDataProxy('settings.update', settings);
+    return;
+  }
 
   const errors: string[] = [];
 

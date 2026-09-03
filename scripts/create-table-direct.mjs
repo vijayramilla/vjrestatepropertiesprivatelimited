@@ -2,7 +2,7 @@
 // Attempt 1: use the service_role JWT as the DB password (common Supabase convention)
 // Attempt 2: use pg connection pooler
 
-const SUPABASE_REF = 'qrlkicsxnhaplwkotnyd';
+const SUPABASE_REF = 'eimvaxrmiizdlgonhiov';
 const SERVICE_ROLE_JWT = process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
 const SERVICE_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
 

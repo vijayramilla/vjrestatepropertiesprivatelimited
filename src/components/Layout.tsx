@@ -8,7 +8,7 @@ export default function Layout() {
   const location = useLocation();
 
   const isPropertyDetail = /^\/properties\/[^/]+$/.test(location.pathname);
-  const isMapPage = location.pathname === '/map';
+  const isMapPage = false; // Land Map removed — /map redirects to /properties
 
   useEffect(() => {
     if (!isPropertyDetail) setDefaultSiteMeta();

@@ -10,7 +10,7 @@ import {
   Info,
   SignOut,
   SquaresFour,
-  GlobeHemisphereWest,
+
   PlusCircle,
   Buildings,
   Gavel,
@@ -28,7 +28,6 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
   { label: 'My Listings', path: '/my-listings', Icon: Buildings },
-  { label: 'Land Map', path: '/map', Icon: GlobeHemisphereWest },
   { label: 'List Property', path: '/list-property', Icon: PlusCircle },
 
   { label: 'About Us', path: '/about', Icon: Info },
@@ -87,7 +86,7 @@ export default function Navbar() {
   const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
-  const isMapPage = location.pathname === '/map' || location.pathname === '/list-property';
+  const isMapPage = location.pathname === '/list-property';
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
@@ -222,10 +221,7 @@ export default function Navbar() {
           <div className="hidden md:flex flex-1 items-center justify-center gap-8">
             {[
               { label: 'Properties', path: '/properties' },
-              { label: 'Auctions', path: '/auctions', icon: 'gavel' },
-              { label: 'Land Map', path: '/map', icon: 'globe' },
               { label: 'Blog', path: '/blog' },
-              { label: 'Vastu', path: '/vastu-calculator' },
               { label: 'About', path: '/about' },
               { label: 'Careers', path: '/careers' },
               { label: 'Contact', path: '/contact' },

@@ -2,6 +2,11 @@ import { doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from './firebase';
+import {
+  useSupabaseData,
+  supabaseTrackUser,
+  supabaseCheckUserSuspended,
+} from './supabaseData';
 
 export interface GpsLocation {
   lat: number;
@@ -128,6 +133,21 @@ export function buildGpsLocation(lat: number, lng: number): GpsLocation {
 
 /** Create or update the user's own doc with the given payload. */
 async function upsertUserDoc(user: User, payload: Record<string, unknown>): Promise<void> {
+  if (useSupabaseData()) {
+    try {
+      await supabaseTrackUser({
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName ?? '',
+        photoURL: user.photoURL ?? '',
+        lastSeen: new Date().toISOString(),
+        ...(payload as Record<string, unknown>),
+      });
+    } catch (err) {
+      console.warn('Supabase user save skipped:', err);
+    }
+    return;
+  }
   const ref = doc(db, 'users', user.uid);
   const existing = await getDoc(ref);
   if (existing.exists()) {
@@ -197,6 +217,39 @@ export async function flushPendingGpsLocation(user: User): Promise<void> {
 }
 
 export async function trackUserLogin(user: User): Promise<{ suspended: boolean }> {
+  if (useSupabaseData()) {
+    try {
+      const location = await fetchUserLocation();
+      const now = new Date().toISOString();
+      const loginEntry = location
+        ? {
+            at: now,
+            city: location.city,
+            region: location.region,
+            country: location.country,
+            ip: location.ip,
+            lat: location.lat,
+            lon: location.lon,
+          }
+        : null;
+      const result = await supabaseTrackUser({
+        uid: user.uid,
+        email: user.email ?? '',
+        displayName: user.displayName ?? '',
+        photoURL: user.photoURL ?? '',
+        loginCount: 1,
+        lastLogin: now,
+        lastSeen: now,
+        ...(loginEntry ? { loginHistory: [loginEntry] } : {}),
+        ...(location ? { ipLocation: location } : {}),
+      });
+      await flushPendingGpsLocation(user);
+      return result;
+    } catch (err) {
+      console.warn('Supabase user tracking skipped:', err);
+      return { suspended: false };
+    }
+  }
   try {
     const ref = doc(db, 'users', user.uid);
     const existing = await getDoc(ref);
@@ -278,6 +331,18 @@ export async function trackUserLogin(user: User): Promise<{ suspended: boolean }
 }
 
 export async function updateUserPresence(user: User): Promise<void> {
+  if (useSupabaseData()) {
+    try {
+      await supabaseTrackUser({
+        uid: user.uid,
+        email: user.email ?? '',
+        lastSeen: new Date().toISOString(),
+      });
+    } catch {
+      // Non-blocking
+    }
+    return;
+  }
   try {
     const ref = doc(db, 'users', user.uid);
     const existing = await getDoc(ref);
@@ -293,6 +358,9 @@ export async function updateUserPresence(user: User): Promise<void> {
 }
 
 export async function checkUserSuspended(user: User): Promise<boolean> {
+  if (useSupabaseData()) {
+    return supabaseCheckUserSuspended(user.uid);
+  }
   try {
     const snap = await getDoc(doc(db, 'users', user.uid));
     return snap.exists() && snap.data().suspended === true;

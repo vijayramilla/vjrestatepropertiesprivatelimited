@@ -10,6 +10,7 @@ import {
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { normalizePropertyRecord } from '@/lib/propertyFilters';
+import { useSupabaseData, subscribeSupabaseProperties } from '@/lib/supabaseData';
 
 export function sanitizeForFirestore<T extends Record<string, unknown>>(data: T): T {
   const result = {} as T;
@@ -38,6 +39,16 @@ export function subscribeProperties(
   onError?: (error: Error) => void,
   ...constraints: QueryConstraint[]
 ): Unsubscribe {
+  if (useSupabaseData()) {
+    // Firestore constraints are only used for owner-scoping in MyListingsPage;
+    // that page passes { uid } explicitly via subscribeSupabaseProperties, so
+    // the generic path here is the public all-properties subscription.
+    return subscribeSupabaseProperties(
+      (docs) => startTransition(() => onData(docs)),
+      { uid: extractUidConstraint(constraints) },
+    );
+  }
+
   const ref = constraints.length > 0
     ? query(collection(db, 'properties'), ...constraints)
     : collection(db, 'properties');
@@ -58,4 +69,21 @@ export function subscribeProperties(
       onError?.(error);
     },
   );
+}
+
+/**
+ * Best-effort extraction of `where('uid', '==', …)` from Firestore
+ * constraints (used by MyListingsPage). Falls back to undefined.
+ */
+function extractUidConstraint(constraints: QueryConstraint[]): string | undefined {
+  for (const constraint of constraints) {
+    const c = constraint as unknown as {
+      _field?: { canonicalString?: () => string };
+      _value?: unknown;
+    };
+    if (c?._field?.canonicalString?.() === 'uid' && typeof c._value === 'string') {
+      return c._value;
+    }
+  }
+  return undefined;
 }

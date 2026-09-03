@@ -21,7 +21,7 @@ const GOLD = '#C9A84C';
 
 const QUICK_QUESTIONS = [
   'Show best rental yield properties',
-  'Find plots in HSR Layout',
+  'Find PG buildings in HSR Layout',
   'Compare top 3 PG buildings',
   'Show upcoming auctions',
   'Market overview Bangalore',

@@ -124,7 +124,7 @@ export default function AboutPage() {
     <div className="about-page about-scroll-page bg-white min-h-screen">
       <HeroGeometric
         compact
-        badge="Bangalore · Real Estate Investment Advisory"
+        badge="Bangalore's Only Dedicated Rental Income Property Advisory"
         title1="ABOUT"
         title2="VJR ESTATE"
         className="pt-[72px]"
@@ -139,8 +139,8 @@ export default function AboutPage() {
               <SectionLabel>About VJR Estate</SectionLabel>
               <div className="mt-6 space-y-6 text-[16px] leading-[1.75] text-[#333] sm:text-[17px]" style={fontBody}>
                 <p>
-                  VJR Estate is Bangalore&apos;s Specialist Real Estate Investment Advisors.
-                  We exist for one purpose: to help investors allocate capital into the right real estate assets, exclusively within Bangalore. Our focus spans PG buildings, commercial properties, plots, and land, covering every category of property where capital meets opportunity. We identify, evaluate, and structure transactions for serious buyers and sellers, supported by a disciplined approach to asset quality, due diligence, and long-term portfolio thinking. As our advisory practice matures, we are also building dedicated property management capability, ensuring our investors are supported not only at acquisition, but across the full lifecycle of ownership.
+                  VJR Estate is Bangalore&apos;s only dedicated rental income property advisory.
+                  We exist for one purpose: to help investors allocate capital into the right real estate assets, exclusively within Bangalore. Our focus spans PG buildings, residential rental income properties, and commercial income properties — every category of asset where capital meets consistent returns. We identify, evaluate, and structure transactions for serious buyers and sellers, supported by a disciplined approach to asset quality, due diligence, and long-term portfolio thinking. As our advisory practice matures, we are also building dedicated property management capability, ensuring our investors are supported not only at acquisition, but across the full lifecycle of ownership.
                 </p>
                 <p className="border-l-2 border-black pl-5 font-medium text-black">
                   VJR Estate Properties Private Limited is registered and headquartered in Bangalore, Karnataka.
@@ -188,7 +188,7 @@ export default function AboutPage() {
                 Our Mission
               </h3>
               <p className="mt-5 text-[15px] leading-[1.75] text-[#444] sm:text-[16px]" style={fontBody}>
-                To enable investors to make the right real estate investment decisions, exclusively in Bangalore, across both rental-income properties and high-potential land opportunities.
+                To enable investors to make the right rental income property decisions, exclusively in Bangalore, across PG buildings, residential rentals, and commercial income properties.
               </p>
             </motion.div>
 
@@ -205,7 +205,7 @@ export default function AboutPage() {
               </h3>
               <div className="mt-5 space-y-5 text-[15px] leading-[1.75] text-[#ccc] sm:text-[16px]" style={fontBody}>
                 <p>
-                  To become Bangalore&apos;s most trusted name in real estate investment advisory: a single, dependable destination where capital, opportunity, and expertise meet, covering every stage of the investment journey, from acquisition to long-term portfolio management.
+                  To become Bangalore&apos;s most trusted name in rental income property advisory: a single, dependable destination where capital, opportunity, and expertise meet, covering every stage of the investment journey, from acquisition to long-term portfolio management.
                 </p>
                 <p className="text-[#999]">
                   We believe Bangalore&apos;s real estate market rewards those who understand it deeply. Our vision is built entirely around this city, its neighborhoods, its growth corridors, its tenant demand, and its long-term value drivers, because specialization, not scale, is what protects an investor&apos;s capital.

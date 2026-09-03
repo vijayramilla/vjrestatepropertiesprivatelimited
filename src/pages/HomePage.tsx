@@ -34,17 +34,17 @@ export default function HomePage() {
           <FadeIn delay={200} duration={1000} className="mb-8 max-w-3xl">
             <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#C9A84C]">
               <span className="inline-block h-px w-10 bg-[#C9A84C]" />
-              Bengaluru · Premium Real Estate
+              Bangalore's Only Dedicated Rental Income Property Advisory
             </p>
             <AnimatedHeading
-              text="Bangalore Real Estate"
+              text="Rental Income Properties"
               className="text-4xl md:text-5xl lg:text-6xl font-bold mb-3 text-white"
               initialDelay={200}
               charDelay={30}
               charDuration={500}
             />
             <p className="text-sm md:text-base text-gray-400">
-              Premium investment properties across Bangalore
+              PG buildings, residential rentals & commercial income properties across Bangalore
             </p>
           </FadeIn>
 

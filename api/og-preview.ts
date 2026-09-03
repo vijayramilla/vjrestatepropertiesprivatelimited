@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
 
   let meta = {
     title: `${SITE_NAME} — Properties in Bangalore`,
-    description: 'Explore residential, commercial and plot properties with VJR Estate.',
+    description: 'Explore residential and commercial rental income properties with VJR Estate.',
     image: `${origin}${FALLBACK_IMAGE}`,
   };
 

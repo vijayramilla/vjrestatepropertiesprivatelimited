@@ -21,17 +21,29 @@ async function fetchCrmVerify(user: User) {
   return res.json() as Promise<{ role?: string; data?: { id?: string } | null }>;
 }
 
-export async function checkCrmAccess(user: User | null | undefined): Promise<boolean> {
-  if (!user?.email) return false;
-  if (isSuperAdminEmail(user.email)) return true;
+/**
+ * Whether the signed-in user is a CRM admin, an employee, or neither.
+ * Employees only get their workspace (/crm/dashboard, /crm/my-clients);
+ * admins get the full CRM. Used by the route guards so employees can never
+ * open admin pages even by typing a URL.
+ */
+export async function getCrmUserRole(user: User | null | undefined): Promise<'admin' | 'employee' | null> {
+  if (!user?.email) return null;
+  if (isSuperAdminEmail(user.email)) return 'admin';
   try {
     const body = await fetchCrmVerify(user);
-    if (!body) return false;
-    if (body.role === 'super_admin') return true;
-    return Boolean(body.data?.id);
+    if (!body) return null;
+    if (body.role === 'employee') return 'employee';
+    if (body.role === 'super_admin') return 'admin';
+    return body.data?.id ? 'admin' : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function checkCrmAccess(user: User | null | undefined): Promise<boolean> {
+  const role = await getCrmUserRole(user);
+  return role === 'admin' || role === 'employee';
 }
 
 export async function checkAdminViaProxy(user: User | null | undefined): Promise<boolean> {

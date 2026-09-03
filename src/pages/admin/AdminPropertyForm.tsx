@@ -25,6 +25,12 @@ import {
 } from '@/lib/plotLandForm';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 import { uploadPropertyImages, deletePropertyImageByUrl } from '@/lib/propertyImages';
+import {
+  useSupabaseData,
+  supabaseGetProperty,
+  propertyDocToRow,
+  callDataProxy,
+} from '@/lib/supabaseData';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle, XCircle } from 'phosphor-react';
 import {
@@ -36,8 +42,8 @@ import {
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
-import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
-import { landLocationFromPlace, type LandLocationValue } from '@/lib/mapGeocoding';
+import { BANGALORE_AREAS } from '@/data/properties';
+import type { LandLocationValue } from '@/lib/mapGeocoding';
 import {
   canonicalPropertyType,
   extractLocalityFromText,
@@ -98,16 +104,12 @@ interface FormData {
 const OWNER_API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:5000';
 
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
-const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
+const PLOT_TYPES: string[] = [];
 
 const PROPERTY_TYPES = [
   'PG Buildings',
   'Residential Rental Income',
   'Commercial Properties',
-  'Residential Plot',
-  'Commercial Plot',
-  'PG Plot',
-  'JD Land',
 ];
 
 const COMMERCIAL_SUBTYPES = [
@@ -122,7 +124,7 @@ const COMMERCIAL_SUBTYPES = [
   'Flex Space',
 ];
 
-const PLOT_SUBTYPES = ['Residential Plot', 'Commercial Plot', 'PG Plot', 'JD Land'];
+const PLOT_SUBTYPES: string[] = [];
 
 const FACINGS = [
   'East',
@@ -240,10 +242,7 @@ export default function AdminPropertyForm() {
     agent_id: '',
     agent_name: '',
   });
-  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
-  const areaSearchRef = useRef<HTMLInputElement>(null);
-  const { isLoaded, loadError } = useGoogleMapsLoader();
-  const [agents, setAgents] = useState<any[]>([]);
+  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);  const [agents, setAgents] = useState<any[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(false);
 
   useEffect(() => {
@@ -261,29 +260,6 @@ export default function AdminPropertyForm() {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || loadError || !areaSearchRef.current) return;
-    try {
-      const autocomplete = new google.maps.places.Autocomplete(areaSearchRef.current, {
-        componentRestrictions: { country: 'in' },
-        fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-      });
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        const loc = landLocationFromPlace(place);
-        if (!loc) return;
-        if (areaSearchRef.current) areaSearchRef.current.value = loc.area;
-        setFormData((prev) => ({
-          ...prev,
-          area: loc.area,
-          location: loc.location,
-          map_lat: loc.map_lat,
-          map_lng: loc.map_lng,
-        }));
-      });
-    } catch { /* google maps unavailable */ }
-  }, [isLoaded, loadError]);
-
-  useEffect(() => {
     const state = location.state as { defaultType?: string } | null;
     if (!isEditMode && state?.defaultType) {
       setFormData((prev) => ({ ...prev, type: state.defaultType! }));
@@ -294,9 +270,15 @@ export default function AdminPropertyForm() {
     if (isEditMode && id) {
       const fetchProperty = async () => {
         try {
-          const docSnap = await getDoc(doc(db, 'properties', id));
-          if (docSnap.exists()) {
-            const data = docSnap.data() as FormData & { extra_details?: Record<string, string | number> };
+          let data: (FormData & { extra_details?: Record<string, string | number> }) | null = null;
+          if (useSupabaseData()) {
+            const doc = await supabaseGetProperty(id);
+            if (doc) data = doc as unknown as FormData & { extra_details?: Record<string, string | number> };
+          } else {
+            const docSnap = await getDoc(doc(db, 'properties', id));
+            if (docSnap.exists()) data = docSnap.data() as FormData & { extra_details?: Record<string, string | number> };
+          }
+          if (data) {
             const extra = data.extra_details ?? {};
             const { area, location } = normalizePropertyLocationFields(
               data.area ?? '',
@@ -529,35 +511,55 @@ export default function AdminPropertyForm() {
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           finalImages = [...finalImages, ...uploaded];
         }
-        await updateDoc(doc(db, 'properties', propertyId), {
-          ...payload,
-          images: finalImages,
-          updatedAt: serverTimestamp(),
-        });
+        if (useSupabaseData()) {
+          await callDataProxy('property.update', {
+            id: propertyId,
+            ...propertyDocToRow({ ...payload, images: finalImages }),
+          });
+        } else {
+          await updateDoc(doc(db, 'properties', propertyId), {
+            ...payload,
+            images: finalImages,
+            updatedAt: serverTimestamp(),
+          });
+        }
       } else {
-        const allDocs = await getDocs(query(collection(db, 'properties')));
-        let maxNum = 0;
-        allDocs.forEach(d => {
-          const code = d.data().propertyCode as string | undefined;
-          if (code) {
-            const m = code.match(/^VJR-(\d+)$/);
-            if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+        if (useSupabaseData()) {
+          // The proxy generates the next VJR-xxxx code server-side.
+          const created = await callDataProxy('property.create', propertyDocToRow(payload));
+          propertyId = created.id as string;
+          if (created.propertyCode) {
+            setFormData(prev => ({ ...prev, propertyCode: created.propertyCode }));
           }
-        });
-        const propertyCode = `VJR-${String(maxNum + 1).padStart(4, '0')}`;
-        payload.propertyCode = propertyCode;
-        setFormData(prev => ({ ...prev, propertyCode }));
+        } else {
+          const allDocs = await getDocs(query(collection(db, 'properties')));
+          let maxNum = 0;
+          allDocs.forEach(d => {
+            const code = d.data().propertyCode as string | undefined;
+            if (code) {
+              const m = code.match(/^VJR-(\d+)$/);
+              if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+            }
+          });
+          const propertyCode = `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+          payload.propertyCode = propertyCode;
+          setFormData(prev => ({ ...prev, propertyCode }));
 
-        const ref = await addDoc(collection(db, 'properties'), {
-          ...payload,
-          images: [],
-          createdAt: serverTimestamp(),
-        });
-        propertyId = ref.id;
+          const ref = await addDoc(collection(db, 'properties'), {
+            ...payload,
+            images: [],
+            createdAt: serverTimestamp(),
+          });
+          propertyId = ref.id;
+        }
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
-          await updateDoc(ref, sanitizeForFirestore({ images: uploaded }));
+          if (useSupabaseData()) {
+            await callDataProxy('property.update', { id: propertyId, images: uploaded });
+          } else {
+            await updateDoc(doc(db, 'properties', propertyId), sanitizeForFirestore({ images: uploaded }));
+          }
         }
       }
 
@@ -962,12 +964,6 @@ export default function AdminPropertyForm() {
             <div className="space-y-6">
               {/* Area / Locality */}
               <div>
-                <input
-                  ref={areaSearchRef}
-                  type="search"
-                  placeholder="Search any area (Google Places)..."
-                  className="admin-input-ghost mb-3"
-                />
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Area / Locality *
                 </label>
@@ -1013,21 +1009,25 @@ export default function AdminPropertyForm() {
                   />
                 ) : (
                   <>
-                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                      {formData.area ? (
-                        <div className="flex items-center gap-3">
-                          <CheckCircle size={20} weight="fill" className="shrink-0 text-green-600" />
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">
-                              Selected Area
-                            </p>
-                            <p className="truncate text-sm font-medium text-gray-900">{formData.area}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-xs text-gray-500">No area selected — search above.</p>
-                      )}
-                    </div>
+                    <select
+                      value={formData.area}
+                      onChange={(e) => {
+                        updateFormData('area', e.target.value);
+                        if (errors.area) {
+                          setErrors((prev) => {
+                            const nextErrors = { ...prev };
+                            delete nextErrors.area;
+                            return nextErrors;
+                          });
+                        }
+                      }}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/20"
+                    >
+                      <option value="">Select Area / Locality</option>
+                      {BANGALORE_AREAS.map((area) => (
+                        <option key={area} value={area}>{area}</option>
+                      ))}
+                    </select>
                     {errors.area && (
                       <p className="mt-2 text-xs text-red-600">{errors.area}</p>
                     )}

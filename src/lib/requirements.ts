@@ -17,6 +17,13 @@ import {
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { formatINR } from '@/lib/formatPrice';
+import {
+  useSupabaseData,
+  subscribeSupabaseRequirements,
+  subscribeSupabaseAdminRequirements,
+  supabaseIncrementRequirementClick,
+  callDataProxy,
+} from '@/lib/supabaseData';
 
 export type RequirementPurpose = 'Self Purchase' | 'Investment' | 'Other';
 export type RequirementTimeline =
@@ -117,6 +124,11 @@ export function stripPrivateRequirementFields(
 }
 
 export async function generateReqId(): Promise<string> {
+  if (useSupabaseData()) {
+    // The proxy generates the canonical sequential ID server-side when not
+    // provided; return a placeholder that is replaced during creation.
+    return `VJR-REQ-${new Date().getFullYear()}-AUTO`;
+  }
   const year = new Date().getFullYear();
   const snap = await getCountFromServer(collection(db, 'requirements'));
   const count = snap.data().count + 1;
@@ -127,6 +139,15 @@ export async function createRequirement(
   input: Omit<RequirementDoc, 'reqId' | 'status' | 'clickCount' | 'postedAt'>,
 ): Promise<{ id: string; reqId: string }> {
   const { paymentMode, buyerName, buyerPhone, ...publicInput } = input;
+  if (useSupabaseData()) {
+    const res = await callDataProxy('requirement.create', {
+      ...publicInput,
+      paymentMode,
+      buyerName,
+      buyerPhone,
+    });
+    return { id: res.id as string, reqId: res.reqId as string };
+  }
   const reqId = await generateReqId();
   const batch = writeBatch(db);
   const requirementRef = doc(collection(db, 'requirements'));
@@ -150,6 +171,10 @@ export async function createRequirement(
 }
 
 export async function incrementRequirementClickCount(requirementId: string): Promise<void> {
+  if (useSupabaseData()) {
+    await supabaseIncrementRequirementClick(requirementId);
+    return;
+  }
   await updateDoc(doc(db, 'requirements', requirementId), {
     clickCount: increment(1),
   });
@@ -209,6 +234,11 @@ export function subscribeRequirements(
   onData: (items: RequirementDoc[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
+  if (useSupabaseData()) {
+    return subscribeSupabaseRequirements((rows) =>
+      startTransition(() => onData(rows as unknown as RequirementDoc[])),
+    );
+  }
   const q = query(collection(db, 'requirements'), orderBy('postedAt', 'desc'));
   return onSnapshot(
     q,
@@ -235,6 +265,11 @@ export function subscribeAdminRequirements(
   onData: (items: RequirementDoc[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
+  if (useSupabaseData()) {
+    return subscribeSupabaseAdminRequirements((rows) =>
+      startTransition(() => onData(rows as unknown as RequirementDoc[])),
+    );
+  }
   let publicItems: RequirementDoc[] = [];
   let privateById = new Map<string, RequirementPrivateDoc>();
 
@@ -307,6 +342,10 @@ export async function updateRequirement(
   id: string,
   data: Partial<RequirementDoc>,
 ): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('requirement.update', { id, ...data });
+    return;
+  }
   const { publicFields, privateFields } = splitRequirementUpdate(data);
 
   if (Object.keys(publicFields).length > 0) {
@@ -321,6 +360,10 @@ export async function updateRequirement(
 }
 
 export async function deleteRequirement(id: string): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('requirement.delete', { id });
+    return;
+  }
   const batch = writeBatch(db);
   batch.delete(doc(db, 'requirements', id));
   batch.delete(doc(db, REQUIREMENT_PRIVATE_COLLECTION, id));

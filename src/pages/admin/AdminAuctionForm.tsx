@@ -14,9 +14,14 @@ import { db, rtdb, auth } from '@/lib/firebase'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { AdminPageHeader, AdminPageShell } from '@/components/admin/AdminUi'
 import LazyImage from '@/components/common/LazyImage'
-import { useGoogleMapsLoader } from '@/context/GoogleMapsContext'
-import { landLocationFromPlace, type LandLocationValue } from '@/lib/mapGeocoding'
+import { BANGALORE_AREAS } from '@/data/properties'
+import type { LandLocationValue } from '@/lib/mapGeocoding'
 import { uploadAuctionImages, deletePropertyImageByUrl } from '@/lib/propertyImages'
+import {
+  useSupabaseData,
+  supabaseGetAuction,
+  callDataProxy,
+} from '@/lib/supabaseData'
 import { ArrowLeft, CheckCircle, Link, Spinner, Upload, X } from 'phosphor-react'
 import {
   AUCTION_STATUS_CONFIG,
@@ -27,10 +32,10 @@ import {
 const CATEGORIES: AuctionCategory[] = [
   'Residential',
   'Commercial',
-  'Land & Plot',
   'Apartment',
   'Villa',
   'Industrial',
+  'PG Building',
 ]
 
 const STATUSES: AuctionStatus[] = ['upcoming', 'live', 'ending_soon', 'closed', 'sold']
@@ -110,19 +115,30 @@ export default function AdminAuctionForm() {
 
   // Google-selected location pin (auto-fills city)
   const [mapPin, setMapPin] = useState<LandLocationValue | null>(null)
-  const areaSearchRef = useRef<HTMLInputElement>(null)
-  const { isLoaded, loadError } = useGoogleMapsLoader()
 
   useEffect(() => {
     if (!id) return
     const load = async () => {
       try {
-        const snap = await getDoc(doc(db, 'auctions', id))
-        if (!snap.exists()) {
+        let d: Record<string, any> | null = null
+        if (useSupabaseData()) {
+          const auction = await supabaseGetAuction(id)
+          if (auction) d = auction
+        } else {
+          const snap = await getDoc(doc(db, 'auctions', id))
+          if (snap.exists()) d = snap.data()
+        }
+        if (!d) {
           setError('Auction not found.')
           return
         }
-        const d = snap.data()
+        // Supabase rows come back with real Date objects; Firestore uses Timestamps.
+        const asDate = (v: unknown): Date | undefined =>
+          v instanceof Date
+            ? v
+            : v && typeof (v as { toDate?: () => Date }).toDate === 'function'
+              ? (v as { toDate: () => Date }).toDate()
+              : undefined
         setForm({
           title: d.title ?? '',
           category: (d.category as AuctionCategory) ?? 'Residential',
@@ -141,16 +157,8 @@ export default function AdminAuctionForm() {
           registeredBidders: String(d.registeredBidders ?? 0),
           status: (d.status as AuctionStatus) ?? 'upcoming',
           isFeatured: Boolean(d.isFeatured),
-          startTime: toLocalInputValue(
-            d.auctionStartTime && typeof d.auctionStartTime.toDate === 'function'
-              ? d.auctionStartTime.toDate()
-              : undefined,
-          ),
-          endTime: toLocalInputValue(
-            d.auctionEndTime && typeof d.auctionEndTime.toDate === 'function'
-              ? d.auctionEndTime.toDate()
-              : undefined,
-          ),
+          startTime: toLocalInputValue(asDate(d.auctionStartTime)),
+          endTime: toLocalInputValue(asDate(d.auctionEndTime)),
         })
         setImageUrls(d.images ?? [])
         if (d.map_lat && d.map_lng) {
@@ -173,34 +181,7 @@ export default function AdminAuctionForm() {
     load()
   }, [id])
 
-  // Google Places autocomplete — same structure as the Add Property form.
-  // `loading` is a dep so the input (only rendered after the spinner) gets the
-  // autocomplete attached once the auction doc has loaded in edit mode.
-  useEffect(() => {
-    if (!isLoaded || loadError || loading || !areaSearchRef.current) return
-    try {
-      const autocomplete = new google.maps.places.Autocomplete(areaSearchRef.current, {
-        componentRestrictions: { country: 'in' },
-        fields: ['formatted_address', 'geometry', 'name', 'address_components'],
-      })
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace()
-        const loc = landLocationFromPlace(place)
-        if (!loc) return
-        if (areaSearchRef.current) areaSearchRef.current.value = loc.area
-        setMapPin({
-          area: loc.area,
-          location: loc.location,
-          map_lat: loc.map_lat,
-          map_lng: loc.map_lng,
-        })
-        setField('location', loc.area)
-        setField('city', 'Bangalore')
-      })
-    } catch {
-      /* google maps unavailable */
-    }
-  }, [isLoaded, loadError, loading])
+
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -298,31 +279,53 @@ export default function AdminAuctionForm() {
           )
           finalImages = [...finalImages, ...uploaded]
         }
-        await setDoc(doc(db, 'auctions', id), { ...payload, images: finalImages }, { merge: true })
-        await update(ref(rtdb, `auctions/${id}`), {
-          currentBid: payload.currentBid,
-          totalBids: payload.totalBids,
-        })
+        if (useSupabaseData()) {
+          await callDataProxy('auction.update', {
+            id,
+            ...payload,
+            images: finalImages,
+          })
+        } else {
+          await setDoc(doc(db, 'auctions', id), { ...payload, images: finalImages }, { merge: true })
+          await update(ref(rtdb, `auctions/${id}`), {
+            currentBid: payload.currentBid,
+            totalBids: payload.totalBids,
+          })
+        }
       } else {
-        const created = await addDoc(collection(db, 'auctions'), {
-          ...payload,
-          images: imageUrls,
-          createdAt: serverTimestamp(),
-        })
-        // Initialise the live mirror right away so the auction is fully usable
-        // even if an image upload below fails.
-        await set(ref(rtdb, `auctions/${created.id}`), {
-          currentBid: payload.currentBid,
-          totalBids: payload.totalBids,
-        })
+        let createdId: string
+        if (useSupabaseData()) {
+          const created = await callDataProxy('auction.create', {
+            ...payload,
+            images: imageUrls,
+          })
+          createdId = created.id as string
+        } else {
+          const created = await addDoc(collection(db, 'auctions'), {
+            ...payload,
+            images: imageUrls,
+            createdAt: serverTimestamp(),
+          })
+          createdId = created.id
+          // Initialise the live mirror right away so the auction is fully usable
+          // even if an image upload below fails.
+          await set(ref(rtdb, `auctions/${created.id}`), {
+            currentBid: payload.currentBid,
+            totalBids: payload.totalBids,
+          })
+        }
         if (pendingFiles.length > 0) {
           setUploadingImages(true)
           const uploaded = await uploadAuctionImages(
             pendingFiles,
-            created.id,
+            createdId,
             auth.currentUser?.uid || 'admin',
           )
-          await updateDoc(created, { images: [...imageUrls, ...uploaded] })
+          if (useSupabaseData()) {
+            await callDataProxy('auction.update', { id: createdId, images: uploaded })
+          } else {
+            await updateDoc(doc(db, 'auctions', createdId), { images: [...imageUrls, ...uploaded] })
+          }
         }
       }
 
@@ -422,33 +425,24 @@ export default function AdminAuctionForm() {
                 />
               </div>
 
-              {/* Location — Google Places search (same structure as Add Property) */}
+              {/* Area / Locality */}
               <div className="sm:col-span-2">
-                <input
-                  ref={areaSearchRef}
-                  type="search"
-                  placeholder="Search any area (Google Places)..."
-                  className={`${inputClass} mb-3`}
-                  autoComplete="off"
-                />
                 <label className="block font-sans text-xs text-gray-500 mb-2">
                   Area / Locality *
                 </label>
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
-                  {form.location.trim() ? (
-                    <div className="flex items-center gap-3">
-                      <CheckCircle size={20} weight="fill" className="shrink-0 text-green-600" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-green-700">
-                          Selected Area
-                        </p>
-                        <p className="truncate text-sm font-medium text-gray-900">{form.location}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-gray-500">No area selected — search above.</p>
-                  )}
-                </div>
+                <select
+                  value={form.location}
+                  onChange={(e) => {
+                    setField('location', e.target.value)
+                    setField('city', 'Bangalore')
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">Select Area / Locality</option>
+                  {BANGALORE_AREAS.map((area) => (
+                    <option key={area} value={area}>{area}</option>
+                  ))}
+                </select>
               </div>
               <div className="sm:col-span-2">
                 <label className={labelClass}>Images</label>

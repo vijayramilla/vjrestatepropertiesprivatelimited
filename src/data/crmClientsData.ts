@@ -26,6 +26,8 @@ export interface SheetClient {
   property_link: string;
   comm_date: string | null;
   property_subtype: string;
+  assigned_employee?: string | null;
+  assigned_employee_info?: { id: string; employee_id: string; name: string } | null;
 }
 
 interface RawRow {

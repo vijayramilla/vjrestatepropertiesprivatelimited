@@ -7,7 +7,7 @@ import { siteContact } from '@/data/siteContact';
 
 const footerConfig = {
   description:
-    'VJR Estate connects investors with rental income properties across Bangalore — PG buildings, residential blocks, commercial assets, and plots with documented monthly returns.',
+    'VJR Estate connects investors with rental income properties across Bangalore — PG buildings, residential blocks, and commercial assets with documented monthly returns.',
   contact: siteContact,
   socials: [
     { icon: MessageCircle, href: siteContact.whatsappUrl, label: 'WhatsApp' },
@@ -33,11 +33,10 @@ const footerConfig = {
       title: 'Properties',
       links: [
         { label: 'All Properties', to: '/properties' },
-        { label: 'Auctions', to: '/auctions' },
         { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
         { label: 'Residential', to: '/properties?type=Residential%20Rental%20Income' },
         { label: 'Commercial', to: '/properties?type=Commercial%20Properties' },
-        { label: 'Plots', to: '/properties?type=Residential%20Plot' },
+
       ],
     },
     {
@@ -46,7 +45,7 @@ const footerConfig = {
         { label: 'Shortlist', to: '/shortlist' },
         { label: 'Latest Listings', to: '/properties' },
         { label: 'Investment Guide', to: '/about' },
-        { label: 'Bangalore Land Investment Guide', to: '/bangalore-land-investment-guide' },
+
         { label: 'Bangalore Areas', to: '/properties' },
         // { label: 'AR Video', to: '/ar-video' },
       ],
@@ -54,8 +53,7 @@ const footerConfig = {
     {
       title: 'Tools & Resources',
       links: [
-        { label: 'AI Property Valuation', to: '/property-valuation' },
-        { label: 'Vastu Calculator', to: '/vastu-calculator' },
+
         { label: 'EMI Calculator', to: '/emi-calculator' },
       ],
     },

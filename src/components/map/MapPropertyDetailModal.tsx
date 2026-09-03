@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
+import { useSupabaseData, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatCardTotalPrice, formatCardPricePerSqft } from '@/lib/formatPrice';
 import { formatArea } from '@/lib/plotLandForm';
 import { isPlotProperty, isLandOrPlotProperty } from '@/data/properties';
@@ -35,6 +36,18 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
     let cancelled = false;
     const fetchProperty = async () => {
       try {
+        if (useSupabaseData()) {
+          const data = await supabaseGetProperty(propertyId);
+          if (!cancelled) {
+            if (data) {
+              setProperty(mapFirestoreToProperty(propertyId, data));
+              setContactPhone(String(data.contact_phone ?? ''));
+              setContactName(String(data.contact_name ?? ''));
+            }
+            setLoading(false);
+          }
+          return;
+        }
         const docSnap = await getDoc(doc(db, 'properties', propertyId));
         if (!cancelled) {
           if (docSnap.exists()) {

@@ -4,6 +4,7 @@ import { where, orderBy } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
+import { useSupabaseData, subscribeSupabaseProperties } from '@/lib/supabaseData';
 import type { PropertyLead } from '@/lib/propertyLeads';
 import { formatINR } from '@/lib/formatPrice';
 import { MapPin, MessageCircle, ChevronDown, ChevronRight, Plus, Building2 } from 'lucide-react';
@@ -31,6 +32,17 @@ export default function MyListingsPage() {
 
   useEffect(() => {
     if (!user) return;
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseProperties(
+        (docs) => {
+          const mapped = docs.map(({ id, data }) => ({ id, ...data } as UserProperty));
+          setProperties(mapped);
+          setLoading(false);
+        },
+        { uid: user.uid },
+      );
+      return () => unsub();
+    }
     const constraints = [where('uid', '==', user.uid), orderBy('createdAt', 'desc')];
     const unsub = subscribeProperties(
       (docs) => {

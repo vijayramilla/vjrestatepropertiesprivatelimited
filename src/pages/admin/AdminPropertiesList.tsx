@@ -11,6 +11,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useSupabaseData, subscribeSupabaseProperties, callDataProxy } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -88,36 +89,27 @@ export default function AdminPropertiesList() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { isLoaded, loadError } = useGoogleMapsLoader();
-
-  useEffect(() => {
-    if (!isLoaded || loadError || !inputRef.current) return;
-    try {
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        componentRestrictions: { country: 'in' },
-        fields: ['formatted_address'],
-      });
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-        setSearch(place?.formatted_address ?? '');
-      });
-    } catch { /* google maps unavailable */ }
-  }, [isLoaded, loadError]);
 
   const types = [
     'All Types',
     'PG Buildings',
     'Residential Rental Income',
     'Commercial Properties',
-    'Residential Plot',
-    'Commercial Plot',
-    'JD Land',
   ];
 
   useEffect(() => {
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseProperties((docs) => {
+        setProperties(docs.map(({ id, data }) => ({ id, ...data })) as Property[]);
+        setLoading(false);
+      });
+      return () => unsub();
+    }
     const q = query(collection(db, 'properties'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as Property[];
@@ -152,7 +144,11 @@ export default function AdminPropertiesList() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      await deleteDoc(doc(db, 'properties', deleteId));
+      if (useSupabaseData()) {
+        await callDataProxy('property.delete', { id: deleteId });
+      } else {
+        await deleteDoc(doc(db, 'properties', deleteId));
+      }
       setDeleteId(null);
     } catch (error) {
       console.error('Delete error:', error);
@@ -161,9 +157,47 @@ export default function AdminPropertiesList() {
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      if (prev.size === filteredProperties.length) return new Set();
+      return new Set(filteredProperties.map((p) => p.id));
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    setDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      if (useSupabaseData()) {
+        await Promise.all(ids.map((id) => callDataProxy('property.delete', { id })));
+      } else {
+        await Promise.all(ids.map((id) => deleteDoc(doc(db, 'properties', id))));
+      }
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleToggleFeatured = async (id: string, featured: boolean) => {
     try {
-      await updateDoc(doc(db, 'properties', id), { featured: !featured });
+      if (useSupabaseData()) {
+        await callDataProxy('property.toggleFeatured', { id, featured });
+      } else {
+        await updateDoc(doc(db, 'properties', id), { featured: !featured });
+      }
     } catch (error) {
       console.error('Update error:', error);
     }
@@ -172,6 +206,10 @@ export default function AdminPropertiesList() {
   const handleBackfillIds = async () => {
     setBackfilling(true);
     try {
+      if (useSupabaseData()) {
+        await callDataProxy('property.backfillCodes', {});
+        return;
+      }
       const allDocs = await getDocs(query(collection(db, 'properties')));
       let maxNum = 0;
       allDocs.forEach(d => {
@@ -202,7 +240,7 @@ export default function AdminPropertiesList() {
       label: 'Rental Income',
       value: adminProps.filter((p) => p.type === 'Residential Rental Income').length,
     },
-    { label: 'Plots', value: adminProps.filter((p) => p.type.includes('Plot')).length },
+    { label: 'Commercial', value: adminProps.filter((p) => p.type === 'Commercial Properties').length },
   ];
 
   return (
@@ -299,18 +337,26 @@ export default function AdminPropertiesList() {
           <>
             <motion.div variants={container} initial="initial" animate="animate" className="space-y-3 md:hidden">
               {filteredProperties.map((property) => (
-                <motion.article key={property.id} variants={fadeUp} className="admin-card p-4">
+                <motion.article key={property.id} variants={fadeUp} className={`admin-card p-4 ${selectedIds.has(property.id) ? 'ring-2 ring-blue-400' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[10px] font-mono text-gray-400">
-                        {property.propertyCode}
-                      </p>
-                      <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-black">
-                        {property.title}
-                      </p>
-                      <p className="mt-1 text-xs text-gray-600">
-                        {property.type} · {property.area}
-                      </p>
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(property.id)}
+                        onChange={() => toggleSelect(property.id)}
+                        className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-black"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-mono text-gray-400">
+                          {property.propertyCode}
+                        </p>
+                        <p className="line-clamp-2 text-[15px] font-semibold leading-snug text-black">
+                          {property.title}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-600">
+                          {property.type} · {property.area}
+                        </p>
+                      </div>
                     </div>
                     <AdminBadge variant={property.status === 'Ready' ? 'success' : 'muted'}>
                       {property.status}
@@ -362,6 +408,14 @@ export default function AdminPropertiesList() {
 
               <motion.div variants={container} initial="initial" animate="animate" className="admin-card hidden overflow-hidden md:block">
               <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/50 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                <div className="col-span-1 flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredProperties.length > 0 && selectedIds.size === filteredProperties.length}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-black"
+                  />
+                </div>
                 <p className="col-span-1">ID</p>
                 <p className="col-span-1">Title</p>
                 <p className="col-span-1">Type</p>
@@ -378,15 +432,20 @@ export default function AdminPropertiesList() {
                 <motion.div
                   key={property.id}
                   variants={fadeUp}
-                  className="grid grid-cols-12 gap-4 border-b border-gray-50 px-5 py-3.5 transition-colors last:border-0 hover:bg-gray-50/40"
+                  className={`grid grid-cols-12 gap-4 border-b border-gray-50 px-5 py-3.5 transition-colors last:border-0 hover:bg-gray-50/40 ${selectedIds.has(property.id) ? 'bg-blue-50/60' : ''}`}
                 >
+                  <div className="col-span-1 flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(property.id)}
+                      onChange={() => toggleSelect(property.id)}
+                      className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-black"
+                    />
+                  </div>
                   <p className="col-span-1 truncate text-[11px] font-mono text-gray-500">{property.propertyCode}</p>
-                  <p className="col-span-2 truncate text-sm font-medium text-black">{property.title}</p>
+                  <p className="col-span-1 truncate text-sm font-medium text-black">{property.title}</p>
                   <div className="col-span-1">
                     <p className="text-xs text-gray-800">{property.type}</p>
-                    {property.commercial_subtype && (
-                      <p className="text-[10px] text-gray-500">{property.commercial_subtype}</p>
-                    )}
                   </div>
                   <p className="col-span-1 text-xs text-gray-800">{property.area}</p>
                   <p className="col-span-1 text-sm text-black">{property.price_label}</p>
@@ -402,11 +461,8 @@ export default function AdminPropertiesList() {
                       onToggle={() => handleToggleFeatured(property.id, property.featured)}
                     />
                   </div>
-                  <div className="col-span-2 min-w-0">
+                  <div className="col-span-1 min-w-0">
                     <p className="truncate text-xs font-medium text-gray-800">{property.userDisplayName || '—'}</p>
-                    {property.userEmail && (
-                      <p className="truncate text-[10px] text-gray-500">{property.userEmail}</p>
-                    )}
                   </div>
                   <div className="col-span-1 flex gap-2">
                     <button
@@ -471,6 +527,88 @@ export default function AdminPropertiesList() {
                   className="flex-1 min-h-[44px] rounded-xl bg-black px-5 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-gray-900 disabled:opacity-50"
                 >
                   {deleting ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk delete floating bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+          >
+            <div className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white px-6 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+              <span className="text-sm font-medium text-gray-700">
+                <span className="font-bold text-black">{selectedIds.size}</span>{' '}
+                {selectedIds.size === 1 ? 'property' : 'properties'} selected
+              </span>
+              <div className="h-5 w-px bg-gray-200" />
+              <button
+                type="button"
+                onClick={() => setSelectedIds(new Set())}
+                className="text-sm text-gray-500 hover:text-black transition-colors"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkDeleteOpen(true)}
+                className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+              >
+                <Trash size={15} />
+                Delete {selectedIds.size === 1 ? 'Property' : 'Properties'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk delete confirmation modal */}
+      <AnimatePresence>
+        {bulkDeleteOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+            onClick={() => !deleting && setBulkDeleteOpen(false)}
+          >
+            <motion.div
+              initial={{ y: 24, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 24, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl sm:p-8"
+            >
+              <h3 className="admin-heading text-xl font-medium text-black sm:text-2xl">
+                Delete {selectedIds.size} {selectedIds.size === 1 ? 'Property' : 'Properties'}?
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:mt-4">
+                This action cannot be undone. All selected properties will be permanently removed.
+              </p>
+              <div className="mt-6 flex flex-col-reverse gap-2 sm:mt-8 sm:flex-row sm:gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteOpen(false)}
+                  disabled={deleting}
+                  className="admin-btn-secondary flex-1 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleBulkDelete}
+                  disabled={deleting}
+                  className="flex-1 min-h-[44px] rounded-xl bg-red-600 px-5 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleting ? 'Deleting...' : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'Property' : 'Properties'}`}
                 </button>
               </div>
             </motion.div>

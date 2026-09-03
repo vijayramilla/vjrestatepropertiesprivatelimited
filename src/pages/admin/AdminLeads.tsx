@@ -1,28 +1,48 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
+import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT, CrmStatCard, CrmStatGrid, CrmChip, MotionReveal } from '@/components/crm/CrmUi';
 import type { Lead, Agent } from '@/types/lead';
 import { LEAD_STATUSES, LEAD_PRIORITIES } from '@/types/lead';
-import { Search, RefreshCw, Users, UserCog } from 'lucide-react';
+import { Search, RefreshCw, UserCog, ClipboardList, MapPin, IndianRupee, Phone, X, Sparkles } from 'lucide-react';
 
 const STATUS_COLORS: Record<string, string> = {
-  'New Lead': 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  Contacted: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-  'Property Shared': 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
-  'Site Visit Scheduled': 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  Negotiation: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-  Booked: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  Closed: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  Lost: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  'New Lead': 'bg-blue-50 text-blue-700',
+  Contacted: 'bg-purple-50 text-purple-700',
+  'Property Shared': 'bg-indigo-50 text-indigo-700',
+  'Site Visit Scheduled': 'bg-amber-50 text-amber-700',
+  Negotiation: 'bg-orange-50 text-orange-700',
+  Booked: 'bg-emerald-50 text-emerald-700',
+  Closed: 'bg-green-50 text-green-700',
+  Lost: 'bg-red-50 text-red-700',
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  Low: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
-  Medium: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-  High: 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400',
-  Urgent: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400',
+  Low: 'bg-gray-100 text-gray-600',
+  Medium: 'bg-blue-100 text-blue-600',
+  High: 'bg-orange-100 text-orange-600',
+  Urgent: 'bg-red-100 text-red-600',
 };
+
+const OPEN_STATUSES = ['New Lead', 'Contacted', 'Property Shared', 'Site Visit Scheduled', 'Negotiation'];
+const DONE_STATUSES = ['Booked', 'Closed'];
+
+function initials(name: string) {
+  return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+}
+
+/** Rough numeric value of a budget string ("50L", "1 Cr", "₹75,00,000") for sorting. */
+function budgetValue(budget: string | undefined | null): number {
+  if (!budget) return 0;
+  const cleaned = budget.replace(/[^0-9.]/g, '');
+  const num = parseFloat(cleaned);
+  if (isNaN(num)) return 0;
+  const lower = budget.toLowerCase();
+  if (lower.includes('cr')) return num * 10000000;
+  if (lower.includes('lakh') || /[0-9]l/.test(lower)) return num * 100000;
+  return num;
+}
 
 export default function AdminLeads() {
   const navigate = useNavigate();
@@ -32,29 +52,20 @@ export default function AdminLeads() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
-  const [sortBy, setSortBy] = useState('createdAt');
-  const [sortOrder, setSortOrder] = useState('desc');
-  const [agents, setAgents] = useState<Agent[]>([]);
   const [agentFilter, setAgentFilter] = useState('');
+  const [sortKey, setSortKey] = useState('date-new');
+  const [agents, setAgents] = useState<Agent[]>([]);
 
   const fetchLeads = useCallback(async () => {
     try {
-      const res = await leadSupabase.list({
-        search: search || undefined,
-        status: statusFilter || undefined,
-        priority: priorityFilter || undefined,
-        agent: agentFilter || undefined,
-        sortBy,
-        sortOrder,
-        limit: 9999,
-      });
+      const res = await leadSupabase.list({ limit: 9999 });
       setLeads(res.data);
     } catch (err) {
       console.error('Failed to fetch leads:', err);
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, priorityFilter, agentFilter, sortBy, sortOrder]);
+  }, []);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -67,144 +78,226 @@ export default function AdminLeads() {
     leadSupabase.agents.list().then((res) => setAgents(res.data)).catch(() => {});
   }, []);
 
-  const toggleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder((o) => (o === 'desc' ? 'asc' : 'desc'));
-    } else {
-      setSortBy(field);
-      setSortOrder('desc');
-    }
-  };
+  const statusCounts = useMemo(() => {
+    const m: Record<string, number> = { all: leads.length };
+    for (const l of leads) m[l.status] = (m[l.status] ?? 0) + 1;
+    return m;
+  }, [leads]);
 
-  const sortArrow = (field: string) => {
-    if (sortBy !== field) return '';
-    return sortOrder === 'desc' ? ' ↓' : ' ↑';
+  const openCount = leads.filter((l) => OPEN_STATUSES.includes(l.status)).length;
+  const doneCount = leads.filter((l) => DONE_STATUSES.includes(l.status)).length;
+  const hotCount = leads.filter((l) => l.priority === 'Urgent' || l.priority === 'High').length;
+  const hasFilters = Boolean(search || statusFilter || priorityFilter || agentFilter);
+
+  const filtered = useMemo(() => {
+    let list = leads.slice();
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter((l) =>
+        l.name.toLowerCase().includes(q) ||
+        l.phone.includes(q) ||
+        l.leadId.toLowerCase().includes(q) ||
+        (l.email ?? '').toLowerCase().includes(q),
+      );
+    }
+    if (statusFilter) list = list.filter((l) => l.status === statusFilter);
+    if (priorityFilter) list = list.filter((l) => l.priority === priorityFilter);
+    if (agentFilter) list = list.filter((l) => l.assignedAgent?._id === agentFilter);
+
+    switch (sortKey) {
+      case 'date-old':
+        list.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+        break;
+      case 'budget-high':
+        list.sort((a, b) => budgetValue(b.requirement?.budget) - budgetValue(a.requirement?.budget));
+        break;
+      case 'budget-low':
+        list.sort((a, b) => budgetValue(a.requirement?.budget) - budgetValue(b.requirement?.budget));
+        break;
+      case 'name':
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      default: // date-new
+        list.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    }
+    return list;
+  }, [leads, search, statusFilter, priorityFilter, agentFilter, sortKey]);
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setPriorityFilter('');
+    setAgentFilter('');
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-200/30 shrink-0">
-              <Users className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+      <main className="flex-1 min-w-0 overflow-y-auto">
+        <CrmPageBody>
+          <CrmPageHeader
+            eyebrow="Pipeline"
+            title="Requirements"
+            description={`${leads.length} total leads · ${openCount} open · ${doneCount} closed`}
+            actions={
+              <CrmBtn variant="ghost" onClick={fetchLeads}>
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </CrmBtn>
+            }
+          />
+
+          {/* Pipeline stats — click to filter */}
+          <CrmStatGrid>
+            <MotionReveal delay={0}>
+              <button type="button" onClick={() => setStatusFilter('')} className="block w-full text-left">
+                <CrmStatCard icon={<ClipboardList className="h-5 w-5" strokeWidth={1.6} />} label="Total Leads" value={leads.length} subtext="All requirements" tone="navy" />
+              </button>
+            </MotionReveal>
+            <MotionReveal delay={0.05}>
+              <button type="button" onClick={() => setStatusFilter('')} className="block w-full text-left">
+                <CrmStatCard icon={<Sparkles className="h-5 w-5" strokeWidth={1.6} />} label="Open" value={openCount} subtext="Active pipeline" tone="gold" />
+              </button>
+            </MotionReveal>
+            <MotionReveal delay={0.1}>
+              <button type="button" onClick={() => setStatusFilter(DONE_STATUSES.includes(statusFilter) ? '' : 'Booked')} className="block w-full text-left">
+                <CrmStatCard icon={<IndianRupee className="h-5 w-5" strokeWidth={1.6} />} label="Booked & Closed" value={doneCount} subtext="Deals done" tone="emerald" />
+              </button>
+            </MotionReveal>
+            <MotionReveal delay={0.15}>
+              <button type="button" onClick={() => setPriorityFilter(priorityFilter === 'Urgent' ? '' : 'Urgent')} className="block w-full text-left">
+                <CrmStatCard icon={<Sparkles className="h-5 w-5" strokeWidth={1.6} />} label="Hot (High/Urgent)" value={hotCount} subtext="Act now" tone="red" />
+              </button>
+            </MotionReveal>
+          </CrmStatGrid>
+
+          {/* Filters */}
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, phone, email, or lead ID..."
+                className={`${CRM_INPUT} pl-9`}
+              />
             </div>
-            <div>
-              <h1 className="font-['Fraunces',serif] text-[22px] sm:text-[28px] font-semibold tracking-tight m-0">Requirements</h1>
-              <p className="text-muted-foreground text-[12px] sm:text-[13.5px] mt-0.5">{leads.length} total leads</p>
+            <div className="flex flex-wrap gap-3">
+              <select value={sortKey} onChange={(e) => setSortKey(e.target.value)} className={`${CRM_INPUT} lg:w-[190px]`}>
+                <option value="date-new">Newest first</option>
+                <option value="date-old">Oldest first</option>
+                <option value="budget-high">Budget: high to low</option>
+                <option value="budget-low">Budget: low to high</option>
+                <option value="name">Name: A to Z</option>
+              </select>
+              <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)} className={`${CRM_INPUT} lg:w-[150px]`}>
+                <option value="">All Priority</option>
+                {LEAD_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className={`${CRM_INPUT} lg:w-[170px]`}>
+                <option value="">All Agents</option>
+                {agents.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
+              </select>
+              {hasFilters && (
+                <CrmBtn variant="ghost" onClick={clearFilters}>
+                  <X className="h-3.5 w-3.5" /> Clear
+                </CrmBtn>
+              )}
             </div>
           </div>
-          <button onClick={fetchLeads} className="inline-flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-3 sm:px-4 sm:py-2.5 rounded-full border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">
-            <RefreshCw className="w-4 h-4" /> Refresh
-          </button>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, phone, or ID..."
-              className="w-full h-10 pl-9 pr-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-blue-400 transition-colors"
-            />
+          {/* Status chips with counts */}
+          <div className="mb-6 flex gap-2 overflow-x-auto pb-1">
+            <CrmChip active={!statusFilter} onClick={() => setStatusFilter('')}>
+              All <span className="opacity-60">{statusCounts.all ?? 0}</span>
+            </CrmChip>
+            {LEAD_STATUSES.map((s) => (
+              <CrmChip key={s} active={statusFilter === s} onClick={() => setStatusFilter(statusFilter === s ? '' : s)}>
+                {s} <span className="opacity-60">{statusCounts[s] ?? 0}</span>
+              </CrmChip>
+            ))}
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-border bg-card text-sm outline-none text-muted-foreground"
-          >
-            <option value="">All Status</option>
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <select
-            value={priorityFilter}
-            onChange={(e) => setPriorityFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-border bg-card text-sm outline-none text-muted-foreground"
-          >
-            <option value="">All Priority</option>
-            {LEAD_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-          <select
-            value={agentFilter}
-            onChange={(e) => setAgentFilter(e.target.value)}
-            className="h-10 px-3 rounded-xl border border-border bg-card text-sm outline-none text-muted-foreground"
-          >
-            <option value="">All Agents</option>
-            {agents.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
-          </select>
-        </div>
 
-        <div className="bg-card border border-border/60 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  {[
-                    { key: 'leadId', label: 'Lead ID' },
-                    { key: 'name', label: 'Name' },
-                    { key: 'phone', label: 'Phone' },
-                    { key: 'requirement.propertyType', label: 'Property' },
-                    { key: 'requirement.preferredLocation', label: 'Location' },
-                    { key: 'requirement.budget', label: 'Budget' },
-                    { key: 'status', label: 'Status' },
-                    { key: 'priority', label: 'Priority' },
-                    { key: 'leadSource', label: 'Source' },
-                    { key: 'agent', label: 'Agent' },
-                    { key: 'createdAt', label: 'Date' },
-                  ].map((col) => (
-                    <th
-                      key={col.key}
-                      onClick={() => toggleSort(col.key)}
-                      className="text-left text-[10.5px] uppercase tracking-[1px] text-muted-foreground px-4 py-3.5 font-bold cursor-pointer hover:text-foreground whitespace-nowrap"
-                    >
-                      {col.label}{sortArrow(col.key)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={11} className="text-center py-16 text-muted-foreground text-sm">Loading leads...</td></tr>
-                ) : leads.length === 0 ? (
-                  <tr><td colSpan={11} className="text-center py-16 text-muted-foreground text-sm">No leads found</td></tr>
-                ) : leads.map((lead) => (
-                  <tr
-                    key={lead._id}
-                    onClick={() => navigate(`/crm/requirements/${lead._id}`)}
-                    className="border-b border-border/40 hover:bg-accent/30 cursor-pointer transition-colors"
-                  >
-                    <td className="px-4 py-3 font-mono text-[11px] text-blue-600 dark:text-blue-400 font-medium">{lead.leadId}</td>
-                    <td className="px-4 py-3 font-medium text-foreground">{lead.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{lead.phone}</td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-[120px] truncate">{lead.requirement.propertyType || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground max-w-[140px] truncate">{lead.requirement.preferredLocation || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{lead.requirement.budget || '—'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block text-[10.5px] font-bold px-2.5 py-1 rounded-full ${STATUS_COLORS[lead.status] ?? ''}`}>{lead.status}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded ${PRIORITY_COLORS[lead.priority] ?? ''}`}>{lead.priority}</span>
-                    </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground">{lead.leadSource}</td>
-                    <td className="px-4 py-3">
+          {loading ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-40 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-2xl border border-black/[0.05] bg-white py-16 text-center">
+              <ClipboardList className="mx-auto mb-3 h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
+              <p className="text-sm font-semibold text-[#0A1628]">No leads found</p>
+              {hasFilters && (
+                <button type="button" onClick={clearFilters} className="mt-2 text-xs font-bold text-[#96782A] hover:underline">
+                  Clear filters
+                </button>
+              )}
+            </div>
+          ) : (
+            <MotionReveal>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+                {filtered.map((lead) => (
+                  <CrmCard key={lead._id} onClick={() => navigate(`/crm/requirements/${lead._id}`)} className="p-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A1628] to-[#1E3852] text-[13px] font-extrabold text-[#D6B85D] shadow-[0_2px_8px_rgba(10,22,40,0.18)]">
+                        {initials(lead.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-[14px] font-bold text-[#111827]">{lead.name}</p>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${STATUS_COLORS[lead.status] ?? 'bg-gray-100 text-gray-600'}`}>{lead.status}</span>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[10.5px]">
+                          <span className="font-mono font-medium text-[#96782A]">{lead.leadId}</span>
+                          <span className="text-[#C9A84C]/60">·</span>
+                          <span className="truncate text-[#9ca3af]">{lead.leadSource || 'Direct'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3.5 space-y-1.5 text-[12px] text-[#6b7280]">
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-3.5 w-3.5 shrink-0 text-[#9ca3af]" strokeWidth={1.5} />
+                        <span className="tabular-nums">{lead.phone}</span>
+                      </div>
+                      {(lead.requirement.propertyType || lead.requirement.preferredLocation) && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-[#9ca3af]" strokeWidth={1.5} />
+                          <span className="truncate">{[lead.requirement.propertyType, lead.requirement.preferredLocation].filter(Boolean).join(' · ')}</span>
+                        </div>
+                      )}
+                      {lead.requirement.budget && (
+                        <div className="flex items-center gap-2">
+                          <IndianRupee className="h-3.5 w-3.5 shrink-0 text-emerald-500" strokeWidth={1.5} />
+                          <span className="font-['Inter',sans-serif] font-semibold text-emerald-600">{lead.requirement.budget}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-3.5 flex flex-wrap items-center gap-2 border-t border-black/[0.05] pt-3">
+                      <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${PRIORITY_COLORS[lead.priority] ?? 'bg-gray-100 text-gray-600'}`}>{lead.priority}</span>
                       {lead.assignedAgent ? (
-                        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                          <UserCog className="w-3 h-3" strokeWidth={1.5} />
+                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                          <UserCog className="h-3 w-3" strokeWidth={1.5} />
                           {lead.assignedAgent.name}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-muted-foreground">—</span>
+                        <span className="text-[11px] text-[#9ca3af]">Unassigned</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-[11px] text-muted-foreground whitespace-nowrap">{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '—'}</td>
-                  </tr>
+                      <span className="ml-auto text-[10.5px] text-[#9ca3af]">
+                        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '—'}
+                      </span>
+                    </div>
+                  </CrmCard>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              </div>
+
+              <p className="mt-6 text-center text-[11px] tracking-[0.3px] text-[#9ca3af]">
+                {filtered.length} of {leads.length} leads shown · auto-refreshes every 30s
+              </p>
+            </MotionReveal>
+          )}
+        </CrmPageBody>
       </main>
     </div>
   );

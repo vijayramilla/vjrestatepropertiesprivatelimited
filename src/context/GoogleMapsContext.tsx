@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useJsApiLoader, type Libraries } from '@react-google-maps/api';
+import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 
 const GOOGLE_MAPS_LOADER_ID = 'vjr-google-maps-loader';
 // Module-level constant so the array reference is stable across renders;
@@ -17,12 +18,7 @@ const GoogleMapsContext = createContext<GoogleMapsContextValue>({
 });
 
 export function GoogleMapsProvider({ children }: { children: ReactNode }) {
-  const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ?? '';
-
-  const configError =
-    !googleMapsApiKey
-      ? new Error('Missing VITE_GOOGLE_MAPS_API_KEY. Add it in Vercel environment variables.')
-      : undefined;
+  const googleMapsApiKey = GOOGLE_MAPS_API_KEY;
 
   const authFailedRef = useRef(false);
   const [authFailure, setAuthFailure] = useState(false);
@@ -62,12 +58,12 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
     if (loadError) console.error('[Maps] loadError:', loadError.message);
   }, [isLoaded, loadError]);
 
-  const resolvedError = configError ?? loadError ?? (authFailure ? new Error('Google Maps API authentication failed') : undefined);
+  const resolvedError = loadError ?? (authFailure ? new Error('Google Maps API authentication failed') : undefined);
 
   return (
     <GoogleMapsContext.Provider
       value={{
-        isLoaded: configError ? false : isLoaded,
+        isLoaded,
         loadError: resolvedError,
       }}
     >

@@ -2,19 +2,24 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { checkCrmAccess } from '@/lib/adminAuth';
+import { getCrmUserRole } from '@/lib/adminAuth';
 
 interface CrmRouteProps {
   children: ReactNode;
 }
 
+/**
+ * Admin-only route guard for every /crm/* page except the employee workspace
+ * (which uses EmployeeRoute). Employees who type or land on an admin URL are
+ * sent straight to their own dashboard — they must never see admin pages.
+ */
 export default function CrmRoute({ children }: CrmRouteProps) {
-  const [authState, setAuthState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
+  const [authState, setAuthState] = useState<'loading' | 'admin' | 'employee' | 'unauthorized'>('loading');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      const allowed = await checkCrmAccess(user);
-      setAuthState(allowed ? 'authorized' : 'unauthorized');
+      const role = await getCrmUserRole(user);
+      setAuthState(role === 'admin' ? 'admin' : role === 'employee' ? 'employee' : 'unauthorized');
     });
 
     return () => unsubscribe();
@@ -35,6 +40,10 @@ export default function CrmRoute({ children }: CrmRouteProps) {
 
   if (authState === 'unauthorized') {
     return <Navigate to="/admin/login" replace />;
+  }
+
+  if (authState === 'employee') {
+    return <Navigate to="/crm/dashboard" replace />;
   }
 
   return <>{children}</>;

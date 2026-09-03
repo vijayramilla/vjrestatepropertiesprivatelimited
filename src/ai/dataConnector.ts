@@ -1,6 +1,7 @@
 import { collection, getDocs, getDoc, doc, limit, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { mapFirestoreToProperty, type FirestorePropertyDoc } from '@/lib/firestoreProperties';
+import { useSupabaseData, supabaseFetchAllProperties, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatINR } from '@/lib/formatPrice';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,6 +95,14 @@ export async function getAllProperties(cap = 300): Promise<AiProperty[]> {
   if (propertiesCache && now - propertiesCache.at < PROPERTIES_CACHE_TTL_MS) {
     return propertiesCache.data.slice(0, cap);
   }
+  if (useSupabaseData()) {
+    const docs = await supabaseFetchAllProperties();
+    const data = docs
+      .slice(0, cap)
+      .map((d) => toAiProperty(String(d.id), d as FirestorePropertyDoc));
+    propertiesCache = { at: now, data };
+    return data;
+  }
   const snap = await getDocs(query(collection(db, 'properties'), limit(cap)));
   const data = snap.docs.map((d) => toAiProperty(d.id, d.data() as FirestorePropertyDoc));
   propertiesCache = { at: now, data };
@@ -106,6 +115,11 @@ export function invalidatePropertiesCache(): void {
 
 /** Fetch a single property by id. */
 export async function getProperty(id: string): Promise<AiProperty | null> {
+  if (useSupabaseData()) {
+    const doc = await supabaseGetProperty(id);
+    if (!doc) return null;
+    return toAiProperty(id, doc as FirestorePropertyDoc);
+  }
   const snap = await getDoc(doc(db, 'properties', id));
   if (!snap.exists()) return null;
   return toAiProperty(snap.id, snap.data() as FirestorePropertyDoc);

@@ -1,3 +1,5 @@
+import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
+
 export interface NearbyPlace {
   name: string;
   type: string;
@@ -16,7 +18,7 @@ export async function fetchNearbyPlaces(
   radiusMeters = 2000,
 ): Promise<NearbyPlace[]> {
   const results: NearbyPlace[] = [];
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const apiKey = GOOGLE_MAPS_API_KEY;
 
   const { NEARBY_CATEGORIES } = await import('../data/nearbyCategories');
 

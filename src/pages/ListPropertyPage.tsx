@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addDoc, collection, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { uploadPropertyImages } from '@/lib/propertyImages';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
+import { useSupabaseData, propertyDocToRow, callDataProxy } from '@/lib/supabaseData';
 import { formatPrice, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import { computePlotLandAreaSqft, sqftToAcresGuntas } from '@/lib/plotLandForm';
 import type { AreaUnit } from '@/lib/plotLandForm';
@@ -14,7 +15,7 @@ import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
 import type { LandLocationValue } from '@/lib/mapGeocoding';
 import { enhanceDescription } from '@/utils/aiDescription';
 
-const PLOT_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;
+const PLOT_TYPES: string[] = [];
 const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
 const LISTED_BY_OPTIONS = ['Agent', 'Owner'];
 
@@ -61,7 +62,7 @@ export default function ListPropertyPage() {
   const [showSignIn, setShowSignIn] = useState(false);
   const [form, setForm] = useState<FormState>({
     title: '',
-    type: 'Residential Plot',
+    type: 'PG Buildings',
     area: '',
     location: '',
     price: 0,
@@ -187,7 +188,7 @@ export default function ListPropertyPage() {
     
     setSaving(true);
     try {
-      const ref = await addDoc(collection(db, 'properties'), sanitizeForFirestore({
+      const docData = {
         title: form.title.trim(),
         type: form.type,
         area: form.area.trim(),
@@ -218,11 +219,27 @@ export default function ListPropertyPage() {
         pincode: form.pincode,
         fullAddress: form.fullAddress,
         images: [],
-        createdAt: serverTimestamp(),
-      }));
+      };
+
+      let propertyId: string;
+      if (useSupabaseData()) {
+        const created = await callDataProxy('property.create', propertyDocToRow(docData));
+        propertyId = created.id as string;
+      } else {
+        const ref = await addDoc(collection(db, 'properties'), sanitizeForFirestore({
+          ...docData,
+          createdAt: serverTimestamp(),
+        }));
+        propertyId = ref.id;
+      }
+
       if (files.length > 0) {
-        const urls = await uploadPropertyImages(files, ref.id, user.uid);
-        await updateDoc(ref, { images: urls });
+        const urls = await uploadPropertyImages(files, propertyId, user.uid);
+        if (useSupabaseData()) {
+          await callDataProxy('property.update', { id: propertyId, images: urls });
+        } else {
+          await updateDoc(doc(db, 'properties', propertyId), { images: urls });
+        }
       }
       setSubmitted(true);
     } catch (err) {
@@ -289,7 +306,7 @@ export default function ListPropertyPage() {
                     previews.forEach(URL.revokeObjectURL);
                     setSubmitted(false);
                     setForm({
-                      title: '', type: 'Residential Plot', area: '', location: '', price: 0,
+                      title: '', type: 'PG Buildings', area: '', location: '', price: 0,
                       price_per_sqft: 0, area_sqft: 0, area_unit: 'sqft', land_acres: 0,
                       land_guntas: 0, dimensions: '', facing: 'East', katha: '', description: '',
                       contact_name: '', contact_phone: '', listed_by: 'Owner', map_lat: 0,
@@ -312,8 +329,8 @@ export default function ListPropertyPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               List your property
             </span>
-            <h1 className="mt-5 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">List Your Plot / Land</h1>
-            <p className="mt-3 text-sm text-gray-500 max-w-md mx-auto leading-relaxed">Reach thousands of buyers — list your plot or land for free. No commissions, no fees.</p>
+            <h1 className="mt-5 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">List Your Property</h1>
+            <p className="mt-3 text-sm text-gray-500 max-w-md mx-auto leading-relaxed">Reach thousands of buyers — list your property for free. No commissions, no fees.</p>
           </div>
           {showSignIn && (
             <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
@@ -355,7 +372,7 @@ export default function ListPropertyPage() {
                 <label className="block text-xs font-medium text-gray-700 mb-1.5">Property Title *</label>
                 <input
                   type="text"
-                  placeholder="e.g. 30×40 Residential Plot in Whitefield"
+                  placeholder="e.g. PG Building in Whitefield"
                   value={form.title}
                   onChange={(e) => update('title', e.target.value)}
                   className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"

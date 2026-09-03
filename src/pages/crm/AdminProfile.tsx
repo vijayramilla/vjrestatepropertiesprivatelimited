@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { leadSupabase } from '@/services/leadSupabase';
-import { auth, storage } from '@/lib/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Mail, Shield, Trash2, Plus, RefreshCw, UserCog, Pencil, Camera, Calendar } from 'lucide-react';
@@ -11,6 +11,7 @@ import {
   assignablePermissions,
   canAssignPermission,
   isSuperAdminEmail,
+  premiumDisplayName,
 } from '@/lib/crmAdminConfig';
 
 interface AdminUser {
@@ -179,7 +180,7 @@ export default function AdminProfile() {
   const canManage = isSuperAdmin || canManageAdmins(effectiveProfile);
   const allowedPerms = isSuperAdmin ? null : assignablePermissions(effectiveProfile);
 
-  const displayName = effectiveProfile?.data?.display_name || authUser?.displayName || 'Admin';
+  const displayName = premiumDisplayName(effectiveProfile?.data?.display_name || authUser?.displayName || 'Admin');
   const avatarUrl = effectiveProfile?.data?.avatar_url || authUser?.photoURL || '';
   const joinedAt = effectiveProfile?.data?.created_at || '';
 
@@ -222,10 +223,14 @@ export default function AdminProfile() {
     setUploadingAvatar(true);
     try {
       const uid = auth.currentUser?.uid || 'unknown';
-      const path = `profiles/${uid}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file, { contentType: file.type });
-      const url = await getDownloadURL(storageRef);
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const path = `profiles/${uid}/${Date.now()}-${safeName}`;
+      const { error: upErr } = await supabase.storage
+        .from('employee-photos')
+        .upload(path, file, { contentType: file.type, upsert: true });
+      if (upErr) throw upErr;
+      const { data } = supabase.storage.from('employee-photos').getPublicUrl(path);
+      const url = data.publicUrl;
       await leadSupabase.admin.updateAvatar(authUser?.email || '', url);
       if (authUser) await loadData(authUser);
     } catch (err) {
@@ -305,10 +310,10 @@ export default function AdminProfile() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-screen overflow-hidden bg-[#f4f5f7]">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(v => !v)} />
       <div className="flex-1 overflow-y-auto">
-        <header className="flex items-center justify-between h-14 border-b border-border px-6 bg-card">
+        <header className="flex h-14 items-center justify-between border-b border-black/[0.06] bg-white px-6">
           <div className="flex items-center gap-3">
             <UserCog className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             <h1 className="font-semibold text-foreground text-[15px]">Profile & Admin Management</h1>

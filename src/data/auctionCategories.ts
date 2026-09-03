@@ -1,10 +1,10 @@
 export type AuctionCategory =
   | 'Residential'
   | 'Commercial'
-  | 'Land & Plot'
   | 'Apartment'
   | 'Villa'
-  | 'Industrial';
+  | 'Industrial'
+  | 'PG Building';
 
 export type AuctionStatus = 'upcoming' | 'live' | 'ending_soon' | 'closed' | 'sold';
 
@@ -19,10 +19,10 @@ export const AUCTION_CATEGORIES: AuctionCategoryItem[] = [
   { id: 'all', label: 'All Auctions', icon: 'Gavel', color: '#C9A84C' },
   { id: 'Residential', label: 'Residential', icon: 'House', color: '#EF4444' },
   { id: 'Commercial', label: 'Commercial', icon: 'BuildingOffice', color: '#3B82F6' },
-  { id: 'Land & Plot', label: 'Land & Plot', icon: 'Leaf', color: '#22C55E' },
   { id: 'Apartment', label: 'Apartment', icon: 'BuildingApartment', color: '#8B5CF6' },
   { id: 'Villa', label: 'Villa', icon: 'HouseLine', color: '#F59E0B' },
   { id: 'Industrial', label: 'Industrial', icon: 'Factory', color: '#6B7280' },
+  { id: 'PG Building', label: 'PG Building', icon: 'Buildings', color: '#22C55E' },
 ];
 
 export const AUCTION_STATUS_CONFIG: Record<

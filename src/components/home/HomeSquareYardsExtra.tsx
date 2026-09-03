@@ -4,11 +4,8 @@ import {
   House,
   SignOut,
   Buildings,
-  MapTrifold,
-  ChartBar,
   ArrowRight,
   Warehouse,
-  Tree,
 } from '@phosphor-icons/react';
 
 interface Service {
@@ -21,11 +18,25 @@ interface Service {
 
 const SERVICES: Service[] = [
   {
-    label: 'Buy Property',
-    desc: 'Premium PG, residential & commercial assets',
-    cta: 'Explore Properties',
+    label: 'PG Buildings',
+    desc: 'Income-generating rental assets',
+    cta: 'View PG Buildings',
+    icon: Buildings,
+    href: '/properties?type=PG Buildings',
+  },
+  {
+    label: 'Residential Rentals',
+    desc: 'Apartments & houses with rental income',
+    cta: 'Explore Residential',
     icon: House,
-    href: '/properties',
+    href: '/properties?type=Residential Rental Income',
+  },
+  {
+    label: 'Commercial Properties',
+    desc: 'Offices, retail & warehouses',
+    cta: 'Explore Commercial',
+    icon: Warehouse,
+    href: '/properties?type=Commercial Properties',
   },
   {
     label: 'Sell / List Property',
@@ -34,59 +45,26 @@ const SERVICES: Service[] = [
     icon: SignOut,
     href: '/list-property',
   },
-  {
-    label: 'PG Buildings',
-    desc: 'Income-generating rental assets',
-    cta: 'View PG Buildings',
-    icon: Buildings,
-    href: '/properties?type=PG Buildings',
-  },
-  {
-    label: 'Land Map',
-    desc: 'Explore plots on the interactive Bangalore map',
-    cta: 'Open Map',
-    icon: MapTrifold,
-    href: '/map',
-  },
-  {
-    label: 'Property Valuation',
-    desc: 'AI-powered premium valuation report',
-    cta: 'Valuate Now',
-    icon: ChartBar,
-    href: '/property-valuation',
-  },
 ];
 
 const propertyTypes = [
   {
     label: 'PG Buildings',
-    desc: 'for Investment in Bangalore',
+    desc: 'Rental income assets in Bangalore',
     icon: <Buildings size={28} weight="duotone" />,
     slug: '/properties?type=PG Buildings',
   },
   {
-    label: 'Apartments',
-    desc: 'for Sale in Bangalore',
+    label: 'Residential Rentals',
+    desc: 'Apartments & houses in Bangalore',
     icon: <House size={28} weight="duotone" />,
     slug: '/properties?type=Residential Rental Income',
   },
   {
-    label: 'Commercial Spaces',
-    desc: 'for Sale in Bangalore',
+    label: 'Commercial Properties',
+    desc: 'Offices & retail in Bangalore',
     icon: <Warehouse size={28} weight="duotone" />,
     slug: '/properties?type=Commercial Properties',
-  },
-  {
-    label: 'Plots / Land',
-    desc: 'for Sale in Bangalore',
-    icon: <Tree size={28} weight="duotone" />,
-    slug: '/properties?type=Residential Plot,Commercial Plot,JD Land',
-  },
-  {
-    label: 'Villas',
-    desc: 'for Sale in Bangalore',
-    icon: <House size={28} weight="duotone" />,
-    slug: '/properties',
   },
 ];
 
@@ -119,7 +97,7 @@ export default function HomeSquareYardsExtra() {
               Everything You Need at One Place
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-gray-500">
-              From buying and selling to valuation and the Bangalore land map — VJR Estate covers
+              From buying and selling to rental advisory — VJR Estate covers
               your entire property journey in Bangalore.
             </p>
           </motion.div>

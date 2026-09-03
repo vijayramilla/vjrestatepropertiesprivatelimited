@@ -5,58 +5,117 @@ import { leadSupabase } from '@/services/leadSupabase';
 import {
   LayoutDashboard,
   IndianRupee,
-  Users,
-  Database,
   ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
-  Server,
   UserCog,
   Menu,
   X,
+  Briefcase,
+  HardDrive,
+  ChevronRight,
+  ListChecks,
+  Megaphone,
+  Wallet,
+  Clock,
+  MapPin,
 } from 'lucide-react';
+import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
+import { useEmployeeSession } from '@/hooks/useEmployeeSession';
 
-const navItems = [
-  { id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, path: '/crm', perm: null },
-  { id: 'earnings', title: 'Earnings', icon: IndianRupee, path: '/crm/earnings', perm: 'earnings.view' },
-  { id: 'clients', title: 'Clients', icon: Users, path: '/crm', perm: 'clients.view' },
-  { id: 'requirements', title: 'Requirements', icon: ClipboardList, path: '/crm/requirements', perm: 'requirements.view' },
-  { id: 'agents', title: 'Agents', icon: UserCog, path: '/crm/agents', perm: 'agents.view' },
-  { id: 'data', title: 'Database 1', icon: Database, path: '/crm/data', perm: 'data.view' },
-  { id: 'mongodb-data', title: 'Database 2', icon: Server, path: '/crm/mongodb-data', perm: 'database.view' },
+type NavItem = {
+  id: string;
+  title: string;
+  icon: typeof LayoutDashboard;
+  path: string;
+  perm: string | null;
+};
+
+const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    items: [
+      { id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, path: '/crm', perm: null },
+      { id: 'earnings', title: 'Earnings', icon: IndianRupee, path: '/crm/earnings', perm: 'earnings.view' },
+    ],
+  },
+  {
+    key: 'pipeline',
+    label: 'Pipeline',
+    items: [
+      { id: 'leads', title: 'Leads', icon: ListChecks, path: '/crm/leads', perm: 'clients.view' },
+      { id: 'requirements', title: 'Requirements', icon: ClipboardList, path: '/crm/requirements', perm: 'requirements.view' },
+      { id: 'agents', title: 'Agents', icon: UserCog, path: '/crm/agents', perm: 'agents.view' },
+    ],
+  },
+  {
+    key: 'operations',
+    label: 'Operations',
+    items: [
+      { id: 'employees', title: 'Employees', icon: Briefcase, path: '/crm/employees', perm: null },
+      { id: 'attendance', title: 'Attendance', icon: Clock, path: '/crm/attendance', perm: null },
+      { id: 'geofences', title: 'Geofences', icon: MapPin, path: '/crm/geofences', perm: null },
+      { id: 'payroll', title: 'Payroll', icon: Wallet, path: '/admin/payroll', perm: null },
+      { id: 'events', title: 'Events', icon: Megaphone, path: '/crm/events', perm: null },
+      { id: 'storage', title: 'Storage', icon: HardDrive, path: '/crm/storage', perm: null },
+    ],
+  },
 ];
 
 export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  useEmployeeSession();
   const navigate = useNavigate();
   const location = useLocation();
   const [userName, setUserName] = useState('');
   const [userInitial, setUserInitial] = useState('V');
+  const [userRole, setUserRole] = useState('CRM Admin');
   const [perms, setPerms] = useState<string[] | null>(null);
+  // Default from the URL so employees never flash the admin nav while the
+  // async role check resolves (fixes the "full CRM dashboard flicker" on load).
+  const [isEmployee, setIsEmployee] = useState(
+    () => location.pathname === '/crm/dashboard' || location.pathname === '/crm/my-clients',
+  );
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
+    const apply = (name: string, initial: string) => {
+      const display = premiumDisplayName(name);
+      setUserName(display);
+      setUserInitial((display[0] ?? initial).toUpperCase());
+    };
+    const applyRole = (user: { email?: string | null; role?: string; data?: any } | null) => {
+      if (user?.role === 'employee') {
+        setIsEmployee(true);
+        setUserRole(user.data?.designation || 'Employee');
+      } else if (user?.role === 'super_admin' || isSuperAdminEmail(user?.email ?? '')) {
+        setIsEmployee(false);
+        setUserRole('Super Admin');
+      } else if (user?.role) {
+        setIsEmployee(false);
+        setUserRole(user.role === 'admin' ? 'CRM Admin' : user.role);
+      } else {
+        setUserRole('CRM Admin');
+      }
+    };
     const u = auth.currentUser;
     if (u) {
-      setUserName(u.displayName ?? u.email ?? 'Admin');
-      setUserInitial((u.displayName?.[0] ?? u.email?.[0] ?? 'V').toUpperCase());
+      apply(u.displayName ?? u.email ?? 'Admin', (u.displayName?.[0] ?? u.email?.[0] ?? 'V').toUpperCase());
+      applyRole({ email: u.email, role: undefined });
       leadSupabase.admin.verify().then(p => {
         setPerms(p.permissions ?? null);
-        if (p.data?.display_name) {
-          setUserName(p.data.display_name);
-          setUserInitial(p.data.display_name[0].toUpperCase());
-        }
+        applyRole({ email: u.email, role: p.role, data: p.data });
+        if (p.data?.display_name) apply(p.data.display_name, p.data.display_name[0].toUpperCase());
       }).catch(() => {});
     }
     const unsub = auth.onAuthStateChanged(user => {
       if (user) {
-        setUserName(user.displayName ?? user.email ?? 'Admin');
-        setUserInitial((user.displayName?.[0] ?? user.email?.[0] ?? 'V').toUpperCase());
+        apply(user.displayName ?? user.email ?? 'Admin', (user.displayName?.[0] ?? user.email?.[0] ?? 'V').toUpperCase());
+        applyRole({ email: user.email, role: undefined });
         leadSupabase.admin.verify().then(p => {
           setPerms(p.permissions ?? null);
-          if (p.data?.display_name) {
-            setUserName(p.data.display_name);
-            setUserInitial(p.data.display_name[0].toUpperCase());
-          }
+          applyRole({ email: user.email, role: p.role, data: p.data });
+          if (p.data?.display_name) apply(p.data.display_name, p.data.display_name[0].toUpperCase());
         }).catch(() => {});
       }
     });
@@ -76,79 +135,145 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
     return false;
   }
 
-  const isActive = (path: string, id: string) => {
-    if (id === 'dashboard') return location.pathname === '/crm';
-    if (id === 'clients') return location.pathname === '/crm' && !location.pathname.includes('earnings');
-    return location.pathname === path;
+  const isActive = (path: string) => (path === '/crm' ? location.pathname === '/crm' : location.pathname === path);
+
+  const NavRow = ({ item }: { item: NavItem }) => {
+    const active = isActive(item.path);
+    const Icon = item.icon;
+    return (
+      <button
+        key={item.id}
+        onClick={() => navigate(item.path)}
+        title={collapsed ? item.title : undefined}
+        className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
+          collapsed ? 'justify-center px-0' : ''
+        } ${
+          active
+            ? 'bg-gradient-to-r from-[#C9A84C]/[0.18] to-[#C9A84C]/[0.04] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
+            : 'text-[#9fb2c6] hover:bg-white/[0.07] hover:text-white'
+        }`}
+      >
+        {active && !collapsed && (
+          <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-[#D6B85D] to-[#C9A84C] shadow-[0_0_8px_rgba(214,184,93,0.6)]" />
+        )}
+        <span className="relative inline-flex shrink-0">
+          <Icon className={`h-[18px] w-[18px] ${active ? 'text-[#D6B85D]' : 'text-[#6d8299] group-hover:text-[#D6B85D]'}`} strokeWidth={1.6} />
+        </span>
+        <span className={`whitespace-nowrap text-[13px] font-semibold tracking-wide transition-opacity duration-200 ${collapsed ? 'w-0 overflow-hidden opacity-0' : 'opacity-100'}`}>
+          {item.title}
+        </span>
+        {!collapsed && active && <ChevronRight className="ml-auto h-3.5 w-3.5 text-[#C9A84C]" strokeWidth={2.5} />}
+      </button>
+    );
   };
 
   const sidebar = (
-    <div className={`flex flex-col h-full bg-card ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}>
-      <div className="flex items-center h-14 border-b border-border px-3 shrink-0">
-        <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0">
-            <img src="/favicon.png" alt="VJR Estate" className="w-full h-full object-contain" />
+    <div className={`flex h-full flex-col bg-[#0A1628] ${collapsed ? 'w-[68px]' : 'w-[248px]'} transition-all duration-300`}>
+      {/* Brand */}
+      <div className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] ${collapsed ? 'justify-center px-0' : 'gap-3 px-4'}`}>
+        <img
+          src="/favicon.png"
+          alt="VJR Estate"
+          className="h-9 w-9 shrink-0 rounded-xl object-contain shadow-[0_2px_10px_rgba(201,168,76,0.3)]"
+        />
+        {!collapsed && (
+          <div className="min-w-0">
+            <p className="truncate font-['Inter',sans-serif] text-[14px] font-semibold leading-tight text-white">VJR Estate</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-[#C9A84C]">CRM Portal</p>
           </div>
-          <div className={`flex flex-col transition-opacity duration-200 ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-            <span className="text-[13px] font-semibold text-foreground leading-tight whitespace-nowrap">VJR Estate</span>
-            <span className="text-[10px] text-muted-foreground leading-tight">CRM Portal</span>
-          </div>
-        </div>
-        <button onClick={onToggle} className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors shrink-0 max-sm:hidden">
-          {collapsed ? <PanelLeftOpen className="w-4 h-4" strokeWidth={1.5} /> : <PanelLeftClose className="w-4 h-4" strokeWidth={1.5} />}
+        )}
+        <button
+          onClick={onToggle}
+          className="ml-auto hidden shrink-0 rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white max-lg:hidden"
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
-        <button onClick={() => setMobileOpen(false)} className="ml-auto p-1.5 rounded-md text-muted-foreground hover:bg-accent transition-colors shrink-0 sm:hidden">
-          <X className="w-4 h-4" strokeWidth={1.5} />
+        <button onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 lg:hidden">
+          <X className="h-4 w-4" />
         </button>
       </div>
-      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {navItems.filter(item => canSee(item.perm)).map((item) => {
-          const active = isActive(item.path, item.id);
-          return (
-            <button key={item.id} onClick={() => navigate(item.path)}
-              className={`w-full flex items-center gap-3 px-2.5 py-[7px] rounded-md transition-all duration-200 cursor-pointer border-none text-left ${
-                active ? 'bg-black/5 dark:bg-white/10 text-foreground font-medium' : 'text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground/90'
-              } ${collapsed ? 'justify-center px-0' : ''}`}
-              title={collapsed ? item.title : undefined}>
-              <span className="relative inline-flex">
-                <item.icon className={`w-4 h-4 shrink-0 ${active ? 'text-foreground' : 'text-muted-foreground/70'}`} strokeWidth={1.5} />
-                {item.id === 'mongodb-data' && <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500 ring-1 ring-background" style={{ animation: 'pulse-glow 2s ease-in-out infinite' }} />}
-              </span>
-              <span className={`text-[13px] tracking-wide transition-opacity duration-200 ${collapsed ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}>{item.title}</span>
-            </button>
-          );
-        })}
+
+      {/* Nav */}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-2.5 py-4">
+        {isEmployee ? (
+          <div>
+            {!collapsed && <p className="mb-1.5 px-3 text-[9.5px] font-bold uppercase tracking-[0.22em] text-white/45">My Workspace</p>}
+            <div className="space-y-0.5">
+              <NavRow item={{ id: 'dashboard', title: 'Dashboard', icon: LayoutDashboard, path: '/crm/dashboard', perm: null }} />
+              <NavRow item={{ id: 'my-clients', title: 'My Clients', icon: ListChecks, path: '/crm/my-clients', perm: null }} />
+            </div>
+          </div>
+        ) : (
+          SECTIONS.map(section => {
+            const visible = section.items.filter(i => canSee(i.perm));
+            if (visible.length === 0) return null;
+            return (
+              <div key={section.key}>
+              {!collapsed && (
+                <p className="mb-1.5 px-3 text-[9.5px] font-bold uppercase tracking-[0.22em] text-white/45">{section.label}</p>
+              )}
+                <div className="space-y-0.5">
+                  {visible.map(item => <NavRow key={item.id} item={item} />)}
+                </div>
+              </div>
+            );
+          })
+        )}
       </nav>
-      <div className="p-2 border-t border-border">
-        <button onClick={() => navigate('/crm/profile')}
-          className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-md transition-all duration-200 cursor-pointer border-none text-left hover:bg-black/5 dark:hover:bg-white/5 ${
-            location.pathname === '/crm/profile' ? 'bg-black/5 dark:bg-white/10' : ''
+
+      {/* Profile — admins only. Employees have their workspace in the nav and
+          must never reach the admin profile/management page. */}
+      <div className="border-t border-white/[0.07] p-2.5">
+        {!isEmployee && <button
+          onClick={() => navigate('/crm/profile')}
+          title={collapsed ? 'Profile' : undefined}
+          className={`group/profile relative flex w-full items-center gap-3 overflow-hidden rounded-xl border border-white/[0.06] px-2.5 py-2.5 transition-all duration-200 ${
+            location.pathname === '/crm/profile' ? 'bg-white/[0.1]' : 'bg-white/[0.04] hover:bg-white/[0.08]'
           } ${collapsed ? 'justify-center px-0' : ''}`}
-          title={collapsed ? 'Profile' : undefined}>
-          <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
-            <span className="text-[10px] font-bold text-muted-foreground">{userInitial}</span>
+        >
+          {location.pathname === '/crm/profile' && !collapsed && (
+            <span className="absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-gradient-to-b from-[#D6B85D] to-[#C9A84C]" />
+          )}
+          <div className="relative shrink-0">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#1E3852] to-[#0A1628] text-[12px] font-extrabold text-[#D6B85D] ring-2 ring-[#C9A84C]/50 transition-all duration-200 group-hover/profile:ring-[#C9A84C]">
+              {userInitial}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#0A1628] bg-emerald-400" />
           </div>
-          <div className={`transition-opacity duration-200 text-left ${collapsed ? 'opacity-0 w-0' : 'opacity-100'}`}>
-            <div className="text-[12px] font-medium text-foreground leading-tight whitespace-nowrap">{userName}</div>
-            <div className="text-[10px] text-muted-foreground leading-tight">Profile</div>
-          </div>
-        </button>
+          {!collapsed && (
+            <div className="min-w-0 text-left">
+              <p className="truncate text-[12.5px] font-semibold text-white">{userName}</p>
+              <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#C9A84C]/90">
+                {userRole}
+                <ChevronRight className="h-2.5 w-2.5 opacity-0 transition-all duration-200 group-hover/profile:translate-x-0.5 group-hover/profile:opacity-100" strokeWidth={3} />
+              </p>
+            </div>
+          )}
+        </button>}
       </div>
     </div>
   );
 
   return (
     <>
-      <button onClick={() => setMobileOpen(true)}
-        className="sm:hidden fixed top-3 left-3 z-40 w-9 h-9 rounded-lg bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-        <Menu className="w-4 h-4" strokeWidth={1.5} />
+      {/* Mobile menu button */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed left-3 top-3 z-40 flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-[#0A1628] text-[#D6B85D] shadow-lg transition-colors hover:bg-[#1E3852] lg:hidden"
+      >
+        <Menu className="h-[18px] w-[18px]" strokeWidth={1.8} />
       </button>
-      <div className={`sm:hidden fixed inset-0 z-50 bg-black/40 transition-opacity duration-300 ${mobileOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        onClick={() => setMobileOpen(false)} />
-      <div className={`sm:hidden fixed left-0 top-0 z-50 h-full transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      {/* Mobile backdrop */}
+      <div
+        className={`fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] transition-opacity duration-300 lg:hidden ${mobileOpen ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
+        onClick={() => setMobileOpen(false)}
+      />
+      {/* Mobile drawer */}
+      <div className={`fixed left-0 top-0 z-50 h-full transition-transform duration-300 ease-out lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {sidebar}
       </div>
-      <div className={`hidden sm:flex h-full border-r border-border shrink-0 transition-all duration-300 ease-in-out ${collapsed ? 'w-[60px]' : 'w-[240px]'}`}>
+      {/* Desktop rail */}
+      <div className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[68px]' : 'w-[248px]'}`}>
         {sidebar}
       </div>
     </>

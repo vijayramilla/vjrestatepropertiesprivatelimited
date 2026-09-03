@@ -55,8 +55,8 @@ export default function AuctionHero({
         </h1>
 
         <p className="mt-4 max-w-[560px] text-[17px] leading-relaxed text-white/70">
-          Bid on verified properties across Bangalore — residential, commercial,
-          plots, villas and more. Transparent bidding, real-time updates.
+          Bid on verified rental income properties across Bangalore — PG buildings,
+          residential and commercial. Transparent bidding, real-time updates.
         </p>
 
         {/* Stats row */}

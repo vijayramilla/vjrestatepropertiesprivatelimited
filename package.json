@@ -10,7 +10,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "deploy:rules": "firebase deploy --only firestore:rules,storage"
+    "deploy:rules": "firebase deploy --only firestore:rules,storage",
+    "migrate": "node migrate.js",
+    "retry": "node retry.js"
   },
   "dependencies": {
     "@dietrichgebert/ponytail": "^4.8.4",
@@ -72,6 +74,7 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.18",
+    "dotenv": "^17.4.2",
     "eslint": "^9.9.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.11",

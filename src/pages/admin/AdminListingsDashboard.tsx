@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useSupabaseData, subscribeSupabaseProperties, subscribeSupabaseUsers, callDataProxy } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
 import { Phone, MapPin, Globe, Calendar, Clock } from 'lucide-react';
@@ -47,6 +48,16 @@ export default function AdminListingsDashboard() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseProperties((docs) => {
+        const mapped = docs
+          .map(({ id, data }) => ({ id, ...data }) as ListingProperty)
+          .filter((p) => p.uid);
+        setProperties(mapped);
+        setLoading(false);
+      });
+      return () => unsub();
+    }
     const q = query(collection(db, 'properties'), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       const docs = snap.docs
@@ -59,6 +70,14 @@ export default function AdminListingsDashboard() {
   }, []);
 
   useEffect(() => {
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseUsers((rows) => {
+        const map = new Map<string, ListingUser>();
+        rows.forEach((u) => map.set(u.uid, u as ListingUser));
+        setUsers(map);
+      });
+      return () => unsub();
+    }
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
       const map = new Map<string, ListingUser>();
       snap.docs.forEach((d) => {
@@ -78,7 +97,11 @@ export default function AdminListingsDashboard() {
 
   const handleSuspend = async (userId: string, suspended: boolean) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { suspended });
+      if (useSupabaseData()) {
+        await callDataProxy('user.suspend', { uid: userId, suspended });
+      } else {
+        await updateDoc(doc(db, 'users', userId), { suspended });
+      }
     } catch (err) {
       console.error('Error updating user:', err);
     }
@@ -87,7 +110,11 @@ export default function AdminListingsDashboard() {
   const handleDelete = async (propertyId: string, title: string) => {
     if (!window.confirm(`Delete "${title}" permanently? This cannot be undone.`)) return;
     try {
-      await deleteDoc(doc(db, 'properties', propertyId));
+      if (useSupabaseData()) {
+        await callDataProxy('property.delete', { id: propertyId });
+      } else {
+        await deleteDoc(doc(db, 'properties', propertyId));
+      }
     } catch (err) {
       console.error('Error deleting property:', err);
     }

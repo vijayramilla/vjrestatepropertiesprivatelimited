@@ -11,6 +11,7 @@ import {
   limit,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { useSupabaseData, subscribeSupabaseAuctions, subscribeSupabaseAuctionBids, callDataProxy } from '@/lib/supabaseData'
 import AdminLayout from '@/components/admin/AdminLayout'
 import {
   AdminEmptyState,
@@ -104,6 +105,13 @@ export default function AdminAuctions() {
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseAuctions((docs) => {
+        setAuctions(docs as Auction[])
+        setLoading(false)
+      })
+      return () => unsub()
+    }
     const unsub = onSnapshot(collection(db, 'auctions'), (snap) => {
       const docs = snap.docs.map((d) => {
         const data = d.data()
@@ -124,6 +132,10 @@ export default function AdminAuctions() {
 
   // Live recent-bids feed
   useEffect(() => {
+    if (useSupabaseData()) {
+      const unsub = subscribeSupabaseAuctionBids((bids) => setRecentBids(bids))
+      return () => unsub()
+    }
     const q = query(
       collection(db, 'auction_bids'),
       orderBy('timestamp', 'desc'),
@@ -248,7 +260,11 @@ export default function AdminAuctions() {
     if (!deleteId) return
     setDeleting(true)
     try {
-      await deleteDoc(doc(db, 'auctions', deleteId))
+      if (useSupabaseData()) {
+        await callDataProxy('auction.delete', { id: deleteId })
+      } else {
+        await deleteDoc(doc(db, 'auctions', deleteId))
+      }
       setDeleteId(null)
     } catch (error) {
       console.error('Delete auction error:', error)
@@ -259,8 +275,12 @@ export default function AdminAuctions() {
 
   const handleStatusChange = async (id: string, status: AuctionStatus) => {
     try {
-      // Status is Firestore-authoritative; no RTDB mirror write needed.
-      await updateDoc(doc(db, 'auctions', id), { status })
+      if (useSupabaseData()) {
+        await callDataProxy('auction.setStatus', { id, status })
+      } else {
+        // Status is Firestore-authoritative; no RTDB mirror write needed.
+        await updateDoc(doc(db, 'auctions', id), { status })
+      }
     } catch (error) {
       console.error('Update status error:', error)
     }

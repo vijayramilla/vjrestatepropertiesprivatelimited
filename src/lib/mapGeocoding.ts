@@ -1,4 +1,5 @@
 import { BANGALORE_COORDINATES, localityFromGooglePlace } from '@/data/bangaloreCoordinates';
+import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 import {
   expandGoogleMapsUrl,
   extractPlaceIdFromMapsUrl,
@@ -25,7 +26,7 @@ export type { ResolvedMapsLink };
 const GEOCODING_API = 'https://maps.googleapis.com/maps/api/geocode/json';
 
 function getGoogleMapsApiKey(): string {
-  return import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? '';
+  return GOOGLE_MAPS_API_KEY;
 }
 
 export async function getLocalityFromCoords(lat: number, lng: number): Promise<string> {

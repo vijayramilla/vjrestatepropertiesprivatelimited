@@ -24,8 +24,6 @@ const HERO_TABS = [
   { label: 'PG Buildings', value: 'PG Buildings' },
   { label: 'Residential', value: 'Residential' },
   { label: 'Commercial', value: 'Commercial' },
-  { label: 'Plot', value: 'Plot' },
-  { label: 'JD Land', value: 'JD Land' },
 ] as const;
 
 const TRENDING_AREAS = [

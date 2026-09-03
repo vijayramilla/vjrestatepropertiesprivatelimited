@@ -27,7 +27,7 @@ export default function HomeContactCta() {
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-400 md:text-base">
               Talk to our property experts today — {siteContact.hoursLabel}. Free guidance on
-              valuations, rental yields, and the best investment opportunities.
+              rental yields, property selection, and the best income opportunities.
             </p>
           </div>
 

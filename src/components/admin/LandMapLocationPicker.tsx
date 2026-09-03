@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Autocomplete, GoogleMap, Marker } from '@react-google-maps/api';
 import { Link2, MapPin, Search } from 'lucide-react';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
+import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 import {
   GOOGLE_PLACES_AUTOCOMPLETE_OPTIONS,
   useGooglePlacesPacSync,
@@ -57,7 +58,7 @@ export default function LandMapLocationPicker({
   };
 
   const getAreaFromCoords = async (lat: number, lng: number) => {
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const key = GOOGLE_MAPS_API_KEY;
     const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${key}`);
     const data = await res.json();
     if (data.status === 'OK' && data.results.length) {
@@ -83,7 +84,7 @@ export default function LandMapLocationPicker({
       return true;
     }
 
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const key = GOOGLE_MAPS_API_KEY;
     const geoRes = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${key}`);
     const geoData = await geoRes.json();
     if (geoData.status === 'OK' && geoData.results.length) {
@@ -347,8 +348,7 @@ export default function LandMapLocationPicker({
             <p className="mt-1 font-mono text-[11px] text-emerald-700">
               {value.map_lat.toFixed(6)}, {value.map_lng.toFixed(6)}
             </p>
-            <p className="mt-2 text-[11px] text-emerald-800">
-              This pin syncs to the Land Map when you save the property.
+            <p className="mt-2 text-[11px] text-emerald-800">               This pin syncs to the map when you save the property.
             </p>
           </div>
         </>

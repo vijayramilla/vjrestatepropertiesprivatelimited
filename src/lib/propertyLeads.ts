@@ -11,6 +11,7 @@ import {
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
+import { useSupabaseData, subscribeSupabasePropertyLeads, supabaseSavePropertyLead } from '@/lib/supabaseData';
 
 export type LeadType = 'whatsapp' | 'book_visit';
 export type LeadSource = 'card' | 'detail';
@@ -45,6 +46,10 @@ export interface PropertyLead extends PropertyLeadInput {
 }
 
 export async function savePropertyLead(input: PropertyLeadInput): Promise<void> {
+  if (useSupabaseData()) {
+    await supabaseSavePropertyLead(input as unknown as Record<string, unknown>);
+    return;
+  }
   await addDoc(
     collection(db, 'property_leads'),
     sanitizeForFirestore({
@@ -60,6 +65,9 @@ export function subscribePropertyLeads(
   onError?: (error: Error) => void,
   uid?: string,
 ): Unsubscribe {
+  if (useSupabaseData()) {
+    return subscribeSupabasePropertyLeads((leads) => startTransition(() => onData(leads)), uid);
+  }
   // Non-admin owners must be scoped to their own leads or Firestore rules reject the query.
   const q = uid
     ? query(collection(db, 'property_leads'), where('ownerUid', '==', uid), orderBy('createdAt', 'desc'))

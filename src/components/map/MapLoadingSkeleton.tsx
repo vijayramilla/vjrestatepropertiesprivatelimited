@@ -114,7 +114,7 @@ export default function MapLoadingSkeleton() {
           animate={{ opacity: [0.7, 1, 0.7] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
         >
-          VJR Land Map
+          VJR Estate Map
         </motion.h2>
 
         <div className="flex items-center gap-1.5">

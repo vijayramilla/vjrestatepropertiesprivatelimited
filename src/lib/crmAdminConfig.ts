@@ -40,3 +40,14 @@ export function canAssignPermission(
   if (allowed === null) return true;
   return allowed.includes(perm);
 }
+
+// Google Sign-In can surface a shortened display name (e.g. "Vijay R"); map it
+// to the full name shown across the CRM shell.
+const DISPLAY_NAME_CORRECTIONS: Record<string, string> = {
+  'vijay r': 'Vijay Ram',
+};
+
+export function premiumDisplayName(name: string): string {
+  const key = name.trim().toLowerCase();
+  return DISPLAY_NAME_CORRECTIONS[key] ?? name.trim();
+}

@@ -83,7 +83,7 @@ const RECENT_SEARCHES_KEY = 'vjr-recent-searches';
 
 const SMART_EXAMPLES = [
   'PG building in Whitefield under ₹2 Cr',
-  'Commercial plot near Electronic City',
+  'Commercial property near Electronic City',
   'Rental income above ₹50K',
   '1500 sq ft in HSR Layout',
 ];

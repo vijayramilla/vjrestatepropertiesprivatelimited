@@ -12,9 +12,15 @@ import {
   arrayUnion,
   type Timestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { getJobShareUrl } from '@/lib/siteUrl';
+import {
+  useSupabaseData,
+  subscribeSupabaseJobs,
+  subscribeSupabaseApplications,
+  supabaseUploadResume,
+  callDataProxy,
+} from '@/lib/supabaseData';
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -331,6 +337,11 @@ export const INITIAL_JOBS: SeedJob[] = [
 
 /** Seed the job_openings collection once on first load if it is empty. */
 export async function seedJobOpeningsIfEmpty(): Promise<void> {
+  if (useSupabaseData()) {
+    // The SQL migration seeds an empty job_openings table from INITIAL_JOBS
+    // (supabase/migrations/20260811000000_site_data_migration.sql).
+    return;
+  }
   try {
     const existing = await getDocs(query(collection(db, 'job_openings'), limit(1)));
     if (!existing.empty) return;
@@ -356,6 +367,9 @@ function toDate(v: unknown): Date | undefined {
 }
 
 export function subscribeToJobs(cb: (jobs: JobOpening[]) => void): () => void {
+  if (useSupabaseData()) {
+    return subscribeSupabaseJobs((jobs) => cb(jobs as JobOpening[]));
+  }
   const q = query(collection(db, 'job_openings'));
   return onSnapshot(
     q,
@@ -379,6 +393,9 @@ export function subscribeToJobs(cb: (jobs: JobOpening[]) => void): () => void {
 export function subscribeToApplications(
   cb: (apps: JobApplication[]) => void,
 ): () => void {
+  if (useSupabaseData()) {
+    return subscribeSupabaseApplications((apps) => cb(apps as JobApplication[]));
+  }
   const q = query(collection(db, 'job_applications'));
   return onSnapshot(
     q,
@@ -411,12 +428,7 @@ export async function uploadResume(
   jobId: string,
   file: File,
 ): Promise<{ url: string; fileName: string }> {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `resumes/${jobId}/${Date.now()}_${safeName}`;
-  const storageRef = ref(storage, path);
-  await uploadBytes(storageRef, file, { contentType: file.type || 'application/octet-stream' });
-  const url = await getDownloadURL(storageRef);
-  return { url, fileName: file.name };
+  return supabaseUploadResume(jobId, file);
 }
 
 export function makeReferenceId(): string {
@@ -550,6 +562,18 @@ export async function submitJobApplication(
   const { url: resumeUrl, fileName: resumeFileName } = await uploadResume(input.jobId, resume);
   const referenceId = makeReferenceId();
   const location = await captureApplicantLocation();
+  if (useSupabaseData()) {
+    await callDataProxy('application.apply', {
+      ...input,
+      resumeUrl,
+      resumeFileName,
+      referenceId,
+      applicantLat: location.lat,
+      applicantLng: location.lng,
+      applicantArea: location.area,
+    });
+    return referenceId;
+  }
   await addDoc(collection(db, 'job_applications'), {
     ...input,
     resumeUrl,
@@ -581,6 +605,25 @@ export async function appendStatusHistory(
   id: string,
   entry: StatusHistoryEntry,
 ): Promise<void> {
+  if (useSupabaseData()) {
+    const { data: row } = await (await import('./supabaseConfig')).supabaseData!
+      .from('job_applications')
+      .select('status_history')
+      .eq('id', id)
+      .maybeSingle();
+    const history = Array.isArray(row?.status_history) ? row.status_history : [];
+    const next = [
+      ...history,
+      {
+        status: entry.status,
+        note: entry.note || '',
+        updatedAt: entry.updatedAt ?? new Date(),
+        updatedBy: entry.updatedBy ?? '',
+      },
+    ];
+    await callDataProxy('application.update', { id, status: entry.status, statusHistory: next });
+    return;
+  }
   // ponytail: serverTimestamp() is not allowed inside arrays, so use a client
   // Date — it is stored as a comparable Firestore timestamp. The top-level
   // updatedAt still uses serverTimestamp() for server-accurate time.
@@ -596,20 +639,51 @@ export async function appendStatusHistory(
 }
 
 export async function updateApplicationRating(id: string, rating: number): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('application.update', { id, rating });
+    return;
+  }
   await updateDoc(doc(db, 'job_applications', id), { rating });
 }
 
 export async function updateApplicationNotes(id: string, adminNotes: string): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('application.update', { id, adminNotes });
+    return;
+  }
   await updateDoc(doc(db, 'job_applications', id), { adminNotes });
 }
 
 export async function toggleApplicationViewed(id: string): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('application.update', { id, viewedByAdmin: true });
+    return;
+  }
   await updateDoc(doc(db, 'job_applications', id), { viewedByAdmin: true });
 }
 
 // ── Admin: job openings ──────────────────────────────────────────────────
 
 export async function createJobOpening(input: Omit<JobOpening, 'id'>): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('job.create', {
+      title: input.title,
+      department: input.department,
+      type: input.type,
+      location: input.location,
+      experience: input.experience,
+      salary: input.salary,
+      description: input.description,
+      responsibilities: input.responsibilities,
+      requirements: input.requirements,
+      nice_to_have: input.niceToHave,
+      is_active: input.isActive,
+      is_featured: input.isFeatured,
+      total_applications: input.totalApplications ?? 0,
+      department_color: input.department_color,
+    });
+    return;
+  }
   await addDoc(collection(db, 'job_openings'), {
     ...input,
     postedAt: serverTimestamp(),
@@ -617,13 +691,38 @@ export async function createJobOpening(input: Omit<JobOpening, 'id'>): Promise<v
 }
 
 export async function updateJobOpening(id: string, patch: Partial<JobOpening>): Promise<void> {
+  if (useSupabaseData()) {
+    const fields: Record<string, unknown> = {};
+    if (patch.title !== undefined) fields.title = patch.title;
+    if (patch.department !== undefined) fields.department = patch.department;
+    if (patch.type !== undefined) fields.type = patch.type;
+    if (patch.location !== undefined) fields.location = patch.location;
+    if (patch.experience !== undefined) fields.experience = patch.experience;
+    if (patch.salary !== undefined) fields.salary = patch.salary;
+    if (patch.description !== undefined) fields.description = patch.description;
+    if (patch.responsibilities !== undefined) fields.responsibilities = patch.responsibilities;
+    if (patch.requirements !== undefined) fields.requirements = patch.requirements;
+    if (patch.niceToHave !== undefined) fields.nice_to_have = patch.niceToHave;
+    if (patch.isFeatured !== undefined) fields.is_featured = patch.isFeatured;
+    if (patch.department_color !== undefined) fields.department_color = patch.department_color;
+    await callDataProxy('job.update', { id, ...fields });
+    return;
+  }
   await updateDoc(doc(db, 'job_openings', id), patch);
 }
 
 export async function toggleJobActive(id: string, isActive: boolean): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('job.toggleActive', { id, isActive });
+    return;
+  }
   await updateDoc(doc(db, 'job_openings', id), { isActive });
 }
 
 export async function deleteJobOpening(id: string): Promise<void> {
+  if (useSupabaseData()) {
+    await callDataProxy('job.delete', { id });
+    return;
+  }
   await deleteDoc(doc(db, 'job_openings', id));
 }

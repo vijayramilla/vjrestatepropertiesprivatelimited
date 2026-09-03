@@ -1,10 +1,13 @@
 import http from 'node:http';
+import { handleDataProxyRequest } from './dev-data-proxy-core.mjs';
 
 const PORT = 3001;
 const SUPABASE_URL = process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
 const SUPABASE_SERVICE_KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
-const CLI_URL = 'https://qrlkicsxnhaplwkotnyd.supabase.co';
-const CLI_ANON = 'sb_publishable_eFTxpapkZXJfw9mMG-leww_U-un-VHt';
+const CLI_URL = process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+// Service key for the CRM project — the publishable key can no longer read
+// CRM tables (RLS lockdown, 20260820000000_crm_rls_lockdown.sql).
+const CLI_SERVICE_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
 const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
 const ADMIN_EMAILS = ['vijaykodamasuru2023@gmail.com', 'vijay@vjrestate.in', 'vijayramv229@gmail.com'];
 const SUPER_ADMIN_DISPLAY_NAMES = {
@@ -344,7 +347,7 @@ async function executeAction(action, params) {
     }
     case 'crmClients.list': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { data } = await supabaseFetch('GET', 'crm_clients?select=*&order=sno.desc', null, CLI_URL, CLI_ANON);
+      const { data } = await supabaseFetch('GET', 'crm_clients?select=*&order=sno.desc', null, CLI_URL, CLI_SERVICE_KEY);
       return { data: data ?? [] };
     }
     case 'crmClients.upsert': {
@@ -353,22 +356,22 @@ async function executeAction(action, params) {
       const CLI_COLS = ['sno','name','phone','email','type','budget','budget_val','location','closed_price','closing_timeline','requirements','status','date','notes','buyer_comm_pct','buyer_comm_val','seller_comm_pct','seller_comm_val','total_comm','comm_status','my_share','source','updated_date','paid_comm','client_role','property_link','comm_date','property_subtype'];
       const dbFields = {};
       for (const k of CLI_COLS) { if (client[k] !== undefined) dbFields[k] = client[k]; }
-      const existing = await supabaseFetch('GET', `crm_clients?sno=eq.${client.sno}&select=id`, null, CLI_URL, CLI_ANON);
+      const existing = await supabaseFetch('GET', `crm_clients?sno=eq.${client.sno}&select=id`, null, CLI_URL, CLI_SERVICE_KEY);
       if (existing.data?.length > 0) {
-        await supabaseFetch('PATCH', `crm_clients?sno=eq.${client.sno}`, dbFields, CLI_URL, CLI_ANON);
+        await supabaseFetch('PATCH', `crm_clients?sno=eq.${client.sno}`, dbFields, CLI_URL, CLI_SERVICE_KEY);
       } else {
-        await supabaseFetch('POST', 'crm_clients', dbFields, CLI_URL, CLI_ANON);
+        await supabaseFetch('POST', 'crm_clients', dbFields, CLI_URL, CLI_SERVICE_KEY);
       }
       return { data: client };
     }
     case 'crmClients.delete': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await supabaseFetch('DELETE', `crm_clients?sno=eq.${params.sno}`, null, CLI_URL, CLI_ANON);
+      await supabaseFetch('DELETE', `crm_clients?sno=eq.${params.sno}`, null, CLI_URL, CLI_SERVICE_KEY);
       return { message: 'Deleted' };
     }
     case 'crmClients.maxSno': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { data } = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null, CLI_URL, CLI_ANON);
+      const { data } = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null, CLI_URL, CLI_SERVICE_KEY);
       return { data: data?.[0]?.sno ?? 0 };
     }
     default:
@@ -382,7 +385,10 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-  if (req.method === 'POST' && req.url === '/api/crm-proxy') return handleCrmProxy(req, res);
+  // Accept both the production path (/api/...) and the bare path (/data-proxy,
+  // /crm-proxy) so the frontend resolves regardless of VITE_API_URL.
+  if (req.method === 'POST' && (req.url === '/api/crm-proxy' || req.url === '/crm-proxy')) return handleCrmProxy(req, res);
+  if (req.method === 'POST' && (req.url === '/api/data-proxy' || req.url === '/data-proxy')) return handleDataProxyRequest(req, res);
 
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ error: 'Not found' }));

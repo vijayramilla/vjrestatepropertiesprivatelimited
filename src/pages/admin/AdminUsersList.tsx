@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { useSupabaseData, subscribeSupabaseUsers, callDataProxy } from '@/lib/supabaseData';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
@@ -94,6 +95,32 @@ export default function AdminUsersList() {
       }
 
       setLoading(true);
+      if (useSupabaseData()) {
+        firestoreUnsub = subscribeSupabaseUsers((rows) => {
+          const usersList: User[] = rows.map((data) => ({
+            id: data.uid,
+            email: data.email || 'Unknown',
+            displayName: data.displayName || '',
+            lastLogin: data.lastLogin || 'Never',
+            lastSeen: data.lastSeen || data.lastLogin || 'Never',
+            createdAt: data.createdAt || 'Unknown',
+            suspended: data.suspended || false,
+            loginCount: data.loginCount || 0,
+            location: data.location ?? data.gpsLocation ?? data.ipLocation,
+            gpsLocation: data.gpsLocation,
+            loginHistory: data.loginHistory,
+          }));
+          usersList.sort((a, b) => {
+            const dateA = new Date(a.lastSeen || a.lastLogin || 0).getTime();
+            const dateB = new Date(b.lastSeen || b.lastLogin || 0).getTime();
+            return dateB - dateA;
+          });
+          setUsers(usersList);
+          setError(null);
+          setLoading(false);
+        });
+        return;
+      }
       firestoreUnsub = onSnapshot(
         collection(db, 'users'),
         (snapshot) => {
@@ -171,7 +198,11 @@ export default function AdminUsersList() {
 
   const handleSuspend = async (userId: string) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { suspended: true });
+      if (useSupabaseData()) {
+        await callDataProxy('user.suspend', { uid: userId, suspended: true });
+      } else {
+        await updateDoc(doc(db, 'users', userId), { suspended: true });
+      }
     } catch (err) {
       console.error('Error suspending user:', err);
       alert('Failed to suspend user. Deploy Firestore rules with: npm run deploy:rules');
@@ -180,7 +211,11 @@ export default function AdminUsersList() {
 
   const handleUnsuspend = async (userId: string) => {
     try {
-      await updateDoc(doc(db, 'users', userId), { suspended: false });
+      if (useSupabaseData()) {
+        await callDataProxy('user.suspend', { uid: userId, suspended: false });
+      } else {
+        await updateDoc(doc(db, 'users', userId), { suspended: false });
+      }
     } catch (err) {
       console.error('Error unsuspending user:', err);
       alert('Failed to unsuspend user. Deploy Firestore rules with: npm run deploy:rules');

@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase, Scales } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase, Scales, HardDrive } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useUnreviewedApplicationsCount } from '@/hooks/useUnreviewedApplicationsCount';
@@ -18,13 +18,14 @@ const baseNavItems = [
   { icon: House, label: 'Properties', path: '/admin/properties', short: 'List' },
   { icon: Scroll, label: 'Listings', path: '/admin/listings', short: 'Listings' },
   { icon: Users, label: 'Users', path: '/admin/users', short: 'Users' },
-  { icon: Briefcase, label: 'Employees', path: '/admin/employees', short: 'Employees' },
+  { icon: Briefcase, label: 'Employees', path: '/crm/employees', short: 'Employees' },
   { icon: ChatCircle, label: 'Enquiries', path: '/admin/enquiries', short: 'Leads' },
   { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
   { icon: Scales, label: 'Auctions', path: '/admin/auctions', short: 'Auctions' },
   { icon: Briefcase, label: 'Careers', path: '/admin/careers', short: 'Jobs' },
+  { icon: HardDrive, label: 'Storage', path: '/admin/storage', short: 'Storage' },
   { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
   { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
   { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', short: 'Owners' },

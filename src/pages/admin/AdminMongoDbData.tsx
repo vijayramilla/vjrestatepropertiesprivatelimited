@@ -139,7 +139,7 @@ export default function AdminMongoDbData() {
   const nonEmpty = collections.filter((c) => c.count > 0);
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-['Manrope',sans-serif] antialiased flex">
+    <div className="min-h-screen bg-background text-foreground font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <main className="flex-1 min-w-0 p-8 pb-16 max-sm:p-4 overflow-y-auto">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
@@ -149,7 +149,7 @@ export default function AdminMongoDbData() {
                 <Database className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
               <div className="min-w-0">
-                <h1 className="font-['Fraunces',serif] text-[22px] sm:text-[28px] font-semibold tracking-tight m-0 truncate">
+                <h1 className="font-['Inter',sans-serif] text-[22px] sm:text-[28px] font-semibold tracking-tight m-0 truncate">
                   Supabase Database
                 </h1>
                 <p className="text-muted-foreground text-[12px] sm:text-[13.5px] mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -222,7 +222,7 @@ export default function AdminMongoDbData() {
 
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-8">
               <div className="lg:col-span-2 bg-card border border-border/60 rounded-xl p-6">
-                <h2 className="font-['Fraunces',serif] text-lg font-semibold mb-4">Storage Usage</h2>
+                <h2 className="font-['Inter',sans-serif] text-lg font-semibold mb-4">Storage Usage</h2>
                 <div className="relative">
                   <ResponsiveContainer width="100%" height={240}>
                     <PieChart>
@@ -244,7 +244,7 @@ export default function AdminMongoDbData() {
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="text-center">
-                      <div className="font-['Fraunces',serif] text-2xl font-bold text-foreground">{usedPercent.toFixed(1)}%</div>
+                      <div className="font-['Inter',sans-serif] text-2xl font-bold text-foreground">{usedPercent.toFixed(1)}%</div>
                       <div className="text-[10px] text-muted-foreground">of 500 MB used</div>
                     </div>
                   </div>
@@ -262,7 +262,7 @@ export default function AdminMongoDbData() {
               </div>
 
               <div className="lg:col-span-3 bg-card border border-border/60 rounded-xl p-6">
-                <h2 className="font-['Fraunces',serif] text-lg font-semibold mb-4">Table Data Size (KB)</h2>
+                <h2 className="font-['Inter',sans-serif] text-lg font-semibold mb-4">Table Data Size (KB)</h2>
                 {chartData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={240}>
                     <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 0, top: 0, bottom: 0 }}>
@@ -303,7 +303,7 @@ export default function AdminMongoDbData() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
               <div className="bg-card border border-border/60 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-['Fraunces',serif] text-lg font-semibold">Table Breakdown</h2>
+                  <h2 className="font-['Inter',sans-serif] text-lg font-semibold">Table Breakdown</h2>
                   <span className="text-[11px] text-muted-foreground">{collections.length} tables</span>
                 </div>
                 <div className="overflow-x-auto">
@@ -337,7 +337,7 @@ export default function AdminMongoDbData() {
 
               <div className="bg-card border border-border/60 rounded-xl p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-['Fraunces',serif] text-lg font-semibold">Database Info</h2>
+                  <h2 className="font-['Inter',sans-serif] text-lg font-semibold">Database Info</h2>
                   <span className="text-[11px] text-muted-foreground">{nonEmpty.length} active tables</span>
                 </div>
                 {nonEmpty.length > 0 ? (
