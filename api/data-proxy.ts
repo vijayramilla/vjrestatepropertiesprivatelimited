@@ -246,10 +246,14 @@ export default async function handler(req: any, res: any) {
   }
 
   let body: any;
-  try {
-    body = JSON.parse(req.body ?? '{}');
-  } catch {
-    return err(res, 400, 'Invalid JSON body');
+  if (typeof req.body === 'object' && req.body !== null) {
+    body = req.body;
+  } else {
+    try {
+      body = JSON.parse(req.body ?? '{}');
+    } catch {
+      return err(res, 400, 'Invalid JSON body');
+    }
   }
 
   const { action, params = {}, public: isPublic } = body;
