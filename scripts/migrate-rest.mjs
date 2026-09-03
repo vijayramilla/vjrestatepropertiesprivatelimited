@@ -33,7 +33,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const PROJECT = process.env.FIREBASE_PROJECT_ID ?? 'vjr-estate-df034';
-const API_KEY = process.env.FIREBASE_WEB_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
+const API_KEY = process.env.FIREBASE_WEB_API_KEY ?? '';
 const BUCKET = process.env.FIREBASE_STORAGE_BUCKET ?? 'vjr-estate-df034.firebasestorage.app';
 const STORAGE_BASE =
   process.env.FIREBASE_STORAGE_BASE ?? `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o`;

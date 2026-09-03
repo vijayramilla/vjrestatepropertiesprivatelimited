@@ -6,8 +6,8 @@
  *   node scripts/apply-missing-columns.mjs
  *
  * ENV (already in .env):
- *   VITE_SUPABASE_REQ_URL        — site-data Supabase project URL
- *   VITE_SUPABASE_REQ_SERVICE_KEY — service-role key
+ *   SUPABASE_REQ_URL        — site-data Supabase project URL
+ *   SUPABASE_REQ_SERVICE_KEY — service-role key
  */
 import { readFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -15,8 +15,8 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const URL = process.env.VITE_SUPABASE_REQ_URL;
-const KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY;
+const URL = process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL;
+const KEY = process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY;
 
 if (!URL || !KEY) {
   console.error('Missing VITE_SUPABASE_REQ_URL or VITE_SUPABASE_REQ_SERVICE_KEY in .env');

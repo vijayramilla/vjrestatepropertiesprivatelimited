@@ -3,8 +3,8 @@
 // Attempt 2: use pg connection pooler
 
 const SUPABASE_REF = 'eimvaxrmiizdlgonhiov';
-const SERVICE_ROLE_JWT = process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
-const SERVICE_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
+const SERVICE_ROLE_JWT = process.env.SUPABASE_CLI_SERVICE_KEY || process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
+const SERVICE_KEY = process.env.SUPABASE_CLI_SERVICE_KEY || process.env.VITE_SUPABASE_CLI_SERVICE_KEY || '';
 
 const SQL = `
 CREATE TABLE IF NOT EXISTS public.crm_clients (

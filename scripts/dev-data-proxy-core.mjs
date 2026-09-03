@@ -19,10 +19,10 @@ import path from 'node:path';
 // single Supabase project (eimvaxrmiizdlgonhiov) is used for everything.
 function loadDotEnv() {
   const ALLOWED = [
-    'VITE_SUPABASE_REQ_URL',
-    'VITE_SUPABASE_REQ_SERVICE_KEY',
-    'VITE_SUPABASE_CLI_URL',
-    'VITE_SUPABASE_CLI_SERVICE_KEY',
+    'SUPABASE_REQ_URL', 'VITE_SUPABASE_REQ_URL',
+    'SUPABASE_REQ_SERVICE_KEY', 'VITE_SUPABASE_REQ_SERVICE_KEY',
+    'SUPABASE_CLI_URL', 'VITE_SUPABASE_CLI_URL',
+    'SUPABASE_CLI_SERVICE_KEY', 'VITE_SUPABASE_CLI_SERVICE_KEY',
   ];
   try {
     const raw = readFileSync(path.join(process.cwd(), '.env'), 'utf8');
@@ -51,14 +51,13 @@ function loadDotEnv() {
 loadDotEnv();
 
 const SUPABASE_URL =
-  process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const SERVICE_KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
+  process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+const SERVICE_KEY = process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
 // Single Supabase project — all data, CRM, storage, employees.
 const CLI_URL =
-  process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const CLI_SERVICE_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
-const FIREBASE_API_KEY =
-  process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
+  process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+const CLI_SERVICE_KEY = process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? '';
 const ADMIN_EMAILS = [
   'vijaykodamasuru2023@gmail.com',
   'vijay@vjrestate.in',
@@ -80,14 +79,14 @@ const supabaseAdmin = SERVICE_KEY
       {
         get() {
           throw new Error(
-            'VITE_SUPABASE_REQ_SERVICE_KEY is not set — add it to .env (see .env.example) before using the data proxy.',
+            'SUPABASE_REQ_SERVICE_KEY is not set — add it to .env (see .env.example) before using the data proxy.',
           );
         },
       },
     );
 
 // CLI/CRM project client for the storage dashboard. Needs the CLI service key
-// in .env (VITE_SUPABASE_CLI_SERVICE_KEY) — like REQ above, it fails with a
+// in .env (SUPABASE_CLI_SERVICE_KEY) — like REQ above, it fails with a
 // clear message instead of crashing the dev server.
 const supabaseCli = CLI_SERVICE_KEY
   ? createClient(CLI_URL, CLI_SERVICE_KEY)
@@ -96,7 +95,7 @@ const supabaseCli = CLI_SERVICE_KEY
       {
         get() {
           throw new Error(
-            'VITE_SUPABASE_CLI_SERVICE_KEY is not set — add it to .env (see .env.example) before using the Storage dashboard.',
+            'SUPABASE_CLI_SERVICE_KEY is not set — add it to .env (see .env.example) before using the Storage dashboard.',
           );
         },
       },

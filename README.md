@@ -67,9 +67,9 @@ Firestore document IDs are preserved 1:1 as TEXT primary keys, so no reference a
 
 2. **Set environment variables.**
    - Browser (`.env`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (leave `VITE_USE_SUPABASE_DATA=0`).
-   - Vercel (project settings): `VITE_SUPABASE_REQ_URL`, `VITE_SUPABASE_REQ_SERVICE_KEY`, `VITE_ADMIN_UID` (and `VITE_FIREBASE_API_KEY` if your project's key differs from the default). Redeploy.
+   - Vercel (project settings): `SUPABASE_REQ_URL`, `SUPABASE_REQ_SERVICE_KEY`, `VITE_ADMIN_UID` (and `VITE_FIREBASE_API_KEY` if your project's key differs from the default). Redeploy.
 
-   The admin Storage dashboard reads usage from the org's real project (`qrlkicsxnhaplwkotnyd` — the same one that hosts employees and CRM clients) via the data proxy, so it also needs `VITE_SUPABASE_CLI_URL` and `VITE_SUPABASE_CLI_SERVICE_KEY` (service-role key of that project) in both `.env` and Vercel. Its `get_storage_stats` RPC, the `property-images` / `auction-images` / `resumes` buckets, and the `storage.objects` realtime publication are set up by the same migration SQL.
+   The admin Storage dashboard reads usage from the org's real project via the data proxy, so it also needs `SUPABASE_CLI_URL` and `SUPABASE_CLI_SERVICE_KEY` (service-role key of that project) in Vercel. Its `get_storage_stats` RPC, the `property-images` / `auction-images` / `resumes` buckets, and the `storage.objects` realtime publication are set up by the same migration SQL.
 
 3. **Migrate the database.** Run locally with the Firebase service-account key and the Supabase service-role key:
    ```bash

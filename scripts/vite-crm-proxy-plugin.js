@@ -5,10 +5,10 @@ import path from 'node:path';
 function loadServerEnv() {
   const keys = [
     'SUPABASE_SERVICE_ROLE_KEY',
-    'VITE_SUPABASE_REQ_URL',
-    'VITE_SUPABASE_REQ_SERVICE_KEY',
-    'VITE_SUPABASE_CLI_URL',
-    'VITE_SUPABASE_CLI_SERVICE_KEY',
+    'SUPABASE_REQ_URL',
+    'SUPABASE_REQ_SERVICE_KEY',
+    'SUPABASE_CLI_URL',
+    'SUPABASE_CLI_SERVICE_KEY',
   ];
   try {
     const raw = readFileSync(path.join(process.cwd(), '.env'), 'utf8');
@@ -38,12 +38,12 @@ function env(key, fallback) {
 
 function getEnv() {
   return {
-    REQ_URL: env('VITE_SUPABASE_REQ_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
-    REQ_KEY: env('SUPABASE_SERVICE_ROLE_KEY', '') || env('VITE_SUPABASE_REQ_SERVICE_KEY', ''),
-    CLI_URL: env('VITE_SUPABASE_CLI_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
-    CLI_KEY: env('VITE_SUPABASE_CLI_SERVICE_KEY', ''),
-    CLI_ANON: env('VITE_SUPABASE_CLI_ANON_KEY', 'sb_publishable_9E-uIJyNW0QBdhwnNCaMNw_d5jeXvkz'),
-    FIREBASE_API_KEY: env('VITE_FIREBASE_API_KEY', 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs'),
+    REQ_URL: env('SUPABASE_REQ_URL', '') || env('VITE_SUPABASE_REQ_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
+    REQ_KEY: env('SUPABASE_SERVICE_ROLE_KEY', '') || env('SUPABASE_REQ_SERVICE_KEY', '') || env('VITE_SUPABASE_REQ_SERVICE_KEY', ''),
+    CLI_URL: env('SUPABASE_CLI_URL', '') || env('VITE_SUPABASE_CLI_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
+    CLI_KEY: env('SUPABASE_CLI_SERVICE_KEY', '') || env('VITE_SUPABASE_CLI_SERVICE_KEY', ''),
+    CLI_ANON: env('VITE_SUPABASE_CLI_ANON_KEY', ''),
+    FIREBASE_API_KEY: env('VITE_FIREBASE_API_KEY', ''),
   };
 }
 
@@ -1243,7 +1243,7 @@ export default function crmProxyPlugin() {
         if (!isCrmProxy && !isDataProxy) return next();
 
         const e = getEnv();
-        if (!e.REQ_KEY) console.error('[data-proxy] WARNING: REQ_KEY is empty! process.env.VITE_SUPABASE_REQ_SERVICE_KEY =', process.env.VITE_SUPABASE_REQ_SERVICE_KEY?.substring(0, 20) ?? 'undefined');
+        if (!e.REQ_KEY) console.error('[data-proxy] WARNING: REQ_KEY is empty! process.env.SUPABASE_REQ_SERVICE_KEY =', (process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? 'undefined')?.substring(0, 20));
 
         let body;
         try { body = await readBody(req); } catch { res.statusCode = 400; res.end(JSON.stringify({ error: 'Invalid JSON' })); return; }

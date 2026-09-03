@@ -5,7 +5,7 @@ const PORT = 3001;
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const SUPABASE_URL = 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY || '';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_REQ_SERVICE_KEY || process.env.VITE_SUPABASE_REQ_SERVICE_KEY || '';
 const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || '';
 const ADMIN_EMAILS = ['vijaykodamasuru2023@gmail.com', 'vijay@vjrestate.in'];
 

@@ -1,25 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
-  process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '',
+  process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '',
 );
 
-// Service-role reads/writes for the CRM project. RLS on every CRM table is
-// now revoked from anon/authenticated (see supabase/migrations/20260820000000_crm_rls_lockdown.sql),
-// so the publishable key can no longer touch them — the service key must be
-// configured in Vercel (VITE_SUPABASE_CLI_SERVICE_KEY), same as for uploads.
+// Service-role reads/writes for the CRM project.
 const supabaseCli = createClient(
-  process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
-  process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
+  process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
 );
 
-// Service-role client for privileged writes the publishable key can't do
-// (e.g. photo uploads to storage). Falls back to the publishable key so local
-// dev keeps working; in production VITE_SUPABASE_CLI_SERVICE_KEY must be set.
+// Service-role client for privileged writes.
 const supabaseCliAdmin = createClient(
-  process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
-  process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
+  process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
 );
 
 const ADMIN_EMAILS = ['vijaykodamasuru2023@gmail.com', 'vijay@vjrestate.in', 'vijayramv229@gmail.com'];
@@ -28,7 +23,7 @@ const SUPER_ADMIN_DISPLAY_NAMES: Record<string, string> = {
   'vijaykodamasuru2023@gmail.com': 'Vijay Kodamasuru',
   'vijay@vjrestate.in': 'Vijay Ram',
 };
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? '';
 
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -119,9 +114,9 @@ async function ensureColumns(table: string, cols: string[]): Promise<void> {
     console.warn(`[crm-proxy] auto-creating column '${col}' on '${table}'`);
     const sql = `ALTER TABLE public.${table} ADD COLUMN IF NOT EXISTS ${col} ${typeDef};`;
     // Try the exec_sql RPC first (site-data project), fall back to direct fetch
-    await fetch(`${process.env.VITE_SUPABASE_REQ_URL}/rest/v1/rpc/exec_sql`, {
+    await fetch(`${process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL}/rest/v1/rpc/exec_sql`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.VITE_SUPABASE_REQ_SERVICE_KEY}`, 'apikey': process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '' },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY}`, 'apikey': process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '' },
       body: JSON.stringify({ q: sql }),
     }).catch(() => {
       // If exec_sql RPC doesn't exist, ignore — column may already exist
@@ -473,7 +468,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!params._auth?.authorized || params._auth.role === 'employee') throw new Error('Forbidden');
       let rows: any[] = [];
       if (params._auth.role === 'super_admin') {
-        try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at'); rows = (data ?? []).filter((a: { email: string }) => a?.email); } catch (e) { console.error('[crm-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e); }
+        try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at'); rows = (data ?? []).filter((a: { email: string }) => a?.email); } catch (e) { console.error('[crm-proxy] admin.list: failed to load admin_users (is SUPABASE_REQ_SERVICE_KEY set?)', e); }
       }
       const superRows = buildSuperAdminRows().filter(r => !rows.some((db: { email: string }) => db.email === r.email));
       return { data: [...superRows, ...rows] };

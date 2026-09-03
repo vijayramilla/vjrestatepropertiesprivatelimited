@@ -2,13 +2,13 @@ import http from 'node:http';
 import { handleDataProxyRequest } from './dev-data-proxy-core.mjs';
 
 const PORT = 3001;
-const SUPABASE_URL = process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
-const CLI_URL = process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+const SUPABASE_URL = process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
+const CLI_URL = process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
 // Service key for the CRM project — the publishable key can no longer read
 // CRM tables (RLS lockdown, 20260820000000_crm_rls_lockdown.sql).
-const CLI_SERVICE_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
+const CLI_SERVICE_KEY = process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? '';
 const ADMIN_EMAILS = ['vijaykodamasuru2023@gmail.com', 'vijay@vjrestate.in', 'vijayramv229@gmail.com'];
 const SUPER_ADMIN_DISPLAY_NAMES = {
   'vijayramv229@gmail.com': 'Vijay Ram',
@@ -312,7 +312,7 @@ async function executeAction(action, params) {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       let rows = [];
       if (params._auth.role === 'super_admin') {
-        try { const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions,created_at', null); rows = (data ?? []).filter((a) => a?.email); } catch (e) { console.error('[dev-crm-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e); }
+        try { const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions,created_at', null); rows = (data ?? []).filter((a) => a?.email); } catch (e) { console.error('[dev-crm-proxy] admin.list: failed to load admin_users (is SUPABASE_REQ_SERVICE_KEY set?)', e); }
       }
       const superRows = buildSuperAdminRows().filter((r) => !rows.some((db) => db.email === r.email));
       return { data: [...superRows, ...rows] };

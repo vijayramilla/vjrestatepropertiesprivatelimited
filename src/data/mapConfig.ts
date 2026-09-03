@@ -1,9 +1,4 @@
-// Google Maps browser key. The VITE_GOOGLE_MAPS_API_KEY env var wins when set;
-// otherwise this is the current production key. Browser keys are public by
-// design — restrict it by HTTP referrer in Google Cloud Console.
-export const GOOGLE_MAPS_API_KEY =
-  import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ||
-  'AIzaSyBSalDHPAJQmCsZHXJdGx_mvoN9jRz1G4A';
+export const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() || '';
 
 export const LAND_TYPES = [
   'Residential Plot',

@@ -152,13 +152,13 @@ function systemChromeCandidates(): string[] {
 async function fetchPropertyDoc(id: string): Promise<Fields | null> {
   const serviceKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.VITE_SUPABASE_REQ_SERVICE_KEY ??
-    process.env.VITE_SUPABASE_CLI_SERVICE_KEY ??
+    process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ??
+    process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ??
     process.env.VITE_SUPABASE_ANON_KEY;
   const supabaseUrls = [
-    process.env.VITE_SUPABASE_REQ_URL,
+    process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL,
     process.env.VITE_SUPABASE_URL,
-    process.env.VITE_SUPABASE_CLI_URL,
+    process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL,
   ].filter((url, index, urls): url is string => Boolean(url) && urls.indexOf(url) === index);
 
   if (serviceKey) {

@@ -32,8 +32,8 @@ import { createClient } from '@supabase/supabase-js';
 const ROOT = 'C:/Users/vijay/Downloads/vjrwebsite-main';
 const env = readFileSync(path.join(ROOT, '.env'), 'utf8');
 const get = (k) => (env.match(new RegExp(`^${k}=(.*)$`, 'm')) || [])[1] ?? '';
-const SB_URL = get('VITE_SUPABASE_REQ_URL') || get('VITE_SUPABASE_URL');
-const SB_KEY = get('VITE_SUPABASE_REQ_SERVICE_KEY');
+const SB_URL = get('SUPABASE_REQ_URL') || get('VITE_SUPABASE_REQ_URL') || get('VITE_SUPABASE_URL');
+const SB_KEY = get('SUPABASE_REQ_SERVICE_KEY') || get('VITE_SUPABASE_REQ_SERVICE_KEY');
 
 // ── Firebase auth via logged-in CLI ─────────────────────────────────────────
 const cfg = JSON.parse(readFileSync(path.join(os.homedir(), '.config', 'configstore', 'firebase-tools.json'), 'utf8'));

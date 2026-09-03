@@ -1,6 +1,4 @@
-/** Google Maps server key — env var wins, falls back to the current production key. */
-const MAPS_SERVER_KEY =
-  process.env.GOOGLE_MAPS_SERVER_KEY ?? 'AIzaSyBSalDHPAJQmCsZHXJdGx_mvoN9jRz1G4A';
+const MAPS_SERVER_KEY = process.env.GOOGLE_MAPS_SERVER_KEY;
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') {

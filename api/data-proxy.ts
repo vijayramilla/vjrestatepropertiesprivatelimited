@@ -14,20 +14,17 @@ import { randomUUID } from 'crypto';
  */
 
 const SUPABASE_SERVICE_KEY = (
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? ''
+  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_REQ_SERVICE_KEY ?? process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? ''
 ).trim().replace(/^(['"])(.*)\1$/, '$2');
 const supabaseAdmin = createClient(
-  process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
   SUPABASE_SERVICE_KEY,
 );
 
 // The org's real Supabase project (employees, CRM clients, storage buckets).
-// The Storage dashboard reads its usage through this client — the site-data
-// REQ project above has its own (empty) storage, which is why the dashboard
-// showed 0% when pointed at it.
 const supabaseCli = createClient(
-  process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
-  process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
+  process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
+  process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
 );
 
 const ADMIN_EMAILS = [
@@ -36,9 +33,8 @@ const ADMIN_EMAILS = [
   'vijayramv229@gmail.com',
 ];
 const ADMIN_UID = process.env.VITE_ADMIN_UID ?? 'AhaNy8oyMHOFsB3u0dQhG0E0by43';
-const FIREBASE_API_KEY =
-  process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
-const SUPABASE_URL = process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? '';
+const SUPABASE_URL = process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
 function assertSupabaseServiceKey() {
   if (!SUPABASE_SERVICE_KEY) {
     throw new Error('Supabase service key is missing. Configure SUPABASE_SERVICE_ROLE_KEY on the server.');
