@@ -46,7 +46,7 @@ function isSuperAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(normalizeEmail(email));
 }
 
-async function verifyToken(token: string): Promise<{ authorized: boolean; email: string; role?: string; permissions?: string[] | null }> {
+async function verifyToken(token: string): Promise<{ authorized: boolean; email: string; uid: string; role?: string; permissions?: string[] | null }> {
   try {
     const res = await fetch(
       `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${FIREBASE_API_KEY}`,

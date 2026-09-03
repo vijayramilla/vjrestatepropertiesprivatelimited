@@ -1,4 +1,4 @@
-import { VASTU_EXTRACTION_PROMPT, vastuBrain } from '../src/data/vastuBrain';
+import { VASTU_EXTRACTION_PROMPT, vastuBrain } from '../src/data/vastuBrain.js';
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
