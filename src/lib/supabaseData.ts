@@ -907,23 +907,41 @@ async function adminFetch(method: string, path: string, body?: unknown): Promise
   return text ? JSON.parse(text) : null;
 }
 
-export async function supabaseDirectPropertyCreate(
-  row: Record<string, unknown>,
-): Promise<{ id: string; propertyCode: string }> {
+async function generateNextPropertyCode(): Promise<string> {
   const existing = await adminFetch('GET', 'properties?select=property_code&property_code=not.is.null');
   let maxNum = 0;
   for (const r of existing ?? []) {
     const m = String(r.property_code).match(/^VJR-(\d+)$/);
     if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
   }
-  const propertyCode = (row.property_code as string)?.trim() || `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+  return `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+}
+
+export async function supabaseDirectPropertyCreate(
+  row: Record<string, unknown>,
+): Promise<{ id: string; propertyCode: string }> {
+  let propertyCode = (row.property_code as string)?.trim() || await generateNextPropertyCode();
   const propId = crypto.randomUUID();
-  const clean = pickPropertyColumns({
-    ...row, id: propId, property_code: propertyCode,
-    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-  });
-  await adminFetch('POST', 'properties', clean);
-  return { id: propId, propertyCode };
+  let lastError: string | null = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const clean = pickPropertyColumns({
+      ...row, id: propId, property_code: propertyCode,
+      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    });
+    try {
+      await adminFetch('POST', 'properties', clean);
+      return { id: propId, propertyCode };
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (/property_code_key|unique constraint/i.test(msg)) {
+        lastError = msg;
+        propertyCode = await generateNextPropertyCode();
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error(lastError ?? 'Failed to create property after retries');
 }
 
 export async function supabaseDirectPropertyUpdate(

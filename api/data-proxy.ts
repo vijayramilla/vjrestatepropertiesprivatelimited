@@ -295,23 +295,31 @@ async function executeAction(action: string, params: any): Promise<any> {
       const isAdminCall = isAdmin(auth);
       if (!isAdminCall && params.uid !== auth.uid) throw new Error('Forbidden');
       const { uid, ...raw } = params;
-      const code = await nextPropertyCode();
-      const finalCode = (params.property_code ?? '').trim() || code;
+      let finalCode = (params.property_code ?? '').trim() || await nextPropertyCode();
       const propId = randomUUID();
-      const clean = pickPropertyColumns({
-        ...raw,
-        id: propId,
-        property_code: finalCode,
-        created_at: dbDate(params.createdAt) ?? new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-      const { data, error } = await supabaseAdmin
-        .from('properties')
-        .insert(clean)
-        .select('id')
-        .single();
-      if (error) throw new Error(error.message);
-      return { id: data.id, propertyCode: finalCode };
+      let lastError: any = null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const clean = pickPropertyColumns({
+          ...raw,
+          id: propId,
+          property_code: finalCode,
+          created_at: dbDate(params.createdAt) ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+        const { data, error } = await supabaseAdmin
+          .from('properties')
+          .insert(clean)
+          .select('id')
+          .single();
+        if (!error) return { id: data.id, propertyCode: finalCode };
+        if (/property_code_key|unique constraint/i.test(error.message)) {
+          lastError = error;
+          finalCode = await nextPropertyCode();
+          continue;
+        }
+        throw new Error(error.message);
+      }
+      throw new Error(lastError?.message ?? 'Failed to create property after retries');
     }
 
     case 'property.update': {
