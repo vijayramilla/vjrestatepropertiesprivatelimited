@@ -23,7 +23,6 @@ import {
   getMonthlyRentalValue,
   getNumericPrice,
   getPropertyCategory,
-  isLandOrPlotProperty,
   normalizeLocalityList,
   PROPERTY_CATEGORIES,
   resolveLocalityForSearch,
@@ -314,11 +313,6 @@ export default function PropertiesPage() {
         sorted.sort((a, b) => {
           const byCat = categoryIndex(a) - categoryIndex(b);
           if (byCat !== 0) return byCat;
-          const aLand = isLandOrPlotProperty(a);
-          const bLand = isLandOrPlotProperty(b);
-          if (aLand && bLand) return 0;
-          if (aLand) return 1;
-          if (bLand) return -1;
           return getMonthlyRentalValue(b) - getMonthlyRentalValue(a);
         });
         break;

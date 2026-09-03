@@ -22,7 +22,7 @@ type Props = {
  * Admin geofence management panel.
  * Create, edit, and delete geofences that restrict where employees can clock in.
  */
-export default function GeofenceManager({ onClose }: Props) {
+export default function GeofenceManager({ onClose: _onClose }: Props) {
   const [fences, setFences] = useState<Geofence[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);

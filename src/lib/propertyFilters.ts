@@ -13,9 +13,6 @@ export const TYPE_FILTER_ALIASES: Record<string, string[]> = {
     'Residential',
   ],
   'Commercial Properties': ['Commercial Properties', 'Commercial'],
-  'Residential Plot': ['Residential Plot'],
-  'Commercial Plot': ['Commercial Plot'],
-  'JD Land': ['JD Land'],
 };
 
 /** Display order for property categories on the listings page. */
@@ -23,9 +20,6 @@ export const PROPERTY_CATEGORIES = [
   'PG Buildings',
   'Residential Rental Income',
   'Commercial Properties',
-  'Residential Plot',
-  'Commercial Plot',
-  'JD Land',
 ] as const;
 
 export type PropertyCategory = (typeof PROPERTY_CATEGORIES)[number];

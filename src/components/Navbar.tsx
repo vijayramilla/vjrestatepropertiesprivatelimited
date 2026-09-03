@@ -11,9 +11,7 @@ import {
   SignOut,
   SquaresFour,
 
-  PlusCircle,
   Buildings,
-  Gavel,
   Briefcase,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
@@ -27,8 +25,6 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
-  { label: 'My Listings', path: '/my-listings', Icon: Buildings },
-  { label: 'List Property', path: '/list-property', Icon: PlusCircle },
 
   { label: 'About Us', path: '/about', Icon: Info },
   { label: 'Careers', path: '/careers', Icon: Briefcase },
@@ -86,7 +82,7 @@ export default function Navbar() {
   const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isHome = location.pathname === '/';
-  const isMapPage = location.pathname === '/list-property';
+  const isMapPage = false;
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
@@ -227,7 +223,7 @@ export default function Navbar() {
               { label: 'Contact', path: '/contact' },
             ]
               .filter(() => !isMapPage)
-              .map(({ label, path, icon }) => (
+              .map(({ label, path }) => (
               <Link
                 key={path}
                 to={path}
@@ -246,8 +242,6 @@ export default function Navbar() {
                       : 0.85,
                 }}
               >
-                {icon === 'gavel' && <Gavel size={14} weight="regular" />}
-                {icon === 'globe' && <GlobeHemisphereWest size={14} weight="regular" />}
                 {label}
               </Link>
             ))}

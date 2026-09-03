@@ -1,6 +1,5 @@
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import QRCode from 'qrcode';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 
@@ -44,23 +43,7 @@ export default async function handler(req: any, res: any) {
       return;
     }
 
-    const origin = buildOrigin(req);
-    const propertyUrl = origin ? `${origin}/properties/${encodeURIComponent(id)}` : '';
-
-    let qrDataUrl = '';
-    if (propertyUrl) {
-      try {
-        qrDataUrl = await QRCode.toDataURL(propertyUrl, {
-          width: 220,
-          margin: 1,
-          errorCorrectionLevel: 'M',
-        });
-      } catch (e) {
-        console.error('QR generation failed:', e);
-      }
-    }
-
-    const html = buildPdfHtml(fields, qrDataUrl);
+    const html = buildPdfHtml(fields);
     const filename = buildFilename(getString(fields, 'title') || 'Property', id);
 
     const { executablePath, args, headless } = await resolveChromium();
@@ -167,6 +150,30 @@ function systemChromeCandidates(): string[] {
 /* ------------------------------------------------------------------ */
 
 async function fetchPropertyDoc(id: string): Promise<Fields | null> {
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ??
+    process.env.VITE_SUPABASE_REQ_SERVICE_KEY ??
+    process.env.VITE_SUPABASE_CLI_SERVICE_KEY ??
+    process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseUrls = [
+    process.env.VITE_SUPABASE_REQ_URL,
+    process.env.VITE_SUPABASE_URL,
+    process.env.VITE_SUPABASE_CLI_URL,
+  ].filter((url, index, urls): url is string => Boolean(url) && urls.indexOf(url) === index);
+
+  if (serviceKey) {
+    for (const supabaseUrl of supabaseUrls) {
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/properties?id=eq.${encodeURIComponent(id)}&select=*`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+      if (response.ok) {
+        const rows = await response.json();
+        if (Array.isArray(rows) && rows[0]) return supabaseRowToFields(rows[0]);
+      }
+    }
+  }
+
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
   if (!projectId) {
     console.error('property-pdf: VITE_FIREBASE_PROJECT_ID not set');
@@ -177,6 +184,31 @@ async function fetchPropertyDoc(id: string): Promise<Fields | null> {
   if (!res.ok) return null;
   const doc = await res.json();
   return doc?.fields ?? null;
+}
+
+function supabaseValue(value: unknown): FsValue {
+  if (value === null || value === undefined) return { nullValue: null };
+  if (typeof value === 'boolean') return { booleanValue: value };
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value };
+  }
+  if (typeof value === 'string') return { stringValue: value };
+  if (Array.isArray(value)) return { arrayValue: { values: value.map(supabaseValue) } };
+  if (typeof value === 'object') {
+    const fields: Record<string, FsValue> = {};
+    for (const [key, item] of Object.entries(value)) fields[key] = supabaseValue(item);
+    return { mapValue: { fields } };
+  }
+  return { stringValue: String(value) };
+}
+
+function supabaseRowToFields(row: Record<string, unknown>): Fields {
+  const fields: Fields = {};
+  for (const [key, value] of Object.entries(row)) {
+    const firestoreKey = key === 'property_code' ? 'propertyCode' : key;
+    fields[firestoreKey] = supabaseValue(value);
+  }
+  return fields;
 }
 
 /* ------------------------------------------------------------------ */
@@ -348,10 +380,6 @@ const PDF_CSS = `
   .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .gallery-item { break-inside: avoid; background: #f2f4f6; border-radius: 6px; overflow: hidden; }
   .gallery-item img { display: block; width: 100%; max-height: 62mm; object-fit: contain; }
-  .qr-row { margin-top: 22px; display: flex; justify-content: flex-end; }
-  .qr-box { text-align: center; padding: 10px 12px; border: 1px solid #e6e9ec; border-radius: 8px; background: #fbfbfc; }
-  .qr-box img { width: 96px; height: 96px; display: block; }
-  .qr-label { margin-top: 6px; font-size: 8.5pt; font-weight: 700; letter-spacing: 1.2px; color: #4a5560; }
 `;
 
 function section(title: string, body: string): string {
@@ -364,9 +392,10 @@ function factsTable(rows: { k: string; v: string }[]): string {
   return `<table class="facts">${trs}</table>`;
 }
 
-export function buildPdfHtml(fields: Fields, qrDataUrl: string): string {
+export function buildPdfHtml(fields: Fields): string {
   const title = cleanText(getString(fields, 'title'));
-  const type = cleanText(getString(fields, 'type'));
+  const rawType = getString(fields, 'type');
+  const type = cleanText(rawType === 'PG Buildings' ? 'PG Building' : rawType);
   const subtype = cleanText(getString(fields, 'commercial_subtype') || getString(fields, 'plot_subtype'));
   const propertyCode = cleanText(getString(fields, 'propertyCode'));
   const areaText = cleanText(getString(fields, 'area'));
@@ -436,7 +465,7 @@ export function buildPdfHtml(fields: Fields, qrDataUrl: string): string {
   const clearTitle = getBool(fields, 'clear_title');
   if (bbmp !== null) keyFacts.push({ k: 'BBMP approved', v: bbmp ? 'Yes' : 'No' });
   if (loanEligible !== null) keyFacts.push({ k: 'Bank loan eligible', v: loanEligible ? 'Yes' : 'No' });
-  if (clearTitle !== null) keyFacts.push({ k: 'Clear title', v: clearTitle ? 'Yes' : 'No' });
+  if (clearTitle === true) keyFacts.push({ k: 'Clear title', v: 'Yes' });
 
   // ---- Highlights / amenities / description ------------------------
   const highlights = getStringArray(fields, 'highlights').map(cleanText);
@@ -503,15 +532,6 @@ export function buildPdfHtml(fields: Fields, qrDataUrl: string): string {
       .map((img) => `<div class="gallery-item"><img src="${img}" alt="" onerror="this.style.display='none'" /></div>`)
       .join('');
     parts.push(section('Photo gallery', `<div class="gallery">${items}</div>`));
-  }
-
-  if (qrDataUrl) {
-    parts.push(
-      `<div class="qr-row"><div class="qr-box">` +
-        `<img src="${qrDataUrl}" alt="" />` +
-        `<div class="qr-label">View Property</div>` +
-        `</div></div>`,
-    );
   }
 
   return `<!doctype html><html><head><meta charset="utf-8" /><style>${PDF_CSS}</style></head><body>${parts.join('')}</body></html>`;

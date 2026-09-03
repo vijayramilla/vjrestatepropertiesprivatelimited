@@ -1,4 +1,4 @@
-import { Wallet, ArrowLeft, Download, MessageCircle, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Download, MessageCircle } from 'lucide-react';
 import type { SalaryStructure } from '@/utils/payrollCalculator';
 import { formatCurrency, numberToWords, getMonthName } from '@/utils/payrollCalculator';
 

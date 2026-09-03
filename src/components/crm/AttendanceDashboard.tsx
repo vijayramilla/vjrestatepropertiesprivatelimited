@@ -1,10 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { leadSupabase } from '@/services/leadSupabase';
 import {
-  Users, MapPin, Clock, LogIn, LogOut, Coffee, Loader2, RefreshCw,
-  Search, ChevronDown, ChevronUp, ExternalLink, Shield, Wifi,
+  Users, Loader2, RefreshCw, Search, ChevronDown, ChevronUp, ExternalLink, Wifi,
 } from 'lucide-react';
-import { CrmCard } from '@/components/crm/CrmUi';
 
 type Props = {
   /** Set to true to show in a compact sidebar widget instead of full page */

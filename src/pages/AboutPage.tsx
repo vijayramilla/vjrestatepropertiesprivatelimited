@@ -124,7 +124,7 @@ export default function AboutPage() {
     <div className="about-page about-scroll-page bg-white min-h-screen">
       <HeroGeometric
         compact
-        badge="Bangalore's Only Dedicated Rental Income Property Advisory"
+        badge="Bangalore's Dedicated Rental Income Property Advisory"
         title1="ABOUT"
         title2="VJR ESTATE"
         className="pt-[72px]"

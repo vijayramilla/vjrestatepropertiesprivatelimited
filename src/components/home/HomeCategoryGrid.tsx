@@ -18,21 +18,21 @@ interface Category {
 const CATEGORIES: Category[] = [
   {
     label: 'PG Buildings',
-    desc: 'Rental income assets',
+    desc: 'Managed accommodation buildings',
     icon: Buildings,
     to: '/properties?type=PG Buildings',
     gradient: 'from-[#0A1628] to-[#1E3852]',
   },
   {
     label: 'Residential',
-    desc: 'Apartments & houses',
+    desc: 'Independent rental-yielding buildings / non-PG',
     icon: House,
     to: '/properties?type=Residential Rental Income',
     gradient: 'from-[#1E3852] to-[#2C5282]',
   },
   {
     label: 'Commercial',
-    desc: 'Offices & retail spaces',
+    desc: 'Hospitals, malls & commercial spaces',
     icon: Warehouse,
     to: '/properties?type=Commercial Properties',
     gradient: 'from-[#14324B] to-[#0F4C3A]',

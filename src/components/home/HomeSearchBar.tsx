@@ -19,7 +19,7 @@ const BUY_BUDGET_LABELS = [
   'Above ₹5Cr',
 ];
 
-const TABS = ['Buy', 'Commercial', 'PG Buildings', 'List Property'];
+const TABS = ['Buy', 'Commercial', 'PG Buildings'];
 
 const TAB_TYPE_MAP: Record<string, string> = {
   Commercial: 'Commercial',
@@ -47,10 +47,6 @@ export default function HomeSearchBar() {
   );
 
   const handleTabClick = (tab: string) => {
-    if (tab === 'List Property') {
-      navigate('/list-property');
-      return;
-    }
     setActiveTab(tab);
     setSelectedType(TAB_TYPE_MAP[tab] ?? '');
   };
@@ -83,16 +79,7 @@ export default function HomeSearchBar() {
                   : 'bg-[#0A1628]/50 text-white/80 hover:bg-white/10 hover:text-white'
               }`}
             >
-              {tab === 'List Property' ? (
-                <span className="flex items-center gap-1.5">
-                  List Property
-                  <span className="rounded bg-green-500 px-1 py-0.5 text-[9px] font-bold text-white">
-                    FREE
-                  </span>
-                </span>
-              ) : (
-                tab
-              )}
+              {tab}
               {active && (
                 <motion.span
                   layoutId="homeSearchActiveTab"

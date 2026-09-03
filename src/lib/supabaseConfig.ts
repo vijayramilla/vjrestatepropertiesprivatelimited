@@ -24,17 +24,24 @@ export const supabaseData: SupabaseClient | null =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
+/**
+ * Admin Supabase client (service-role key) for property CRUD.
+ * Used when the data-proxy middleware is unavailable (dev / direct mode).
+ * SECURITY: This key bypasses RLS — only use for admin operations.
+ */
 export function useSupabaseData(): boolean {
   return SUPABASE_DATA_ENABLED && supabaseData !== null;
 }
 
 /** Base URL for the Vercel serverless write proxy (same host as crm-proxy). */
-export const DATA_PROXY_URL =
-  `${import.meta.env.VITE_API_URL ?? ''}/data-proxy`;
+const configuredApiUrl = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+export const DATA_PROXY_URL = configuredApiUrl
+  ? `${configuredApiUrl}/data-proxy`
+  : '/api/data-proxy';
 
 /** Public URL for an object in a public Supabase storage bucket. */
 export function supabasePublicUrl(bucket: string, path: string): string {
-  const cleanPath = path.replace(/^\/+/, '');
+  const cleanPath = path.replace(/^\//, '');
   return `${supabaseUrl}/storage/v1/object/public/${bucket}/${cleanPath}`;
 }
 

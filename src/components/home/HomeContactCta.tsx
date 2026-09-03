@@ -22,12 +22,12 @@ export default function HomeContactCta() {
               Get Started Today
             </p>
             <h2 className="font-display mt-3 text-2xl font-bold leading-tight text-white md:text-4xl">
-              Ready to Buy, Sell or Invest in
-              <span className="text-[#C9A84C]"> Bangalore Real Estate?</span>
+              Ready to Invest in
+              <span className="text-[#C9A84C]"> Bangalore's Rental Income Properties?</span>
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-gray-400 md:text-base">
               Talk to our property experts today — {siteContact.hoursLabel}. Free guidance on
-              rental yields, property selection, and the best income opportunities.
+              rental yields, property selection, and the best income opportunities in Bangalore.
             </p>
           </div>
 

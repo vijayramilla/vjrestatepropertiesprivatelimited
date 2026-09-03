@@ -30,9 +30,11 @@ import {
   supabaseGetProperty,
   propertyDocToRow,
   callDataProxy,
+  supabaseDirectPropertyCreate,
+  supabaseDirectPropertyUpdate,
 } from '@/lib/supabaseData';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle, XCircle } from 'phosphor-react';
+import { XCircle } from 'phosphor-react';
 import {
   KARNATAKA_KATHA_GROUPS,
   KARNATAKA_KATHA_CUSTOM_VALUE,
@@ -65,6 +67,7 @@ interface FormData {
   monthly_rental_label: string;
   rental_yield: number | null;
   area_sqft: number;
+  built_up_area_sqft: number;
   area_unit?: AreaUnit;
   price_per_sqft?: number;
   dimensions: string;
@@ -208,6 +211,7 @@ export default function AdminPropertyForm() {
     monthly_rental_label: '',
     rental_yield: null,
     area_sqft: 0,
+    built_up_area_sqft: 0,
     area_unit: 'sqft',
     price_per_sqft: 0,
     dimensions: '',
@@ -301,6 +305,7 @@ export default function AdminPropertyForm() {
               location,
               area_unit: loadedAreaUnit,
               price_per_sqft: (data as { price_per_sqft?: number }).price_per_sqft ?? 0,
+              built_up_area_sqft: Number((data as { built_up_area_sqft?: number }).built_up_area_sqft) || 0,
               land_acres:
                 landAcres ||
                 (data.area_sqft && loadedAreaUnit === 'acres'
@@ -512,10 +517,14 @@ export default function AdminPropertyForm() {
           finalImages = [...finalImages, ...uploaded];
         }
         if (useSupabaseData()) {
-          await callDataProxy('property.update', {
-            id: propertyId,
-            ...propertyDocToRow({ ...payload, images: finalImages }),
-          });
+          try {
+            await callDataProxy('property.update', {
+              id: propertyId,
+              ...propertyDocToRow({ ...payload, images: finalImages }),
+            });
+          } catch {
+            await supabaseDirectPropertyUpdate(propertyId, propertyDocToRow({ ...payload, images: finalImages }));
+          }
         } else {
           await updateDoc(doc(db, 'properties', propertyId), {
             ...payload,
@@ -525,8 +534,12 @@ export default function AdminPropertyForm() {
         }
       } else {
         if (useSupabaseData()) {
-          // The proxy generates the next VJR-xxxx code server-side.
-          const created = await callDataProxy('property.create', propertyDocToRow(payload));
+          let created: { id: string; propertyCode: string };
+          try {
+            created = await callDataProxy('property.create', propertyDocToRow(payload)) as { id: string; propertyCode: string };
+          } catch {
+            created = await supabaseDirectPropertyCreate(propertyDocToRow(payload));
+          }
           propertyId = created.id as string;
           if (created.propertyCode) {
             setFormData(prev => ({ ...prev, propertyCode: created.propertyCode }));
@@ -556,7 +569,11 @@ export default function AdminPropertyForm() {
           setUploadingImages(true);
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           if (useSupabaseData()) {
-            await callDataProxy('property.update', { id: propertyId, images: uploaded });
+            try {
+              await callDataProxy('property.update', { id: propertyId, images: uploaded });
+            } catch {
+              await supabaseDirectPropertyUpdate(propertyId, { images: uploaded });
+            }
           } else {
             await updateDoc(doc(db, 'properties', propertyId), sanitizeForFirestore({ images: uploaded }));
           }
@@ -590,7 +607,7 @@ export default function AdminPropertyForm() {
       setTimeout(() => navigate('/admin/properties'), 1500);
     } catch (error) {
       console.error('Save error:', error);
-      setToast('Error saving property');
+      setToast(`Error saving property: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setSaving(false);
       setUploadingImages(false);
@@ -795,12 +812,6 @@ export default function AdminPropertyForm() {
     formData.price > 0 && (formData.price_per_sqft ?? 0) > 0
       ? `Price saved as: ${formatINR(formData.price)} total · ₹${(formData.price_per_sqft ?? 0).toLocaleString('en-IN')}/sq.ft`
       : '';
-
-  const areaFieldLabel = isBuildingType
-    ? 'Built-up Area (sq.ft)'
-    : isPlotTypeOnly
-      ? 'Plot Size (sq.ft)'
-      : 'Land Area';
 
   const kathaSelectValue = getKathaSelectValue(formData.katha);
   const selectedKathaOption = findKathaOption(formData.katha ?? '');
@@ -1228,18 +1239,28 @@ export default function AdminPropertyForm() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
               {/* Area — building types */}
               {isBuildingType && (
-                <div>
-                  <label className="block font-sans text-xs text-gray-500 mb-2">
-                    {areaFieldLabel}
-                  </label>
-                  <input
-                    type="number"
-                    placeholder="0"
-                    value={formData.area_sqft || ''}
-                    onChange={(e) => updateFormData('area_sqft', Number(e.target.value))}
-                    className="admin-input-ghost"
-                  />
-                </div>
+                <>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">Plot Area (sq.ft)</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.area_sqft || ''}
+                      onChange={(e) => updateFormData('area_sqft', Number(e.target.value))}
+                      className="admin-input-ghost"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">Built-up Area (sq.ft)</label>
+                    <input
+                      type="number"
+                      placeholder="0"
+                      value={formData.built_up_area_sqft || ''}
+                      onChange={(e) => updateFormData('built_up_area_sqft', Number(e.target.value))}
+                      className="admin-input-ghost"
+                    />
+                  </div>
+                </>
               )}
 
               {/* Area — plot & land types with unit switcher */}

@@ -26,7 +26,8 @@ function buildDetailRows(property: Property): DetailRow[] {
     return [
       { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Plot Dimensions', value: property.dimensions },
+      { label: 'Plot Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
+      { label: 'Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Rooms', value: String(property.total_units) },
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
@@ -42,7 +43,8 @@ function buildDetailRows(property: Property): DetailRow[] {
     return [
       { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
-      { label: 'Plot Dimensions', value: property.dimensions },
+      { label: 'Plot Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
+      { label: 'Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Units', value: String(property.total_units) },
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },

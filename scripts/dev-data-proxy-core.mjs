@@ -114,6 +114,27 @@ function isAdmin(auth) {
   return auth?.role === 'super_admin' || (auth?.role ?? '') !== 'user';
 }
 
+const PROPERTY_COLUMNS = new Set([
+  'id', 'property_code', 'title', 'type', 'commercial_subtype', 'plot_subtype',
+  'area', 'location', 'price', 'price_label', 'monthly_rental', 'monthly_rental_label',
+  'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
+  'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
+  'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
+  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
+  'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
+  'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
+  'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
+  'user_email', 'user_display_name', 'city', 'state', 'pincode',
+  'full_address', 'created_at', 'updated_at',
+]);
+function pickPropertyColumns(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (PROPERTY_COLUMNS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 async function verifyToken(token) {
   try {
     const res = await fetch(
@@ -205,14 +226,11 @@ async function nextPropertyCode() {
   const { data } = await supabaseAdmin
     .from('properties')
     .select('property_code')
-    .not('property_code', 'is', null)
-    .order('property_code', { ascending: false })
-    .limit(1);
+    .not('property_code', 'is', null);
   let maxNum = 0;
-  const last = data?.[0]?.property_code;
-  if (last) {
-    const m = String(last).match(/^VJR-(\d+)$/);
-    if (m) maxNum = parseInt(m[1], 10);
+  for (const r of data ?? []) {
+    const m = String(r.property_code).match(/^VJR-(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
   }
   return `VJR-${String(maxNum + 1).padStart(4, '0')}`;
 }
@@ -246,17 +264,18 @@ async function executeAction(action, params) {
       if (!auth?.authorized) throw new Error('Forbidden');
       const isAdminCall = isAdmin(auth);
       if (!isAdminCall && params.uid !== auth.uid) throw new Error('Forbidden');
-      const { uid, ...rest } = params;
+      const { uid, ...raw } = params;
       const code = await nextPropertyCode();
       const finalCode = (params.property_code ?? '').trim() || code;
+      const clean = pickPropertyColumns({
+        ...raw,
+        property_code: finalCode,
+        created_at: dbDate(params.createdAt) ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
       const { data, error } = await supabaseAdmin
         .from('properties')
-        .insert({
-          ...rest,
-          property_code: finalCode,
-          created_at: dbDate(params.createdAt) ?? new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
+        .insert(clean)
         .select('id')
         .single();
       if (error) throw new Error(error.message);
@@ -265,11 +284,11 @@ async function executeAction(action, params) {
 
     case 'property.update': {
       if (!auth?.authorized) throw new Error('Forbidden');
-      const { id, createdAt, updatedAt, ...fields } = params;
+      const { id, createdAt, updatedAt, ...rawFields } = params;
       const row = await getPropertyRow(id);
       if (!row) throw new Error('Property not found');
       if (!isAdmin(auth) && row.uid !== auth.uid) throw new Error('Forbidden');
-      const updates = { ...fields, updated_at: new Date().toISOString() };
+      const updates = pickPropertyColumns({ ...rawFields, updated_at: new Date().toISOString() });
       delete updates.uid;
       const { error } = await supabaseAdmin.from('properties').update(updates).eq('id', id);
       if (error) throw new Error(error.message);
@@ -682,47 +701,9 @@ async function executeAction(action, params) {
       const quotaBytes = Number(
         process.env.VITE_SUPABASE_STORAGE_QUOTA_BYTES ?? 1024 * 1024 * 1024,
       );
-      const { data: rpcData, error: rpcError } = await supabaseCli.rpc('get_storage_stats');
-      if (!rpcError && rpcData) {
-        return { ...(rpcData ?? {}), quotaBytes };
-      }
-      // Fallback: query storage.objects directly
-      const BUCKETS = ['property-images', 'auction-images', 'resumes'];
-      const bucketStats = [];
-      let totalBytes = 0;
-      let totalObjects = 0;
-      let largest = [];
-      for (const bucket of BUCKETS) {
-        const { data: files } = await supabaseCli
-          .from('storage.objects')
-          .select('name, metadata')
-          .eq('bucket_id', bucket);
-        if (files && files.length > 0) {
-          const bytes = files.reduce((sum, f) => sum + Number(f.metadata?.size ?? 0), 0);
-          bucketStats.push({ bucket, objects: files.length, bytes });
-          totalBytes += bytes;
-          totalObjects += files.length;
-        } else {
-          bucketStats.push({ bucket, objects: 0, bytes: 0 });
-        }
-      }
-      const allFiles = [];
-      for (const bs of bucketStats) {
-        if (bs.objects === 0) continue;
-        const { data: files } = await supabaseCli
-          .from('storage.objects')
-          .select('name, metadata')
-          .eq('bucket_id', bs.bucket)
-          .order('metadata->>size', { ascending: false })
-          .limit(10);
-        if (files) {
-          for (const f of files) {
-            allFiles.push({ bucket: bs.bucket, name: f.name, bytes: Number(f.metadata?.size ?? 0) });
-          }
-        }
-      }
-      largest = allFiles.sort((a, b) => b.bytes - a.bytes).slice(0, 10);
-      return { totalBytes, totalObjects, buckets: bucketStats, largest, quotaBytes };
+      const { data, error } = await supabaseAdmin.rpc('get_storage_stats');
+      if (error) throw new Error(`Unable to read storage usage: ${error.message}`);
+      return { ...(data ?? {}), quotaBytes };
     }
 
     case 'auction.create': {

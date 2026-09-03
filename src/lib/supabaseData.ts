@@ -52,7 +52,10 @@ export async function callDataProxy(
   if (text) {
     try { data = JSON.parse(text); } catch { data = {}; }
   }
-  if (!res.ok) throw new Error(data?.error ?? 'Request failed');
+  if (!res.ok) {
+    console.error(`[callDataProxy] action=${action} status=${res.status} body=${text}`);
+    throw new Error(data?.error ?? `Request failed (${res.status})`);
+  }
   return data;
 }
 
@@ -444,6 +447,7 @@ export async function supabaseTrackUser(payload: {
 export async function supabaseCheckUserSuspended(_uid: string): Promise<boolean> {
   // The proxy derives the identity from the verified token — the uid argument
   // is kept for call-site compatibility.
+  void _uid;
   try {
     const res = await callDataProxy('user.checkSuspended');
     return Boolean(res.suspended);
@@ -853,6 +857,85 @@ export function propertyDocToRow(doc: Record<string, unknown>): Record<string, u
     row[col] = value;
   }
   return row;
+}
+
+/* ── Direct property CRUD (bypasses middleware) ──────────────────────────── */
+
+const PROPERTY_COLUMNS = new Set([
+  'id', 'property_code', 'title', 'type', 'commercial_subtype', 'plot_subtype',
+  'area', 'location', 'price', 'price_label', 'monthly_rental', 'monthly_rental_label',
+  'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
+  'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
+  'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
+  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
+  'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
+  'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
+  'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
+  'user_email', 'user_display_name', 'city', 'state', 'pincode',
+  'full_address', 'created_at', 'updated_at',
+]);
+
+function pickPropertyColumns(obj: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (PROPERTY_COLUMNS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
+/** Raw fetch helper — bypasses Supabase JS client to avoid Vite env-mangling JWTs. */
+async function adminFetch(method: string, path: string, body?: unknown): Promise<any> {
+  const url = import.meta.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
+  const key = import.meta.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
+  const opts: RequestInit = {
+    method,
+    headers: {
+      Authorization: `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      apikey: key,
+      Prefer: body ? 'return=representation' : '',
+    },
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const res = await fetch(`${url}/rest/v1/${path}`, opts);
+  const text = await res.text();
+  if (!res.ok) {
+    let msg = text;
+    try { msg = JSON.parse(text).message || text; } catch {}
+    throw new Error(msg || `Supabase ${res.status}`);
+  }
+  return text ? JSON.parse(text) : null;
+}
+
+export async function supabaseDirectPropertyCreate(
+  row: Record<string, unknown>,
+): Promise<{ id: string; propertyCode: string }> {
+  const existing = await adminFetch('GET', 'properties?select=property_code&property_code=not.is.null');
+  let maxNum = 0;
+  for (const r of existing ?? []) {
+    const m = String(r.property_code).match(/^VJR-(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  const propertyCode = (row.property_code as string)?.trim() || `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+  const propId = crypto.randomUUID();
+  const clean = pickPropertyColumns({
+    ...row, id: propId, property_code: propertyCode,
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  });
+  await adminFetch('POST', 'properties', clean);
+  return { id: propId, propertyCode };
+}
+
+export async function supabaseDirectPropertyUpdate(
+  id: string, row: Record<string, unknown>,
+): Promise<void> {
+  const clean = pickPropertyColumns({ ...row, updated_at: new Date().toISOString() });
+  delete clean.uid;
+  await adminFetch('PATCH', `properties?id=eq.${encodeURIComponent(id)}`, clean);
+}
+
+export async function supabaseDirectPropertyDelete(id: string): Promise<void> {
+  await adminFetch('DELETE', `properties?id=eq.${encodeURIComponent(id)}`);
 }
 
 /* ── Bids ─────────────────────────────────────────────────────────────────── */

@@ -7,7 +7,7 @@ import { siteContact } from '@/data/siteContact';
 
 const footerConfig = {
   description:
-    'VJR Estate connects investors with rental income properties across Bangalore — PG buildings, residential blocks, and commercial assets with documented monthly returns.',
+    'VJR Estate is your rental income expert in Bangalore — curating PG buildings, independent rental-yielding buildings, and commercial income properties with disciplined guidance.',
   contact: siteContact,
   socials: [
     { icon: MessageCircle, href: siteContact.whatsappUrl, label: 'WhatsApp' },
@@ -135,8 +135,8 @@ export default function Footer() {
           <p className="mt-1 text-sm text-gray-400">{contact.hoursLabel}</p>
         </div>
 
-        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-12">
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-8 flex-1">
+        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
+          <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
             {footerConfig.columns.map((col) => (
               <div key={col.title}>
                 <h3 className="text-sm font-medium mb-3 text-black">{col.title}</h3>
@@ -154,7 +154,7 @@ export default function Footer() {
           <div className="lg:w-1/4">
             <Card className="shadow-none border-none bg-transparent text-black mb-4">
               <CardContent className="p-0 space-y-3">
-                <p className="text-sm font-medium text-black">For Investors & Sellers</p>
+                <p className="text-sm font-medium text-black">For Rental Income Investors</p>
                 <Button
                   asChild
                   variant="outline"

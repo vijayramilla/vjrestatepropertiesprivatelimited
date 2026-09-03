@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Calendar, Download, Filter, ChevronDown, ChevronUp, Loader2, FileText, TrendingUp, Users, IndianRupee, Eye } from 'lucide-react';
 import { leadSupabase } from '@/services/leadSupabase';
-import { buildSalaryStructure, getMonthName, formatCurrency, type SalaryStructure } from '@/utils/payrollCalculator';
+import { buildSalaryStructure, type SalaryStructure } from '@/utils/payrollCalculator';
 import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
 import PayslipPreview from '@/components/payroll/PayslipPreview';
 import { CRM_INPUT, CrmBtn } from '@/components/crm/CrmUi';
@@ -55,9 +55,8 @@ export default function AdminPayrollPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [empRes, payRes] = await Promise.all([
+      const [empRes] = await Promise.all([
         leadSupabase.employees.list({ status: 'Active' }),
-        leadSupabase.employees.list(),
       ]);
       setEmployees((empRes.data ?? []).filter((e: EmployeeRow) => e.salary && Number(e.salary) > 0 && e.status !== 'Terminated'));
       // Fetch payroll records for all employees

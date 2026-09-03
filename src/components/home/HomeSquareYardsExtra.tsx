@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   House,
-  SignOut,
   Buildings,
   ArrowRight,
   Warehouse,
@@ -38,42 +37,6 @@ const SERVICES: Service[] = [
     icon: Warehouse,
     href: '/properties?type=Commercial Properties',
   },
-  {
-    label: 'Sell / List Property',
-    desc: 'List free and reach serious buyers fast',
-    cta: 'List For Free',
-    icon: SignOut,
-    href: '/list-property',
-  },
-];
-
-const propertyTypes = [
-  {
-    label: 'PG Buildings',
-    desc: 'Rental income assets in Bangalore',
-    icon: <Buildings size={28} weight="duotone" />,
-    slug: '/properties?type=PG Buildings',
-  },
-  {
-    label: 'Residential Rentals',
-    desc: 'Apartments & houses in Bangalore',
-    icon: <House size={28} weight="duotone" />,
-    slug: '/properties?type=Residential Rental Income',
-  },
-  {
-    label: 'Commercial Properties',
-    desc: 'Offices & retail in Bangalore',
-    icon: <Warehouse size={28} weight="duotone" />,
-    slug: '/properties?type=Commercial Properties',
-  },
-];
-
-const gradients = [
-  'from-violet-500 to-purple-600',
-  'from-emerald-500 to-teal-600',
-  'from-blue-500 to-indigo-600',
-  'from-amber-500 to-orange-600',
-  'from-rose-500 to-pink-600',
 ];
 
 export default function HomeSquareYardsExtra() {
@@ -130,41 +93,7 @@ export default function HomeSquareYardsExtra() {
         </div>
       </section>
 
-      {/* Discover More tiles */}
-      <section className="bg-white py-12 md:py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-8 flex items-end justify-between gap-4">
-            <div>
-              <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-                <span className="inline-block h-px w-8 bg-[#C9A84C]" />
-                Discover More
-              </p>
-              <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
-                Real Estate Properties in Bangalore
-              </h2>
-            </div>
-          </div>
 
-          <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden snap-x snap-mandatory">
-            {propertyTypes.map((pt, i) => (
-              <Link
-                key={pt.label}
-                to={pt.slug}
-                className={`group relative flex h-44 w-52 shrink-0 snap-start flex-col justify-end overflow-hidden rounded-2xl bg-gradient-to-br ${gradients[i]} p-5 text-white shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5`}
-              >
-                <span className="absolute right-3 top-3 text-white/20 transition-all duration-300 group-hover:scale-110 group-hover:text-white/30">
-                  {pt.icon}
-                </span>
-                <div className="relative z-10">
-                  <strong className="block text-base font-bold">{pt.label}</strong>
-                  <span className="mt-1 block text-xs font-medium text-white/70">{pt.desc}</span>
-                </div>
-                <div className="absolute inset-0 bg-black/0 transition-colors duration-300 group-hover:bg-black/10" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
     </>
   );
 }

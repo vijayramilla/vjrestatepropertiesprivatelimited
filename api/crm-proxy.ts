@@ -57,11 +57,12 @@ async function verifyToken(token: string): Promise<{ authorized: boolean; email:
       `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${FIREBASE_API_KEY}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token }) },
     );
-    if (!res.ok) return { authorized: false, email: '' };
+    if (!res.ok) return { authorized: false, email: '', uid: '' };
     const data: any = await res.json();
     const email = data.users?.[0]?.email ?? '';
+    const uid = data.users?.[0]?.localId ?? '';
     const normalized = normalizeEmail(email);
-    if (ADMIN_EMAILS.includes(normalized)) return { authorized: true, email: normalized, role: 'super_admin', permissions: null };
+    if (ADMIN_EMAILS.includes(normalized)) return { authorized: true, email: normalized, uid, role: 'super_admin', permissions: null };
     // Employees log in with the work email stored on their employee record —
     // only when the admin has enabled login access for them (access_enabled).
     // Checked BEFORE admin_users so an explicitly-enabled employee always lands
@@ -69,10 +70,10 @@ async function verifyToken(token: string): Promise<{ authorized: boolean; email:
     // account (common while testing the portal). Unticking the box restores
     // the admin role for that email.
     const { data: emp } = await supabaseCli.from('employees').select('id,employee_id,name,email,status,access_enabled').eq('email', normalized).maybeSingle();
-    if (emp && emp.status !== 'Terminated' && emp.access_enabled === true) return { authorized: true, email: normalized, role: 'employee', permissions: [] };
+    if (emp && emp.status !== 'Terminated' && emp.access_enabled === true) return { authorized: true, email: normalized, uid, role: 'employee', permissions: [] };
     const { data: admins, error } = await supabaseAdmin.from('admin_users').select('id,role,permissions').eq('email', normalized);
-    if (!error && admins?.length > 0) return { authorized: true, email: normalized, role: admins[0].role, permissions: admins[0].permissions };
-    return { authorized: false, email };
+    if (!error && admins?.length > 0) return { authorized: true, email: normalized, uid, role: admins[0].role, permissions: admins[0].permissions };
+    return { authorized: false, email, uid };
   } catch {
     return { authorized: false, email: '' };
   }

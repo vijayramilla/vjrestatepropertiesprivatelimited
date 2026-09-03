@@ -40,7 +40,7 @@ export const companyInfo: CompanyKnowledge = {
   legalName: 'VJR Estate Properties Private Limited',
   tagline: "Bangalore's Specialist Real Estate Investment Advisors",
   hq: 'Bangalore, Karnataka',
-  focus: ['PG buildings', 'commercial properties', 'residential plots', 'commercial plots', 'JD land'],
+  focus: ['PG buildings', 'residential rental properties', 'commercial rental properties'],
   services: [
     'Investment advisory for Bangalore real estate',
     'Asset identification and evaluation',

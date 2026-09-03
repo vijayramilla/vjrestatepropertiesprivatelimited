@@ -52,7 +52,7 @@ HSR Layout strikes a balance between proximity to tech hubs (Electronic City, Be
 <h3>Hebbal</h3>
 The northern corridor has seen significant development with the airport road and new business parks. Properties in Hebbal and surrounding areas like Thanisandra and Jakkur are appreciating rapidly, making them excellent long-term holds.`;
 
-const CONTENT_4 = `One of the most common dilemmas for Bangalore home buyers is choosing between a residential plot and an apartment. Both have their merits, and the right choice depends on your goals and timeline.
+const CONTENT_4 = `Choosing a rental income property in Bangalore depends on location, tenant demand, operating costs, and the stability of monthly returns.
 
 <h3>The Case for Plots</h3>
 Plots offer complete design freedom — you build exactly what you want. They also tend to appreciate faster than apartments, especially in developing areas. A plot in a growing locality like North Bangalore or along the peripheral ring road can double in value within 5–7 years.
@@ -66,7 +66,7 @@ Apartments offer convenience and immediate occupancy. Modern apartments come wit
 <h3>Liquidity and Exit</h3>
 Apartments generally have better liquidity — they're easier to sell quickly. Plots may take longer to find the right buyer but typically offer higher profit margins. For short-term goals (3–5 years), apartments are safer. For long-term wealth building, plots offer superior returns.`;
 
-const CONTENT_5 = `Getting the best price for your land in Bangalore requires strategy, timing, and market knowledge. Here's a practical guide to maximizing your land's value.
+const CONTENT_5 = `Getting the best performance from a rental income property in Bangalore requires strategy, timing, and market knowledge. Here's a practical guide to improving occupancy and returns.
 
 <h3>Timing the Market</h3>
 Bangalore's land market follows cycles influenced by infrastructure announcements. Major events like metro extensions, new highway projects, or IT corridor announcements typically trigger price surges. Stay informed about BBMP and BDA development plans for your area.
@@ -119,9 +119,9 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: '4',
-    slug: 'residential-plot-vs-apartment',
-    title: 'Residential Plot vs Apartment — Which is Better?',
-    excerpt: 'Comparing plots and apartments across appreciation, liquidity, rental income, and ease of ownership in Bangalore.',
+    slug: 'rental-income-property-vs-apartment',
+    title: 'Rental Income Property vs Apartment — Which is Better?',
+    excerpt: 'Comparing rental income properties and apartments across returns, liquidity, and ease of ownership in Bangalore.',
     content: CONTENT_4,
     date: '2026-05-28',
     author: 'VJR Estate Team',
@@ -131,9 +131,9 @@ export const blogPosts: BlogPost[] = [
   },
   {
     id: '5',
-    slug: 'best-price-for-your-land-bangalore',
-    title: 'How to Get the Best Price for Your Land',
-    excerpt: 'Strategic tips to maximize your land\'s sale price — from documentation to timing and marketing.',
+    slug: 'best-rental-income-property-bangalore',
+    title: 'How to Choose a Rental Income Property',
+    excerpt: 'Strategic tips to improve occupancy, monthly income, and long-term property performance.',
     content: CONTENT_5,
     date: '2026-05-20',
     author: 'VJR Estate Team',

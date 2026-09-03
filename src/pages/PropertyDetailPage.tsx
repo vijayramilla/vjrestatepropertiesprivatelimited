@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, supabaseGetProperty } from '@/lib/supabaseData';
+import { useSupabaseData as isSupabaseDataEnabled, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice } from '@/lib/formatPrice';
 import { formatArea } from '@/lib/plotLandForm';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';
@@ -73,6 +73,7 @@ const fontPrice: CSSProperties = {
   fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   fontVariantNumeric: 'tabular-nums',
 };
+const SHOW_PDF_CONTROLS = false;
 function truncate(str: string, len: number) {
   return str.length > len ? `${str.slice(0, len)}…` : str;
 }
@@ -216,7 +217,7 @@ export default function PropertyDetailPage() {
 
     const fetchProperty = async () => {
       try {
-        if (useSupabaseData()) {
+        if (isSupabaseDataEnabled()) {
           const doc = await supabaseGetProperty(id);
           if (doc) {
             setProperty(mapFirestoreToProperty(id, doc));
@@ -374,9 +375,8 @@ export default function PropertyDetailPage() {
       const res = await fetch(`/api/property-pdf?id=${encodeURIComponent(property.id)}`, {
         method: 'GET',
       });
-      if (!res.ok) throw new Error(`PDF request failed: ${res.status}`);
-      // Never save a non-PDF response (e.g. the SPA shell or an error page) as a .pdf file.
       const contentType = res.headers.get('content-type') ?? '';
+      if (!res.ok) throw new Error(`PDF request failed: ${res.status}`);
       if (!contentType.includes('application/pdf')) {
         throw new Error(`PDF endpoint returned ${contentType || 'unknown content type'}`);
       }
@@ -751,7 +751,7 @@ export default function PropertyDetailPage() {
               </div>
 
               <div className="px-6 py-5 flex flex-col gap-2.5">
-                <button
+                {SHOW_PDF_CONTROLS && <button
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={pdfState === 'loading'}
@@ -783,7 +783,7 @@ export default function PropertyDetailPage() {
                       Download PDF
                     </>
                   )}
-                </button>
+                </button>}
                 {pdfState === 'error' && (
                   <p className="text-[11.5px] text-[#c0392b] text-center" style={fontUI}>
                     Unable to generate the PDF. Please try again.
@@ -890,7 +890,7 @@ export default function PropertyDetailPage() {
             </p>
           </div>
 
-          <button
+          {SHOW_PDF_CONTROLS && <button
             type="button"
             onClick={handleShare}
             aria-label="Share property"
@@ -900,7 +900,7 @@ export default function PropertyDetailPage() {
             <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
               Share
             </span>
-          </button>
+          </button>}
 
           <button
             type="button"

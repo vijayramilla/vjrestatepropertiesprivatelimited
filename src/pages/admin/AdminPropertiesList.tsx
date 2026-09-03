@@ -11,7 +11,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseProperties, callDataProxy } from '@/lib/supabaseData';
+import { useSupabaseData, subscribeSupabaseProperties, callDataProxy, supabaseDirectPropertyDelete } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -26,7 +26,6 @@ import {
 } from '@/components/admin/AdminUi';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Trash, NotePencil, Plus } from 'phosphor-react';
-import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 
 const container = {
   animate: { transition: { staggerChildren: 0.05 } },
@@ -145,7 +144,7 @@ export default function AdminPropertiesList() {
     setDeleting(true);
     try {
       if (useSupabaseData()) {
-        await callDataProxy('property.delete', { id: deleteId });
+        try { await callDataProxy('property.delete', { id: deleteId }); } catch { await supabaseDirectPropertyDelete(deleteId); }
       } else {
         await deleteDoc(doc(db, 'properties', deleteId));
       }
@@ -178,7 +177,7 @@ export default function AdminPropertiesList() {
     try {
       const ids = Array.from(selectedIds);
       if (useSupabaseData()) {
-        await Promise.all(ids.map((id) => callDataProxy('property.delete', { id })));
+        await Promise.all(ids.map(async (id) => { try { await callDataProxy('property.delete', { id }); } catch { await supabaseDirectPropertyDelete(id); } }));
       } else {
         await Promise.all(ids.map((id) => deleteDoc(doc(db, 'properties', id))));
       }

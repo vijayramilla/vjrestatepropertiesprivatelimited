@@ -82,7 +82,7 @@ const fadeUpVariants: Variants = {
 };
 
 export function HeroGeometric({
-  badge = "Bangalore's Only Dedicated Rental Income Property Advisory",
+  badge = "Bangalore's Dedicated Rental Income Property Advisory",
   title1 = 'ABOUT',
   title2 = 'VJR ESTATE',
   subtitle,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   addDoc,
@@ -22,7 +22,7 @@ import {
   supabaseGetAuction,
   callDataProxy,
 } from '@/lib/supabaseData'
-import { ArrowLeft, CheckCircle, Link, Spinner, Upload, X } from 'phosphor-react'
+import { ArrowLeft, Link, Spinner, Upload, X } from 'phosphor-react'
 import {
   AUCTION_STATUS_CONFIG,
   type AuctionCategory,

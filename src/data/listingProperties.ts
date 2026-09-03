@@ -102,7 +102,10 @@ export function getCardSaleTitle(
 export function getCardCityName(
   property: Pick<ListingProperty, 'area'>,
 ): string {
-  return property.area?.trim() || 'Bangalore';
+  const area = property.area?.trim();
+  if (!area) return 'Bangalore';
+  if (/\bbangalore\b/i.test(area)) return area;
+  return `${area}, Bangalore`;
 }
 
 export type PropertyStatsView = Pick<

@@ -1,9 +1,9 @@
 import { getJobShareUrl, getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
 
 const SITE_NAME = 'VJR Estate';
-const DEFAULT_TITLE = 'VJR Estate | Buy Rental Income Properties in Bangalore';
+const DEFAULT_TITLE = 'VJR Estate | Your Rental Income Expert in Bangalore';
 const DEFAULT_DESCRIPTION =
-  "Bangalore's most trusted rental income property company. Curated PG buildings, residential rentals, and commercial assets.";
+  'VJR Estate is your rental income expert in Bangalore, curating PG buildings, independent rental-yielding buildings, and commercial income properties.';
 
 function setMeta(name: string, content: string, property = false) {
   const attr = property ? 'property' : 'name';

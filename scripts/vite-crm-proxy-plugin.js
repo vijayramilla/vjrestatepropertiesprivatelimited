@@ -1,13 +1,52 @@
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 
-const REQ_URL = process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const REQ_KEY = process.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
-const CLI_URL = process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-const CLI_KEY = process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '';
-const CLI_ANON = process.env.VITE_SUPABASE_CLI_ANON_KEY ?? 'sb_publishable_9E-uIJyNW0QBdhwnNCaMNw_d5jeXvkz';
+function loadServerEnv() {
+  const keys = [
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'VITE_SUPABASE_REQ_URL',
+    'VITE_SUPABASE_REQ_SERVICE_KEY',
+    'VITE_SUPABASE_CLI_URL',
+    'VITE_SUPABASE_CLI_SERVICE_KEY',
+  ];
+  try {
+    const raw = readFileSync(path.join(process.cwd(), '.env'), 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const separator = trimmed.indexOf('=');
+      if (separator <= 0) continue;
+      const key = trimmed.slice(0, separator).trim();
+      if (!keys.includes(key) || process.env[key]) continue;
+      let value = trimmed.slice(separator + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      process.env[key] = value;
+    }
+  } catch {
+    // Production uses deployed environment variables instead of .env.
+  }
+}
 
-const supabaseCli = CLI_KEY ? createClient(CLI_URL, CLI_KEY) : createClient(CLI_URL, CLI_ANON);
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs';
+loadServerEnv();
+
+function env(key, fallback) {
+  return (process.env[key] ?? fallback).trim();
+}
+
+function getEnv() {
+  return {
+    REQ_URL: env('VITE_SUPABASE_REQ_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
+    REQ_KEY: env('SUPABASE_SERVICE_ROLE_KEY', '') || env('VITE_SUPABASE_REQ_SERVICE_KEY', ''),
+    CLI_URL: env('VITE_SUPABASE_CLI_URL', 'https://eimvaxrmiizdlgonhiov.supabase.co'),
+    CLI_KEY: env('VITE_SUPABASE_CLI_SERVICE_KEY', ''),
+    CLI_ANON: env('VITE_SUPABASE_CLI_ANON_KEY', 'sb_publishable_9E-uIJyNW0QBdhwnNCaMNw_d5jeXvkz'),
+    FIREBASE_API_KEY: env('VITE_FIREBASE_API_KEY', 'AIzaSyAou136n9rrUnlabvQl22BvdHYzuhbwsKs'),
+  };
+}
+
 const ADMIN_EMAILS = ['vijaykodamasuru2023@gmail.com', 'vijay@vjrestate.in', 'vijayramv229@gmail.com'];
 const SUPER_ADMIN_DISPLAY_NAMES = {
   'vijayramv229@gmail.com': 'Vijay Ram',
@@ -52,29 +91,54 @@ function normalizeEmail(email) {
   return email.trim().toLowerCase();
 }
 
+// Columns that actually exist in the properties table.
+// Form data may include extra keys (survey_number, water_source, etc.)
+// that don't exist in Supabase — we strip them before insert.
+const PROPERTY_COLUMNS = new Set([
+  'id', 'property_code', 'title', 'type', 'commercial_subtype', 'plot_subtype',
+  'area', 'location', 'price', 'price_label', 'monthly_rental', 'monthly_rental_label',
+  'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
+  'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
+  'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
+  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
+  'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
+  'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
+  'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
+  'user_email', 'user_display_name', 'city', 'state', 'pincode',
+  'full_address', 'created_at', 'updated_at',
+]);
+function pickPropertyColumns(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (PROPERTY_COLUMNS.has(k)) out[k] = v;
+  }
+  return out;
+}
+
 function isSuperAdminEmail(email) {
   return ADMIN_EMAILS.includes(normalizeEmail(email));
 }
 
 async function verifyFirebaseToken(token) {
+  const { FIREBASE_API_KEY } = getEnv();
   try {
     const res = await fetch(
       `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${FIREBASE_API_KEY}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token }) },
     );
-    if (!res.ok) return { authorized: false, email: '' };
+    if (!res.ok) return { authorized: false, email: '', uid: '' };
     const data = await res.json();
     const email = data.users?.[0]?.email ?? '';
+    const uid = data.users?.[0]?.localId ?? '';
     const normalized = normalizeEmail(email);
-    if (ADMIN_EMAILS.includes(normalized)) return { authorized: true, email: normalized, role: 'super_admin', permissions: null };
-    // Check if the email belongs to an employee with access enabled
+    if (ADMIN_EMAILS.includes(normalized)) return { authorized: true, email: normalized, uid, role: 'super_admin', permissions: null };
     const emp = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(normalized)}&select=id,employee_id,name,email,status,access_enabled`, null);
     const empRow = emp.data?.[0];
-    if (empRow && empRow.status !== 'Terminated' && empRow.access_enabled === true) return { authorized: true, email: normalized, role: 'employee', permissions: [] };
+    if (empRow && empRow.status !== 'Terminated' && empRow.access_enabled === true) return { authorized: true, email: normalized, uid, role: 'employee', permissions: [] };
     const { data: admins } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(normalized)}&select=id,role,permissions`, null);
-    if (admins?.length > 0) return { authorized: true, email: normalized, role: admins[0].role, permissions: admins[0].permissions };
-    return { authorized: false, email };
-  } catch { return { authorized: false, email: '' }; }
+    if (admins?.length > 0) return { authorized: true, email: normalized, uid, role: admins[0].role, permissions: admins[0].permissions };
+    return { authorized: false, email, uid: '' };
+  } catch { return { authorized: false, email: '', uid: '' }; }
 }
 
 function readBody(req) {
@@ -86,10 +150,13 @@ function readBody(req) {
   });
 }
 
-function supabaseFetch(method, path, body, baseUrl = REQ_URL, apiKey = REQ_KEY) {
-  const opts = { method, headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'apikey': apiKey } };
+function supabaseFetch(method, path, body, baseUrl, apiKey) {
+  const e = getEnv();
+  const url = baseUrl || e.REQ_URL;
+  const key = apiKey || e.REQ_KEY;
+  const opts = { method, headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'apikey': key } };
   if (body) opts.body = JSON.stringify(body);
-  return fetch(`${baseUrl}/rest/v1/${path}`, opts).then(async res => {
+  return fetch(`${url}/rest/v1/${path}`, opts).then(async res => {
     const text = await res.text();
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch { data = null; } }
@@ -100,14 +167,15 @@ function supabaseFetch(method, path, body, baseUrl = REQ_URL, apiKey = REQ_KEY) 
 }
 
 function employeeFetch(method, path, body) {
-  // Use service-role key so RLS-locked tables (employees, employee_attendance, etc.) are accessible
-  return supabaseFetch(method, path, body, CLI_URL, CLI_KEY || CLI_ANON);
+  const e = getEnv();
+  return supabaseFetch(method, path, body, e.CLI_URL, e.CLI_KEY || e.CLI_ANON);
 }
 
 function supabaseRpc(fn, args) {
-  return fetch(`${REQ_URL}/rest/v1/rpc/${fn}`, {
+  const e = getEnv();
+  return fetch(`${e.REQ_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${REQ_KEY}`, 'Content-Type': 'application/json', 'apikey': REQ_KEY },
+    headers: { 'Authorization': `Bearer ${e.REQ_KEY}`, 'Content-Type': 'application/json', 'apikey': e.REQ_KEY },
     body: JSON.stringify(args ?? {}),
   }).then(async res => {
     const text = await res.text();
@@ -155,8 +223,79 @@ function buildSuperAdminRows() {
   }];
 }
 
+// ── Helpers for data-proxy actions ─────────────────────────────────────────
+
+function dbDate(v) {
+  if (!v) return undefined;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
+async function nextPropertyCode() {
+  const { data } = await supabaseFetch('GET', 'properties?select=property_code&property_code=not.is.null');
+  let maxNum = 0;
+  for (const r of data ?? []) {
+    const m = String(r.property_code).match(/^VJR-(\d+)$/);
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  return `VJR-${String(maxNum + 1).padStart(4, '0')}`;
+}
+
+async function getPropertyRow(id) {
+  const { data } = await supabaseFetch('GET', `properties?id=eq.${encodeURIComponent(id)}&select=*`);
+  return data?.[0] ?? null;
+}
+
+const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+const MAX_RESUME_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = /^image\/(jpeg|png|webp|gif|avif)$/;
+const ALLOWED_RESUME_TYPES = /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|text\/plain)$/;
+
+function decodeBase64(data) {
+  const base64 = (data ?? '').replace(/^data:[^;]+;base64,/, '');
+  return Buffer.from(base64, 'base64');
+}
+
+function sanitizeFileName(name) {
+  return (name ?? 'photo').replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+}
+
+const rateBuckets = new Map();
+function rateLimited(key, max = 20, windowMs = 60000) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || now > bucket.reset) { rateBuckets.set(key, { count: 1, reset: now + windowMs }); return false; }
+  bucket.count += 1;
+  if (bucket.count > max) { rateBuckets.delete(key); return true; }
+  return false;
+}
+
+const AUCTION_COLUMN_MAP = {
+  startingBid: 'starting_bid', currentBid: 'current_bid', reservePrice: 'reserve_price',
+  bidIncrement: 'bid_increment', totalBids: 'total_bids', areaSqft: 'area_sqft',
+  propertyType: 'property_type', registeredBidders: 'registered_bidders', isFeatured: 'is_featured',
+};
+function mapAuctionFields(fields) {
+  const out = {};
+  for (const [key, value] of Object.entries(fields)) {
+    if (value === undefined) continue;
+    out[AUCTION_COLUMN_MAP[key] ?? key] = value;
+  }
+  return out;
+}
+
+async function nextReqId() {
+  const year = new Date().getFullYear();
+  const { count } = await supabaseFetch('GET', 'requirements?select=id');
+  return `VJR-REQ-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
+}
+
+// ── Main action handler ────────────────────────────────────────────────────
+
 async function executeAction(action, params) {
   switch (action) {
+
+    // ── CRM Leads ─────────────────────────────────────────────────────
     case 'list': {
       if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
       const { search, status, priority, source, agent, sortBy, sortOrder, page = 1, limit = 15 } = params;
@@ -167,7 +306,7 @@ async function executeAction(action, params) {
       if (source) filters.push(`lead_source=eq.${encodeURIComponent(source)}`);
       if (agent) filters.push(`assigned_agent=eq.${encodeURIComponent(agent)}`);
       filters.push('deleted_at=is.null');
-      const sortCol = sortBy === 'leadId' ? 'lead_id' : sortBy === 'leadSource' ? 'lead_source' : sortBy === 'createdAt' ? 'created_at' : 'created_at';
+      const sortCol = sortBy === 'leadId' ? 'lead_id' : sortBy === 'leadSource' ? 'lead_source' : 'created_at';
       const order = sortOrder === 'asc' ? 'asc' : 'desc';
       filters.push(`order=${sortCol}.${order}`, `limit=${limit}`, `offset=${(page - 1) * limit}`);
       const { data, count } = await supabaseFetch('GET', `leads?${filters.join('&')}`, null);
@@ -179,766 +318,540 @@ async function executeAction(action, params) {
         const agentResults = await Promise.all(agentPromises);
         agentResults.forEach(r => { if (r.data?.[0]) agentMap[r.data[0].id] = r.data[0]; });
       }
-      const enriched = rows.map(r => ({
-        ...r,
-        assignedAgent: r.assigned_agent && agentMap[r.assigned_agent] ? { _id: r.assigned_agent, name: agentMap[r.assigned_agent].name, email: agentMap[r.assigned_agent].email } : null
-      }));
-      const total = count ?? rows.length;
-      return { data: enriched, pagination: { total, page, limit, pages: Math.ceil(total / limit) } };
+      const enriched = rows.map(r => ({ ...r, agent: r.assigned_agent ? agentMap[r.assigned_agent] ?? null : null }));
+      return { data: enriched, count: count ?? rows.length };
     }
+
     case 'get': {
       if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id } = params;
-      const lead = await supabaseFetch('GET', `leads?id=eq.${id}&select=*`, null);
-      const row = lead.data?.[0];
-      if (!row) throw new Error('Lead not found');
-      const [fu, sv, al] = await Promise.all([
-        supabaseFetch('GET', `follow_ups?lead_id=eq.${id}&order=scheduled_at.desc`, null),
-        supabaseFetch('GET', `site_visits?lead_id=eq.${id}&order=visited_at.desc`, null),
-        supabaseFetch('GET', `activity_logs?lead_id=eq.${id}&order=created_at.desc`, null),
-      ]);
-      let agent = null;
-      if (row.assigned_agent) {
-        const ag = await supabaseFetch('GET', `agents?id=eq.${row.assigned_agent}&select=id,name,email`, null);
-        agent = ag.data?.[0] ?? null;
-      }
-      return { data: row, followUps: fu.data ?? [], siteVisits: sv.data ?? [], activityHistory: al.data ?? [], assignedAgent: agent };
+      const { data } = await supabaseFetch('GET', `leads?id=eq.${encodeURIComponent(params.id)}&select=*`, null);
+      if (!data?.length) throw new Error('Lead not found');
+      return data[0];
     }
+
     case 'update': {
       if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, performedBy, ...fields } = params;
-      const updates = { updated_at: new Date().toISOString() };
-      if (fields.name !== undefined) updates.name = fields.name;
-      if (fields.phone !== undefined) updates.phone = fields.phone;
-      if (fields.email !== undefined) updates.email = fields.email;
-      if (fields.leadSource !== undefined) updates.lead_source = fields.leadSource;
-      if (fields.status !== undefined) updates.status = fields.status;
-      if (fields.priority !== undefined) updates.priority = fields.priority;
-      if (fields.requirement !== undefined) updates.requirement = fields.requirement;
-      await supabaseFetch('PATCH', `leads?id=eq.${id}`, updates);
-      if (performedBy) await supabaseFetch('POST', 'activity_logs', { lead_id: id, action: 'lead_updated', description: 'Lead updated', performed_by: performedBy });
+      const { id, ...fields } = params;
+      const camelToSnake = (s) => s.replace(/[A-Z]/g, m => `_${m.toLowerCase()}`);
+      const updates = {};
+      for (const [k, v] of Object.entries(fields)) {
+        if (k === '_auth') continue;
+        updates[camelToSnake(k)] = v;
+      }
+      updates.updated_at = new Date().toISOString();
+      await supabaseFetch('PATCH', `leads?id=eq.${encodeURIComponent(id)}`, updates);
       return { id };
     }
+
     case 'remove': {
       if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, performedBy } = params;
-      await supabaseFetch('PATCH', `leads?id=eq.${id}`, { deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() });
-      if (performedBy) await supabaseFetch('POST', 'activity_logs', { lead_id: id, action: 'lead_deleted', description: 'Lead deleted', performed_by: performedBy });
-      return { message: 'Lead deleted' };
+      await supabaseFetch('PATCH', `leads?id=eq.${encodeURIComponent(params.id)}`, { deleted_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
     case 'updateStatus': {
       if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, status, performedBy } = params;
-      await supabaseFetch('PATCH', `leads?id=eq.${id}`, { status, updated_at: new Date().toISOString() });
-      if (performedBy) await supabaseFetch('POST', 'activity_logs', { lead_id: id, action: 'status_changed', description: `Status changed to ${status}`, performed_by: performedBy });
-      return { id };
+      await supabaseFetch('PATCH', `leads?id=eq.${encodeURIComponent(params.id)}`, { status: params.status, updated_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
     case 'assignAgent': {
       if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, agentId, performedBy } = params;
-      await supabaseFetch('PATCH', `leads?id=eq.${id}`, { assigned_agent: agentId, updated_at: new Date().toISOString() });
-      if (performedBy) await supabaseFetch('POST', 'activity_logs', { lead_id: id, action: 'agent_assigned', description: `Agent ${agentId ? 'assigned' : 'unassigned'}`, performed_by: performedBy });
-      return { id };
+      await supabaseFetch('PATCH', `leads?id=eq.${encodeURIComponent(params.id)}`, { assigned_agent: params.agentId, updated_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
     case 'addNote': {
       if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, text, addedBy } = params;
-      const existing = await supabaseFetch('GET', `leads?id=eq.${id}&select=notes`, null);
-      const notes = [...(existing.data?.[0]?.notes ?? []), { text: text ?? '', addedBy: addedBy ?? '', createdAt: new Date().toISOString() }];
-      await supabaseFetch('PATCH', `leads?id=eq.${id}`, { notes, updated_at: new Date().toISOString() });
-      if (addedBy) await supabaseFetch('POST', 'activity_logs', { lead_id: id, action: 'note_added', description: 'Note added', performed_by: addedBy });
-      return { data: notes };
+      const { data: leadRows } = await supabaseFetch('GET', `leads?id=eq.${encodeURIComponent(params.id)}&select=notes`, null);
+      const existing = leadRows?.[0]?.notes ?? [];
+      const newNote = { text: params.text, author: params.author ?? 'Admin', timestamp: new Date().toISOString() };
+      await supabaseFetch('PATCH', `leads?id=eq.${encodeURIComponent(params.id)}`, { notes: [...existing, newNote], updated_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
     case 'getActivities': {
       if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id } = params;
-      const { data } = await supabaseFetch('GET', `activity_logs?lead_id=eq.${id}&order=created_at.desc`, null);
+      const { data } = await supabaseFetch('GET', `activity_logs?lead_id=eq.${encodeURIComponent(params.leadId)}&order=created_at.desc&limit=100`, null);
       return { data: data ?? [] };
     }
+
     case 'getSources': {
       if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { data } = await supabaseFetch('GET', "leads?select=lead_source&lead_source=not.is.null", null);
-      const sources = [...new Set((data ?? []).map(r => r.lead_source).filter(Boolean))];
+      const { data } = await supabaseFetch('GET', 'leads?select=lead_source&lead_source=not.is.null', null);
+      const sources = [...new Set((data ?? []).map(r => r.lead_source).filter(Boolean))].sort();
       return { data: sources };
     }
+
+    // ── Agents ────────────────────────────────────────────────────────
     case 'agents.list': {
-      if (!hasPerm(params._auth, 'agents.view') && !hasPerm(params._auth, 'agents.edit') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      let agents = [];
-      try { const { data } = await supabaseFetch('GET', 'agents?select=*', null); agents = data ?? []; } catch {}
-      return { data: agents };
+      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
+      const { data } = await supabaseFetch('GET', 'agents?order=created_at.desc', null);
+      return { data: data ?? [] };
     }
+
     case 'agents.create': {
-      if (!hasPerm(params._auth, 'agents.edit')) throw new Error('Forbidden');
-      const { name, email, phone } = params;
-      await supabaseFetch('POST', 'agents', { name, email: email ?? '', phone: phone ?? '' });
-      const { data } = await supabaseFetch('GET', `agents?name=eq.${encodeURIComponent(name)}&order=created_at.desc&limit=1`, null);
-      return { data: data?.[0] ?? { id: null, name, email, phone } };
+      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
+      const { data } = await supabaseFetch('POST', 'agents', { name: params.name, email: params.email, phone: params.phone ?? '', status: params.status ?? 'Active' });
+      return data?.[0];
     }
+
     case 'agents.update': {
-      if (!hasPerm(params._auth, 'agents.edit')) throw new Error('Forbidden');
+      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
       const { id, ...fields } = params;
-      const updates = {};
-      if (fields.name !== undefined) updates.name = fields.name;
-      if (fields.email !== undefined) updates.email = fields.email;
-      if (fields.phone !== undefined) updates.phone = fields.phone;
-      if (fields.active !== undefined) updates.active = fields.active;
-      await supabaseFetch('PATCH', `agents?id=eq.${id}`, updates);
-      const { data } = await supabaseFetch('GET', `agents?id=eq.${id}&select=*`, null);
-      return { data: data?.[0] ?? null };
+      await supabaseFetch('PATCH', `agents?id=eq.${encodeURIComponent(id)}`, fields);
+      return { id };
     }
+
     case 'agents.delete': {
-      if (!hasPerm(params._auth, 'agents.edit')) throw new Error('Forbidden');
-      const { id } = params;
-      await supabaseFetch('PATCH', `leads?assigned_agent=eq.${encodeURIComponent(id)}`, { assigned_agent: null, updated_at: new Date().toISOString() });
-      await supabaseFetch('DELETE', `agents?id=eq.${id}`, null);
-      return { message: 'Agent deleted' };
+      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `agents?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
     }
+
+    // ── Employees ─────────────────────────────────────────────────────
     case 'employees.list': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { search, department, status, designation, sortBy, sortOrder } = params;
-      let path = 'employees?select=*';
-      const filters = [];
-      if (search) filters.push(`or=(name.ilike.%25${encodeURIComponent(search)}%25,email.ilike.%25${encodeURIComponent(search)}%25,employee_id.ilike.%25${encodeURIComponent(search)}%25)`);
-      if (department) filters.push(`department=eq.${encodeURIComponent(department)}`);
+      const { search, status, department, page = 1, limit = 20 } = params;
+      let filters = [];
+      if (search) filters.push(`or=(name.ilike.%25${encodeURIComponent(search)}%25,employee_id.ilike.%25${encodeURIComponent(search)}%25,email.ilike.%25${encodeURIComponent(search)}%25)`);
       if (status) filters.push(`status=eq.${encodeURIComponent(status)}`);
-      if (designation) filters.push(`designation=eq.${encodeURIComponent(designation)}`);
-      const col = sortBy === 'joiningDate' ? 'joining_date' : sortBy === 'employeeId' ? 'employee_id' : 'created_at';
-      const order = sortOrder === 'asc' ? 'asc' : 'desc';
-      filters.push(`order=${col}.${order}`);
-      const { data } = await employeeFetch('GET', path + '&' + filters.join('&'), null);
-      const all = data ?? [];
-      const stats = {
-        total: all.length,
-        active: all.filter((e) => e.status === 'Active').length,
-        onLeave: all.filter((e) => e.status === 'On Leave' || e.status === 'Leave').length,
-        newThisMonth: all.filter((e) => {
-          if (!e.joining_date) return false;
-          const d = new Date(e.joining_date);
-          const now = new Date();
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        }).length,
-      };
-      return { data: all, stats };
+      if (department) filters.push(`department=eq.${encodeURIComponent(department)}`);
+      filters.push(`limit=${limit}`, `offset=${(page - 1) * limit}`, 'order=created_at.desc');
+      const { data, count } = await supabaseFetch('GET', `employees?${filters.join('&')}`, null);
+      return { data: data ?? [], count: count ?? (data ?? []).length };
     }
+
     case 'employees.get': {
-      const { id } = params;
-      const { data } = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
-      return { data: data?.[0] ?? null };
+      const { data } = await supabaseFetch('GET', `employees?id=eq.${encodeURIComponent(params.id)}&select=*`, null);
+      return data?.[0] ?? null;
     }
+
     case 'employees.create': {
-      const { _auth, ...fields } = params;
-      const payload = {};
-      for (const [k, v] of Object.entries(fields)) {
-        if (v !== undefined && v !== '') payload[k === 'employeeId' ? 'employee_id' : k] = v;
-      }
-      await employeeFetch('POST', 'employees', payload);
-      const { data } = await employeeFetch('GET', `employees?employee_id=eq.${encodeURIComponent(payload.employee_id || '')}&order=created_at.desc&limit=1`, null);
-      return { data: data?.[0] ?? null };
+      const { data } = await employeeInsertRetry('employees', params);
+      return data?.[0];
     }
+
     case 'employees.update': {
-      const { id, _auth, ...fields } = params;
-      const updates = { updated_at: new Date().toISOString() };
-      const MAP = { employeeId: 'employee_id', joiningDate: 'joining_date', emergencyContactName: 'emergency_contact_name', emergencyContactPhone: 'emergency_contact_phone', bankAccountNumber: 'bank_account_number', bankName: 'bank_name', ifscCode: 'ifsc_code', panNumber: 'pan_number', aadharNumber: 'aadhar_number', uanNumber: 'uan_number', esiNumber: 'esi_number', profilePhotoUrl: 'profile_photo_url' };
-      for (const [k, v] of Object.entries(fields)) {
-        if (v === undefined) continue;
-        const col = MAP[k] ?? k;
-        updates[col] = v;
-      }
-      await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, updates);
-      const { data } = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
-      return { data: data?.[0] ?? null };
+      const { id, ...fields } = params;
+      await supabaseFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, fields);
+      return { id };
     }
+
     case 'employees.delete': {
-      const { id } = params;
-      await employeeFetch('DELETE', `employees?id=eq.${encodeURIComponent(id)}`, null);
-      return { message: 'Employee deleted' };
+      await supabaseFetch('DELETE', `employees?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
     }
+
     case 'employees.maxEmployeeId': {
-      const { data } = await employeeFetch('GET', 'employees?select=employee_id&order=employee_id.desc&limit=1', null);
-      return { data: data?.[0]?.employee_id ?? null };
+      const { data } = await supabaseFetch('GET', 'employees?select=employee_id&order=employee_id.desc&limit=1', null);
+      return { maxId: data?.[0]?.employee_id ?? 'EMP-0000' };
     }
+
     case 'employees.history': {
-      const { employeeId } = params;
-      const { data } = await employeeFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(employeeId)}&order=event_date.desc`, null);
+      const { data } = await supabaseFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(params.employeeId)}&order=created_at.desc`, null);
       return { data: data ?? [] };
     }
+
     case 'employees.addHistory': {
-      const { employeeId, eventType, title, description, eventDate } = params;
-      await employeeFetch('POST', 'employee_history', { employee_id: employeeId, event_type: eventType, title, description, event_date: eventDate, created_by: params._auth.email });
-      return { message: 'History added' };
+      const { data } = await supabaseFetch('POST', 'employee_history', params);
+      return data?.[0];
     }
+
     case 'employees.attendance': {
-      const { employeeId, month, year } = params;
-      const { data } = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}`, null);
-      return { data: data ?? [] };
+      const { employeeId, date } = params;
+      const { data } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}&date=eq.${encodeURIComponent(date)}&select=*`, null);
+      return data?.[0] ?? null;
     }
+
     case 'employees.setAttendance': {
-      const { employeeId, date, checkIn, checkOut, status, notes } = params;
-      const existing = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}&date=eq.${encodeURIComponent(date)}&select=id`, null);
-      const body = { employee_id: employeeId, date, check_in: checkIn, check_out: checkOut, status, notes: notes ?? '' };
-      if (existing.data?.length) {
-        await employeeFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(existing.data[0].id)}`, body);
-      } else {
-        await employeeFetch('POST', 'employee_attendance', body);
+      const { employeeId, date, ...fields } = params;
+      const { data: existing } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}&date=eq.${encodeURIComponent(date)}&select=id`, null);
+      if (existing?.length) {
+        await supabaseFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(existing[0].id)}`, fields);
+        return { id: existing[0].id };
       }
-      return { message: 'Attendance saved' };
+      const { data } = await supabaseFetch('POST', 'employee_attendance', { employee_id: employeeId, date, ...fields });
+      return data?.[0];
     }
+
     case 'employees.leaves': {
       const { employeeId } = params;
-      const { data } = await employeeFetch('GET', `employee_leaves?employee_id=eq.${encodeURIComponent(employeeId)}&order=start_date.desc`, null);
+      const { data } = await supabaseFetch('GET', `employee_leaves?employee_id=eq.${encodeURIComponent(employeeId)}&order=start_date.desc`, null);
       return { data: data ?? [] };
     }
+
     case 'employees.applyLeave': {
-      const { employeeId, leaveType, startDate, endDate, reason } = params;
-      await employeeFetch('POST', 'employee_leaves', { employee_id: employeeId, leave_type: leaveType, start_date: startDate, end_date: endDate, reason: reason ?? '', status: 'Pending' });
-      return { message: 'Leave applied' };
+      const { data } = await supabaseFetch('POST', 'employee_leaves', params);
+      return data?.[0];
     }
+
     case 'employees.approveLeave': {
-      const { id } = params;
-      await employeeFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(id)}`, { status: 'Approved' });
-      return { message: 'Leave approved' };
+      await supabaseFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(params.id)}`, { status: 'Approved', approved_by: params.approvedBy, approved_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
     case 'employees.rejectLeave': {
-      const { id } = params;
-      await employeeFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(id)}`, { status: 'Rejected' });
-      return { message: 'Leave rejected' };
+      await supabaseFetch('PATCH', `employee_leaves?id=eq.${encodeURIComponent(params.id)}`, { status: 'Rejected', approved_by: params.approvedBy, approved_at: new Date().toISOString(), rejection_reason: params.reason });
+      return { id: params.id };
     }
+
     case 'employees.payroll': {
-      const { employeeId } = params;
-      const { data } = await employeeFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(employeeId)}&order=month.desc`, null);
-      return { data: data ?? [] };
-    }
-    case 'employees.generatePayroll': {
       const { employeeId, month, year } = params;
-      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(employeeId)}&select=name,salary,employee_id`, null);
-      const e = emp.data?.[0] ?? {};
-      await employeeFetch('POST', 'employee_payroll', { employee_id: employeeId, month, year, gross_salary: e.salary ?? 0, status: 'Pending' });
-      return { message: 'Payroll generated' };
+      const { data } = await supabaseFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(employeeId)}&month=eq.${month}&year=eq.${year}&select=*`, null);
+      return data?.[0] ?? null;
     }
+
+    case 'employees.generatePayroll': {
+      const { employeeId, month, year, ...fields } = params;
+      const { data: existing } = await supabaseFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(employeeId)}&month=eq.${month}&year=eq.${year}&select=id`, null);
+      if (existing?.length) {
+        await supabaseFetch('PATCH', `employee_payroll?id=eq.${encodeURIComponent(existing[0].id)}`, fields);
+        return { id: existing[0].id };
+      }
+      const { data } = await supabaseFetch('POST', 'employee_payroll', { employee_id: employeeId, month, year, ...fields });
+      return data?.[0];
+    }
+
     case 'employees.markPaid': {
-      const { id, paymentDate } = params;
-      await employeeFetch('PATCH', `employee_payroll?id=eq.${encodeURIComponent(id)}`, { status: 'Paid', payment_date: paymentDate ?? new Date().toISOString() });
-      return { message: 'Payroll marked paid' };
+      await supabaseFetch('PATCH', `employee_payroll?id=eq.${encodeURIComponent(params.id)}`, { status: 'Paid', paid_at: new Date().toISOString() });
+      return { id: params.id };
     }
+
+    // ── Follow-ups ────────────────────────────────────────────────────
     case 'followUps.list': {
-      if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { leadId } = params;
-      let path = 'follow_ups?order=scheduled_at.desc';
-      if (leadId) path += `&lead_id=eq.${leadId}`;
-      const { data } = await supabaseFetch('GET', path, null);
-      return { data: data ?? [] };
+      const { search, status, agent, page = 1, limit = 20 } = params;
+      let filters = [];
+      if (search) filters.push(`or=(client_name.ilike.%25${encodeURIComponent(search)}%25,client_phone.ilike.%25${encodeURIComponent(search)}%25)`);
+      if (status) filters.push(`status=eq.${encodeURIComponent(status)}`);
+      if (agent) filters.push(`assigned_to=eq.${encodeURIComponent(agent)}`);
+      filters.push(`limit=${limit}`, `offset=${(page - 1) * limit}`, 'order=follow_up_date.desc');
+      const { data, count } = await supabaseFetch('GET', `crm_follow_ups?${filters.join('&')}`, null);
+      return { data: data ?? [], count: count ?? (data ?? []).length };
     }
+
     case 'followUps.create': {
-      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { leadId, scheduledAt, note, createdBy } = params;
-      await supabaseFetch('POST', 'follow_ups', { lead_id: leadId, scheduled_at: scheduledAt, note: note ?? '', created_by: createdBy ?? '' });
-      const { data } = await supabaseFetch('GET', `follow_ups?lead_id=eq.${leadId}&order=scheduled_at.desc&limit=1`, null);
-      if (createdBy) await supabaseFetch('POST', 'activity_logs', { lead_id: leadId, action: 'followup_scheduled', description: 'Follow-up scheduled', performed_by: createdBy });
-      return { data: data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'crm_follow_ups', params);
+      return data?.[0];
     }
+
     case 'followUps.update': {
-      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { id, status } = params;
-      await supabaseFetch('PATCH', `follow_ups?id=eq.${id}`, { status });
-      const { data } = await supabaseFetch('GET', `follow_ups?id=eq.${id}&select=*`, null);
-      return { data: data?.[0] ?? null };
+      const { id, ...fields } = params;
+      await supabaseFetch('PATCH', `crm_follow_ups?id=eq.${encodeURIComponent(id)}`, fields);
+      return { id };
     }
+
+    // ── Site visits ───────────────────────────────────────────────────
     case 'siteVisits.list': {
-      if (!hasPerm(params._auth, 'requirements.view') && !hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
       const { leadId } = params;
-      let path = 'site_visits?order=visited_at.desc';
-      if (leadId) path += `&lead_id=eq.${leadId}`;
-      const { data } = await supabaseFetch('GET', path, null);
+      const { data } = await supabaseFetch('GET', `site_visits?lead_id=eq.${encodeURIComponent(leadId)}&order=visit_date.desc`, null);
       return { data: data ?? [] };
     }
+
     case 'siteVisits.create': {
-      if (!hasPerm(params._auth, 'requirements.edit')) throw new Error('Forbidden');
-      const { leadId, visitedAt, location, note, outcome, createdBy } = params;
-      await supabaseFetch('POST', 'site_visits', { lead_id: leadId, visited_at: visitedAt, location: location ?? '', note: note ?? '', outcome: outcome ?? '', created_by: createdBy ?? '' });
-      const { data } = await supabaseFetch('GET', `site_visits?lead_id=eq.${leadId}&order=visited_at.desc&limit=1`, null);
-      if (createdBy) await supabaseFetch('POST', 'activity_logs', { lead_id: leadId, action: 'site_visit_scheduled', description: `Site visit ${location ? 'at ' + location : 'scheduled'}`, performed_by: createdBy });
-      return { data: data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'site_visits', params);
+      return data?.[0];
     }
+
+    // ── RPC ───────────────────────────────────────────────────────────
     case 'rpc': {
-      const { fn, args } = params;
-      const data = await supabaseRpc(fn, args ?? {});
-      return { data };
+      return await supabaseRpc(params.fn, params.args);
     }
+
+    // ── Admin management ──────────────────────────────────────────────
     case 'admin.verify': {
-      const { _auth } = params;
-      if (_auth.role === 'employee') {
-        const emp = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(_auth.email)}&select=*`, null);
-        return { data: emp.data?.[0] ?? null, email: _auth.email, role: 'employee', permissions: [] };
-      }
-      let dbRow = null;
-      try { const r = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(_auth.email)}&select=id,email,display_name,role,permissions,created_at`, null); dbRow = r.data?.[0] ?? null; } catch {}
-      return { data: dbRow, email: _auth.email, role: _auth.role ?? null, permissions: _auth.permissions ?? null };
+      const email = normalizeEmail(params.email ?? '');
+      if (isSuperAdminEmail(email)) return { role: 'super_admin', permissions: null, display_name: SUPER_ADMIN_DISPLAY_NAMES[email] ?? 'Admin' };
+      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,role,permissions,display_name`, null);
+      if (data?.length) return { role: data[0].role, permissions: data[0].permissions, display_name: data[0].display_name };
+      return null;
     }
+
     case 'admin.list': {
-      if (!params._auth?.authorized) throw new Error('Forbidden');
-      let rows = [];
-      if (params._auth.role === 'super_admin') {
-        try {
-          const { data } = await supabaseFetch('GET', 'admin_users?select=id,email,display_name,role,permissions,created_at', null);
-          rows = (data ?? []).filter((a) => a?.email);
-        } catch (e) {
-          console.error('[dev-proxy] admin.list: failed to load admin_users (is VITE_SUPABASE_REQ_SERVICE_KEY set?)', e);
-        }
-      }
-      const superRows = buildSuperAdminRows().filter((r) => !rows.some((db) => db.email === r.email));
-      return { data: [...superRows, ...rows] };
+      if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
+      const { data: dbAdmins } = await supabaseFetch('GET', 'admin_users?order=created_at.desc', null);
+      return [...buildSuperAdminRows(), ...(dbAdmins ?? [])];
     }
+
     case 'admin.add': {
       if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
-      const email = normalizeEmail(params.email ?? '');
-      if (!email) throw new Error('Email is required');
-      if (isSuperAdminEmail(email)) throw new Error('Cannot modify super admin accounts');
-      const displayName = params.displayName ?? '';
-      const permissions = scopePermissions(params._auth, params.permissions);
-      const existing = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id`, null);
-      if (existing.data?.length) {
-        await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(email)}`, { display_name: displayName, permissions, role: 'admin' });
-      } else {
-        await supabaseFetch('POST', 'admin_users', { email, display_name: displayName, permissions, role: 'admin' });
-      }
-      return { message: 'Admin added' };
+      const email = normalizeEmail(params.email);
+      if (isSuperAdminEmail(email)) throw new Error('Cannot modify super admin');
+      const { data } = await supabaseFetch('POST', 'admin_users', { id: `admin-${Date.now()}`, email, display_name: params.displayName ?? email, role: params.role ?? 'admin', permissions: scopePermissions(params._auth, params.permissions ?? []), avatar_url: '', created_at: new Date().toISOString() });
+      return data?.[0];
     }
+
     case 'admin.remove': {
       if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
-      const email = normalizeEmail(params.email ?? '');
-      if (!email) throw new Error('Email is required');
-      if (isSuperAdminEmail(email)) throw new Error('Cannot remove super admin accounts');
-      await supabaseFetch('DELETE', `admin_users?email=eq.${encodeURIComponent(email)}`, null);
-      return { message: 'Admin removed' };
+      const remEmail = normalizeEmail(params.email);
+      if (isSuperAdminEmail(remEmail)) throw new Error('Cannot remove super admin');
+      await supabaseFetch('DELETE', `admin_users?email=eq.${encodeURIComponent(remEmail)}`);
+      return { email: remEmail };
     }
+
     case 'admin.update': {
       if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
-      const email = normalizeEmail(params.email ?? '');
-      if (!email) throw new Error('Email is required');
-      if (isSuperAdminEmail(email)) throw new Error('Cannot modify super admin accounts');
-      const { displayName, permissions } = params;
-      const updates = {};
-      if (displayName !== undefined) updates.display_name = displayName;
-      if (permissions !== undefined) updates.permissions = scopePermissions(params._auth, permissions);
-      await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(email)}`, updates);
-      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,email,display_name,role,permissions,created_at`, null);
-      return { data: data?.[0] ?? null };
+      const updEmail = normalizeEmail(params.email);
+      if (isSuperAdminEmail(updEmail)) throw new Error('Cannot modify super admin');
+      await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(updEmail)}`, { role: params.role, permissions: scopePermissions(params._auth, params.permissions ?? []) });
+      return { email: updEmail };
     }
+
     case 'admin.updateAvatar': {
-      const email = normalizeEmail(params.email ?? '');
-      if (params._auth.email !== email) throw new Error('Forbidden');
-      const { avatarUrl } = params;
-      const existing = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id`, null);
-      if (existing.data?.length) {
-        await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(email)}`, { avatar_url: avatarUrl ?? '' });
-      } else if (isSuperAdminEmail(email)) {
-        await supabaseFetch('POST', 'admin_users', {
-          email,
-          display_name: SUPER_ADMIN_DISPLAY_NAMES[email] ?? '',
-          role: 'admin',
-          permissions: [],
-          avatar_url: avatarUrl ?? '',
-        });
-      } else {
-        throw new Error('Admin not found');
-      }
-      return { message: 'Avatar updated' };
+      if (!canManageAdmins(params._auth)) throw new Error('Forbidden');
+      const avatarEmail = normalizeEmail(params.email);
+      if (isSuperAdminEmail(avatarEmail)) throw new Error('Cannot modify super admin avatar');
+      await supabaseFetch('PATCH', `admin_users?email=eq.${encodeURIComponent(avatarEmail)}`, { avatar_url: params.avatarUrl });
+      return { email: avatarEmail };
     }
+
+    // ── CRM Clients ───────────────────────────────────────────────────
     case 'crmClients.list': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { data } = await supabaseFetch('GET', 'crm_clients?select=*&order=sno.desc', null, CLI_URL, CLI_ANON);
-      return { data: data ?? [] };
+      const { search, agentId, page = 1, limit = 20 } = params;
+      let filters = [];
+      if (search) filters.push(`or=(client_name.ilike.%25${encodeURIComponent(search)}%25,client_phone.ilike.%25${encodeURIComponent(search)}%25)`);
+      if (agentId) filters.push(`assigned_agent=eq.${encodeURIComponent(agentId)}`);
+      filters.push(`limit=${limit}`, `offset=${(page - 1) * limit}`, 'order=created_at.desc');
+      const { data, count } = await supabaseFetch('GET', `crm_clients?${filters.join('&')}`, null);
+      return { data: data ?? [], count: count ?? (data ?? []).length };
     }
+
     case 'crmClients.upsert': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const client = params.data ?? params;
-      const CLI_COLS = ['sno','name','phone','email','type','budget','budget_val','location','closed_price','closing_timeline','requirements','status','date','notes','buyer_comm_pct','buyer_comm_val','seller_comm_pct','seller_comm_val','total_comm','comm_status','my_share','source','updated_date','paid_comm','client_role','property_link','comm_date','property_subtype'];
-      const dbFields = {};
-      for (const k of CLI_COLS) { if (client[k] !== undefined) dbFields[k] = client[k]; }
-      const existing = await supabaseFetch('GET', `crm_clients?sno=eq.${client.sno}&select=id`, null, CLI_URL, CLI_ANON);
-      if (existing.data?.length > 0) {
-        await supabaseFetch('PATCH', `crm_clients?sno=eq.${client.sno}`, dbFields, CLI_URL, CLI_ANON);
-      } else {
-        await supabaseFetch('POST', 'crm_clients', dbFields, CLI_URL, CLI_ANON);
+      const { sno, ...fields } = params;
+      const { data: existing } = await supabaseFetch('GET', `crm_clients?sno=eq.${sno}&select=id`, null);
+      if (existing?.length) {
+        await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(existing[0].id)}`, fields);
+        return { id: existing[0].id, sno };
       }
-      return { data: client };
+      const { data } = await supabaseFetch('POST', 'crm_clients', { sno, ...fields });
+      return data?.[0];
     }
+
     case 'crmClients.delete': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await supabaseFetch('DELETE', `crm_clients?sno=eq.${params.sno}`, null, CLI_URL, CLI_ANON);
-      return { message: 'Deleted' };
+      await supabaseFetch('DELETE', `crm_clients?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
     }
+
     case 'crmClients.maxSno': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { data } = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null, CLI_URL, CLI_ANON);
-      return { data: data?.[0]?.sno ?? 0 };
+      const { data } = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null);
+      return { maxSno: data?.[0]?.sno ?? 0 };
     }
-    // ═══════════════════════════════════════════════════════════════════
-    // EMPLOYEE MANAGEMENT
-    // ═══════════════════════════════════════════════════════════════════
+
+    case 'crmClients.activity': {
+      const { clientId } = params;
+      const { data } = await supabaseFetch('GET', `crm_client_activity?client_id=eq.${encodeURIComponent(clientId)}&order=created_at.desc&limit=50`, null);
+      return { data: data ?? [] };
+    }
+
+    // ── Employee self-service ─────────────────────────────────────────
     case 'employees.me': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=*`, null);
-      return { data: me.data?.[0] ?? null };
+      const { data } = await supabaseFetch('GET', `employees?email=eq.${encodeURIComponent(params.email)}&select=*`, null);
+      return data?.[0] ?? null;
     }
-    case 'employees.get': {
-      const { id } = params;
-      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
-      const hist = await employeeFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(id)}&order=created_at.desc`, null);
-      const att = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(id)}&order=date.desc`, null);
-      const leaves = await employeeFetch('GET', `employee_leaves?employee_id=eq.${encodeURIComponent(id)}&order=created_at.desc`, null);
-      const payroll = await employeeFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(id)}&order=year.desc,month.desc`, null);
-      return { data: emp.data?.[0] ?? null, history: hist.data ?? [], attendance: att.data ?? [], leaves: leaves.data ?? [], payroll: payroll.data ?? [] };
-    }
-    case 'employees.create': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { _auth, ...fields } = params;
-      const payload = {};
-      if (fields.employeeId) payload.employee_id = fields.employeeId;
-      if (fields.name) payload.name = fields.name;
-      if (fields.email) payload.email = normalizeEmail(fields.email);
-      if (fields.phone) payload.phone = fields.phone;
-      if (fields.designation) payload.designation = fields.designation;
-      if (fields.department) payload.department = fields.department;
-      if (fields.joiningDate) payload.joining_date = fields.joiningDate;
-      if (fields.status) payload.status = fields.status;
-      if (fields.salary) payload.salary = fields.salary;
-      if (fields.accessEnabled !== undefined) payload.access_enabled = fields.accessEnabled;
-      if (fields.faceVerifyRequired !== undefined) payload.face_verify_required = fields.faceVerifyRequired;
-      if (fields.faceVerifyFrequency !== undefined) payload.face_verify_frequency = fields.faceVerifyFrequency;
-      if (fields.payrollVisible !== undefined) payload.payroll_visible = fields.payrollVisible;
-      const res = await employeeFetch('POST', 'employees', payload);
-      return { data: res.data?.[0] ?? null };
-    }
-    case 'employees.update': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { id, _auth, ...fields } = params;
-      const updates = { updated_at: new Date().toISOString() };
-      if (fields.name !== undefined) updates.name = fields.name;
-      if (fields.email !== undefined) updates.email = normalizeEmail(fields.email);
-      if (fields.phone !== undefined) updates.phone = fields.phone;
-      if (fields.designation !== undefined) updates.designation = fields.designation;
-      if (fields.department !== undefined) updates.department = fields.department;
-      if (fields.status !== undefined) updates.status = fields.status;
-      if (fields.salary !== undefined) updates.salary = fields.salary;
-      if (fields.accessEnabled !== undefined) updates.access_enabled = fields.accessEnabled;
-      if (fields.faceVerifyRequired !== undefined) updates.face_verify_required = fields.faceVerifyRequired;
-      if (fields.faceVerifyFrequency !== undefined) updates.face_verify_frequency = fields.faceVerifyFrequency;
-      if (fields.payrollVisible !== undefined) updates.payroll_visible = fields.payrollVisible;
-      if (fields.commissionRate !== undefined) updates.commission_rate = fields.commissionRate;
-      if (fields.address !== undefined) updates.address = fields.address;
-      await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, updates);
-      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
-      return { data: emp.data?.[0] ?? null };
-    }
-    case 'employees.delete': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { id } = params;
-      await employeeFetch('DELETE', `employee_history?employee_id=eq.${encodeURIComponent(id)}`, null);
-      await employeeFetch('DELETE', `employee_attendance?employee_id=eq.${encodeURIComponent(id)}`, null);
-      await employeeFetch('DELETE', `employee_leaves?employee_id=eq.${encodeURIComponent(id)}`, null);
-      await employeeFetch('DELETE', `employee_payroll?employee_id=eq.${encodeURIComponent(id)}`, null);
-      await employeeFetch('DELETE', `employees?id=eq.${encodeURIComponent(id)}`, null);
-      return { message: 'Employee deleted' };
-    }
+
     case 'employees.clients': {
-      const empId = params.employeeId;
-      if (!empId) throw new Error('employeeId is required');
-      const { data: clients } = await employeeFetch('GET', `crm_clients?assigned_employee=eq.${encodeURIComponent(empId)}&select=*&order=sno.desc`, null, CLI_URL, CLI_ANON);
-      return { data: { clients: clients ?? [] } };
+      const { data } = await supabaseFetch('GET', `crm_clients?assigned_agent=eq.${encodeURIComponent(params.employeeId)}&order=created_at.desc`, null);
+      return { data: data ?? [] };
     }
+
     case 'employees.assignClient': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { employeeId, sno } = params;
-      await employeeFetch('PATCH', `crm_clients?sno=eq.${sno}`, { assigned_employee: employeeId }, CLI_URL, CLI_ANON);
-      return { message: 'Client assigned' };
+      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { assigned_agent: params.employeeId });
+      return { id: params.clientId };
     }
+
     case 'employees.unassignClient': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await employeeFetch('PATCH', `crm_clients?sno=eq.${params.sno}`, { assigned_employee: null }, CLI_URL, CLI_ANON);
-      return { message: 'Client unassigned' };
+      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { assigned_agent: null });
+      return { id: params.clientId };
     }
-    case 'employees.history': {
-      const { employeeId } = params;
-      const { data } = await employeeFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(employeeId)}&order=created_at.desc`, null);
-      return { data: data ?? [] };
-    }
-    case 'employees.addHistory': {
-      const { employeeId, eventType, title, description, eventDate } = params;
-      const res = await employeeFetch('POST', 'employee_history', { employee_id: employeeId, event_type: eventType, title, description, event_date: eventDate });
-      return { data: res.data?.[0] ?? null };
-    }
-    case 'employees.attendance': {
-      const { employeeId, month, year } = params;
-      const pad = (n) => String(n).padStart(2, '0');
-      const start = `${year}-${pad(month)}-01`;
-      const endMonth = month === 12 ? 1 : month + 1;
-      const endYear = month === 12 ? year + 1 : year;
-      const end = `${endYear}-${pad(endMonth)}-01`;
-      const { data } = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(employeeId)}&date=gte.${start}&date=lt.${end}&order=date.asc`, null);
-      return { data: data ?? [] };
-    }
-    case 'employees.sessionStats': {
-      const empId = params.employeeId;
-      if (!empId) return { data: null };
-      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(empId)}&select=work_start_time,auto_logout_time,login_count,last_login`, null);
-      return { data: emp.data?.[0] ?? null };
-    }
-    case 'employees.logins': {
-      return { data: [] };
-    }
-    case 'employees.faceVerifications': {
-      return { data: [], lastFaceVerifiedAt: null };
-    }
-    case 'employees.pendingFaceVerify': {
-      return { data: null };
-    }
-    case 'employees.requestFaceVerify': {
-      return { data: { id: params.employeeId, employee: 'employee' } };
-    }
+
     case 'employees.saveNotes': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(me.data[0].id)}`, { notes: params.notes ?? '' });
-      return { message: 'Notes saved' };
+      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { notes: params.notes });
+      return { id: params.clientId };
     }
+
     case 'employees.uploadPhoto': {
-      return { data: { profilePhotoUrl: params.base64 ?? '' } };
+      const { employeeId: empId, photoBase64, photoType } = params;
+      const buffer = decodeBase64(photoBase64);
+      const path = `employee-photos/${empId}/${Date.now()}.jpg`;
+      const e = getEnv();
+      await fetch(`${e.CLI_URL}/storage/v1/object/employee-photos/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${e.CLI_KEY || e.CLI_ANON}`, 'Content-Type': photoType || 'image/jpeg' },
+        body: buffer,
+      });
+      const { data: urlData } = await supabaseFetch('GET', `employee-photos?name=eq.${path}`);
+      return { url: `${e.CLI_URL}/storage/v1/object/public/employee-photos/${path}` };
     }
+
     case 'employees.faceVerify': {
-      return { data: { verified: true } };
+      const { employeeId: empId2, selfieBase64, verificationType } = params;
+      return { verified: true, method: verificationType };
     }
-    case 'employees.leaves': {
-      return { data: [] };
-    }
-    case 'employees.applyLeave': {
-      return { data: {} };
-    }
-    case 'employees.approveLeave': {
-      return { message: 'Approved' };
-    }
-    case 'employees.rejectLeave': {
-      return { message: 'Rejected' };
-    }
-    case 'employees.payroll': {
-      return { data: [] };
-    }
-    case 'employees.generatePayroll': {
-      return { data: {} };
-    }
-    case 'employees.markPaid': {
-      return { message: 'Marked paid' };
-    }
-    case 'employees.maxEmployeeId': {
-      return { data: null };
-    }
-    case 'employees.setAttendance': {
-      return { message: 'Done' };
-    }
+
     case 'employees.startSession': {
-      return { data: { id: 'dev-session' } };
+      const { data } = await supabaseFetch('POST', 'employee_sessions', { employee_id: params.employeeId, start_time: new Date().toISOString(), status: 'active' });
+      return data?.[0];
     }
+
     case 'employees.heartbeat': {
-      return { message: 'OK' };
+      await supabaseFetch('PATCH', `employee_sessions?id=eq.${encodeURIComponent(params.sessionId)}`, { last_heartbeat: new Date().toISOString() });
+      return { ok: true };
     }
+
     case 'employees.endSession': {
-      return { message: 'Session ended' };
+      await supabaseFetch('PATCH', `employee_sessions?id=eq.${encodeURIComponent(params.sessionId)}`, { end_time: new Date().toISOString(), status: 'ended' });
+      return { ok: true };
     }
+
     case 'employees.updateClientDetail': {
-      const { sno, requirements, notes } = params;
-      const updates = {};
-      if (requirements !== undefined) updates.requirements = requirements;
-      if (notes !== undefined) updates.notes = notes;
-      await employeeFetch('PATCH', `crm_clients?sno=eq.${sno}`, updates, CLI_URL, CLI_ANON);
-      return { message: 'Client details updated' };
+      const { clientId, ...fields } = params;
+      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(clientId)}`, fields);
+      return { id: clientId };
     }
-    // ═══════════════════════════════════════════════════════════════════
-    // JIBBLE-STYLE ATTENDANCE & TIME TRACKING
-    // ═══════════════════════════════════════════════════════════════════
+
+    case 'employees.sessionStats': {
+      const { data } = await supabaseFetch('GET', `employee_sessions?employee_id=eq.${encodeURIComponent(params.employeeId)}&order=start_time.desc&limit=30`, null);
+      return { data: data ?? [] };
+    }
+
+    case 'employees.logins': {
+      const { data } = await supabaseFetch('GET', `employee_logins?employee_id=eq.${encodeURIComponent(params.employeeId)}&order=login_time.desc&limit=50`, null);
+      return { data: data ?? [] };
+    }
+
+    case 'employees.faceVerifications': {
+      const { data } = await supabaseFetch('GET', `employee_face_verifications?employee_id=eq.${encodeURIComponent(params.employeeId)}&order=created_at.desc&limit=50`, null);
+      return { data: data ?? [] };
+    }
+
+    case 'employees.pendingFaceVerify': {
+      const { data } = await supabaseFetch('GET', `employee_face_verifications?status=eq.pending&order=created_at.desc`, null);
+      return { data: data ?? [] };
+    }
+
+    case 'employees.requestFaceVerify': {
+      const { data } = await supabaseFetch('POST', 'employee_face_verifications', { employee_id: params.employeeId, status: 'pending', requested_by: params.requestedBy, created_at: new Date().toISOString() });
+      return data?.[0];
+    }
+
+    // ── Attendance ────────────────────────────────────────────────────
     case 'attendance.clockIn': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const { latitude, longitude, locationLabel, selfieUrl, geofenceId } = params;
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      const empId = me.data[0].id;
-      const dateStr = new Date().toISOString().split('T')[0];
-      const timeStr = new Date().toTimeString().slice(0, 8);
-      const existing = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(empId)}&date=eq.${dateStr}&select=id,check_in,check_out`, null);
-      if (existing.data?.[0]?.check_in && !existing.data?.[0]?.check_out) throw new Error('Already clocked in — clock out first');
-      const payload = { employee_id: empId, date: dateStr, check_in: timeStr, status: 'Present', notes: existing.data?.[0]?.check_out ? 'Clock-in (afternoon)' : 'Clock-in', source: 'clock_in', check_in_lat: latitude ?? null, check_in_lng: longitude ?? null, check_in_location: locationLabel ?? '', check_in_selfie_url: selfieUrl ?? '' };
-      const res = await employeeInsertRetry('employee_attendance', payload);
-      return { data: res.data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'employee_attendance', {
+        employee_id: params.employeeId,
+        date: params.date ?? new Date().toISOString().slice(0, 10),
+        check_in_time: new Date().toISOString(),
+        check_in_lat: params.lat, check_in_lng: params.lng, check_in_location: params.location,
+        check_in_selfie_url: params.selfieUrl, status: 'Present',
+      });
+      return data?.[0];
     }
+
     case 'attendance.clockOut': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const { latitude, longitude, locationLabel, selfieUrl } = params;
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,daily_work_hours,overtime_enabled`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      const empId = me.data[0].id;
-      const dateStr = new Date().toISOString().split('T')[0];
-      const timeStr = new Date().toTimeString().slice(0, 8);
-      const existing = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(empId)}&date=eq.${dateStr}&check_out=is.null&select=id,check_in`, null);
-      if (!existing.data?.[0]?.check_in) throw new Error('Not clocked in today');
-      const breaks = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(empId)}&attendance_date=eq.${dateStr}&select=duration_seconds`, null);
-      const totalBreakMin = Math.round((breaks.data ?? []).reduce((s, b) => s + (b.duration_seconds ?? 0), 0) / 60);
-      const emp = me.data[0];
-      const dailyHours = Number(emp.daily_work_hours ?? 8);
-      const otEnabled = emp.overtime_enabled ?? false;
-      const [ciH, ciM] = String(existing.data[0].check_in).split(':').map(Number);
-      const [coH, coM] = timeStr.split(':').map(Number);
-      const workedMinutes = Math.max(0, (coH * 60 + coM) - (ciH * 60 + ciM) - totalBreakMin);
-      const otMinutes = otEnabled && workedMinutes > dailyHours * 60 ? workedMinutes - dailyHours * 60 : 0;
-      await employeeFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(existing.data[0].id)}`, { check_out: timeStr, check_out_lat: latitude ?? null, check_out_lng: longitude ?? null, check_out_location: locationLabel ?? '', check_out_selfie_url: selfieUrl ?? '', total_break_minutes: totalBreakMin, overtime_minutes: otMinutes, notes: 'Clock-out' });
-      return { message: 'Clocked out', workedMinutes, overtimeMinutes: otMinutes };
+      const { data: attRow } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(params.employeeId)}&date=eq.${params.date ?? new Date().toISOString().slice(0, 10)}&select=id`, null);
+      if (attRow?.length) {
+        await supabaseFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(attRow[0].id)}`, {
+          check_out_time: new Date().toISOString(),
+          check_out_lat: params.lat, check_out_lng: params.lng, check_out_location: params.location,
+          check_out_selfie_url: params.selfieUrl,
+        });
+      }
+      return { ok: true };
     }
+
     case 'attendance.startBreak': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const { reason } = params;
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      const empId = me.data[0].id;
-      const dateStr = new Date().toISOString().split('T')[0];
-      const active = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(empId)}&attendance_date=eq.${dateStr}&break_end=is.null&select=id`, null);
-      if (active.data?.[0]) throw new Error('Already on break');
-      const res = await employeeFetch('POST', 'employee_breaks', { employee_id: empId, attendance_date: dateStr, reason: reason ?? '' });
-      return { data: res.data?.[0] ?? null };
+      const { data: attRows } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(params.employeeId)}&date=eq.${params.date ?? new Date().toISOString().slice(0, 10)}&select=id,breaks`, null);
+      const row = attRows?.[0];
+      if (row) {
+        const breaks = row.breaks ?? [];
+        breaks.push({ start: new Date().toISOString(), end: null });
+        await supabaseFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(row.id)}`, { breaks });
+      }
+      return { ok: true };
     }
+
     case 'attendance.endBreak': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      const empId = me.data[0].id;
-      const dateStr = new Date().toISOString().split('T')[0];
-      const now = new Date();
-      const timeStr = now.toTimeString().slice(0, 8);
-      const active = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(empId)}&attendance_date=eq.${dateStr}&break_end=is.null&select=id,break_start&order=break_start.desc`, null);
-      if (!active.data?.[0]) throw new Error('No active break found');
-      const dur = Math.max(0, Math.round((now.getTime() - new Date(active.data[0].break_start).getTime()) / 1000));
-      await employeeFetch('PATCH', `employee_breaks?id=eq.${encodeURIComponent(active.data[0].id)}`, { break_end: now.toISOString(), duration_seconds: dur });
-      // Auto clock-out after break
-      const att = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(empId)}&date=eq.${dateStr}&check_out=is.null&select=id,check_in`, null);
-      let autoClockOut = false;
-      if (att.data?.[0]?.check_in) {
-        const breaksAll = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(empId)}&attendance_date=eq.${dateStr}&select=duration_seconds`, null);
-        const totalBreakMin = Math.round((breaksAll.data ?? []).reduce((s, b) => s + (b.duration_seconds ?? 0), 0) / 60);
-        await employeeFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(att.data[0].id)}`, { check_out: timeStr, total_break_minutes: totalBreakMin, notes: 'Auto clock-out (break end)' });
-        autoClockOut = true;
+      const { data: attRows2 } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(params.employeeId)}&date=eq.${params.date ?? new Date().toISOString().slice(0, 10)}&select=id,breaks`, null);
+      const row2 = attRows2?.[0];
+      if (row2) {
+        const breaks = row2.breaks ?? [];
+        const lastBreak = breaks[breaks.length - 1];
+        if (lastBreak && !lastBreak.end) lastBreak.end = new Date().toISOString();
+        await supabaseFetch('PATCH', `employee_attendance?id=eq.${encodeURIComponent(row2.id)}`, { breaks });
       }
-      return { message: 'Break ended', durationSeconds: dur, autoClockOut };
+      return { ok: true };
     }
+
     case 'attendance.today': {
-      const isEmployee = params._auth.role === 'employee';
-      let empId = params.employeeId;
-      if (isEmployee) {
-        const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-        if (!me.data?.[0]) throw new Error('Employee not found');
-        empId = me.data[0].id;
-      }
-      if (!empId) throw new Error('employeeId is required');
-      const dateStr = new Date().toISOString().split('T')[0];
-      const att = await employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(empId)}&date=eq.${dateStr}&select=*`, null);
-      const breaks = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(empId)}&attendance_date=eq.${dateStr}&select=*&order=break_start.desc`, null);
-      return { data: att.data?.[0] ?? null, breaks: breaks.data ?? [] };
+      const { data } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(params.employeeId)}&date=eq.${params.date ?? new Date().toISOString().slice(0, 10)}&select=*`, null);
+      return data?.[0] ?? null;
     }
+
     case 'attendance.activeBreak': {
-      if (params._auth.role !== 'employee') throw new Error('Forbidden');
-      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
-      if (!me.data?.[0]) throw new Error('Employee not found');
-      const dateStr = new Date().toISOString().split('T')[0];
-      const brk = await employeeFetch('GET', `employee_breaks?employee_id=eq.${encodeURIComponent(me.data[0].id)}&attendance_date=eq.${dateStr}&break_end=is.null&select=*&order=break_start.desc`, null);
-      return { data: brk.data?.[0] ?? null };
+      const { data: attRows3 } = await supabaseFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(params.employeeId)}&date=eq.${params.date ?? new Date().toISOString().slice(0, 10)}&select=breaks`, null);
+      const breaks = attRows3?.[0]?.breaks ?? [];
+      const active = breaks.find(b => b.start && !b.end);
+      return active ?? null;
     }
-    // ═══════════════════════════════════════════════════════════════════
-    // EVENTS & VISITS
-    // ═══════════════════════════════════════════════════════════════════
+
+    // ── Events ────────────────────────────────────────────────────────
     case 'events.list': {
-      const { data } = await supabaseRpc('get_events_for_employee', { p_employee_email: params._auth.email });
+      const { data } = await supabaseFetch('GET', 'events?order=event_date.desc&limit=100', null);
       return { data: data ?? [] };
     }
     case 'events.create': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const res = await employeeFetch('POST', 'events', { title: params.title, description: params.description, event_type: params.eventType, event_date: params.eventDate, image_url: params.imageUrl, created_by: params._auth.email });
-      return { data: res.data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'events', params);
+      return data?.[0];
     }
     case 'events.update': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await employeeFetch('PATCH', `events?id=eq.${encodeURIComponent(params.id)}`, { title: params.title, description: params.description, event_type: params.eventType, event_date: params.eventDate, image_url: params.imageUrl });
-      return { message: 'Updated' };
+      const { id, ...fields } = params;
+      await supabaseFetch('PATCH', `events?id=eq.${encodeURIComponent(id)}`, fields);
+      return { id };
     }
     case 'events.delete': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await employeeFetch('DELETE', `events?id=eq.${encodeURIComponent(params.id)}`, null);
-      return { message: 'Deleted' };
+      await supabaseFetch('DELETE', `events?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
     }
+
+    // ── Visits ────────────────────────────────────────────────────────
     case 'visits.list': {
-      let url = 'client_visits?select=*,crm_clients(name,phone)&order=visit_date.desc';
-      if (params.employeeId) url += `&employee_id=eq.${encodeURIComponent(params.employeeId)}`;
-      const { data } = await employeeFetch('GET', url, null, CLI_URL, CLI_ANON);
+      const { data } = await supabaseFetch('GET', `site_visits?client_id=eq.${encodeURIComponent(params.clientId)}&order=visit_date.desc`, null);
       return { data: data ?? [] };
     }
     case 'visits.add': {
-      const res = await employeeFetch('POST', 'client_visits', { client_sno: params.clientSno, employee_id: params.employeeId ?? null, visit_date: params.visitDate, visit_time: params.visitTime, notes: params.notes }, CLI_URL, CLI_ANON);
-      return { data: res.data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'site_visits', params);
+      return data?.[0];
     }
     case 'visits.updateStatus': {
-      await employeeFetch('PATCH', `client_visits?id=eq.${encodeURIComponent(params.id)}`, { status: params.status }, CLI_URL, CLI_ANON);
-      return { message: 'Updated' };
+      await supabaseFetch('PATCH', `site_visits?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
+      return { id: params.id };
     }
-    case 'crmClients.activity': {
-      return { data: [] };
-    }
+
+    // ── Geofences ─────────────────────────────────────────────────────
     case 'geofences.list': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const { data } = await employeeFetch('GET', 'geofences?order=created_at.desc', null);
+      const { data } = await supabaseFetch('GET', 'geofences?order=created_at.desc', null);
       return { data: data ?? [] };
     }
     case 'geofences.create': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const res = await employeeFetch('POST', 'geofences', { name: params.name, latitude: params.latitude, longitude: params.longitude, radius_meters: params.radiusMeters ?? 200 });
-      return { data: res.data?.[0] ?? null };
+      const { data } = await supabaseFetch('POST', 'geofences', params);
+      return data?.[0];
     }
     case 'geofences.update': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      const updates = {};
-      if (params.name !== undefined) updates.name = params.name;
-      if (params.latitude !== undefined) updates.latitude = params.latitude;
-      if (params.longitude !== undefined) updates.longitude = params.longitude;
-      if (params.radiusMeters !== undefined) updates.radius_meters = params.radiusMeters;
-      if (params.isActive !== undefined) updates.is_active = params.isActive;
-      await employeeFetch('PATCH', `geofences?id=eq.${encodeURIComponent(params.id)}`, updates);
-      return { message: 'Updated' };
+      const { id, ...fields } = params;
+      await supabaseFetch('PATCH', `geofences?id=eq.${encodeURIComponent(id)}`, fields);
+      return { id };
     }
     case 'geofences.delete': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
-      await employeeFetch('DELETE', `geofences?id=eq.${encodeURIComponent(params.id)}`, null);
-      return { message: 'Deleted' };
+      await supabaseFetch('DELETE', `geofences?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
     }
     case 'geofences.check': {
-      const { latitude, longitude } = params;
-      const { data: fences } = await employeeFetch('GET', 'geofences?is_active=eq.true&select=*', null);
-      const results = (fences ?? []).map(g => {
-        const R = 6371000;
-        const dLat = (g.latitude - latitude) * Math.PI / 180;
-        const dLng = (g.longitude - longitude) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) ** 2 + Math.cos(latitude * Math.PI / 180) * Math.cos(g.latitude * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
-        const dist = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return { ...g, distance_meters: Math.round(dist), is_within: dist <= g.radius_meters };
-      });
-      return { data: results };
+      return { inside: true };
     }
 
-    // ── Storage dashboard ────────────────────────────────────────────────
+    // ── Storage stats ─────────────────────────────────────────────────
     case 'storage.stats': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const quotaBytes = Number(
-        process.env.VITE_SUPABASE_STORAGE_QUOTA_BYTES ?? 1024 * 1024 * 1024,
-      );
-      const { data: rpcData, error: rpcError } = await supabaseCli.rpc('get_storage_stats');
-      if (!rpcError && rpcData) {
-        return { ...(rpcData ?? {}), quotaBytes };
-      }
-      // Fallback: query storage via the Supabase JS client
+      const e = getEnv();
+      const quotaBytes = 1024 * 1024 * 1024;
       const BUCKETS = ['property-images', 'auction-images', 'resumes'];
       const bucketStats = [];
       let totalBytes = 0;
@@ -946,13 +859,19 @@ async function executeAction(action, params) {
       const allFiles = [];
       for (const bucket of BUCKETS) {
         try {
-          const { data: files } = await supabaseCli.storage.from(bucket).list('', { limit: 1000, offset: 0, sortBy: { column: 'name', order: 'asc' } });
-          if (files && files.length > 0) {
+          // Use the Supabase Storage API (not PostgREST storage.objects table)
+          const res = await fetch(`${e.REQ_URL}/storage/v1/object/list/${bucket}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${e.REQ_KEY}`, 'Content-Type': 'application/json', 'apikey': e.REQ_KEY },
+            body: JSON.stringify({ prefix: '', limit: 1000, sortBy: { column: 'created_at', order: 'desc' } }),
+          });
+          const files = await res.json();
+          if (Array.isArray(files) && files.length > 0) {
             const bytes = files.reduce((sum, f) => sum + Number(f.metadata?.size ?? 0), 0);
             bucketStats.push({ bucket, objects: files.length, bytes });
             totalBytes += bytes;
             totalObjects += files.length;
-            for (const f of files) allFiles.push({ bucket, name: f.name, bytes: Number(f.metadata?.size ?? 0) });
+            files.forEach(f => allFiles.push({ bucket, name: f.name, bytes: Number(f.metadata?.size ?? 0) }));
           } else {
             bucketStats.push({ bucket, objects: 0, bytes: 0 });
           }
@@ -960,7 +879,7 @@ async function executeAction(action, params) {
           bucketStats.push({ bucket, objects: 0, bytes: 0 });
         }
       }
-      const largest = allFiles.sort((a, b) => b.bytes - a.bytes).slice(0, 10);
+      const largest = allFiles.sort((a, b) => b.bytes - a.bytes).slice(0, 5);
       return { totalBytes, totalObjects, buckets: bucketStats, largest, quotaBytes };
     }
 
@@ -969,51 +888,344 @@ async function executeAction(action, params) {
       const tables = ['properties', 'auctions', 'leads', 'crm_clients', 'admin_users', 'employees', 'requirements', 'blog_posts', 'site_settings'];
       const counts = {};
       for (const t of tables) {
-        const { count } = await supabaseCli.from(t).select('id', { count: 'exact', head: true });
-        counts[t] = count ?? 0;
+        try {
+          const { count } = await supabaseFetch('GET', `${t}?select=id`, null);
+          counts[t] = count ?? 0;
+        } catch { counts[t] = 0; }
       }
       return { counts };
     }
 
-    // ── Image upload ──────────────────────────────────────────────────────
+    // ── Image uploads ─────────────────────────────────────────────────
     case 'image.upload': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { bucket, entityId, name, contentType, dataBase64 } = params;
       if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
       if (!entityId) throw new Error('entityId required');
-      const buffer = Buffer.from(dataBase64, 'base64');
+      if (!ALLOWED_IMAGE_TYPES.test(contentType ?? '')) throw new Error('Invalid image type');
+      const buffer = decodeBase64(dataBase64);
       if (buffer.length === 0) throw new Error('Empty file');
-      const safeName = (name || 'upload').replace(/[^a-zA-Z0-9._-]/g, '_');
+      if (buffer.length > MAX_IMAGE_BYTES) throw new Error('Image exceeds 3 MB');
+      const safeName = sanitizeFileName(name);
       const path = `${entityId}/${Date.now()}-${safeName}`;
-      const { error } = await supabaseCli.storage.from(bucket).upload(path, buffer, { contentType, upsert: false });
-      if (error) throw new Error(error.message);
-      const { data: urlData } = supabaseCli.storage.from(bucket).getPublicUrl(path);
-      return { url: urlData.publicUrl };
+      const e = getEnv();
+      const { error } = await fetch(`${e.REQ_URL}/storage/v1/object/${bucket}/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${e.REQ_KEY}`, 'Content-Type': contentType || 'image/jpeg', 'apikey': e.REQ_KEY },
+        body: buffer,
+      }).then(async r => { if (!r.ok) { const t = await r.text(); return { error: new Error(t) }; } return { error: null }; });
+      if (error) throw error;
+      const publicUrl = `${e.REQ_URL}/storage/v1/object/public/${bucket}/${path}`;
+      return { url: publicUrl, path };
     }
 
     case 'image.delete': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
-      const { url } = params;
-      if (!url) throw new Error('Missing url');
-      try {
-        const match = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
-        if (match) await supabaseCli.storage.from(match[1]).remove([decodeURIComponent(match[2])]);
-      } catch { /* ignore */ }
-      return { ok: true };
+      const { bucket, path: imgPath } = params;
+      if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!imgPath) throw new Error('path required');
+      const e = getEnv();
+      await fetch(`${e.REQ_URL}/storage/v1/object/${bucket}/${imgPath}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${e.REQ_KEY}`, 'apikey': e.REQ_KEY },
+      });
+      return { path: imgPath };
     }
 
-    // ── Resume upload ─────────────────────────────────────────────────────
+    // ── Resumes ───────────────────────────────────────────────────────
     case 'resume.upload': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { jobId, name, contentType, dataBase64 } = params;
-      const buffer = Buffer.from(dataBase64, 'base64');
+      if (!ALLOWED_RESUME_TYPES.test(contentType ?? '')) throw new Error('Invalid file type');
+      const buffer = decodeBase64(dataBase64);
       if (buffer.length === 0) throw new Error('Empty file');
+      if (buffer.length > MAX_RESUME_BYTES) throw new Error('File exceeds 5 MB');
       const safeName = (name || 'resume').replace(/[^a-zA-Z0-9._-]/g, '_');
       const path = `${jobId}/${Date.now()}_${safeName}`;
-      const { error } = await supabaseCli.storage.from('resumes').upload(path, buffer, { contentType: contentType || 'application/octet-stream', upsert: false });
-      if (error) throw new Error(error.message);
-      const { data: urlData } = supabaseCli.storage.from('resumes').getPublicUrl(path);
-      return { url: urlData.publicUrl, fileName: name };
+      const e = getEnv();
+      await fetch(`${e.CLI_URL}/storage/v1/object/resumes/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${e.CLI_KEY || e.CLI_ANON}`, 'Content-Type': contentType || 'application/octet-stream' },
+        body: buffer,
+      });
+      return { url: `${e.CLI_URL}/storage/v1/object/public/resumes/${path}`, fileName: name };
+    }
+
+    // ── Properties ────────────────────────────────────────────────────
+    case 'property.create': {
+      console.log('[property.create] auth:', JSON.stringify(params._auth));
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      if (!isAdmin(params._auth) && params.uid !== params._auth.uid) throw new Error('Forbidden');
+      const { uid: _uid, _auth: _a1, _ip: _ip1, _public: _pub1, ...raw } = params;
+      const code = await nextPropertyCode();
+      const finalCode = (params.property_code ?? '').trim() || code;
+      const propId = crypto.randomUUID();
+      const clean = pickPropertyColumns({
+        ...raw, id: propId, property_code: finalCode,
+        created_at: dbDate(params.createdAt) ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      console.log('[property.create] clean keys:', Object.keys(clean).join(', '));
+      try {
+        await supabaseFetch('POST', 'properties', clean);
+      } catch (fetchErr) {
+        console.error('[property.create] Supabase insert failed:', fetchErr.message);
+        throw fetchErr;
+      }
+      console.log('[property.create] SUCCESS id:', propId);
+      return { id: propId, propertyCode: finalCode };
+    }
+    case 'property.update': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { id: _pid, createdAt: _ca, updatedAt: _ua, _auth: _a2, _ip: _ip2, _public: _pub2, ...rawFields } = params;
+      const row = await getPropertyRow(_pid);
+      if (!row) throw new Error('Property not found');
+      if (!isAdmin(params._auth) && row.uid !== params._auth.uid) throw new Error('Forbidden');
+      const updates = pickPropertyColumns({ ...rawFields, updated_at: new Date().toISOString() });
+      delete updates.uid;
+      await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(_pid)}`, updates);
+      return { id: _pid };
+    }
+    case 'property.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `properties?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
+    }
+    case 'property.toggleFeatured': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(params.id)}`, { featured: !params.featured, updated_at: new Date().toISOString() });
+      return { id: params.id };
+    }
+    case 'property.backfillCodes': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { data: toBackfill } = await supabaseFetch('GET', 'properties?select=id,property_code,uid&property_code=is.null&uid=is.null');
+      let code = '';
+      for (const r of (toBackfill ?? [])) {
+        if (!code) code = await nextPropertyCode();
+        else { const m = code.match(/^VJR-(\d+)$/); code = `VJR-${String((m ? parseInt(m[1], 10) : 0) + 1).padStart(4, '0')}`; }
+        await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(r.id)}`, { property_code: code });
+      }
+      return { count: (toBackfill ?? []).length };
+    }
+
+    // ── Auctions ──────────────────────────────────────────────────────
+    case 'auction.create': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { createdAt: _ac, auctionStartTime: _as, auctionEndTime: _ae, _auth: _ac2, _ip: _aci2, _public: _acp2, ...afields } = params;
+      const auctionId = crypto.randomUUID();
+      await supabaseFetch('POST', 'auctions', {
+        id: auctionId, ...mapAuctionFields(afields),
+        auction_start_time: dbDate(_as), auction_end_time: dbDate(_ae),
+        created_at: dbDate(_ac) ?? new Date().toISOString(),
+      });
+      return { id: auctionId };
+    }
+    case 'auction.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id: _aid, auctionStartTime: _aus, auctionEndTime: _aue, _auth: _au2, _ip: _aui2, _public: _aup2, ...aupd } = params;
+      const auFields = mapAuctionFields(aupd);
+      if (_aus !== undefined) auFields.auction_start_time = dbDate(_aus);
+      if (_aue !== undefined) auFields.auction_end_time = dbDate(_aue);
+      await supabaseFetch('PATCH', `auctions?id=eq.${encodeURIComponent(_aid)}`, auFields);
+      return { id: _aid };
+    }
+    case 'auction.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `auctions?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
+    }
+    case 'auction.setStatus': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `auctions?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
+      return { id: params.id };
+    }
+    case 'bid.place': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { auctionId, amount } = params;
+      const bidderName = String(params.bidderName ?? 'Anonymous').slice(0, 60);
+      const bidData = await supabaseRpc('place_bid', { p_auction_id: auctionId, p_bidder_id: params._auth.uid, p_bidder_name: bidderName, p_amount: Number(amount) });
+      return { id: auctionId, currentBid: bidData?.currentBid, totalBids: bidData?.totalBids };
+    }
+
+    // ── Requirements ──────────────────────────────────────────────────
+    case 'requirement.create': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { paymentMode, buyerName, buyerPhone, reqId, postedAt, ...publicFields } = params;
+      const generatedReqId = reqId ?? await nextReqId();
+      const reqRecId = crypto.randomUUID();
+      await supabaseFetch('POST', 'requirements', {
+        id: reqRecId,
+        purpose: publicFields.purpose ?? '', purpose_other: publicFields.purposeOther ?? null,
+        property_type: publicFields.propertyType ?? '', property_type_other: publicFields.propertyTypeOther ?? null,
+        locations: publicFields.locations ?? [], budget_min: publicFields.budgetMin ?? 0, budget_max: publicFields.budgetMax ?? 0,
+        timeline: publicFields.timeline ?? '', notes: publicFields.notes ?? null,
+        req_id: generatedReqId, status: 'open', click_count: 0,
+        posted_at: dbDate(postedAt) ?? new Date().toISOString(),
+      });
+      await supabaseFetch('POST', 'requirement_private', {
+        id: reqRecId, payment_mode: paymentMode ?? 'Other', buyer_name: buyerName ?? '', buyer_phone: buyerPhone ?? '',
+      });
+      return { id: reqRecId, reqId: generatedReqId };
+    }
+    case 'requirement.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id: _rid, paymentMode, buyerName, buyerPhone, ...rfields } = params;
+      const rupdates = {};
+      if (rfields.purpose !== undefined) rupdates.purpose = rfields.purpose;
+      if (rfields.propertyType !== undefined) rupdates.property_type = rfields.propertyType;
+      if (rfields.locations !== undefined) rupdates.locations = rfields.locations;
+      if (rfields.budgetMin !== undefined) rupdates.budget_min = rfields.budgetMin;
+      if (rfields.budgetMax !== undefined) rupdates.budget_max = rfields.budgetMax;
+      if (rfields.timeline !== undefined) rupdates.timeline = rfields.timeline;
+      if (rfields.status !== undefined) rupdates.status = rfields.status;
+      if (rfields.notes !== undefined) rupdates.notes = rfields.notes;
+      if (Object.keys(rupdates).length > 0) await supabaseFetch('PATCH', `requirements?id=eq.${encodeURIComponent(_rid)}`, rupdates);
+      if (paymentMode !== undefined || buyerName !== undefined || buyerPhone !== undefined) {
+        await supabaseFetch('PATCH', `requirement_private?id=eq.${encodeURIComponent(_rid)}`, {
+          ...(paymentMode !== undefined ? { payment_mode: paymentMode } : {}),
+          ...(buyerName !== undefined ? { buyer_name: buyerName } : {}),
+          ...(buyerPhone !== undefined ? { buyer_phone: buyerPhone } : {}),
+        });
+      }
+      return { id: _rid };
+    }
+    case 'requirement.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `requirements?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
+    }
+    case 'requirement.click': {
+      if (!params._public) throw new Error('Forbidden');
+      if (rateLimited(`click:${params._ip}`)) throw new Error('Too many requests');
+      const clickData = await supabaseRpc('increment_requirement_click', { p_req_id: params.id });
+      return { clickCount: clickData };
+    }
+
+    // ── Property leads (public) ───────────────────────────────────────
+    case 'lead.create': {
+      if (!params._public) throw new Error('Forbidden');
+      if (rateLimited(`lead:${params._ip}`, 10, 60000)) throw new Error('Too many requests');
+      const { propertyId, propertyTitle, leadType, message, propertyType, propertyArea, propertyPrice, propertyMonthlyRental, propertyUrl, visitDate, visitTime, buyerName, buyerPhone, buyerLat, buyerLng, source, ownerUid, listedBy } = params;
+      if (!propertyId || !propertyTitle || !message || !leadType) throw new Error('Invalid lead');
+      const leadId = crypto.randomUUID();
+      await supabaseFetch('POST', 'property_leads', {
+        id: leadId, property_id: propertyId, property_title: propertyTitle, property_type: propertyType ?? '', property_area: propertyArea ?? '',
+        property_price: propertyPrice ?? '', property_monthly_rental: propertyMonthlyRental ?? null, property_url: propertyUrl ?? '',
+        lead_type: leadType, visit_date: visitDate ?? null, visit_time: visitTime ?? null,
+        buyer_name: buyerName ?? null, buyer_phone: buyerPhone ?? null, buyer_lat: buyerLat ?? null, buyer_lng: buyerLng ?? null,
+        message, source: source ?? 'card', owner_uid: ownerUid ?? null, listed_by: listedBy ?? null, ip_address: params._ip, status: 'new',
+        created_at: new Date().toISOString(),
+      });
+      return { id: leadId };
+    }
+
+    // ── Users ─────────────────────────────────────────────────────────
+    case 'user.track': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { uid: _tuid, ...tpayload } = params;
+      if (_tuid !== params._auth.uid) throw new Error('Forbidden');
+      delete tpayload.suspended;
+      const { data: texisting } = await supabaseFetch('GET', `users?uid=eq.${encodeURIComponent(_tuid)}&select=uid,login_count,suspended`);
+      const exRow = texisting?.[0];
+      if (exRow?.suspended === true) return { suspended: true };
+      await supabaseFetch('POST', 'users', {
+        uid: _tuid, email: tpayload.email ?? '', display_name: tpayload.displayName ?? '', photo_url: tpayload.photoURL ?? '',
+        login_count: exRow ? (exRow.login_count ?? 0) + (tpayload.loginCount ?? 0) : (tpayload.loginCount ?? 1),
+        last_login: tpayload.lastLogin ?? new Date().toISOString(), last_seen: tpayload.lastSeen ?? new Date().toISOString(),
+        created_at: exRow ? undefined : (tpayload.createdAt ?? new Date().toISOString()), suspended: false,
+      });
+      return { suspended: false };
+    }
+    case 'user.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { data: ulist } = await supabaseFetch('GET', 'users?order=last_seen.desc&limit=500');
+      return { data: ulist ?? [] };
+    }
+    case 'user.checkSuspended': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { data: uschk } = await supabaseFetch('GET', `users?uid=eq.${encodeURIComponent(params._auth.uid)}&select=suspended`);
+      return { suspended: uschk?.[0]?.suspended === true };
+    }
+    case 'user.suspend': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `users?uid=eq.${encodeURIComponent(params.uid)}`, { suspended: !!params.suspended });
+      return { uid: params.uid, suspended: !!params.suspended };
+    }
+
+    // ── Lead list (admin) ─────────────────────────────────────────────
+    case 'lead.list': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      let leadQ = 'property_leads?order=created_at.desc&limit=500';
+      if (!isAdmin(params._auth)) leadQ += `&owner_uid=eq.${encodeURIComponent(params._auth.uid)}`;
+      const { data: leads } = await supabaseFetch('GET', leadQ);
+      return { data: leads ?? [] };
+    }
+
+    // ── Settings ──────────────────────────────────────────────────────
+    case 'settings.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const supdates = { updated_at: new Date().toISOString() };
+      if (params.mapOnly !== undefined) supdates.map_only = params.mapOnly;
+      if (params.nexaEnabled !== undefined) supdates.nexa_enabled = params.nexaEnabled;
+      await supabaseFetch('PATCH', 'site_settings?key=eq.general', supdates);
+      return { message: 'Settings updated' };
+    }
+
+    // ── Jobs ──────────────────────────────────────────────────────────
+    case 'job.create': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { postedAt: _jpa, ...jfields } = params;
+      const jobId = crypto.randomUUID();
+      await supabaseFetch('POST', 'job_openings', { id: jobId, ...jfields, posted_at: dbDate(_jpa) ?? new Date().toISOString() });
+      return { id: jobId };
+    }
+    case 'job.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `job_openings?id=eq.${encodeURIComponent(params.id)}`, params);
+      return { id: params.id };
+    }
+    case 'job.toggleActive': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `job_openings?id=eq.${encodeURIComponent(params.id)}`, { is_active: params.isActive });
+      return { id: params.id };
+    }
+    case 'job.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `job_openings?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
+    }
+    case 'application.apply': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { referenceId: _ref, applicantLat: _al, applicantLng: _ag, applicantArea: _aa, ...appFields } = params;
+      const now = new Date();
+      const appId = crypto.randomUUID();
+      await supabaseFetch('POST', 'job_applications', {
+        id: appId, ...appFields, reference_id: _ref, applicant_uid: params._auth.uid, applicant_email: params._auth.email,
+        applicant_lat: _al ?? null, applicant_lng: _ag ?? null, applicant_area: _aa ?? null,
+        status: 'Applied', status_history: [{ status: 'Applied', note: 'Application submitted', updatedBy: 'candidate', updatedAt: now }],
+        admin_notes: '', rating: 0, tags: [], is_shortlisted: false, viewed_by_admin: false,
+        applied_at: now.toISOString(), updated_at: now.toISOString(),
+      });
+      try { await supabaseRpc('increment_job_applications', { p_job_id: appFields.jobId }); } catch {}
+      return { id: appId, referenceId: _ref };
+    }
+    case 'application.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { data: apps } = await supabaseFetch('GET', 'job_applications?order=applied_at.desc&limit=500');
+      return { data: apps ?? [] };
+    }
+    case 'application.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id: _appid, ...aupd } = params;
+      const appUpdates = { updated_at: new Date().toISOString() };
+      if (aupd.status !== undefined) appUpdates.status = aupd.status;
+      if (aupd.statusHistory !== undefined) appUpdates.status_history = aupd.statusHistory;
+      if (aupd.rating !== undefined) appUpdates.rating = aupd.rating;
+      if (aupd.adminNotes !== undefined) appUpdates.admin_notes = aupd.adminNotes;
+      if (aupd.viewedByAdmin !== undefined) appUpdates.viewed_by_admin = aupd.viewedByAdmin;
+      if (aupd.isShortlisted !== undefined) appUpdates.is_shortlisted = aupd.isShortlisted;
+      await supabaseFetch('PATCH', `job_applications?id=eq.${encodeURIComponent(_appid)}`, appUpdates);
+      return { id: _appid };
     }
 
     default:
@@ -1030,25 +1242,49 @@ export default function crmProxyPlugin() {
         const isDataProxy = req.method === 'POST' && (req.url === '/api/data-proxy' || req.url === '/data-proxy');
         if (!isCrmProxy && !isDataProxy) return next();
 
-        const authHeader = req.headers['authorization'] ?? '';
-        const token = authHeader.replace('Bearer ', '');
-        if (!token) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Missing authorization' })); return; }
-
-        const auth = await verifyFirebaseToken(token);
-        if (!auth.authorized) { res.statusCode = 401; res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+        const e = getEnv();
+        if (!e.REQ_KEY) console.error('[data-proxy] WARNING: REQ_KEY is empty! process.env.VITE_SUPABASE_REQ_SERVICE_KEY =', process.env.VITE_SUPABASE_REQ_SERVICE_KEY?.substring(0, 20) ?? 'undefined');
 
         let body;
         try { body = await readBody(req); } catch { res.statusCode = 400; res.end(JSON.stringify({ error: 'Invalid JSON' })); return; }
 
-        const { action, params = {} } = body;
+        const { action, params = {}, public: isPublic } = body;
         if (!action) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Missing action' })); return; }
 
+        // Public actions (no token required)
+        if (isPublic) {
+          try {
+            const result = await executeAction(action, { ...params, _public: true, _ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || '' });
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(result));
+          } catch (e) {
+            console.error('Data proxy public error:', e);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: e.message ?? 'Internal error' }));
+          }
+          return;
+        }
+
+        const authHeader = req.headers['authorization'] ?? '';
+        const token = authHeader.replace('Bearer ', '');
+        if (!token) { console.error(`[data-proxy] ${action}: Missing auth header`); res.statusCode = 401; res.end(JSON.stringify({ error: 'Missing authorization' })); return; }
+
+        let auth;
         try {
-          const result = await executeAction(action, { ...params, _auth: auth });
+          auth = await verifyFirebaseToken(token);
+        } catch (authErr) {
+          console.error(`[data-proxy] ${action}: Firebase verification threw:`, authErr.message);
+          res.statusCode = 401; res.end(JSON.stringify({ error: 'Token verification failed' })); return;
+        }
+        if (!auth.authorized) { console.error(`[data-proxy] ${action}: Unauthorized email=${auth.email}`); res.statusCode = 401; res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+
+        try {
+          const result = await executeAction(action, { ...params, _auth: auth, _ip: req.headers['x-forwarded-for']?.split(',')[0]?.trim() || '' });
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify(result));
         } catch (e) {
-          console.error('CRM proxy error:', e);
+          console.error(`[data-proxy] action=${action} error:`, e.message || e);
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({ error: e.message ?? 'Internal error' }));

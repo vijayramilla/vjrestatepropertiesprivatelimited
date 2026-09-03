@@ -108,7 +108,18 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
         transition={{ duration: 0.35, delay: index * 0.07 }}
       >
         <Card className="group overflow-hidden border-gray-100 shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
-          <button type="button" onClick={goToDetail} className="w-full text-left cursor-pointer">
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={goToDetail}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToDetail();
+              }
+            }}
+            className="w-full cursor-pointer text-left"
+          >
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
               <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
               {coverImage && !imgError ? (
@@ -165,7 +176,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
                 </div>
               )}
             </CardContent>
-          </button>
+          </div>
 
           <CardFooter className="border-t border-gray-100 p-3 pt-2.5">
             <div className="flex items-center gap-1.5 w-full">

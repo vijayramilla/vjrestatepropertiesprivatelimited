@@ -11,8 +11,8 @@ export function isAuthorizedAdmin(user: User | null | undefined): boolean {
 
 async function fetchCrmVerify(user: User) {
   const token = await user.getIdToken();
-  const API_BASE = import.meta.env.VITE_API_URL ?? '';
-  const res = await fetch(`${API_BASE}/crm-proxy`, {
+  const API_BASE = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+  const res = await fetch(`${API_BASE || '/api'}/crm-proxy`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ action: 'admin.verify', params: {} }),

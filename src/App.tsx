@@ -2,7 +2,7 @@ import { Suspense, lazy, type ReactNode } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ShortlistProvider } from './context/ShortlistContext';
 import { AuthProvider } from './context/AuthContext';
-import { GoogleMapsProvider, useGoogleMapsLoader } from './context/GoogleMapsContext';
+import { GoogleMapsProvider } from './context/GoogleMapsContext';
 import { LocationPermissionProvider } from './hooks/useLocationPermission';
 import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsContext';
 import Layout from './components/Layout';
@@ -10,7 +10,6 @@ import AdminRoute from './components/AdminRoute';
 import CrmRoute from './components/CrmRoute';
 import EmployeeRoute from './components/EmployeeRoute';
 import PageLoader from './components/PageLoader';
-import MapLoadingSkeleton from './components/map/MapLoadingSkeleton';
 
 
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -23,7 +22,6 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage'));
 const RequirementsBoardPage = lazy(() => import('./pages/RequirementsBoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
-const BangaloreMap = lazy(() => import('./pages/BangaloreMap'));
 const EmiCalculatorPage = lazy(() => import('./pages/EmiCalculatorPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const EmployeeLogin = lazy(() => import('./pages/crm/EmployeeLogin'));
@@ -55,15 +53,10 @@ const CrmLeads = lazy(() => import('./pages/crm/CrmLeads'));
 const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
 const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
 const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
-const PremiumValuationPage = lazy(() => import('./pages/PremiumValuationPage'));
-const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
-const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const CareersPage = lazy(() => import('./pages/CareersPage'));
-const VastuCalculatorPage = lazy(() => import('./pages/VastuCalculatorPage'));
-const BangaloreLandInvestmentGuide = lazy(() => import('./pages/BangaloreLandInvestmentGuide'));
 const AuctionsPage = lazy(() => import('./pages/AuctionsPage'));
 const AdminAuctions = lazy(() => import('./pages/admin/AdminAuctions'));
 const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
@@ -74,34 +67,6 @@ const AdminPayrollPage = lazy(() => import('./pages/admin/AdminPayrollPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
-}
-
-function MapPage() {
-  const { isLoaded, loadError } = useGoogleMapsLoader();
-
-  if (loadError) {
-    console.error('[Maps] Google Maps load error:', loadError.message);
-    return (
-      <div className="flex h-dvh items-center justify-center bg-white px-6 text-center">
-        <div className="max-w-md space-y-3">
-          <p className="font-medium text-gray-900">Oops! Something went wrong</p>
-          <p className="text-sm text-gray-500">The map couldn't load.</p>
-          <p className="rounded-lg bg-red-50 px-4 py-3 text-xs text-red-700 font-mono">{loadError.message}</p>
-          <p className="text-xs text-gray-400">Check Google Cloud Console - APIs & Services - ensure Maps JavaScript API + Places API are enabled and billing is active.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return <MapLoadingSkeleton />;
-  }
-
-  return (
-    <Suspense fallback={<MapLoadingSkeleton />}>
-      <BangaloreMap isLoaded={isLoaded} noHeaderOffset />
-    </Suspense>
-  );
 }
 
 function AppRoutes() {
@@ -129,8 +94,6 @@ function AppRoutes() {
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
-        <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
-        <Route path="/my-listings" element={<LazyPage><MyListingsPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
@@ -138,7 +101,7 @@ function AppRoutes() {
         <Route path="/property-valuation" element={<Navigate to="/properties" replace />} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
-        <Route path="/bangalore-land-investment-guide" element={<LazyPage><BangaloreLandInvestmentGuide /></LazyPage>} />
+        <Route path="/bangalore-land-investment-guide" element={<Navigate to="/properties" replace />} />
         {/* <Route path="/ar-video" element={<LazyPage><ARVideoPage /></LazyPage>} /> */}
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />

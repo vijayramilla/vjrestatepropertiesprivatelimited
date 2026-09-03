@@ -12,7 +12,6 @@ type Props = {
   isEmployee?: boolean;
 };
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const FULL_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 function getWeekRange(offset: number): { start: string; end: string; label: string } {
@@ -39,7 +38,7 @@ function fmtDur(minutes: number): string {
  * Shows a day-by-day breakdown with clock-in/out, hours worked, breaks, and overtime.
  * Includes CSV export.
  */
-export default function WeeklyTimesheet({ employeeId, isEmployee }: Props) {
+export default function WeeklyTimesheet({ employeeId, isEmployee: _isEmployee }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [data, setData] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);

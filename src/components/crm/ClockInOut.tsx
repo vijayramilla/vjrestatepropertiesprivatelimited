@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { leadSupabase } from '@/services/leadSupabase';
 import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 import {
-  LogIn, LogOut, Coffee, MapPin, Camera, Clock, CheckCircle2,
-  Loader2, AlertTriangle, ShieldCheck, X, Timer, Play, Square,
+  LogIn, LogOut, Coffee, MapPin, Camera, CheckCircle2,
+  Loader2, AlertTriangle, ShieldCheck, X, Square,
 } from 'lucide-react';
 
 type Props = {

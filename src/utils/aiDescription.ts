@@ -122,7 +122,8 @@ export async function restructureDescription(raw: string): Promise<string> {
   const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
 
   if (!apiKey) {
-    throw new Error('VITE_OPENROUTER_API_KEY is missing from .env');
+    console.error('VITE_OPENROUTER_API_KEY is missing from .env');
+    return raw;
   }
 
   const prompt = `You are VJR Estate's property listing writer for Bangalore real estate.

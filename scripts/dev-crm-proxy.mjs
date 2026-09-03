@@ -33,13 +33,14 @@ async function verifyFirebaseToken(token) {
       `https://www.googleapis.com/identitytoolkit/v3/relyingparty/getAccountInfo?key=${FIREBASE_API_KEY}`,
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken: token }) },
     );
-    if (!res.ok) return { authorized: false, email: '' };
+    if (!res.ok) return { authorized: false, email: '', uid: '' };
     const data = await res.json();
     const email = data.users?.[0]?.email ?? '';
-    if (ADMIN_EMAILS.includes(email)) return { authorized: true, email, role: 'super_admin', permissions: null };
+    const uid = data.users?.[0]?.localId ?? '';
+    if (ADMIN_EMAILS.includes(email)) return { authorized: true, email, uid, role: 'super_admin', permissions: null };
     const { data: admins } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,role,permissions`, null);
-    if (admins?.length > 0) return { authorized: true, email, role: admins[0].role, permissions: admins[0].permissions };
-    return { authorized: false, email };
+    if (admins?.length > 0) return { authorized: true, email, uid, role: admins[0].role, permissions: admins[0].permissions };
+    return { authorized: false, email, uid };
   } catch { return { authorized: false, email: '' }; }
 }
 

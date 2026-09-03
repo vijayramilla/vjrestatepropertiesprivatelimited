@@ -53,7 +53,6 @@ export const HERO_BUDGET_OPTIONS = [
   '₹5 Cr – ₹10 Crore',
   'Above ₹10 Crore',
 ] as const;
-
 export const HERO_TRENDING = [
   'Koramangala',
   'Indiranagar',
@@ -63,4 +62,3 @@ export const HERO_TRENDING = [
   'Hebbal',
 ] as const;
 
-export const PLOT_SUB_TYPES = ['Residential Plot', 'Commercial Plot', 'JD Land'] as const;
