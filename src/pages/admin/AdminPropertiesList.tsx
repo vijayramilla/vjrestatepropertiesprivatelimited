@@ -148,6 +148,9 @@ export default function AdminPropertiesList() {
     setDeleteError('');
     try {
       await deletePropertyAcrossStores(deleteId);
+      // Remove locally right away so the list updates instantly even if the
+      // realtime channel is momentarily slow — the DB row is already gone.
+      setProperties((prev) => prev.filter((p) => p.id !== deleteId));
       setDeleteId(null);
     } catch (error) {
       console.error('Delete error:', error);
@@ -194,6 +197,8 @@ export default function AdminPropertiesList() {
       if (failed > 0) {
         setBulkDeleteError(`${failed} of ${results.length} could not be deleted.`);
       } else {
+        const deletedIds = new Set(Array.from(selectedIds));
+        setProperties((prev) => prev.filter((p) => !deletedIds.has(p.id)));
         setSelectedIds(new Set());
         setBulkDeleteOpen(false);
       }

@@ -13,7 +13,7 @@ import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import { shareProperty } from '@/utils/shareProperty';
 import { useShortlist } from '@/context/ShortlistContext';
 import { useAuth } from '@/context/AuthContext';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import { MapPin, Heart, WhatsappLogo, ShareNetwork, X, CheckCircle, ArrowLeft, ArrowRight } from '@phosphor-icons/react';
 
 interface MapPropertyDetailModalProps {
@@ -169,9 +169,10 @@ function MapPropertyDetailModal({ propertyId, onClose }: MapPropertyDetailModalP
             <>
               <div className="relative aspect-[16/9] sm:aspect-[21/9] bg-gray-100 overflow-hidden">
                 {currentImage ? (
-                  <LazyImage
+                  <SupabaseImage
                     src={currentImage}
                     alt={property.title}
+                    preset="hero"
                     className="absolute inset-0 h-full w-full object-cover"
                   />
                 ) : (

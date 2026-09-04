@@ -19,7 +19,7 @@ import { WhatsappLogo } from '@phosphor-icons/react';
 import { CATEGORY_CONFIG, formatMapINR } from '@/data/mapConfig';
 import { siteContact } from '@/data/siteContact';
 import GlassCard from '@/components/ui/glass-card';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import { useShortlist } from '@/context/ShortlistContext';
 
 export interface MapPopupProperty {
@@ -405,14 +405,14 @@ if (navigator.share) {
               }}
               className="cursor-grab active:cursor-grabbing"
             >
-              <LazyImage
+              <SupabaseImage
                 src={photo}
                 alt={property.title}
                 className="h-44 w-full object-cover sm:h-40 pointer-events-none"
               />
             </motion.div>
           ) : (
-            <LazyImage
+            <SupabaseImage
               src={photo}
               alt={property.title}
               className="h-44 w-full object-cover sm:h-40"

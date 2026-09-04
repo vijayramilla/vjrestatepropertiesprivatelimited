@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, memo } from 'react';
-import LazyImage from './common/LazyImage';
+import SupabaseImage from './common/SupabaseImage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, ShareNetwork, WhatsappLogo, MapPin } from '@phosphor-icons/react';
 import { Buildings, HouseLine, Storefront, Tree, type Icon } from '@phosphor-icons/react';
@@ -172,7 +172,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           <div className={`relative w-full overflow-hidden bg-gray-100 ${compact ? 'aspect-[2/1]' : listing ? 'aspect-[16/9]' : 'aspect-[16/9]'}`}>
           <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
           {coverImage && !imgError ? (
-            <LazyImage
+            <SupabaseImage
               src={coverImage}
               alt={saleTitle}
               priority={listing ? index < 2 : index === 0}

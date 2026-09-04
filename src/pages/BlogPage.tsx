@@ -5,6 +5,7 @@ import { Clock, Loader2 } from 'lucide-react';
 import { blogPosts as fallbackPosts } from '@/data/blogPosts';
 import { getBlogPosts } from '@/lib/strapi';
 import type { BlogPost } from '@/data/blogPosts';
+import SupabaseImage from '@/components/common/SupabaseImage';
 
 const hotTopics = ['All', 'Investment', 'Local Guide', 'Market Intel', 'Sell Smart'];
 
@@ -76,9 +77,10 @@ export default function BlogPage() {
                 className="group grid overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-500 hover:shadow-lg sm:grid-cols-5"
               >
                 <div className="h-56 sm:col-span-3 sm:h-auto">
-                  <img
+                  <SupabaseImage
                     src={featured.image}
                     alt={featured.title}
+                    preset="hero"
                     className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
                   />
                 </div>
@@ -115,7 +117,7 @@ export default function BlogPage() {
               <Link to={`/blog/${post.slug}`}>
                 <article className="group flex h-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-500 hover:shadow-lg hover:-translate-y-0.5">
                   <div className="relative h-48 overflow-hidden">
-                    <img
+                    <SupabaseImage
                       src={post.image}
                       alt={post.title}
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"

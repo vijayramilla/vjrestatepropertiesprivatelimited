@@ -275,13 +275,18 @@ export default async function handler(req: any, res: any) {
   if (!token) return err(res, 401, 'Missing authorization token');
 
   const auth = await verifyToken(token);
-  if (!auth.authorized) return err(res, 401, 'Unauthorized');
+  if (!auth.authorized) {
+    console.log(`[data-proxy] REJECTED ${action} — token invalid`);
+    return err(res, 401, 'Unauthorized');
+  }
 
+  console.log(`[data-proxy] ${action} by ${auth.email || auth.uid || 'unknown'} (role ${auth.role ?? 'none'})`);
   try {
     const result = await executeAction(action, { ...params, _auth: auth, _ip: clientIp(req) });
+    console.log(`[data-proxy] OK ${action}`);
     return res.status(200).json(result);
   } catch (e: any) {
-    console.error('[data-proxy] error:', e);
+    console.log(`[data-proxy] FAIL ${action}: ${e?.message ?? e}`);
     return res.status(500).json({ error: e.message ?? 'Internal error' });
   }
 }

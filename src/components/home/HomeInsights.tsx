@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, Clock } from '@phosphor-icons/react';
 import { blogPosts } from '@/data/blogPosts';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 
 const POSTS = blogPosts.slice(0, 3);
 
@@ -48,7 +48,7 @@ export default function HomeInsights() {
                 className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#EBEBEB] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:shadow-[0_16px_40px_rgba(10,22,40,0.1)]"
               >
                 <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
-                  <LazyImage
+                  <SupabaseImage
                     src={post.image}
                     alt={post.title}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

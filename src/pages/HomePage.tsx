@@ -66,7 +66,7 @@ export default function HomePage() {
             transition={{ duration: 0.8, delay: 0.1, ease: easeOut }}
             className="mt-6 max-w-4xl font-display text-[42px] font-bold leading-[1.04] tracking-[-0.02em] text-white sm:text-6xl md:text-7xl"
           >
-            Own the building.
+            Rental Income Properties
             <span
               className="mt-2 block text-[#E4C877] italic"
               style={{ fontFamily: SERIF, fontWeight: 400, letterSpacing: '-0.005em' }}
@@ -81,8 +81,8 @@ export default function HomePage() {
             transition={{ duration: 0.7, delay: 0.2, ease: easeOut }}
             className="mt-6 max-w-2xl text-sm font-light leading-relaxed text-white/75 sm:text-base md:text-[17px]"
           >
-            Bangalore&rsquo;s most trusted rental income properties — PG buildings,
-            residential blocks and commercial assets, ready to earn from day one.
+            Bangalore&rsquo;s rental income properties — PG buildings, residential
+            blocks and commercial assets, ready to earn from day one.
           </motion.p>
 
           <motion.div

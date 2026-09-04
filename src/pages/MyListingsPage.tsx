@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
 import { useSupabaseData, subscribeSupabaseProperties } from '@/lib/supabaseData';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import type { PropertyLead } from '@/lib/propertyLeads';
 import { formatINR } from '@/lib/formatPrice';
 import { MapPin, MessageCircle, ChevronDown, ChevronRight, Plus, Building2 } from 'lucide-react';
@@ -212,7 +213,7 @@ export default function MyListingsPage() {
                     >
                       <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-gray-100 sm:h-24 sm:w-24">
                         {img ? (
-                          <img src={img} alt="" className="h-full w-full object-cover" />
+                          <SupabaseImage preset="thumb" src={img} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full items-center justify-center">
                             <Building2 size={20} className="text-gray-300" />

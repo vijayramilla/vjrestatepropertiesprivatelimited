@@ -25,7 +25,7 @@ import BidModal from '@/components/auction/BidModal'
 import { AUCTION_CATEGORIES, type Auction } from '@/data/auctionCategories'
 import { useAuth } from '@/context/AuthContext'
 import { formatINR } from '@/lib/formatPrice'
-import LazyImage from '@/components/common/LazyImage'
+import SupabaseImage from '@/components/common/SupabaseImage'
 
 type SortBy = 'ending' | 'bid' | 'new'
 
@@ -322,9 +322,10 @@ function DetailModal({
       >
         <div className="relative aspect-[16/9] overflow-hidden bg-[#F3F4F6]">
           {auction.images?.[0] ? (
-            <LazyImage
+            <SupabaseImage
               src={auction.images[0]}
               alt={auction.title}
+              preset="hero"
               className="h-full w-full object-cover"
             />
           ) : (

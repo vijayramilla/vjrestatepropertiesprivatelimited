@@ -178,7 +178,7 @@ export default function Navbar() {
   return (
     <>
       <nav
-        className="fixed top-0 left-0 right-0 z-[1000] transition-all duration-300 ease-in-out h-14 md:h-16"
+        className="fixed top-0 left-0 right-0 z-[1000] transition-all duration-300 ease-in-out h-12 md:h-14"
         style={{
           background: isTransparent ? 'transparent' : 'rgba(255,255,255,0.97)',
           borderBottom: isTransparent ? 'none' : '1px solid #e8e8e8',
@@ -194,23 +194,13 @@ export default function Navbar() {
               width={32}
               height={32}
               priority={true}
-              className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9"
+              className="h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8"
             />
             <span
               className="font-serif text-lg font-bold leading-none tracking-tight md:text-xl"
               style={{ color: logoColor }}
             >
-              VJR
-            </span>
-            <span
-              aria-hidden
-              className="mb-1 inline-block h-3.5 w-px bg-[#C9A84C]"
-            />
-            <span
-              className="font-serif text-sm font-bold uppercase leading-none tracking-[0.18em] opacity-80 md:text-base"
-              style={{ color: logoColor }}
-            >
-              ESTATE
+              VJR Estate
             </span>
           </Link>
 

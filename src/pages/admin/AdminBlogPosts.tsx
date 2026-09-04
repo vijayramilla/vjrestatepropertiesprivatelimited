@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { AdminPageShell, AdminPageHeader, AdminSkeletonList, AdminEmptyState } from '@/components/admin/AdminUi';
 import { getAdminBlogPosts, deleteAdminBlogPost, publishAdminBlogPosts, unpublishAdminBlogPosts, type StrapiBlogEntry } from '@/lib/strapiAdmin';
+import SupabaseImage from '@/components/common/SupabaseImage';
 
 function formatDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -116,7 +117,7 @@ export default function AdminBlogPosts() {
                 <Card className="group h-full overflow-hidden border-gray-200 shadow-sm transition-all duration-500 hover:shadow-lg hover:-translate-y-0.5">
                   <div className="relative h-44 overflow-hidden">
                     {post.image ? (
-                      <img
+                      <SupabaseImage
                         src={post.image}
                         alt={post.title}
                         className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"

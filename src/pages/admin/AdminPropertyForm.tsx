@@ -13,7 +13,7 @@ import {
 import { db, auth } from '@/lib/firebase';
 import { leadSupabase } from '@/services/leadSupabase';
 import AdminLayout from '@/components/admin/AdminLayout';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import { restructureDescription } from '@/utils/aiDescription';
 import { formatPrice, formatRental, formatYield, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import {
@@ -30,8 +30,6 @@ import {
   supabaseGetProperty,
   propertyDocToRow,
   callDataProxy,
-  supabaseDirectPropertyCreate,
-  supabaseDirectPropertyUpdate,
 } from '@/lib/supabaseData';
 import { AnimatePresence, motion } from 'framer-motion';
 import { XCircle } from 'phosphor-react';
@@ -517,14 +515,10 @@ export default function AdminPropertyForm() {
           finalImages = [...finalImages, ...uploaded];
         }
         if (useSupabaseData()) {
-          try {
-            await callDataProxy('property.update', {
-              id: propertyId,
-              ...propertyDocToRow({ ...payload, images: finalImages }),
-            });
-          } catch {
-            await supabaseDirectPropertyUpdate(propertyId, propertyDocToRow({ ...payload, images: finalImages }));
-          }
+          await callDataProxy('property.update', {
+            id: propertyId,
+            ...propertyDocToRow({ ...payload, images: finalImages }),
+          });
         } else {
           await updateDoc(doc(db, 'properties', propertyId), {
             ...payload,
@@ -534,12 +528,7 @@ export default function AdminPropertyForm() {
         }
       } else {
         if (useSupabaseData()) {
-          let created: { id: string; propertyCode: string };
-          try {
-            created = await callDataProxy('property.create', propertyDocToRow(payload)) as { id: string; propertyCode: string };
-          } catch {
-            created = await supabaseDirectPropertyCreate(propertyDocToRow(payload));
-          }
+          const created = await callDataProxy('property.create', propertyDocToRow(payload)) as { id: string; propertyCode: string };
           propertyId = created.id as string;
           if (created.propertyCode) {
             setFormData(prev => ({ ...prev, propertyCode: created.propertyCode }));
@@ -569,11 +558,7 @@ export default function AdminPropertyForm() {
           setUploadingImages(true);
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           if (useSupabaseData()) {
-            try {
-              await callDataProxy('property.update', { id: propertyId, images: uploaded });
-            } catch {
-              await supabaseDirectPropertyUpdate(propertyId, { images: uploaded });
-            }
+            await callDataProxy('property.update', { id: propertyId, images: uploaded });
           } else {
             await updateDoc(doc(db, 'properties', propertyId), sanitizeForFirestore({ images: uploaded }));
           }
@@ -1626,7 +1611,7 @@ export default function AdminPropertyForm() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
               {imageUrls.map((url) => (
                 <div key={url} className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50">
-                  <LazyImage src={url} alt="Property" className="h-full w-full object-cover" />
+                  <SupabaseImage preset="admin" src={url} alt="Property" className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removeExistingImage(url)}
@@ -1639,7 +1624,7 @@ export default function AdminPropertyForm() {
               ))}
               {pendingPreviews.map((url, index) => (
                 <div key={url} className="relative aspect-square overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50/30">
-                  <LazyImage src={url} alt="Pending upload" className="h-full w-full object-cover opacity-90" />
+                  <SupabaseImage preset="admin" src={url} alt="Pending upload" className="h-full w-full object-cover opacity-90" />
                   <button
                     type="button"
                     onClick={() => removePendingImage(index)}

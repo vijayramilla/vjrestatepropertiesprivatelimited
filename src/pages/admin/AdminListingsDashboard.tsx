@@ -113,8 +113,10 @@ export default function AdminListingsDashboard() {
     if (!window.confirm(`Delete "${title}" permanently? This cannot be undone.`)) return;
     try {
       await deletePropertyAcrossStores(propertyId);
+      setProperties((prev) => prev.filter((p) => p.id !== propertyId));
     } catch (err) {
       console.error('Error deleting property:', err);
+      window.alert(err instanceof Error ? err.message : 'Delete failed. Please try again.');
     }
   };
 

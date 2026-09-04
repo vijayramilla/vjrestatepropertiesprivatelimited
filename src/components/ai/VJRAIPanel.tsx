@@ -16,6 +16,7 @@ import {
 import { processQuery, type UserRole } from '../../ai/ragEngine';
 import { conversationStore, type AiMessage } from '../../ai/conversationStore';
 import { formatINR } from '../../ai/dataConnector';
+import SupabaseImage from '../../components/common/SupabaseImage';
 
 const GOLD = '#C9A84C';
 
@@ -84,10 +85,10 @@ function PropertyMiniCard({ property }: { property: { id: string; title: string;
       className="group flex w-full items-center gap-3 rounded-xl border border-[#C9A84C]/20 bg-white/[0.05] p-2.5 text-left transition-all duration-200 hover:border-[#C9A84C]/50 hover:bg-[#C9A84C]/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A84C]"
     >
       {property.images?.[0] ? (
-        <img
+        <SupabaseImage
           src={property.images[0]}
           alt=""
-          loading="lazy"
+          preset="thumb"
           className="h-12 w-12 shrink-0 rounded-lg object-cover"
         />
       ) : (

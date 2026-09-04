@@ -109,7 +109,7 @@ const founders = [
     role: 'Founder & CEO',
     icon: UserCircle,
     image: '/images/vijay-ram-illa.png',
-    bio: 'Vijay Ram Illa is the Founder & CEO of VJR Estate Properties Private Limited, leading its rise as one of Bangalore\'s most trusted authorities in real estate investment advisory. His command of Bangalore\'s property cycles, rental yields, and capital appreciation trends, built through independent, rigorous study, forms the foundation of VJR Estate\'s investment philosophy, positioning the company as a market authority that shapes opportunity rather than responding to it. As Founder & CEO, Vijay sets the vision, strategy, and direction across the business, leading asset selection with institutional discipline, governing investor relationships with a long-term partnership mindset, and steering growth across Bangalore\'s most competitive real estate corridors as a decisive force in the market.',
+    bio: 'Vijay Ram Illa is the Founder & CEO of VJR Estate Properties Private Limited, leading its rise as one of Bangalore\'s leading authorities in real estate investment advisory. His command of Bangalore\'s property cycles, rental yields, and capital appreciation trends, built through independent, rigorous study, forms the foundation of VJR Estate\'s investment philosophy, positioning the company as a market authority that shapes opportunity rather than responding to it. As Founder & CEO, Vijay sets the vision, strategy, and direction across the business, leading asset selection with institutional discipline, governing investor relationships with a long-term partnership mindset, and steering growth across Bangalore\'s most competitive real estate corridors as a decisive force in the market.',
   },
 ];
 
@@ -205,7 +205,7 @@ export default function AboutPage() {
               </h3>
               <div className="mt-5 space-y-5 text-[15px] leading-[1.75] text-[#ccc] sm:text-[16px]" style={fontBody}>
                 <p>
-                  To become Bangalore&apos;s most trusted name in rental income property advisory: a single, dependable destination where capital, opportunity, and expertise meet, covering every stage of the investment journey, from acquisition to long-term portfolio management.
+                  To become Bangalore&apos;s leading name in rental income property advisory: a single, dependable destination where capital, opportunity, and expertise meet, covering every stage of the investment journey, from acquisition to long-term portfolio management.
                 </p>
                 <p className="text-[#999]">
                   We believe Bangalore&apos;s real estate market rewards those who understand it deeply. Our vision is built entirely around this city, its neighborhoods, its growth corridors, its tenant demand, and its long-term value drivers, because specialization, not scale, is what protects an investor&apos;s capital.

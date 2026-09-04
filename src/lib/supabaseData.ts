@@ -9,7 +9,7 @@ import {
   DATA_PROXY_URL,
 } from './supabaseConfig';
 import { auth, db } from './firebase';
-import { deleteDoc, doc } from 'firebase/firestore';
+import { deleteDoc, doc, getDoc } from 'firebase/firestore';
 
 /**
  * Browser-side Supabase layer for site data.
@@ -173,6 +173,41 @@ export interface SupabasePropertyRow {
   updated_at?: string | null;
 }
 
+/**
+ * Rows written through some older clients stored the whole `{ publicUrl }`
+ * object — or a JSON-stringified version of it — instead of the URL string.
+ * Normalize so components never receive a non-URL image entry.
+ */
+function normalizeImageEntry(entry: unknown): string | null {
+  if (typeof entry === 'string') {
+    const value = entry.trim();
+    if (!value) return null;
+    if (value.startsWith('{')) {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (typeof parsed === 'string') return normalizeImageEntry(parsed);
+        if (parsed && typeof parsed === 'object') {
+          const maybe = (parsed as { publicUrl?: unknown }).publicUrl;
+          if (typeof maybe === 'string') return normalizeImageEntry(maybe);
+        }
+      } catch {
+        /* not JSON — fall through to the plain string */
+      }
+    }
+    return value;
+  }
+  if (entry && typeof entry === 'object') {
+    const maybe = (entry as { publicUrl?: unknown }).publicUrl;
+    if (typeof maybe === 'string' && maybe.trim()) return normalizeImageEntry(maybe);
+  }
+  return null;
+}
+
+function normalizeImages(images: unknown): string[] {
+  if (!Array.isArray(images)) return [];
+  return images.map(normalizeImageEntry).filter((v): v is string => Boolean(v));
+}
+
 /** Map a Supabase property row to the Firestore doc shape components expect. */
 export function propertyRowToDoc(row: SupabasePropertyRow): Record<string, unknown> {
   return {
@@ -213,7 +248,7 @@ export function propertyRowToDoc(row: SupabasePropertyRow): Record<string, unkno
     description: row.description ?? '',
     listed_days_ago: row.listed_days_ago ?? 0,
     extra_details: row.extra_details ?? undefined,
-    images: row.images ?? [],
+    images: normalizeImages(row.images),
     listed_by: row.listed_by ?? 'VJR Estate',
     contact_name: row.contact_name ?? '',
     contact_phone: row.contact_phone ?? '',
@@ -640,7 +675,7 @@ function mapAuctionRow(r: any): any {
     category: r.category ?? 'Residential',
     location: r.location ?? '',
     city: r.city ?? 'Bangalore',
-    images: r.images ?? [],
+    images: normalizeImages(r.images),
     description: r.description ?? '',
     startingBid: r.starting_bid ?? 0,
     currentBid: r.current_bid ?? r.starting_bid ?? 0,
@@ -861,112 +896,19 @@ export function propertyDocToRow(doc: Record<string, unknown>): Record<string, u
   return row;
 }
 
-/* ── Direct property CRUD (bypasses middleware) ──────────────────────────── */
-
-const PROPERTY_COLUMNS = new Set([
-  'id', 'property_code', 'title', 'type', 'commercial_subtype', 'plot_subtype',
-  'area', 'location', 'price', 'price_label', 'monthly_rental', 'monthly_rental_label',
-  'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
-  'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
-  'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
-  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
-  'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
-  'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
-  'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
-  'user_email', 'user_display_name', 'city', 'state', 'pincode',
-  'full_address', 'created_at', 'updated_at',
-]);
-
-function pickPropertyColumns(obj: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (PROPERTY_COLUMNS.has(k)) out[k] = v;
-  }
-  return out;
-}
-
-/** Raw fetch helper — bypasses Supabase JS client to avoid Vite env-mangling JWTs. */
-async function adminFetch(method: string, path: string, body?: unknown): Promise<any> {
-  const url = import.meta.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
-  const key = import.meta.env.VITE_SUPABASE_REQ_SERVICE_KEY ?? '';
-  const opts: RequestInit = {
-    method,
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-      apikey: key,
-      Prefer: body ? 'return=representation' : '',
-    },
-  };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(`${url}/rest/v1/${path}`, opts);
-  const text = await res.text();
-  if (!res.ok) {
-    let msg = text;
-    try { msg = JSON.parse(text).message || text; } catch {}
-    throw new Error(msg || `Supabase ${res.status}`);
-  }
-  return text ? JSON.parse(text) : null;
-}
-
-async function generateNextPropertyCode(): Promise<string> {
-  const existing = await adminFetch('GET', 'properties?select=property_code&property_code=not.is.null');
-  let maxNum = 0;
-  for (const r of existing ?? []) {
-    const m = String(r.property_code).match(/^VJR-(\d+)$/);
-    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
-  }
-  return `VJR-${String(maxNum + 1).padStart(4, '0')}`;
-}
-
-export async function supabaseDirectPropertyCreate(
-  row: Record<string, unknown>,
-): Promise<{ id: string; propertyCode: string }> {
-  let propertyCode = (row.property_code as string)?.trim() || await generateNextPropertyCode();
-  const propId = crypto.randomUUID();
-  let lastError: string | null = null;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const clean = pickPropertyColumns({
-      ...row, id: propId, property_code: propertyCode,
-      created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
-    });
-    try {
-      await adminFetch('POST', 'properties', clean);
-      return { id: propId, propertyCode };
-    } catch (e: any) {
-      const msg = String(e?.message ?? e);
-      if (/property_code_key|unique constraint/i.test(msg)) {
-        lastError = msg;
-        propertyCode = await generateNextPropertyCode();
-        continue;
-      }
-      throw e;
-    }
-  }
-  throw new Error(lastError ?? 'Failed to create property after retries');
-}
-
-export async function supabaseDirectPropertyUpdate(
-  id: string, row: Record<string, unknown>,
-): Promise<void> {
-  const clean = pickPropertyColumns({ ...row, updated_at: new Date().toISOString() });
-  delete clean.uid;
-  await adminFetch('PATCH', `properties?id=eq.${encodeURIComponent(id)}`, clean);
-}
-
-export async function supabaseDirectPropertyDelete(id: string): Promise<void> {
-  await adminFetch('DELETE', `properties?id=eq.${encodeURIComponent(id)}`);
-}
+/* ── Property delete ─────────────────────────────────────────────────────── */
 
 /**
- * Delete a property reliably from whichever store actually holds it.
+ * Delete a property from whichever store actually holds it.
  *
- * Supabase is the live catalog (proxy first, direct service-role fallback).
- * During the migration window a row may only exist in Firestore, so when
- * the Supabase data layer is off we delete there instead. Errors from the
- * store that is NOT active are tolerated (the doc simply doesn't exist);
- * errors from the active store are thrown so an admin delete can never
- * silently no-op while the listing stays visible.
+ * Supabase is the live catalog and the data-proxy is its only write path
+ * (the service-role key never ships to the browser). A legacy Firestore
+ * mirror may still exist from the migration window, so when the Supabase
+ * delete fails we only fall back to Firestore if a matching doc really is
+ * there. Firestore's deleteDoc resolves silently on missing docs, which
+ * used to turn every failed Supabase delete into a fake success while the
+ * listing stayed visible — so when no mirror exists the real error is
+ * thrown for the admin UI to display.
  */
 export async function deletePropertyAcrossStores(id: string): Promise<void> {
   const supabaseActive = useSupabaseData();
@@ -974,10 +916,14 @@ export async function deletePropertyAcrossStores(id: string): Promise<void> {
   if (supabaseActive) {
     const supabaseError = await tryDeleteSupabase(id);
     if (!supabaseError) return; // removed from the live catalog
-    // Fall back to a legacy Firestore mirror before reporting failure.
-    const firestoreError = await tryDeleteFirestore(id);
-    if (!firestoreError) return;
-    throw supabaseError;
+    // Only a genuine legacy Firestore mirror can satisfy the delete.
+    if (await firestoreDocExists('properties', id)) {
+      const firestoreError = await tryDeleteFirestore(id);
+      if (!firestoreError) return;
+    }
+    throw supabaseError instanceof Error
+      ? supabaseError
+      : new Error(String(supabaseError));
   }
 
   // Supabase layer off (Firestore mode): clean any Supabase row first
@@ -992,12 +938,16 @@ async function tryDeleteSupabase(id: string): Promise<unknown> {
     await callDataProxy('property.delete', { id });
     return null;
   } catch (e) {
-    try {
-      await supabaseDirectPropertyDelete(id);
-      return null;
-    } catch (e2) {
-      return e ?? e2;
-    }
+    return e;
+  }
+}
+
+async function firestoreDocExists(collectionName: string, docId: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, collectionName, docId));
+    return snap.exists();
+  } catch {
+    return false;
   }
 }
 

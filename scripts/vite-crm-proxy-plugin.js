@@ -3,12 +3,24 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 function loadServerEnv() {
+  // Vite only injects VITE_-prefixed vars into the browser bundle; it does NOT
+  // put them on process.env for this Node plugin. The plugin's token check
+  // (FIREBASE_API_KEY) and CRM lookups would therefore run empty unless the
+  // values are loaded here from .env as well.
   const keys = [
     'SUPABASE_SERVICE_ROLE_KEY',
     'SUPABASE_REQ_URL',
     'SUPABASE_REQ_SERVICE_KEY',
     'SUPABASE_CLI_URL',
     'SUPABASE_CLI_SERVICE_KEY',
+    'VITE_SUPABASE_REQ_URL',
+    'VITE_SUPABASE_REQ_SERVICE_KEY',
+    'VITE_SUPABASE_CLI_URL',
+    'VITE_SUPABASE_CLI_SERVICE_KEY',
+    'VITE_SUPABASE_CLI_ANON_KEY',
+    'VITE_FIREBASE_API_KEY',
+    'VITE_ADMIN_UID',
+    'VITE_ADMIN_EMAIL',
   ];
   try {
     const raw = readFileSync(path.join(process.cwd(), '.env'), 'utf8');

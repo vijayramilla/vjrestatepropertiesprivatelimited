@@ -13,7 +13,7 @@ import {
   Tree,
   type Icon,
 } from '@phosphor-icons/react';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import { useShortlist } from '@/context/ShortlistContext';
 import {
   getCardSaleTitle,
@@ -152,7 +152,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
             {/* Skeleton shimmer — shows behind LazyImage while loading */}
             <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
             {coverImage && !imgError ? (
-              <LazyImage
+              <SupabaseImage
                 src={coverImage}
                 alt={saleTitle}
                 priority={index === 0}

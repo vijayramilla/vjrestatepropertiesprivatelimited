@@ -5,7 +5,7 @@ import {
   type Auction,
 } from '@/data/auctionCategories'
 import { formatINR } from '@/lib/formatPrice'
-import LazyImage from '@/components/common/LazyImage'
+import SupabaseImage from '@/components/common/SupabaseImage'
 
 interface AuctionCardProps {
   auction: Auction
@@ -51,7 +51,7 @@ export default function AuctionCard({
       {/* IMAGE */}
       <div className="relative aspect-video overflow-hidden bg-[#F3F4F6]">
         {auction.images?.[0] ? (
-          <LazyImage
+          <SupabaseImage
             src={auction.images[0]}
             alt={auction.title}
             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"

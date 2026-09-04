@@ -2,7 +2,7 @@ import { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, ShareNetwork, MapPin, ArrowRight } from '@phosphor-icons/react';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -145,7 +145,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
             <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
               <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
               {coverImage && !imgError ? (
-                <LazyImage src={coverImage} alt={saleTitle} priority={index === 0}
+                <SupabaseImage src={coverImage} alt={saleTitle} priority={index === 0}
                   onError={() => setImgError(true)}
                   className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
               ) : (

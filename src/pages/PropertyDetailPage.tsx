@@ -47,7 +47,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
-import LazyImage from '@/components/common/LazyImage';
+import SupabaseImage from '@/components/common/SupabaseImage';
 import {
   isPlotProperty,
   isLandOrPlotProperty,
@@ -490,9 +490,10 @@ export default function PropertyDetailPage() {
                           className="absolute inset-0 block w-full h-full cursor-zoom-in"
                           aria-label="View image full screen"
                         >
-                          <LazyImage
+                          <SupabaseImage
                             src={img}
                             alt={`${property.title} ${i + 1}`}
+                            preset="hero"
                             priority={i === 0}
                             className="absolute inset-0 w-full h-full object-cover object-center"
                           />
@@ -551,7 +552,7 @@ export default function PropertyDetailPage() {
                     onClick={() => carouselApi?.scrollTo(i)}
                     className="shrink-0 w-[52px] h-[52px] rounded-lg overflow-hidden border-2 border-transparent hover:border-[#C9A84C] focus:border-[#C9A84C] transition-colors duration-200"
                   >
-                    <LazyImage src={img} alt="" className="w-full h-full object-cover" />
+                    <SupabaseImage preset="thumb" src={img} alt="" className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -1045,8 +1046,9 @@ export default function PropertyDetailPage() {
                   <ArrowLeft size={22} weight="bold" />
                 </button>
               )}
-              <LazyImage
+              <SupabaseImage
                 src={galleryImages[viewerIndex]}
+                preset="hero"
                 alt={`${property.title} ${viewerIndex + 1}`}
                 className="max-h-full max-w-full object-contain"
               />
@@ -1080,7 +1082,7 @@ export default function PropertyDetailPage() {
                       i === viewerIndex ? 'border-white' : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
                   >
-                    <LazyImage src={img} alt="" className="h-full w-full object-cover" />
+                    <SupabaseImage preset="thumb" src={img} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>

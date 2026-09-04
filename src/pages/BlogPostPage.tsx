@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { blogPosts as fallbackPosts } from '@/data/blogPosts';
 import type { BlogPost } from '@/data/blogPosts';
 import { getBlogPosts, getBlogPostBySlug } from '@/lib/strapi';
+import SupabaseImage from '@/components/common/SupabaseImage';
 
 export default function BlogPostPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -98,9 +99,10 @@ export default function BlogPostPage() {
         className="mx-auto -mt-16 max-w-4xl px-4 sm:px-8"
       >
         <div className="overflow-hidden rounded-2xl shadow-xl">
-          <img
+          <SupabaseImage
             src={post.image}
             alt={post.title}
+            preset="hero"
             className="w-full object-cover"
           />
         </div>

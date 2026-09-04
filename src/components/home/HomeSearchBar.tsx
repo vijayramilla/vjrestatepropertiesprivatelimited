@@ -6,8 +6,8 @@ import { BANGALORE_AREAS } from '@/data/properties';
 
 const TYPE_CATEGORIES = [
   { label: 'PG Buildings', values: ['PG Buildings'] },
-  { label: 'Residential Rental', values: ['Residential Rental Income'] },
-  { label: 'Commercial Income', values: ['Commercial Properties'] },
+  { label: 'Residential', values: ['Residential Rental Income'] },
+  { label: 'Commercial', values: ['Commercial Properties'] },
 ];
 
 const BUY_BUDGET_LABELS = [
@@ -19,12 +19,12 @@ const BUY_BUDGET_LABELS = [
   'Above ₹5Cr',
 ];
 
-const TABS = ['PG Buildings', 'Residential Rental', 'Commercial Income'];
+const TABS = ['PG Buildings', 'Residential', 'Commercial'];
 
 const TAB_TYPE_MAP: Record<string, string> = {
   'PG Buildings': 'PG Buildings',
-  'Residential Rental': 'Residential Rental',
-  'Commercial Income': 'Commercial Income',
+  Residential: 'Residential',
+  Commercial: 'Commercial',
 };
 
 const EASE = [0.22, 1, 0.36, 1] as const;

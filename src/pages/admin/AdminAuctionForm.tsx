@@ -13,7 +13,7 @@ import { ref, set, update } from 'firebase/database'
 import { db, rtdb, auth } from '@/lib/firebase'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { AdminPageHeader, AdminPageShell } from '@/components/admin/AdminUi'
-import LazyImage from '@/components/common/LazyImage'
+import SupabaseImage from '@/components/common/SupabaseImage'
 import { BANGALORE_AREAS } from '@/data/properties'
 import type { LandLocationValue } from '@/lib/mapGeocoding'
 import { uploadAuctionImages, deletePropertyImageByUrl } from '@/lib/propertyImages'
@@ -456,7 +456,7 @@ export default function AdminAuctionForm() {
                       key={url}
                       className="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-50/50"
                     >
-                      <LazyImage src={url} alt="Auction" className="h-full w-full object-cover" />
+                      <SupabaseImage preset="admin" src={url} alt="Auction" className="h-full w-full object-cover" />
                       <button
                         type="button"
                         onClick={() => removeExistingImage(url)}
@@ -472,9 +472,10 @@ export default function AdminAuctionForm() {
                       key={url}
                       className="relative aspect-square overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50/30"
                     >
-                      <LazyImage
+                      <SupabaseImage
                         src={url}
                         alt="Pending upload"
+                        preset="admin"
                         className="h-full w-full object-cover opacity-90"
                       />
                       <button
