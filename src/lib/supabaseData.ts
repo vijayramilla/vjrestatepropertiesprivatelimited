@@ -8,7 +8,8 @@ import {
   nowIso,
   DATA_PROXY_URL,
 } from './supabaseConfig';
-import { auth } from './firebase';
+import { auth, db } from './firebase';
+import { deleteDoc, doc } from 'firebase/firestore';
 
 /**
  * Browser-side Supabase layer for site data.
@@ -498,31 +499,31 @@ export function subscribeSupabaseUsers(onData: (rows: any[]) => void): () => voi
 
 /* ── Site settings ───────────────────────────────────────────────────────── */
 
-export async function supabaseReadSettings(): Promise<{ mapOnly: boolean; nexaEnabled: boolean } | null> {
+export async function supabaseReadSettings(): Promise<{ nexaEnabled: boolean } | null> {
   if (!client) return null;
   const { data, error } = await client
     .from('site_settings')
-    .select('map_only,nexa_enabled')
+    .select('nexa_enabled')
     .eq('key', 'general')
     .maybeSingle();
   if (error || !data) return null;
-  return { mapOnly: Boolean(data.map_only), nexaEnabled: data.nexa_enabled !== false };
+  return { nexaEnabled: data.nexa_enabled !== false };
 }
 
 export function subscribeSupabaseSettings(
-  onChange: (s: { mapOnly: boolean; nexaEnabled: boolean }) => void,
+  onChange: (s: { nexaEnabled: boolean }) => void,
 ): () => void {
   if (!client) return () => {};
   let disposed = false;
   const emit = (row?: any) => {
     if (disposed) return;
     if (row) {
-      onChange({ mapOnly: Boolean(row.map_only), nexaEnabled: row.nexa_enabled !== false });
+      onChange({ nexaEnabled: row.nexa_enabled !== false });
     }
   };
   void client
     .from('site_settings')
-    .select('map_only,nexa_enabled')
+    .select('nexa_enabled')
     .eq('key', 'general')
     .maybeSingle()
     .then(({ data }) => emit(data));
@@ -955,6 +956,58 @@ export async function supabaseDirectPropertyUpdate(
 
 export async function supabaseDirectPropertyDelete(id: string): Promise<void> {
   await adminFetch('DELETE', `properties?id=eq.${encodeURIComponent(id)}`);
+}
+
+/**
+ * Delete a property reliably from whichever store actually holds it.
+ *
+ * Supabase is the live catalog (proxy first, direct service-role fallback).
+ * During the migration window a row may only exist in Firestore, so when
+ * the Supabase data layer is off we delete there instead. Errors from the
+ * store that is NOT active are tolerated (the doc simply doesn't exist);
+ * errors from the active store are thrown so an admin delete can never
+ * silently no-op while the listing stays visible.
+ */
+export async function deletePropertyAcrossStores(id: string): Promise<void> {
+  const supabaseActive = useSupabaseData();
+
+  if (supabaseActive) {
+    const supabaseError = await tryDeleteSupabase(id);
+    if (!supabaseError) return; // removed from the live catalog
+    // Fall back to a legacy Firestore mirror before reporting failure.
+    const firestoreError = await tryDeleteFirestore(id);
+    if (!firestoreError) return;
+    throw supabaseError;
+  }
+
+  // Supabase layer off (Firestore mode): clean any Supabase row first
+  // (best-effort), then delete from the store the page actually reads.
+  await tryDeleteSupabase(id);
+  const firestoreError = await tryDeleteFirestore(id);
+  if (firestoreError) throw firestoreError;
+}
+
+async function tryDeleteSupabase(id: string): Promise<unknown> {
+  try {
+    await callDataProxy('property.delete', { id });
+    return null;
+  } catch (e) {
+    try {
+      await supabaseDirectPropertyDelete(id);
+      return null;
+    } catch (e2) {
+      return e ?? e2;
+    }
+  }
+}
+
+async function tryDeleteFirestore(id: string): Promise<unknown> {
+  try {
+    await deleteDoc(doc(db, 'properties', id));
+    return null;
+  } catch (e) {
+    return e;
+  }
 }
 
 /* ── Bids ─────────────────────────────────────────────────────────────────── */

@@ -107,7 +107,7 @@ export default function PropertyKeyStats({
     <div className={`${containerClass} ${className}`}>
       {showRentalStats && (
         <StatCell
-          label="Monthly Income"
+          label="Monthly Rental Income"
           value={property.monthly_rental}
           variant={variant}
           valueClassName="!text-[#22C26E]"

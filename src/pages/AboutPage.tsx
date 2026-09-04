@@ -124,7 +124,7 @@ export default function AboutPage() {
     <div className="about-page about-scroll-page bg-white min-h-screen">
       <HeroGeometric
         compact
-        badge="Bangalore's Dedicated Rental Income Property Advisory"
+        badge="Bangalore's Only Dedicated Rental Income Property Advisory"
         title1="ABOUT"
         title2="VJR ESTATE"
         className="pt-[72px]"
@@ -140,7 +140,7 @@ export default function AboutPage() {
               <div className="mt-6 space-y-6 text-[16px] leading-[1.75] text-[#333] sm:text-[17px]" style={fontBody}>
                 <p>
                   VJR Estate is Bangalore&apos;s only dedicated rental income property advisory.
-                  We exist for one purpose: to help investors allocate capital into the right real estate assets, exclusively within Bangalore. Our focus spans PG buildings, residential rental income properties, and commercial income properties — every category of asset where capital meets consistent returns. We identify, evaluate, and structure transactions for serious buyers and sellers, supported by a disciplined approach to asset quality, due diligence, and long-term portfolio thinking. As our advisory practice matures, we are also building dedicated property management capability, ensuring our investors are supported not only at acquisition, but across the full lifecycle of ownership.
+                  We exist for one purpose: to help investors put capital into income-generating real estate, exclusively within Bangalore. Our focus spans PG buildings, residential rental blocks, and commercial income properties — the asset classes where rental demand, location, and property quality meet. We identify, evaluate, and structure acquisitions for serious buyers, supported by a disciplined approach to due diligence, documentation, and long-term portfolio thinking. As our advisory practice grows, we are building dedicated property management capability, so investors are supported not just at acquisition, but across the full lifecycle of ownership.
                 </p>
                 <p className="border-l-2 border-black pl-5 font-medium text-black">
                   VJR Estate Properties Private Limited is registered and headquartered in Bangalore, Karnataka.

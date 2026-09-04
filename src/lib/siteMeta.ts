@@ -1,9 +1,10 @@
 import { getJobShareUrl, getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
 
 const SITE_NAME = 'VJR Estate';
-const DEFAULT_TITLE = 'VJR Estate | Your Rental Income Expert in Bangalore';
+const DEFAULT_TITLE =
+  'VJR Estate | Buy Rental Income Properties in Bangalore — PG Buildings & Commercial Assets';
 const DEFAULT_DESCRIPTION =
-  'VJR Estate is your rental income expert in Bangalore, curating PG buildings, independent rental-yielding buildings, and commercial income properties.';
+  "VJR Estate is Bangalore's only dedicated rental income property platform. Buy curated PG buildings, residential rental blocks and commercial income properties with monthly income data. Rental income specialists for Bangalore.";
 
 function setMeta(name: string, content: string, property = false) {
   const attr = property ? 'property' : 'name';
@@ -34,6 +35,21 @@ export function setDefaultSiteMeta() {
 // Keep in sync with OG_IMAGE_VERSION in api/og-preview.ts — bumping it forces
 // WhatsApp/social scrapers to re-crawl the preview instead of using a stale one.
 const OG_IMAGE_VERSION = 'v3';
+
+/** Set a fixed page title + description (non-shareable pages). */
+export function setPageMeta(title: string, description: string) {
+  document.title = title;
+  setMeta('description', description);
+  setMeta('og:title', title, true);
+  setMeta('og:description', description, true);
+  setMeta('og:site_name', SITE_NAME, true);
+  setMeta('og:type', 'website', true);
+  setMeta('og:url', `${getSiteOrigin()}/`, true);
+  setMeta('og:image', `${getSiteOrigin()}/og-image.png`, true);
+  setMeta('twitter:title', title);
+  setMeta('twitter:description', description);
+  setMeta('twitter:image', `${getSiteOrigin()}/og-image.png`);
+}
 
 export function setPropertyShareMeta(property: {
   id: string;

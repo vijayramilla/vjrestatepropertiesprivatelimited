@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   collection,
   onSnapshot,
-  deleteDoc,
   doc,
   getDocs,
   updateDoc,
@@ -11,7 +10,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseProperties, callDataProxy, supabaseDirectPropertyDelete } from '@/lib/supabaseData';
+import { useSupabaseData, subscribeSupabaseProperties, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -88,8 +87,10 @@ export default function AdminPropertiesList() {
   const [statusFilter, setStatusFilter] = useState('All');
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteError, setBulkDeleteError] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -101,8 +102,10 @@ export default function AdminPropertiesList() {
     'Commercial Properties',
   ];
 
+  const supabaseMode = useSupabaseData();
+
   useEffect(() => {
-    if (useSupabaseData()) {
+    if (supabaseMode) {
       const unsub = subscribeSupabaseProperties((docs) => {
         setProperties(docs.map(({ id, data }) => ({ id, ...data })) as Property[]);
         setLoading(false);
@@ -142,18 +145,26 @@ export default function AdminPropertiesList() {
   const handleDelete = async () => {
     if (!deleteId) return;
     setDeleting(true);
+    setDeleteError('');
     try {
-      if (useSupabaseData()) {
-        try { await callDataProxy('property.delete', { id: deleteId }); } catch { await supabaseDirectPropertyDelete(deleteId); }
-      } else {
-        await deleteDoc(doc(db, 'properties', deleteId));
-      }
+      await deletePropertyAcrossStores(deleteId);
       setDeleteId(null);
     } catch (error) {
       console.error('Delete error:', error);
+      setDeleteError(error instanceof Error ? error.message : 'Delete failed. Please try again.');
     } finally {
       setDeleting(false);
     }
+  };
+
+  const openDelete = (id: string) => {
+    setDeleteError('');
+    setDeleteId(id);
+  };
+
+  const openBulkDelete = () => {
+    setBulkDeleteError('');
+    setBulkDeleteOpen(true);
   };
 
   const toggleSelect = (id: string) => {
@@ -174,17 +185,21 @@ export default function AdminPropertiesList() {
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
     setDeleting(true);
+    setBulkDeleteError('');
     try {
-      const ids = Array.from(selectedIds);
-      if (useSupabaseData()) {
-        await Promise.all(ids.map(async (id) => { try { await callDataProxy('property.delete', { id }); } catch { await supabaseDirectPropertyDelete(id); } }));
+      const results = await Promise.allSettled(
+        Array.from(selectedIds).map((id) => deletePropertyAcrossStores(id)),
+      );
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed > 0) {
+        setBulkDeleteError(`${failed} of ${results.length} could not be deleted.`);
       } else {
-        await Promise.all(ids.map((id) => deleteDoc(doc(db, 'properties', id))));
+        setSelectedIds(new Set());
+        setBulkDeleteOpen(false);
       }
-      setSelectedIds(new Set());
-      setBulkDeleteOpen(false);
     } catch (error) {
       console.error('Bulk delete error:', error);
+      setBulkDeleteError(error instanceof Error ? error.message : 'Bulk delete failed.');
     } finally {
       setDeleting(false);
     }
@@ -192,7 +207,7 @@ export default function AdminPropertiesList() {
 
   const handleToggleFeatured = async (id: string, featured: boolean) => {
     try {
-      if (useSupabaseData()) {
+      if (supabaseMode) {
         await callDataProxy('property.toggleFeatured', { id, featured });
       } else {
         await updateDoc(doc(db, 'properties', id), { featured: !featured });
@@ -205,7 +220,7 @@ export default function AdminPropertiesList() {
   const handleBackfillIds = async () => {
     setBackfilling(true);
     try {
-      if (useSupabaseData()) {
+      if (supabaseMode) {
         await callDataProxy('property.backfillCodes', {});
         return;
       }
@@ -394,7 +409,7 @@ export default function AdminPropertiesList() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDeleteId(property.id)}
+                      onClick={() => openDelete(property.id)}
                       className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-gray-100 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-gray-200"
                     >
                       <Trash size={14} />
@@ -474,7 +489,7 @@ export default function AdminPropertiesList() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setDeleteId(property.id)}
+                      onClick={() => openDelete(property.id)}
                       className="flex items-center gap-1 rounded-xl border border-gray-300 px-3 py-1 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:bg-gray-100"
                     >
                       <Trash size={12} />
@@ -510,6 +525,11 @@ export default function AdminPropertiesList() {
               <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:mt-4">
                 This action cannot be undone. The property will be permanently removed.
               </p>
+              {deleteError && (
+                <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
+                  {deleteError}
+                </p>
+              )}
               <div className="mt-6 flex flex-col-reverse gap-2 sm:mt-8 sm:flex-row sm:gap-3">
                 <button
                   type="button"
@@ -558,7 +578,7 @@ export default function AdminPropertiesList() {
               </button>
               <button
                 type="button"
-                onClick={() => setBulkDeleteOpen(true)}
+                onClick={openBulkDelete}
                 className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
               >
                 <Trash size={15} />
@@ -592,6 +612,11 @@ export default function AdminPropertiesList() {
               <p className="mt-3 text-sm leading-relaxed text-gray-600 sm:mt-4">
                 This action cannot be undone. All selected properties will be permanently removed.
               </p>
+              {bulkDeleteError && (
+                <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
+                  {bulkDeleteError}
+                </p>
+              )}
               <div className="mt-6 flex flex-col-reverse gap-2 sm:mt-8 sm:flex-row sm:gap-3">
                 <button
                   type="button"

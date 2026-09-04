@@ -41,8 +41,11 @@ export default function HomeListingsSection() {
     const unsub = subscribeProperties(
       (docs) => {
         if (cancelled) return;
+        // PG buildings first (the specialty), then any other rental classes.
+        const docsTyped = docs.map(({ id, data }) => ({ id, ...data }) as HomeListingDoc);
+        const isPg = (p: HomeListingDoc) => /\bpg\b/i.test(String(p.type ?? ''));
         setLatestProperties(
-          docs.slice(0, 4).map(({ id, data }) => ({ id, ...data }) as HomeListingDoc),
+          [...docsTyped.filter(isPg), ...docsTyped.filter((p) => !isPg(p))].slice(0, 4),
         );
         setLoading(false);
       },
@@ -66,9 +69,12 @@ export default function HomeListingsSection() {
               style={{ fontFamily: DM_SANS }}
             >
               <span className="inline-block h-px w-6 bg-[#C9A84C]" />
-                Trending Now
+                Just Added
               </p>
-              <h2 className="font-display mt-2 text-2xl text-[#0A1628] md:text-[28px]">Trending Picks</h2>
+              <h2 className="font-display mt-2 text-2xl text-[#0A1628] md:text-[28px]">Freshly Listed Opportunities</h2>
+              <p className="mt-1.5 max-w-xl text-[13px] text-gray-500">
+                New PG buildings and rental income assets as they come to market.
+              </p>
           </div>
           <Link
             to="/properties"

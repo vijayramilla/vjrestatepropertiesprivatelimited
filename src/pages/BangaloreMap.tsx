@@ -36,7 +36,6 @@ import {
   parseMapPrice,
   type MapSearchFilter,
 } from '@/lib/mapFilters';
-import { useSiteSettings } from '@/context/SiteSettingsContext';
 import Navbar from '@/components/Navbar';
 import MapPropertyDetailModal from '@/components/map/MapPropertyDetailModal';
 
@@ -279,8 +278,6 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
   const [analyzeTarget, setAnalyzeTarget] = useState<MapProperty | null>(null);
   const tickIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [detailModalId, setDetailModalId] = useState<string | null>(null);
-  const { mapOnly } = useSiteSettings();
-
   const [activeCategories, setActiveCategories] = useState<string[]>([...LAND_TYPES]);
   const filterCount = (activeBudget.label !== 'All Budgets' ? 1 : 0) + (activeCategories.length > 0 && activeCategories.length < LAND_TYPES.length ? 1 : 0);
 
@@ -716,7 +713,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
           onOpen={() => setIsSidebarOpen(true)}
           onClose={() => setIsSidebarOpen(false)}
           properties={sidebarItems}
-          onViewDetails={mapOnly ? handleViewDetails : undefined}
+          onViewDetails={handleViewDetails}
         />
 
         <div className="absolute inset-0 min-h-[calc(100dvh-3.5rem)] md:min-h-[calc(100dvh-4rem)]">
@@ -867,7 +864,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
             onAIAnalyze={() => handleAIAnalyze(selectedProperty)}
             isAnalyzing={isAnalyzing}
             analysisResult={analysisResult}
-            onViewDetails={mapOnly ? handleViewDetails : undefined}
+            onViewDetails={handleViewDetails}
           />
         )}
       </AnimatePresence>

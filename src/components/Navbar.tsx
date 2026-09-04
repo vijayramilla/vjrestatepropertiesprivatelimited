@@ -69,7 +69,6 @@ function NavIconAction({
 }
 
 export default function Navbar() {
-  const [onHero, setOnHero] = useState(true);
   const [hidden, setHidden] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -81,13 +80,13 @@ export default function Navbar() {
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut, clearError } = useAuth();
   const { showLocationModal } = useLocationPermission();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
-  const isHome = location.pathname === '/';
-  const isMapPage = false;
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
 
-  const isTransparent = isHome && onHero;
+  // The header always sits on a solid, blurred surface — never transparent
+  // over the hero image.
+  const isTransparent = false;
   const iconColor = isTransparent ? '#ffffff' : '#0A1628';
   const iconMuted = isTransparent ? 'rgba(255,255,255,0.72)' : '#888888';
   const labelColor = isTransparent ? 'rgba(255,255,255,0.55)' : '#888888';
@@ -116,10 +115,8 @@ export default function Navbar() {
 
   useEffect(() => {
     const handleScroll = () => {
-      setOnHero(window.scrollY <= window.innerHeight * 0.8);
       setProfileOpen(false);
     };
-    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -127,8 +124,7 @@ export default function Navbar() {
   useEffect(() => {
     setProfileOpen(false);
     setHidden(false);
-    if (!isHome) setOnHero(false);
-  }, [location, isHome]);
+  }, [location]);
 
   useEffect(() => {
     if (!isProperties) return;
@@ -198,16 +194,20 @@ export default function Navbar() {
               width={32}
               height={32}
               priority={true}
-              className="h-7 w-7 shrink-0 object-contain sm:h-8 sm:w-8"
+              className="h-8 w-8 shrink-0 object-contain sm:h-9 sm:w-9"
             />
             <span
-              className="font-serif text-base font-bold tracking-tight md:text-lg"
+              className="font-serif text-lg font-bold leading-none tracking-tight md:text-xl"
               style={{ color: logoColor }}
             >
               VJR
             </span>
             <span
-              className="font-serif text-sm font-bold tracking-[0.12em] opacity-70 md:text-base md:tracking-[0.14em]"
+              aria-hidden
+              className="mb-1 inline-block h-3.5 w-px bg-[#C9A84C]"
+            />
+            <span
+              className="font-serif text-sm font-bold uppercase leading-none tracking-[0.18em] opacity-80 md:text-base"
               style={{ color: logoColor }}
             >
               ESTATE
@@ -221,9 +221,7 @@ export default function Navbar() {
               { label: 'About', path: '/about' },
               { label: 'Careers', path: '/careers' },
               { label: 'Contact', path: '/contact' },
-            ]
-              .filter(() => !isMapPage)
-              .map(({ label, path }) => (
+            ].map(({ label, path }) => (
               <Link
                 key={path}
                 to={path}

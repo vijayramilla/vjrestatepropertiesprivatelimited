@@ -14,6 +14,7 @@ import {
 import PropertyKeyStats from './PropertyKeyStats';
 import PlotLandCardStats from './PlotLandCardStats';
 import { formatINRCompact, formatCardPricePerSqft } from '@/lib/formatPrice';
+import { getMonthlyRentalValue } from '@/lib/propertyFilters';
 import { shareProperty } from '@/utils/shareProperty';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
@@ -46,6 +47,26 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
   const saleTitle = property.title || getCardSaleTitle(property);
   const cityName = getCardCityName(property);
   const isPlotOrLand = isPlotLandListing(property);
+
+  // Rental yield is always derived from real figures — the stored yield when
+  // available, otherwise annualised monthly rent ÷ asking price.
+  const rentalYieldLabel = (() => {
+    if (isPlotOrLand) return null;
+    const stored = property.rental_yield ?? null;
+    if (stored != null && stored > 0 && stored <= 50) {
+      return `${Number(stored.toFixed(1))}% Rental Yield`;
+    }
+    const monthly = getMonthlyRentalValue(property);
+    const price = Number(property.price ?? 0);
+    if (monthly > 0 && price > 0) {
+      const computed = (monthly * 12 * 100) / price;
+      if (computed > 0 && computed <= 50) {
+        return `${computed >= 10 ? Math.round(computed) : computed.toFixed(1)}% Rental Yield`;
+      }
+    }
+    return null;
+  })();
+
   const [imgError, setImgError] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared' | 'whatsapp' | 'failed'>('idle');
@@ -195,7 +216,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
           <div className={`border-t border-[#F3F4F6] ${compact ? 'mt-1 pt-1' : listing ? 'mt-2 pt-2' : 'mt-3 pt-3'}`}>
             {!isPlotOrLand && (
               <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400" style={{ fontFamily: DM_SANS }}>
-                Price
+                Asking Price
               </p>
             )}
             <p className={`font-numeric font-extrabold leading-none tracking-tight text-gray-900 ${compact ? 'text-xs mt-0' : listing ? 'mt-0.5 text-[20px]' : 'mt-0.5 text-[26px]'}`}>
@@ -204,6 +225,11 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
             {isPlotOrLand && (property.price_per_sqft ?? 0) > 0 && (
               <p className={`font-numeric text-gray-500 ${compact ? 'mt-0 text-[9px]' : listing ? 'mt-0.5 text-[12px]' : 'mt-1 text-[13px]'}`} style={{ fontFamily: DM_SANS }}>
                 {formatCardPricePerSqft(property.price_per_sqft)}
+              </p>
+            )}
+            {rentalYieldLabel && (
+              <p className={`font-bold text-emerald-600 ${compact ? 'mt-0 text-[9px]' : listing ? 'mt-0.5 text-[12px]' : 'mt-1 text-[13px]'}`} style={{ fontFamily: DM_SANS }}>
+                {rentalYieldLabel}
               </p>
             )}
           </div>

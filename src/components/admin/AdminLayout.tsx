@@ -2,11 +2,10 @@ import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { signOut } from 'firebase/auth';
-import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, MapPin, Scroll, Article, Phone, Briefcase, Scales, HardDrive } from 'phosphor-react';
+import { House, Plus, List, X, ChatCircle, SignOut, Globe, Users, ClipboardText, NotePencil, Scroll, Article, Phone, Briefcase, HardDrive } from 'phosphor-react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useUnreviewedApplicationsCount } from '@/hooks/useUnreviewedApplicationsCount';
-import { useSiteSettings } from '@/context/SiteSettingsContext';
 import VJRAIButton from '@/components/ai/VJRAIButton';
 
 interface AdminLayoutProps {
@@ -23,10 +22,8 @@ const baseNavItems = [
   { icon: ClipboardText, label: 'Requirements', path: '/admin/requirements', short: 'Reqs' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', short: 'Post' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', short: 'Add' },
-  { icon: Scales, label: 'Auctions', path: '/admin/auctions', short: 'Auctions' },
   { icon: Briefcase, label: 'Careers', path: '/admin/careers', short: 'Jobs' },
   { icon: HardDrive, label: 'Storage', path: '/admin/storage', short: 'Storage' },
-  { icon: MapPin, label: 'Map Mode', path: '/admin/settings', short: 'Map' },
   { icon: Article, label: 'Blog', path: '/admin/blog', short: 'Blog' },
   { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', short: 'Owners' },
 ];
@@ -37,7 +34,6 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const openRequirementsCount = useOpenRequirementsCount();
   const unreviewedApplicationsCount = useUnreviewedApplicationsCount();
-  const { mapOnly } = useSiteSettings();
 
   const isNavActive = (path: string) => {
     if (path === '/admin/properties') {
@@ -100,7 +96,6 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
           const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
           const showCareersBadge =
             item.path === '/admin/careers' && unreviewedApplicationsCount > 0;
-          const showMapDot = item.path === '/admin/settings' && mapOnly;
           return (
             <button
               key={item.path}
@@ -113,9 +108,6 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
             >
               <div className="relative">
                 <Icon size={18} weight={isActive ? 'regular' : 'thin'} />
-                {showMapDot && (
-                  <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-green-400" />
-                )}
               </div>
               <span className="flex flex-1 items-center justify-between gap-2">
                 {item.label}
@@ -242,7 +234,6 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
             const showBadge = item.path === '/admin/requirements' && openRequirementsCount > 0;
             const showCareersBadge =
               item.path === '/admin/careers' && unreviewedApplicationsCount > 0;
-            const showMapDot = item.path === '/admin/settings' && mapOnly;
             return (
               <button
                 key={item.path}
@@ -255,9 +246,6 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
               >
                 <div className="relative">
                   <Icon size={22} weight={isActive ? 'fill' : 'regular'} />
-                  {showMapDot && (
-                    <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-green-400" />
-                  )}
                 </div>
                 {showBadge && (
                   <span className="absolute right-[18%] top-1 min-w-[16px] rounded-full bg-white px-1 text-[8px] font-bold text-black">

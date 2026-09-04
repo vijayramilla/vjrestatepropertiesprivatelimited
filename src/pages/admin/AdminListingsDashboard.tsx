@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
-import { collection, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseProperties, subscribeSupabaseUsers, callDataProxy } from '@/lib/supabaseData';
+import { useSupabaseData, subscribeSupabaseProperties, subscribeSupabaseUsers, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
 import { Phone, MapPin, Globe, Calendar, Clock } from 'lucide-react';
@@ -47,8 +47,10 @@ export default function AdminListingsDashboard() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const supabaseMode = useSupabaseData();
+
   useEffect(() => {
-    if (useSupabaseData()) {
+    if (supabaseMode) {
       const unsub = subscribeSupabaseProperties((docs) => {
         const mapped = docs
           .map(({ id, data }) => ({ id, ...data }) as ListingProperty)
@@ -70,7 +72,7 @@ export default function AdminListingsDashboard() {
   }, []);
 
   useEffect(() => {
-    if (useSupabaseData()) {
+    if (supabaseMode) {
       const unsub = subscribeSupabaseUsers((rows) => {
         const map = new Map<string, ListingUser>();
         rows.forEach((u) => map.set(u.uid, u as ListingUser));
@@ -97,7 +99,7 @@ export default function AdminListingsDashboard() {
 
   const handleSuspend = async (userId: string, suspended: boolean) => {
     try {
-      if (useSupabaseData()) {
+      if (supabaseMode) {
         await callDataProxy('user.suspend', { uid: userId, suspended });
       } else {
         await updateDoc(doc(db, 'users', userId), { suspended });
@@ -110,11 +112,7 @@ export default function AdminListingsDashboard() {
   const handleDelete = async (propertyId: string, title: string) => {
     if (!window.confirm(`Delete "${title}" permanently? This cannot be undone.`)) return;
     try {
-      if (useSupabaseData()) {
-        await callDataProxy('property.delete', { id: propertyId });
-      } else {
-        await deleteDoc(doc(db, 'properties', propertyId));
-      }
+      await deletePropertyAcrossStores(propertyId);
     } catch (err) {
       console.error('Error deleting property:', err);
     }

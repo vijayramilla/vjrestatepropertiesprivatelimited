@@ -12,26 +12,26 @@ const STEPS = [
   {
     icon: ClipboardText,
     step: '01',
-    title: 'Share Your Requirement',
-    desc: 'Tell us what you are looking for — budget, locality, and property type — in two minutes.',
+    title: 'Share your income goal',
+    desc: 'Budget, locality, target monthly rent — tell us what you want the asset to earn, in two minutes.',
   },
   {
     icon: MagnifyingGlass,
     step: '02',
-    title: 'We Match & Verify',
-    desc: 'Our experts shortlist verified properties that fit your needs, with legal checks done.',
+    title: 'We curate & verify',
+    desc: 'We shortlist PG buildings and rental assets that fit your goal, with legal checks done upfront.',
   },
   {
     icon: MapPin,
     step: '03',
-    title: 'Visit & Decide',
-    desc: 'Book site visits at your convenience and compare options side by side.',
+    title: 'Visit with numbers in hand',
+    desc: 'Tour the property with its occupancy, rent roll and running costs on the table.',
   },
   {
     icon: Handshake,
     step: '04',
-    title: 'Deal & Documents',
-    desc: 'We guide you through negotiation, paperwork, and a smooth handover.',
+    title: 'Acquire with support',
+    desc: 'Negotiation, documentation and registration — guided end to end.',
   },
 ];
 
@@ -52,11 +52,11 @@ export default function HomeHowItWorks() {
             <span className="inline-block h-px w-8 bg-[#C9A84C]" />
           </p>
           <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
-            How VJR Estate Works
+            How You Buy Your First Income Asset
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500">
-            A hassle-free journey from your first search to the final handover — guided by
-            Bangalore property experts at every step.
+            A disciplined path from your first conversation to ownership — guided by
+            Bengaluru rental-property specialists at every step.
           </p>
         </motion.div>
 

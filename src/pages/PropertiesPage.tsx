@@ -36,6 +36,7 @@ import {
   rentalRangeLabel,
 } from '@/lib/smartSearch';
 import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
+import { setPageMeta } from '@/lib/siteMeta';
 import { Button } from '@/components/ui/liquid-glass-button';
 import VJRAIButton from '../components/ai/VJRAIButton';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
@@ -209,6 +210,13 @@ export default function PropertiesPage() {
   const listingsRef = useRef<HTMLDivElement>(null);
 
   const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
+
+  useEffect(() => {
+    setPageMeta(
+      'Rental Income Properties for Sale in Bangalore | VJR Estate',
+      'Browse curated PG buildings, residential rental buildings and commercial properties in Bangalore with monthly income data. Rental income specialists for Bangalore.',
+    );
+  }, []);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 767px)');

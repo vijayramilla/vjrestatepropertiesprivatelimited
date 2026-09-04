@@ -3,25 +3,18 @@ import { db } from './firebase';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { useSupabaseData, subscribeSupabaseSettings, callDataProxy } from './supabaseData';
 
-const LS_KEY = 'vjr_mapOnly';
 const LS_KEY_NEXA = 'vjr_nexaEnabled';
 
 export interface SiteSettings {
-  mapOnly: boolean;
   nexaEnabled: boolean;
 }
 
 const DEFAULT_SETTINGS: SiteSettings = {
-  mapOnly: false,
   nexaEnabled: true,
 };
 
 function readLocal(): SiteSettings {
   const settings: SiteSettings = { ...DEFAULT_SETTINGS };
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw !== null) settings.mapOnly = raw === 'true';
-  } catch { /* ignore */ }
   try {
     const raw = localStorage.getItem(LS_KEY_NEXA);
     if (raw !== null) settings.nexaEnabled = raw === 'true';
@@ -31,7 +24,6 @@ function readLocal(): SiteSettings {
 
 function writeLocal(s: Partial<SiteSettings>): void {
   try {
-    if (s.mapOnly !== undefined) localStorage.setItem(LS_KEY, String(s.mapOnly));
     if (s.nexaEnabled !== undefined) localStorage.setItem(LS_KEY_NEXA, String(s.nexaEnabled));
   } catch { /* ignore */ }
 }
@@ -75,7 +67,7 @@ export function subscribeToSettings(onChange: (settings: SiteSettings) => void):
         if (unsubscribed) return;
         if (snap.exists()) {
           const data = snap.data() as Partial<SiteSettings>;
-          const merged = { ...DEFAULT_SETTINGS, ...data };
+          const merged: SiteSettings = { nexaEnabled: data.nexaEnabled ?? DEFAULT_SETTINGS.nexaEnabled };
           writeLocal(merged);
           notify(merged);
         }

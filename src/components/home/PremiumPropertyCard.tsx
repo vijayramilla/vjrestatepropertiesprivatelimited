@@ -58,6 +58,27 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
     !isPlotOrLand && property.monthly_rental && property.monthly_rental !== '—'
       ? property.monthly_rental : null;
 
+  // Yield is always derived from real figures — stored yield when available,
+  // otherwise annualised monthly rent ÷ asking price.
+  const yieldLabel = (() => {
+    if (isPlotOrLand) return null;
+    const stored = property.rental_yield ?? null;
+    if (stored != null && stored > 0 && stored <= 50) {
+      return `${Number(stored.toFixed(1))}%`;
+    }
+    const monthlyNum = Number(property.monthly_rental
+      ? String(property.monthly_rental).replace(/[^\d.]/g, '')
+      : 0);
+    const price = Number(property.price ?? 0);
+    if (monthlyNum > 0 && price > 0) {
+      const computed = (monthlyNum * 12 * 100) / price;
+      if (computed > 0 && computed <= 50) {
+        return `${computed >= 10 ? Math.round(computed) : computed.toFixed(1)}%`;
+      }
+    }
+    return null;
+  })();
+
   const goToDetail = () => {
     showLocationModal(() => navigate(`/properties/${property.id}`));
   };
@@ -93,7 +114,8 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
 
   const detailChips = [
     areaDisplay !== '—' ? { label: 'Area', value: areaDisplay } : null,
-    monthlyRental ? { label: 'Rental', value: monthlyRental } : null,
+    monthlyRental ? { label: 'Monthly Rental Income', value: monthlyRental } : null,
+    yieldLabel ? { label: 'Rental Yield', value: yieldLabel } : null,
     pricePerSqftLabel ? { label: 'Rate', value: pricePerSqftLabel } : null,
     property.status !== 'Ready to Move' ? { label: 'Status', value: property.status } : null,
     property.katha && property.katha !== '—' ? { label: 'Katha', value: property.katha } : null,
@@ -159,6 +181,9 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
                 {saleTitle}
               </h3>
 
+              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400 mb-0.5">
+                Asking Price
+              </p>
               <div className="flex items-baseline gap-1.5 mb-2">
                 <span className="text-base font-bold text-gray-900 tracking-tight">
                   {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}

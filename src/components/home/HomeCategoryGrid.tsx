@@ -25,20 +25,18 @@ const CATEGORIES: Category[] = [
   },
   {
     label: 'Residential',
-    desc: 'Independent rental-yielding buildings / non-PG',
+    desc: 'Independent rental-yielding homes & buildings',
     icon: House,
     to: '/properties?type=Residential Rental Income',
     gradient: 'from-[#1E3852] to-[#2C5282]',
   },
   {
     label: 'Commercial',
-    desc: 'Hospitals, malls & commercial spaces',
+    desc: 'Retail, office & hospital income assets',
     icon: Warehouse,
     to: '/properties?type=Commercial Properties',
     gradient: 'from-[#14324B] to-[#0F4C3A]',
   },
-
-
 ];
 
 export default function HomeCategoryGrid() {
@@ -52,20 +50,24 @@ export default function HomeCategoryGrid() {
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="mb-6 flex items-end justify-between gap-4"
         >
-          <div>
+          <div className="max-w-2xl">
             <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
               <span className="inline-block h-px w-8 bg-[#C9A84C]" />
-              Explore
+              The Asset Classes We Curate
             </p>
             <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
-              Find Your Property Type
+              Three ways to own rental income
             </h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Every listing is a working income asset — selected for its tenants, its
+              location, and the yield it can carry.
+            </p>
           </div>
           <Link
             to="/properties"
             className="hidden shrink-0 items-center gap-1 border-b border-black pb-0.5 text-[11px] font-medium uppercase tracking-[0.14em] text-black transition hover:text-[#C9A84C] hover:border-[#C9A84C] sm:inline-flex"
           >
-            View all properties
+            Explore all listings
           </Link>
         </motion.div>
 

@@ -24,9 +24,16 @@ export default function HomePropertyGrid() {
 
   const navigate = useNavigate();
 
+  const isPg = (p: HomeListingDoc) => /\bpg\b/i.test(String(p.type ?? ''));
+
+  // This section sells PG buildings specifically. Prefer PG-tagged rows and
+  // fall back to the other rental classes only when the PG catalog is empty.
+  const pgPool = properties.filter(isPg);
+  const pool = pgPool.length > 0 ? pgPool : properties;
+
   const filtered = activeArea === 'All'
-    ? properties.slice(0, 10)
-    : properties.filter((p) => {
+    ? pool.slice(0, 10)
+    : pool.filter((p) => {
         const loc = (p.location + ' ' + (p.area || '')).toLowerCase();
         return loc.includes(activeArea.toLowerCase());
       }).slice(0, 10);
@@ -52,11 +59,15 @@ export default function HomePropertyGrid() {
           <div>
             <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
               <span className="inline-block h-px w-8 bg-[#C9A84C]" />
-              Curated For You
+              Curated For Investors
             </p>
             <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
-              Hot Selling Rental Income Properties In Bangalore
+              Hot Selling PG Buildings
             </h2>
+            <p className="mt-2 max-w-xl text-sm text-gray-500">
+              The income-generating PG buildings buyers across Bangalore are asking
+              for right now — ready to own.
+            </p>
           </div>
           <div className="hidden items-center gap-2 sm:flex">
             <button

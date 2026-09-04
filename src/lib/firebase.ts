@@ -3,7 +3,6 @@ import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics';
 import { getAuth, GoogleAuthProvider, type Auth } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getDatabase, type Database } from 'firebase/database';
-import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import { getFunctions, type Functions } from 'firebase/functions';
 
 const firebaseConfig = {
@@ -38,7 +37,6 @@ export const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(
 export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 export const rtdb: Database = getDatabase(app);
-export const storage: FirebaseStorage = getStorage(app);
 export const functions: Functions = getFunctions(app, 'asia-south1');
 
 export const googleProvider = new GoogleAuthProvider();

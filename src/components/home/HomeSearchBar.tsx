@@ -6,8 +6,8 @@ import { BANGALORE_AREAS } from '@/data/properties';
 
 const TYPE_CATEGORIES = [
   { label: 'PG Buildings', values: ['PG Buildings'] },
-  { label: 'Residential', values: ['Residential Rental Income'] },
-  { label: 'Commercial', values: ['Commercial Properties'] },
+  { label: 'Residential Rental', values: ['Residential Rental Income'] },
+  { label: 'Commercial Income', values: ['Commercial Properties'] },
 ];
 
 const BUY_BUDGET_LABELS = [
@@ -19,21 +19,22 @@ const BUY_BUDGET_LABELS = [
   'Above ₹5Cr',
 ];
 
-const TABS = ['Buy', 'Commercial', 'PG Buildings'];
+const TABS = ['PG Buildings', 'Residential Rental', 'Commercial Income'];
 
 const TAB_TYPE_MAP: Record<string, string> = {
-  Commercial: 'Commercial',
   'PG Buildings': 'PG Buildings',
+  'Residential Rental': 'Residential Rental',
+  'Commercial Income': 'Commercial Income',
 };
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
 export default function HomeSearchBar() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('Buy');
+  const [activeTab, setActiveTab] = useState('PG Buildings');
   const [location, setLocation] = useState('');
   const [showLocations, setShowLocations] = useState(false);
-  const [selectedType, setSelectedType] = useState('');
+  const [selectedType, setSelectedType] = useState('PG Buildings');
   const [selectedBudget, setSelectedBudget] = useState('');
 
   const filteredAreas = useMemo(
@@ -107,7 +108,7 @@ export default function HomeSearchBar() {
             />
             <input
               type="text"
-              placeholder='Search by "Locality"'
+              placeholder="Search by locality — Koramangala, Whitefield..."
               value={location}
               onChange={(e) => {
                 setLocation(e.target.value);

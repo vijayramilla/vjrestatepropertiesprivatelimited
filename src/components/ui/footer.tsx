@@ -1,149 +1,134 @@
 import { Link } from 'react-router-dom';
-import { Instagram, Linkedin, MessageCircle, Youtube } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { ArrowUpRight, Instagram, Linkedin, Mail, MapPin, MessageCircle, Phone, Youtube } from 'lucide-react';
 import { siteContact } from '@/data/siteContact';
 
+const SERIF = "'Instrument Serif', Georgia, serif";
 
-const footerConfig = {
-  description:
-    'VJR Estate is your rental income expert in Bangalore — curating PG buildings, independent rental-yielding buildings, and commercial income properties with disciplined guidance.',
-  contact: siteContact,
-  socials: [
-    { icon: MessageCircle, href: siteContact.whatsappUrl, label: 'WhatsApp' },
-    { icon: Instagram, href: siteContact.social.instagram, label: 'Instagram' },
-    { icon: Linkedin, href: siteContact.social.linkedin, label: 'LinkedIn' },
-    { icon: Youtube, href: siteContact.social.youtube, label: 'YouTube' },
-  ],
-  columns: [
-    {
-      title: 'Company',
-      links: [
-        { label: 'Home', to: '/' },
-        { label: 'About Us', to: '/about' },
-        { label: 'Blog', to: '/blog' },
-        { label: 'Contact', to: '/contact' },
-        { label: 'Submit Requirement', to: '/submit-requirement' },
-        { label: 'Requirements', to: '/requirements' },
-        { label: 'Careers', to: '/careers' },
-        { label: 'Our Team', to: '/about' },
-      ],
-    },
-    {
-      title: 'Properties',
-      links: [
-        { label: 'All Properties', to: '/properties' },
-        { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
-        { label: 'Residential', to: '/properties?type=Residential%20Rental%20Income' },
-        { label: 'Commercial', to: '/properties?type=Commercial%20Properties' },
+const columns = [
+  {
+    title: 'Properties',
+    links: [
+      { label: 'All Properties', to: '/properties' },
+      { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
+      { label: 'Residential Rentals', to: '/properties?type=Residential%20Rental%20Income' },
+      { label: 'Commercial Income', to: '/properties?type=Commercial%20Properties' },
+      { label: 'Your Shortlist', to: '/shortlist' },
+    ],
+  },
+  {
+    title: 'Company',
+    links: [
+      { label: 'About VJR Estate', to: '/about' },
+      { label: 'Submit Requirement', to: '/submit-requirement' },
+      { label: 'Active Requirements', to: '/requirements' },
+      { label: 'Contact Us', to: '/contact' },
+      { label: 'Careers', to: '/careers' },
+      { label: 'Blog', to: '/blog' },
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      { label: 'EMI Calculator', to: '/emi-calculator' },
+      { label: 'Browse Bangalore Areas', to: '/properties' },
+      { label: 'Investment Guide', to: '/about' },
+    ],
+  },
+];
 
-      ],
-    },
-    {
-      title: 'Explore',
-      links: [
-        { label: 'Shortlist', to: '/shortlist' },
-        { label: 'Latest Listings', to: '/properties' },
-        { label: 'Investment Guide', to: '/about' },
-
-        { label: 'Bangalore Areas', to: '/properties' },
-        // { label: 'AR Video', to: '/ar-video' },
-      ],
-    },
-    {
-      title: 'Tools & Resources',
-      links: [
-
-        { label: 'EMI Calculator', to: '/emi-calculator' },
-      ],
-    },
-    {
-      title: 'Support',
-      links: [
-        { label: 'WhatsApp Enquiry', href: siteContact.whatsappUrl },
-        { label: 'Call Us', href: `tel:${siteContact.phoneTel}` },
-        { label: 'Email Us', href: `mailto:${siteContact.email}` },
-        { label: 'Office Location', href: siteContact.mapsUrl },
-      ],
-    },
-    {
-      title: 'Legal',
-      links: [
-        { label: 'Privacy Policy', href: siteContact.privacyUrl },
-        { label: 'Terms & Conditions', href: siteContact.termsUrl },
-        { label: 'CIN Disclosure', to: '/about' },
-      ],
-    },
-  ],
-  quickLinks: [
-    { label: 'Blog', to: '/blog' },
-    { label: 'Browse Properties', to: '/properties' },
-    { label: 'Submit Requirement', to: '/submit-requirement' },
-    { label: 'Requirements', to: '/requirements' },
-    { label: 'About VJR Estate', to: '/about' },
-    { label: 'Careers', to: '/careers' },
-    { label: 'Contact Team', to: '/contact' },
-    { label: 'Your Shortlist', to: '/shortlist' },
-  ],
-};
-
-type FooterLink = { label: string; to?: string; href?: string };
-
-function FooterLinkItem({ link }: { link: FooterLink }) {
-  const className =
-    'text-[0.85rem] text-gray-600 hover:text-black transition-colors';
-
-  if (link.href) {
-    return (
-      <a
-        href={link.href}
-        target={link.href.startsWith('http') ? '_blank' : undefined}
-        rel={link.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-        className={className}
-      >
-        {link.label}
-      </a>
-    );
-  }
-
-  return (
-    <Link to={link.to ?? '/'} className={className}>
-      {link.label}
-    </Link>
-  );
-}
+const socials = [
+  { icon: MessageCircle, href: siteContact.whatsappUrl, label: 'WhatsApp' },
+  { icon: Instagram, href: siteContact.social.instagram, label: 'Instagram' },
+  { icon: Linkedin, href: siteContact.social.linkedin, label: 'LinkedIn' },
+  { icon: Youtube, href: siteContact.social.youtube, label: 'YouTube' },
+];
 
 export default function Footer() {
-  const { contact } = footerConfig;
+  const c = siteContact;
 
   return (
-    <footer className="w-full bg-white text-black px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16 py-14 border-t border-gray-200">
-      <div className="w-full">
-        <div className="mb-12">
-          <Link to="/" className="inline-block mb-6">
-            <span className="font-serif text-[28px] text-black tracking-[-0.02em]">VJR Estate</span>
-          </Link>
-          <p className="text-sm text-gray-600 leading-relaxed max-w-2xl">{footerConfig.description}</p>
-          <a
-            href={contact.mapsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-4 block text-sm text-gray-500 hover:text-black transition-colors"
-          >
-            {contact.address}
-          </a>
-          <p className="mt-1 text-sm text-gray-400">{contact.hoursLabel}</p>
-        </div>
+    <footer className="w-full bg-[#0A1628] text-white">
+      <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 md:px-12 lg:px-16">
+        {/* Top: brand + navigation */}
+        <div className="grid grid-cols-1 gap-12 border-b border-white/10 py-14 md:grid-cols-12 md:gap-8 lg:py-16">
+          {/* Brand */}
+          <div className="md:col-span-5">
+            <Link to="/" className="inline-block">
+              <span className="font-display text-[26px] font-semibold tracking-tight text-white">
+                VJR Estate
+              </span>
+            </Link>
+            <p className="mt-2 text-[13px] uppercase tracking-[0.24em] text-[#C9A84C]">
+              Your Rental Income Expert · Bengaluru
+            </p>
+            <p className="mt-5 max-w-md text-sm font-light leading-relaxed text-white/55">
+              VJR Estate specialises in PG buildings and rental-yielding real estate across
+              Bangalore — income-first assets, curated for you, and supported
+              through acquisition and beyond.
+            </p>
 
-        <div className="flex flex-col gap-10 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
-          <div className="grid flex-1 grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6">
-            {footerConfig.columns.map((col) => (
+            <div className="mt-6 space-y-2.5 text-[13px] text-white/60">
+              <a
+                href={c.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-2 transition-colors hover:text-white"
+              >
+                <MapPin size={14} className="mt-0.5 shrink-0 text-[#C9A84C]" />
+                {c.address}
+              </a>
+              <a
+                href={`tel:${c.phoneTel}`}
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
+                <Phone size={14} className="shrink-0 text-[#C9A84C]" />
+                {c.phoneDisplay} · {c.hoursLabel}
+              </a>
+              <a
+                href={`mailto:${c.email}`}
+                className="flex items-center gap-2 transition-colors hover:text-white"
+              >
+                <Mail size={14} className="shrink-0 text-[#C9A84C]" />
+                {c.email}
+              </a>
+            </div>
+
+            <div className="mt-7 flex items-center gap-3">
+              {socials.map(({ icon: Icon, href, label }) => (
+                <a
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition-all duration-200 hover:border-[#C9A84C] hover:bg-[#C9A84C] hover:text-[#0A1628]"
+                >
+                  <Icon size={15} />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          {/* Link columns */}
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-5">
+            {columns.map((col) => (
               <div key={col.title}>
-                <h3 className="text-sm font-medium mb-3 text-black">{col.title}</h3>
-                <ul className="space-y-2">
+                <h3 className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/40">
+                  {col.title}
+                </h3>
+                <ul className="mt-4 space-y-2.5">
                   {col.links.map((link) => (
                     <li key={link.label}>
-                      <FooterLinkItem link={link} />
+                      <Link
+                        to={link.to}
+                        className="group inline-flex items-center gap-1 text-[13.5px] text-white/65 transition-colors hover:text-white"
+                      >
+                        {link.label}
+                        <ArrowUpRight
+                          size={11}
+                          className="text-[#C9A84C] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+                        />
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -151,91 +136,69 @@ export default function Footer() {
             ))}
           </div>
 
-          <div className="lg:w-1/4">
-            <Card className="shadow-none border-none bg-transparent text-black mb-4">
-              <CardContent className="p-0 space-y-3">
-                <p className="text-sm font-medium text-black">For Rental Income Investors</p>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="w-full border-gray-300 bg-gray-100 text-gray-700 hover:bg-black hover:text-white hover:border-black"
+          {/* Contact CTA */}
+          <div className="md:col-span-2">
+            <div className="flex h-full flex-col justify-between gap-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/40">
+                  Start Investing
+                </p>
+                <p
+                  className="mt-2 text-[22px] leading-tight text-white"
+                  style={{ fontFamily: SERIF }}
                 >
-                  <Link to="/contact">Get In Touch</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-none border-none bg-transparent text-black mb-4">
-              <CardContent className="p-0">
-                <p className="text-sm font-medium mb-3 text-black">Quick Links</p>
-                <div className="space-y-2">
-                  {footerConfig.quickLinks.map((link) => (
-                    <Link
-                      key={link.label}
-                      to={link.to}
-                      className="block text-sm text-gray-600 hover:text-black transition-colors"
-                    >
-                      {link.label}
-                    </Link>
-                  ))}
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-gray-200">
-                  <p className="text-sm font-medium mb-2 text-black">Follow Us</p>
-                  <div className="flex gap-3">
-                    {footerConfig.socials.map(({ icon: Icon, href, label }) => (
-                      <a
-                        key={label}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={label}
-                        className="text-gray-500 hover:text-black transition-colors"
-                      >
-                        <Icon className="w-4 h-4" />
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="mt-4 space-y-1 text-sm text-gray-500">
-                  <a href={`mailto:${contact.email}`} className="block hover:text-black transition-colors">
-                    {contact.email}
-                  </a>
-                  <a href={`tel:${contact.phoneTel}`} className="block hover:text-black transition-colors">
-                    {contact.phoneDisplay}
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
+                  Find your next rental income asset.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <a
+                  href={c.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[#0A1628] transition-all hover:bg-[#E4C877]"
+                >
+                  <MessageCircle size={14} />
+                  WhatsApp Us
+                </a>
+                <Link
+                  to="/submit-requirement"
+                  className="flex w-full items-center justify-center gap-1 rounded-xl border border-white/20 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition-all hover:border-[#C9A84C] hover:text-[#C9A84C]"
+                >
+                  Share Requirement
+                  <ArrowUpRight size={13} />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-12 pt-6 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500 gap-4 border-t border-gray-200">
-          <p>© {new Date().getFullYear()} VJR Estate Properties Private Limited. All rights reserved.</p>
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-            <span className="uppercase tracking-[0.1em]">CIN: U68100KA2025PTC209772</span>
-            <div className="flex gap-6">
-              <a
-                href={contact.privacyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-black transition-colors"
-              >
-                Privacy
-              </a>
-              <a
-                href={contact.termsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-black transition-colors"
-              >
-                Terms
-              </a>
-              <Link to="/properties" className="hover:text-black transition-colors">
-                Properties
-              </Link>
-            </div>
+        {/* Bottom bar */}
+        <div className="flex flex-col gap-4 py-7 md:flex-row md:items-center md:justify-between">
+          <p className="text-[11.5px] text-white/35">
+            © {new Date().getFullYear()} VJR Estate Properties Private Limited. All rights reserved.
+            <span className="mx-2 hidden text-white/15 sm:inline">|</span>
+            <span className="block sm:inline">CIN: U68100KA2025PTC209772</span>
+          </p>
+          <div className="flex items-center gap-5 text-[11.5px]">
+            <a
+              href={c.privacyUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/45 transition-colors hover:text-[#C9A84C]"
+            >
+              Privacy Policy
+            </a>
+            <a
+              href={c.termsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-white/45 transition-colors hover:text-[#C9A84C]"
+            >
+              Terms &amp; Conditions
+            </a>
+            <Link to="/properties" className="text-white/45 transition-colors hover:text-[#C9A84C]">
+              Properties
+            </Link>
           </div>
         </div>
       </div>

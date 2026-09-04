@@ -297,8 +297,21 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'property.create': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const isAdminCall = isAdmin(auth);
-      if (!isAdminCall && params.uid !== auth.uid) throw new Error('Forbidden');
-      const { uid, ...raw } = params;
+      const ownerUid = String(params.uid ?? '');
+      if (!isAdminCall && ownerUid !== auth.uid) throw new Error('Forbidden');
+      // Persist ownership so the listing shows under the submitter's
+      // account (My Listings) and in the admin Listings dashboard — this
+      // mirrors the Firestore docs these rows replaced.
+      if (ownerUid) {
+        params.uid = ownerUid;
+        params.user_email = params.user_email || auth.email;
+      } else {
+        // VJR-official listing (admin-created) — never carry a uid.
+        delete params.uid;
+        delete params.user_email;
+        delete params.user_display_name;
+      }
+      const raw = { ...params };
       let finalCode = (params.property_code ?? '').trim() || await nextPropertyCode();
       const propId = randomUUID();
       let lastError: any = null;
@@ -345,6 +358,19 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'property.delete': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id } = params;
+      const row = await getPropertyRow(id);
+      if (!row) throw new Error('Property not found');
+      // Clean up the listing's storage objects first (best-effort) so a
+      // property never leaves orphaned images behind.
+      const imageUrls = Array.isArray(row.images) ? (row.images as string[]) : [];
+      for (const url of imageUrls) {
+        try {
+          const u = new URL(String(url));
+          const match = u.pathname.match(/\/storage\/v1\/object\/public\/property-images\/(.+)$/);
+          if (!match) continue;
+          await supabaseAdmin.storage.from('property-images').remove([decodeURIComponent(match[1])]);
+        } catch { /* individual image cleanup is best-effort */ }
+      }
       const { error } = await supabaseAdmin.from('properties').delete().eq('id', id);
       if (error) throw new Error(error.message);
       return { id };
@@ -682,9 +708,8 @@ async function executeAction(action: string, params: any): Promise<any> {
     // ── Site settings ───────────────────────────────────────────────────
     case 'settings.update': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { mapOnly, nexaEnabled } = params;
+      const { nexaEnabled } = params;
       const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-      if (mapOnly !== undefined) updates.map_only = mapOnly;
       if (nexaEnabled !== undefined) updates.nexa_enabled = nexaEnabled;
       const { error } = await supabaseAdmin
         .from('site_settings')

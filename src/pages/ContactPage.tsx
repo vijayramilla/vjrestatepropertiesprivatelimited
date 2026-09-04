@@ -178,8 +178,8 @@ export default function ContactPage() {
                 className="mb-6 text-base leading-relaxed text-black/55 md:text-lg"
                 style={{ fontFamily: DM_SANS }}
               >
-                We specialise in connecting investors and buyers with verified rental buildings,
-                commercial assets, and income-generating properties across Bengaluru.
+                We specialise in connecting investors and buyers with curated rental
+                buildings, commercial assets, and income-generating properties across Bengaluru.
               </p>
               <p
                 className="text-base leading-relaxed text-black/55 md:text-lg"
