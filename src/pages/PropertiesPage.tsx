@@ -10,13 +10,9 @@ import {
   Clock,
   MapPin,
   TrendingUp,
-  Sparkles,
-  Building2,
-  IndianRupee,
-  Ruler,
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, RENTAL_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS, UNLIMITED_FILTER_MAX } from '../data/properties';
+import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS } from '../data/properties';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import {
   filterProperties,
@@ -29,12 +25,7 @@ import {
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
 import { formatPrice } from '@/lib/formatPrice';
-import {
-  parseSmartQuery,
-  matchesMinArea,
-  priceRangeLabel,
-  rentalRangeLabel,
-} from '@/lib/smartSearch';
+import { matchesMinArea } from '@/lib/smartSearch';
 import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { setPageMeta } from '@/lib/siteMeta';
 import { Button } from '@/components/ui/liquid-glass-button';
@@ -46,7 +37,6 @@ import {
 } from '@/lib/googlePlacesSearch';
 
 type SortOption = 'price_asc' | 'price_desc' | 'rental_desc' | 'newest';
-type BudgetMode = 'price' | 'rental';
 
 type TrendingItem = { label: string };
 
@@ -67,7 +57,6 @@ const TRENDING_SEARCHES: TrendingItem[] = [
 ];
 
 const PRICE_SLIDER_MAX = 100_000_000;
-const RENTAL_SLIDER_MAX = 500_000;
 const TOOLBAR_HEIGHT = 44;
 /** Properties revealed per batch — scroll or "Show More" reveals all of them. */
 const LOAD_MORE_STEP = 20;
@@ -81,22 +70,88 @@ const SORT_LABELS: Record<SortOption, string> = {
 
 const RECENT_SEARCHES_KEY = 'vjr-recent-searches';
 
-const SMART_EXAMPLES = [
-  'PG building in Whitefield under ₹2 Cr',
-  'Commercial property near Electronic City',
-  'Rental income above ₹50K',
-  '1500 sq ft in HSR Layout',
-];
-
 function budgetToPriceRange(budget: string): [number, number] {
   const preset = PRICE_BUDGET_PRESETS.find((p) => p.label === budget);
   return preset?.range ?? [0, PRICE_SLIDER_MAX];
 }
 
-function formatRental(value: number): string {
-  if (value >= 100_000) return `₹${(value / 100_000).toFixed(value % 100_000 === 0 ? 0 : 1)}L`;
-  if (value >= 1_000) return `₹${Math.round(value / 1_000)}K`;
-  return `₹${value.toLocaleString('en-IN')}`;
+function formatSliderPrice(value: number): string {
+  if (value >= PRICE_SLIDER_MAX) return '10 Cr+';
+  if (value === 0) return '₹0';
+  return formatPrice(value);
+}
+
+function BudgetRangeSlider({
+  min,
+  max,
+  step,
+  value,
+  onChange,
+  format,
+  reset,
+}: {
+  min: number;
+  max: number;
+  step: number;
+  value: [number, number];
+  onChange: (value: [number, number]) => void;
+  format: (v: number) => string;
+  reset: () => void;
+}) {
+  const lo = Math.max(min, Math.min(value[0], max));
+  const hi = Math.min(max, Math.max(value[1], min));
+  const pct = (v: number) => ((v - min) / (max - min)) * 100;
+  const gap = step * 2;
+  const isDefault = lo === min && hi === max;
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="inline-flex items-center rounded-full bg-[#0A1628] px-3.5 py-1.5 text-[11px] font-semibold text-white">
+          {format(lo)} – {format(hi)}
+        </span>
+        {!isDefault && (
+          <button
+            type="button"
+            onClick={reset}
+            className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400 transition hover:text-black"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+      <div className="prop-range">
+        <div className="prop-range-track" />
+        <div
+          className="prop-range-fill"
+          style={{ left: `${pct(lo)}%`, right: `${100 - pct(hi)}%` }}
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={lo}
+          aria-label="Minimum budget"
+          onChange={(e) => onChange([Math.min(Number(e.target.value), hi - gap), hi])}
+          className="prop-range-input"
+        />
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={hi}
+          aria-label="Maximum budget"
+          onChange={(e) => onChange([lo, Math.max(Number(e.target.value), lo + gap)])}
+          className="prop-range-input"
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-[10px] font-medium text-gray-400">
+        <span>{format(min)}</span>
+        <span>{format(max)}</span>
+      </div>
+    </div>
+  );
 }
 
 function highlightMatch(text: string, query: string): ReactNode {
@@ -186,8 +241,6 @@ export default function PropertiesPage() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, PRICE_SLIDER_MAX]);
-  const [rentalRange, setRentalRange] = useState<[number, number]>([0, UNLIMITED_FILTER_MAX]);
-  const [budgetMode, setBudgetMode] = useState<BudgetMode>('price');
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [visibleCount, setVisibleCount] = useState(LOAD_MORE_STEP);
   const [searchQuery, setSearchQuery] = useState('');
@@ -286,14 +339,13 @@ export default function PropertiesPage() {
     const ro = new ResizeObserver(updateHeight);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [searchOpen, sortOpen, selectedTypes.length, searchQuery, priceRange, rentalRange, minAreaSqft]);
+  }, [searchOpen, sortOpen, selectedTypes.length, searchQuery, priceRange, minAreaSqft]);
 
   const filteredProperties = useMemo(() => {
     let filtered = filterProperties(properties, {
       types: selectedTypes,
       localities: selectedLocations,
       priceRange,
-      rentalRange,
     });
     if (minAreaSqft) {
       filtered = filtered.filter((p) => matchesMinArea(p, minAreaSqft));
@@ -330,7 +382,7 @@ export default function PropertiesPage() {
         return filtered;
     }
     return sorted;
-  }, [properties, selectedTypes, selectedLocations, priceRange, rentalRange, sortBy, minAreaSqft]);
+  }, [properties, selectedTypes, selectedLocations, priceRange, sortBy, minAreaSqft]);
 
   const showCategoryHeaders = selectedTypes.length !== 1;
 
@@ -349,7 +401,7 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     setVisibleCount(LOAD_MORE_STEP);
-  }, [selectedTypes, selectedLocations, priceRange, rentalRange, sortBy, minAreaSqft]);
+  }, [selectedTypes, selectedLocations, priceRange, sortBy, minAreaSqft]);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -368,7 +420,6 @@ export default function PropertiesPage() {
   const clearAllFilters = () => {
     setSelectedTypes([]);
     setPriceRange([0, PRICE_SLIDER_MAX]);
-    setRentalRange([0, UNLIMITED_FILTER_MAX]);
     setMinAreaSqft(null);
   };
 
@@ -413,13 +464,6 @@ export default function PropertiesPage() {
   }, [searchQuery, properties]);
   const isTypingLocality = searchQuery.trim().length > 0;
 
-  // Live natural-language parse of the search box — detects locality, type,
-  // budget, rental income, and min area, with a real match count.
-  const smart = useMemo(
-    () => parseSmartQuery(searchQuery, properties),
-    [searchQuery, properties],
-  );
-
   // Google Places suggestions — covers every Bangalore locality A–Z, including
   // areas missing from the static list, so no location is ever left out.
   useEffect(() => {
@@ -445,23 +489,14 @@ export default function PropertiesPage() {
     if (googlePlaces.length === 0) return [];
     const known = new Set<string>();
     localitySuggestions.forEach((l) => known.add(l.toLowerCase()));
-    smart.localities.forEach((l) => known.add(l.toLowerCase()));
     return googlePlaces.filter((g) => !known.has(g.locality.toLowerCase()));
-  }, [googlePlaces, localitySuggestions, smart.localities]);
-
-  const budgetPresets = budgetMode === 'price' ? PRICE_BUDGET_PRESETS : RENTAL_BUDGET_PRESETS;
-  const activeBudgetRange = budgetMode === 'price' ? priceRange : rentalRange;
-  const setActiveBudgetRange = budgetMode === 'price' ? setPriceRange : setRentalRange;
+  }, [googlePlaces, localitySuggestions]);
 
   const isDefaultPrice = priceRange[0] === 0 && priceRange[1] === PRICE_SLIDER_MAX;
-  const isDefaultRental =
-    rentalRange[0] === 0 &&
-    (rentalRange[1] === UNLIMITED_FILTER_MAX || rentalRange[1] >= RENTAL_SLIDER_MAX * 2);
 
   const hasActiveFilters =
     selectedTypes.length > 0 ||
     !isDefaultPrice ||
-    !isDefaultRental ||
     minAreaSqft != null;
 
   const hasActiveSearch = selectedLocations.length > 0;
@@ -485,41 +520,6 @@ export default function PropertiesPage() {
     });
   };
 
-  const applySmartSearch = () => {
-    if (!smart.showSmartBlock) return;
-
-    // If the smart parse found a type/budget but no area (e.g. a sub-locality
-    // missing from the static list), pull it from the top Google result.
-    const localities =
-      smart.localities.length > 0 && smart.localities[0]
-        ? smart.localities
-        : googlePlacesToShow[0]
-          ? [googlePlacesToShow[0].locality]
-          : [];
-
-    if (localities.length > 0) {
-      setSelectedLocations((prev) => {
-        const merged = normalizeLocalityList([...prev, ...localities]);
-        if (merged.length > MAX_LOCALITY_SELECTIONS) {
-          setLocalityNotice(`You can select up to ${MAX_LOCALITY_SELECTIONS} localities`);
-          window.setTimeout(() => setLocalityNotice(''), 2800);
-        }
-        return merged.slice(0, MAX_LOCALITY_SELECTIONS);
-      });
-      // Save each parsed locality individually so the Recent Searches list
-      // stays valid (re-applying a combined label would become a bogus chip).
-      localities.forEach((loc) => saveRecentSearch(loc));
-    }
-    if (smart.types.length > 0) setSelectedTypes(smart.types);
-    if (smart.priceRange) setPriceRange(smart.priceRange);
-    if (smart.rentalRange) setRentalRange(smart.rentalRange);
-    if (smart.minAreaSqft) setMinAreaSqft(smart.minAreaSqft);
-    setSearchQuery('');
-    setSearchOpen(false);
-    // Scroll to the freshly filtered results.
-    listingsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   const selectGooglePlace = (suggestion: GooglePlacesSuggestion) => {
     toggleLocation(suggestion.locality);
     saveRecentSearch(suggestion.locality);
@@ -528,11 +528,6 @@ export default function PropertiesPage() {
   };
 
   const handleSearchSubmit = () => {
-    // Natural-language queries (type + budget + area) beat the bare locality flow.
-    if (smart.showSmartBlock) {
-      applySmartSearch();
-      return;
-    }
     const resolved = resolveLocalityForSearch(searchQuery);
     if (resolved) {
       toggleLocation(resolved);
@@ -581,46 +576,16 @@ export default function PropertiesPage() {
       </div>
 
       <div className="prop-filter-section">
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="prop-filter-section-title mb-0">Budget</h3>
-          <div className="flex rounded-xl border border-gray-200 bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setBudgetMode('price')}
-              className={`min-h-[36px] flex-1 rounded-lg px-4 text-[12px] font-semibold uppercase tracking-wide transition sm:flex-none ${
-                budgetMode === 'price' ? 'bg-[#0A1628] text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              Price
-            </button>
-            <button
-              type="button"
-              onClick={() => setBudgetMode('rental')}
-              className={`min-h-[36px] flex-1 rounded-lg px-4 text-[12px] font-semibold uppercase tracking-wide transition sm:flex-none ${
-                budgetMode === 'rental' ? 'bg-[#0A1628] text-white shadow-sm' : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              Rental
-            </button>
-          </div>
-        </div>
-
-        <div className="prop-budget-grid">
-          {budgetPresets.map((preset) => {
-            const isActive =
-              activeBudgetRange[0] === preset.range[0] && activeBudgetRange[1] === preset.range[1];
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => setActiveBudgetRange(preset.range)}
-                className={`prop-budget-chip ${isActive ? 'prop-budget-chip-active' : 'prop-budget-chip-idle'}`}
-              >
-                {preset.label}
-              </button>
-            );
-          })}
-        </div>
+        <h3 className="prop-filter-section-title mb-4">Budget</h3>
+        <BudgetRangeSlider
+          min={0}
+          max={PRICE_SLIDER_MAX}
+          step={1_000_000}
+          value={priceRange}
+          onChange={setPriceRange}
+          format={formatSliderPrice}
+          reset={() => setPriceRange([0, PRICE_SLIDER_MAX])}
+        />
       </div>
     </div>
   );
@@ -636,15 +601,8 @@ export default function PropertiesPage() {
   if (!isDefaultPrice) {
     activeFilterChips.push({
       key: 'price',
-      label: `${formatPrice(priceRange[0])} – ${formatPrice(priceRange[1])}`,
+      label: `${formatSliderPrice(priceRange[0])} – ${formatSliderPrice(priceRange[1])}`,
       onRemove: () => setPriceRange([0, PRICE_SLIDER_MAX]),
-    });
-  }
-  if (!isDefaultRental) {
-    activeFilterChips.push({
-      key: 'rental',
-      label: `Rental ${formatRental(rentalRange[0])} – ${formatRental(rentalRange[1])}`,
-      onRemove: () => setRentalRange([0, UNLIMITED_FILTER_MAX]),
     });
   }
   if (minAreaSqft) {
@@ -701,11 +659,11 @@ export default function PropertiesPage() {
   );
 
   return (
-    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-14 md:pt-16">
+    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-12 md:pt-14">
       <div
         ref={toolbarRef}
         className={`fixed inset-x-0 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg transition-all duration-300 ${
-          navbarHidden ? 'top-0' : 'top-14 md:top-16'
+          navbarHidden ? 'top-0' : 'top-12 md:top-14'
         }`}
       >
         <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:px-12 xl:px-16">
@@ -893,68 +851,9 @@ export default function PropertiesPage() {
                 <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4">
                 {isTypingLocality ? (
                   <div>
-                    {smart.showSmartBlock ? (
-                      <div className="mb-4 rounded-2xl border border-[#C9A84C]/40 bg-gradient-to-br from-[#0A1628]/[0.04] to-[#C9A84C]/10 p-3.5">
-                        <p className="mb-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0A1628]">
-                          <Sparkles size={13} className="text-[#C9A84C]" />
-                          Smart Match
-                          <span className="ml-auto font-medium normal-case tracking-normal text-[#C9A84C]">
-                            {smart.matchCount} {smart.matchCount === 1 ? 'property' : 'properties'} found
-                          </span>
-                        </p>
-                        <div className="mb-3 flex flex-wrap gap-1.5">
-                          {smart.localities.map((loc) => (
-                            <span
-                              key={`loc-${loc}`}
-                              className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]"
-                            >
-                              <MapPin size={11} className="text-[#C9A84C]" />
-                              {loc}
-                            </span>
-                          ))}
-                          {smart.types.map((type) => (
-                            <span
-                              key={`type-${type}`}
-                              className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]"
-                            >
-                              <Building2 size={11} className="text-[#C9A84C]" />
-                              {type}
-                            </span>
-                          ))}
-                          {smart.priceRange && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
-                              <IndianRupee size={11} className="text-[#C9A84C]" />
-                              {priceRangeLabel(smart.priceRange)}
-                            </span>
-                          )}
-                          {smart.rentalRange && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
-                              <TrendingUp size={11} className="text-[#C9A84C]" />
-                              {rentalRangeLabel(smart.rentalRange)}
-                            </span>
-                          )}
-                          {smart.minAreaSqft && (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-[#0A1628]/10 bg-white px-2.5 py-1 text-[11px] font-semibold text-[#0A1628]">
-                              <Ruler size={11} className="text-[#C9A84C]" />
-                              {smart.minAreaSqft.toLocaleString('en-IN')}+ sq.ft
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={applySmartSearch}
-                          className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0A1628] px-4 py-2.5 text-[13px] font-bold text-white transition hover:bg-[#C9A84C] hover:text-[#0A1628]"
-                        >
-                          <Search size={14} />
-                          {smart.matchCount > 0
-                            ? `Show ${smart.matchCount} matching ${smart.matchCount === 1 ? 'property' : 'properties'}`
-                            : 'Apply filters'}
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                          <span>Locations</span>
+                    <>
+                      <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                        <span>Locations</span>
                           {localitySuggestions.length > 0 && (
                             <span className="normal-case tracking-normal text-gray-400">
                               {localitySuggestions.length} match{localitySuggestions.length !== 1 ? 'es' : ''}
@@ -992,7 +891,6 @@ export default function PropertiesPage() {
                           </p>
                         )}
                       </>
-                    )}
 
                     {googlePlacesToShow.length > 0 && (
                       <div className="mt-3 border-t border-gray-100 pt-3">
@@ -1059,29 +957,6 @@ export default function PropertiesPage() {
                       </div>
                     </div>
 
-                    <div className="mb-4">
-                      <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        <Sparkles size={12} className="text-[#C9A84C]" />
-                        Try a Smart Search
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {SMART_EXAMPLES.map((ex) => (
-                          <button
-                            key={ex}
-                            type="button"
-                            onClick={() => {
-                              setSearchQuery(ex);
-                              setSearchOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[#C9A84C]/50 bg-[#C9A84C]/5 px-3 py-2 text-[12px] font-medium text-[#0A1628] transition hover:border-[#C9A84C] hover:bg-[#C9A84C]/15 active:scale-[0.97]"
-                          >
-                            <Sparkles size={11} className="text-[#C9A84C]" />
-                            {ex}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
                     {recentSearches.length > 0 && (
                       <div>
                         <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
@@ -1115,20 +990,15 @@ export default function PropertiesPage() {
                       </div>
                     )}
 
-                    <p className="mt-4 text-center text-[12px] text-gray-400">
-                      Type naturally — e.g. <strong className="font-semibold text-gray-600">&ldquo;PG in Whitefield under ₹2 Cr&rdquo;</strong> — and filters apply automatically.
-                    </p>
                   </>
                 )}
                 </div>
 
-                {!smart.showSmartBlock && (
-                  <div className="shrink-0 border-t border-gray-100 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
-                    <button type="button" onClick={handleSearchSubmit} className="prop-apply-btn">
-                      Apply Search
-                    </button>
-                  </div>
-                )}
+                <div className="shrink-0 border-t border-gray-100 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+                  <button type="button" onClick={handleSearchSubmit} className="prop-apply-btn">
+                    Apply Search
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1191,7 +1061,7 @@ export default function PropertiesPage() {
       {/* Listings */}
       <div ref={listingsRef} className="w-full scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:px-12 xl:px-16">
         <div className="flex gap-6 lg:items-start">
-          <aside className="hidden lg:block w-72 shrink-0 sticky top-24 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <aside className="hidden lg:block w-72 shrink-0 sticky top-24 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
             <p className="properties-toolbar-heading mb-4 text-sm font-medium text-black">Filters</p>
             {filtersPanelContent}
           </aside>

@@ -161,25 +161,10 @@ function formatKathaValue(katha?: string): string {
   return value;
 }
 
+// Income properties (PG / residential / commercial) show their key numbers in
+// the Property Details list below, so the at-a-glance strip is reserved for
+// plots and land where those specs live nowhere else.
 export function getHeroMetrics(property: Property): DetailRow[] {
-  if (property.type === 'PG Building') {
-    return [
-      { label: 'Total Rooms', value: property.total_units > 0 ? String(property.total_units) : '—' },
-      { label: 'Floors', value: property.floor_count > 0 ? String(property.floor_count) : '—' },
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
-      { label: 'Annual Income', value: property.annual_income ?? '—' },
-    ];
-  }
-
-  if (property.type === 'Residential Rental Income' || isCommercialProperty(property.type)) {
-    return [
-      { label: getAreaSizeLabel(property.type), value: property.area_sqft > 0 ? `${property.area_sqft.toLocaleString('en-IN')} sq.ft` : '—' },
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
-      { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'Rental Yield', value: property.rental_yield ? `${property.rental_yield}%` : '—' },
-    ];
-  }
-
   const plotSub = getPlotSubtype(property);
   if (isPlotProperty(property.type) || plotSub === 'Agriculture Land') {
     if (plotSub === 'Agriculture Land') {
@@ -242,7 +227,11 @@ export function getHeroMetrics(property: Property): DetailRow[] {
 
 function getTypeLabel(property: Property): string {
   if (property.type === 'PG Building') return 'PG Building';
-  if (property.commercial_subtype) return property.commercial_subtype;
+  if (property.type === 'Commercial Properties') {
+    const title = property.title?.trim();
+    if (title) return title;
+    if (property.commercial_subtype) return property.commercial_subtype;
+  }
   const plotSub = getPlotSubtype(property);
   if (plotSub) return plotSub;
   return property.type;
@@ -319,7 +308,7 @@ export function PropertyAtAGlance({ property }: { property: Property }) {
   if (metrics.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:grid-cols-4">
+    <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:grid-cols-4">
       {metrics.map((metric, i) => (
         <div
           key={metric.label}

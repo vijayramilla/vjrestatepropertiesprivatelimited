@@ -99,39 +99,40 @@ function replaceSocialMeta(html: string, tags: string): string {
   return injectMeta(cleaned, tags);
 }
 
+const SUPABASE_URL =
+  process.env.SUPABASE_REQ_URL ??
+  process.env.VITE_SUPABASE_REQ_URL ??
+  'https://eimvaxrmiizdlgonhiov.supabase.co';
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.SUPABASE_REQ_SERVICE_KEY ??
+  process.env.VITE_SUPABASE_REQ_SERVICE_KEY ??
+  '';
+
 async function fetchProperty(id: string): Promise<{ title: string; location: string; type: string; price: number; monthlyRental: string; katha: string; image: string } | null> {
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-  if (!projectId) {
-    console.error('og-preview: VITE_FIREBASE_PROJECT_ID not set');
+  if (!SUPABASE_SERVICE_KEY) {
+    console.error('og-preview: Supabase service key not set');
     return null;
   }
 
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/properties/${encodeURIComponent(id)}`;
-  const res = await fetch(url);
+  const url = `${SUPABASE_URL}/rest/v1/properties?id=eq.${encodeURIComponent(id)}&select=*`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  });
   if (!res.ok) return null;
+  const rows = await res.json();
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (!row) return null;
 
-  const doc = await res.json();
-  const fields = doc?.fields ?? {};
-  const getString = (key: string) => fields[key]?.stringValue ?? '';
-  const getArrayFirst = (key: string) => {
-    const values = fields[key]?.arrayValue?.values;
-    if (Array.isArray(values) && values.length > 0) return values[0]?.stringValue ?? '';
-    return '';
-  };
-  const getNumber = (key: string) => {
-    const v = fields[key];
-    if (!v) return 0;
-    if (v.integerValue !== undefined) return parseInt(v.integerValue, 10) || 0;
-    if (v.doubleValue !== undefined) return v.doubleValue || 0;
-    return 0;
-  };
-
-  const title = getString('title') || getString('propertyCode') || 'Untitled Property';
-  const location = getString('area') || getString('location') || '';
-  const type = getString('type') || '';
-  const price = getNumber('price');
-  const monthlyRental = getString('monthly_rental_label') || '';
-  const katha = getString('katha') || '';
+  const title = row.title || row.property_code || 'Untitled Property';
+  const location = row.area || row.location || '';
+  const type = row.type || '';
+  const price = Number(row.price) || 0;
+  const monthlyRental = row.monthly_rental_label || '';
+  const katha = row.katha || '';
 
   return {
     title: `${title}${location ? ` | ${location}` : ''} — ${SITE_NAME}`,
@@ -140,8 +141,40 @@ async function fetchProperty(id: string): Promise<{ title: string; location: str
     price,
     monthlyRental,
     katha,
-    image: getArrayFirst('images') || getString('cover_image') || '',
+    image: firstImage(row.images),
   };
+}
+
+/** First usable image URL from the Supabase images array — entries may be plain
+ *  URLs, JSON strings like {"publicUrl":"..."}, or objects with publicUrl. */
+function firstImage(images: unknown): string {
+  if (!Array.isArray(images)) return '';
+  for (const entry of images) {
+    const url = extractImageUrl(entry);
+    if (url) return url;
+  }
+  return '';
+}
+
+function extractImageUrl(entry: unknown): string {
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    if (trimmed.startsWith('http')) return trimmed;
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed) as { publicUrl?: unknown };
+        if (typeof parsed.publicUrl === 'string') return extractImageUrl(parsed.publicUrl);
+      } catch {
+        /* not JSON — not a usable URL */
+      }
+    }
+    return '';
+  }
+  if (entry && typeof entry === 'object') {
+    const maybe = (entry as { publicUrl?: unknown }).publicUrl;
+    if (typeof maybe === 'string') return extractImageUrl(maybe);
+  }
+  return '';
 }
 
 function formatPrice(n: number): string {

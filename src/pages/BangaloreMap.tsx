@@ -636,7 +636,7 @@ export default function BangaloreMap({ isLoaded }: BangaloreMapProps) {
       <Navbar />
 
 
-      <div className="fixed inset-x-0 z-10 bg-gray-900 top-14 md:top-16 h-[calc(100dvh-3.5rem)] md:h-[calc(100dvh-4rem)]" style={{ overscrollBehavior: 'none' }}>
+      <div className="fixed inset-x-0 z-10 bg-gray-900 top-12 md:top-14 h-[calc(100dvh-3rem)] md:h-[calc(100dvh-3.5rem)]" style={{ overscrollBehavior: 'none' }}>
       <MapFilterPanel
         open={isFilterOpen}
         onClose={() => setIsFilterOpen(false)}

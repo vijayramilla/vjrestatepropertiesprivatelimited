@@ -130,44 +130,70 @@ interface OgProperty {
   image: string;
 }
 
+const SUPABASE_URL =
+  process.env.SUPABASE_REQ_URL ??
+  process.env.VITE_SUPABASE_REQ_URL ??
+  'https://eimvaxrmiizdlgonhiov.supabase.co';
+const SUPABASE_SERVICE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.SUPABASE_REQ_SERVICE_KEY ??
+  process.env.VITE_SUPABASE_REQ_SERVICE_KEY ??
+  '';
+
 async function fetchProperty(id: string): Promise<OgProperty | null> {
-  const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
-  if (!projectId) return null;
-
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/properties/${encodeURIComponent(id)}`;
-  const res = await fetch(url);
+  if (!SUPABASE_SERVICE_KEY) return null;
+  const url = `${SUPABASE_URL}/rest/v1/properties?id=eq.${encodeURIComponent(id)}&select=*`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  });
   if (!res.ok) return null;
-
-  const doc = await res.json();
-  const fields = doc?.fields ?? {};
-  const getString = (key: string) => fields[key]?.stringValue ?? '';
-  const getNumber = (key: string) => {
-    const v = fields[key];
-    if (!v) return 0;
-    if (v.integerValue !== undefined) return parseInt(v.integerValue, 10) || 0;
-    if (v.doubleValue !== undefined) return v.doubleValue || 0;
-    return 0;
-  };
-  const getArrayFirst = (key: string) => {
-    const values = fields[key]?.arrayValue?.values;
-    if (Array.isArray(values) && values.length > 0) return values[0]?.stringValue ?? '';
-    return '';
-  };
-
-  const type = getString('type') || 'Property';
-  const price = getNumber('price');
-  const monthlyRental = getString('monthly_rental_label') || formatRental(getNumber('monthly_rental'));
-  const katha = getString('katha');
-  const address = getString('area') || getString('location') || '';
+  const rows = await res.json();
+  const row = Array.isArray(rows) ? rows[0] : undefined;
+  if (!row) return null;
 
   return {
-    type,
-    priceLabel: formatPrice(price),
-    address,
-    monthlyRental,
-    katha,
-    image: getArrayFirst('images') || getString('cover_image') || '',
+    type: row.type || 'Property',
+    priceLabel: formatPrice(Number(row.price) || 0),
+    address: row.area || row.location || '',
+    monthlyRental: row.monthly_rental_label || formatRental(Number(row.monthly_rental) || 0),
+    katha: row.katha || '',
+    image: firstImage(row.images),
   };
+}
+
+/** First usable image URL from the Supabase images array — entries may be plain
+ *  URLs, JSON strings like {"publicUrl":"..."}, or objects with publicUrl. */
+function firstImage(images: unknown): string {
+  if (!Array.isArray(images)) return '';
+  for (const entry of images) {
+    const url = extractImageUrl(entry);
+    if (url) return url;
+  }
+  return '';
+}
+
+function extractImageUrl(entry: unknown): string {
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    if (trimmed.startsWith('http')) return trimmed;
+    if (trimmed) {
+      try {
+        const parsed = JSON.parse(trimmed) as { publicUrl?: unknown };
+        if (typeof parsed.publicUrl === 'string') return extractImageUrl(parsed.publicUrl);
+      } catch {
+        /* not JSON — not a usable URL */
+      }
+    }
+    return '';
+  }
+  if (entry && typeof entry === 'object') {
+    const maybe = (entry as { publicUrl?: unknown }).publicUrl;
+    if (typeof maybe === 'string') return extractImageUrl(maybe);
+  }
+  return '';
 }
 
 function formatPrice(n: number): string {

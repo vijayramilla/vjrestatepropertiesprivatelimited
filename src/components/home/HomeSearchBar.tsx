@@ -81,13 +81,6 @@ export default function HomeSearchBar() {
               }`}
             >
               {tab}
-              {active && (
-                <motion.span
-                  layoutId="homeSearchActiveTab"
-                  className="absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-[#C9A84C]"
-                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                />
-              )}
             </button>
           );
         })}

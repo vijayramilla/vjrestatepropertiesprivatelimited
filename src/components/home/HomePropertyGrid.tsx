@@ -57,8 +57,7 @@ export default function HomePropertyGrid() {
           className="mb-8 flex items-end justify-between gap-4"
         >
           <div>
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              <span className="inline-block h-px w-8 bg-[#C9A84C]" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
               Curated For Investors
             </p>
             <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
@@ -163,7 +162,7 @@ export default function HomePropertyGrid() {
                       </p>
                     )}
                   </div>
-                  <div className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-gradient-to-r from-[#C9A84C] to-[#E8C76A] transition-transform duration-300 group-hover:scale-x-100" />
+
                 </motion.article>
               );
             })

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 
 export default function HomeContactCta() {
   return (
-    <section className="relative overflow-hidden bg-[#0A1628]">
+    <section className="relative overflow-hidden border-b border-[#ebebeb] bg-white">
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-[#C9A84C]/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#C9A84C]/10 blur-3xl" />
       <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 md:py-20 lg:px-8">
@@ -17,15 +17,14 @@ export default function HomeContactCta() {
           className="flex flex-col items-center gap-8 text-center md:flex-row md:justify-between md:text-left"
         >
           <div className="max-w-2xl">
-            <p className="flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C] md:justify-start">
-              <span className="inline-block h-px w-8 bg-[#C9A84C]" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
               Get Started Today
             </p>
-            <h2 className="font-display mt-3 text-2xl font-bold leading-tight text-white md:text-4xl">
+            <h2 className="font-display mt-3 text-2xl font-bold leading-tight text-[#0A1628] md:text-4xl">
               Ready to Invest in
               <span className="text-[#C9A84C]"> Bangalore's Rental Income Properties?</span>
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-gray-400 md:text-base">
+            <p className="mt-3 text-sm leading-relaxed text-gray-500 md:text-base">
               Talk to our property experts today — {siteContact.hoursLabel}. Free guidance on
               rental yields, property selection, and the best income opportunities in Bangalore.
             </p>
@@ -36,21 +35,21 @@ export default function HomeContactCta() {
               href={siteContact.whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 text-sm font-bold text-[#0A1628] shadow-lg shadow-[#25D366]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#25D366]/30"
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 text-sm font-bold text-white shadow-lg shadow-[#25D366]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#25D366]/30"
             >
               <WhatsappLogo size={18} weight="fill" />
               Chat on WhatsApp
             </a>
             <a
               href={`tel:${siteContact.phoneTel}`}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-6 text-sm font-bold text-[#0A1628] shadow-lg shadow-[#C9A84C]/20 transition-all hover:-translate-y-0.5 hover:bg-[#E8C76A] hover:shadow-xl hover:shadow-[#C9A84C]/30"
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-6 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/20 transition-all hover:-translate-y-0.5 hover:bg-[#1E3852] hover:shadow-xl hover:shadow-[#0A1628]/30"
             >
               <Phone size={18} weight="fill" />
               Call {siteContact.phoneDisplay}
             </a>
             <Link
               to="/contact"
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-6 text-sm font-bold text-white backdrop-blur-sm transition-all hover:-translate-y-0.5 hover:border-[#C9A84C] hover:text-[#C9A84C]"
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-[#0A1628]/15 bg-white px-6 text-sm font-bold text-[#0A1628] transition-all hover:-translate-y-0.5 hover:border-[#C9A84C] hover:text-[#C9A84C]"
             >
               Visit Office
               <ArrowRight size={16} weight="bold" />

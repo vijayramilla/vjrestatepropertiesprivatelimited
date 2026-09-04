@@ -65,12 +65,11 @@ export default function HomeListingsSection() {
         <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p
-              className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-[#C9A84C]"
+              className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#C9A84C]"
               style={{ fontFamily: DM_SANS }}
             >
-              <span className="inline-block h-px w-6 bg-[#C9A84C]" />
-                Just Added
-              </p>
+              Just Added
+            </p>
               <h2 className="font-display mt-2 text-2xl text-[#0A1628] md:text-[28px]">Freshly Listed Opportunities</h2>
               <p className="mt-1.5 max-w-xl text-[13px] text-gray-500">
                 New PG buildings and rental income assets as they come to market.

@@ -20,15 +20,13 @@ const HERO_IMAGE =
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 function Kicker({ children, light = false }: { children: ReactNode; light?: boolean }) {
-  return (
-    <p
-      className={`flex items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.28em] sm:text-[11px] ${
-        light ? 'text-[#E4C877]' : 'text-[#8a7438]'
-      }`}
-    >
-      <span className="inline-block h-px w-10 bg-[#C9A84C]" />
-      <span>{children}</span>
-    </p>
+  return (      <p
+        className={`text-[10px] font-semibold uppercase tracking-[0.28em] sm:text-[11px] ${
+          light ? 'text-[#E4C877]' : 'text-[#8a7438]'
+        }`}
+      >
+        {children}
+      </p>
   );
 }
 
@@ -49,7 +47,6 @@ export default function HomePage() {
         {/* Cinematic grade: keeps the photograph rich while text stays legible */}
         <div className="absolute inset-0 bg-[linear-gradient(96deg,rgba(6,13,24,0.97)_0%,rgba(10,22,40,0.86)_40%,rgba(10,22,40,0.38)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#0A1628] to-transparent" />
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/80 to-transparent" />
 
         <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-5 pb-10 pt-32 sm:px-8 md:px-12 lg:px-16 lg:pt-36">
           <motion.div
@@ -74,16 +71,6 @@ export default function HomePage() {
               Let the rent do the rest.
             </span>
           </motion.h1>
-
-          <motion.p
-            initial={{ opacity: 0, y: 22 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2, ease: easeOut }}
-            className="mt-6 max-w-2xl text-sm font-light leading-relaxed text-white/75 sm:text-base md:text-[17px]"
-          >
-            Bangalore&rsquo;s rental income properties — PG buildings, residential
-            blocks and commercial assets, ready to earn from day one.
-          </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 24 }}

@@ -46,10 +46,8 @@ export default function HomeHowItWorks() {
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="mb-10 text-center"
         >
-          <p className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-            <span className="inline-block h-px w-8 bg-[#C9A84C]" />
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
             Simple & Transparent
-            <span className="inline-block h-px w-8 bg-[#C9A84C]" />
           </p>
           <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
             How You Buy Your First Income Asset
@@ -61,7 +59,6 @@ export default function HomeHowItWorks() {
         </motion.div>
 
         <div className="relative grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
-          <div className="pointer-events-none absolute left-0 right-0 top-[52px] hidden h-px bg-gradient-to-r from-transparent via-[#C9A84C]/40 to-transparent lg:block" />
           {STEPS.map((step, i) => (
             <motion.div
               key={step.step}

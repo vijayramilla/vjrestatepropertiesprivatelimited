@@ -51,8 +51,7 @@ export default function HomeCategoryGrid() {
           className="mb-6 flex items-end justify-between gap-4"
         >
           <div className="max-w-2xl">
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              <span className="inline-block h-px w-8 bg-[#C9A84C]" />
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
               The Asset Classes We Curate
             </p>
             <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
@@ -99,7 +98,6 @@ export default function HomeCategoryGrid() {
                     Explore <ArrowRight size={11} weight="bold" />
                   </span>
                 </div>
-                <div className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-[#C9A84C] transition-transform duration-300 group-hover:scale-x-100" />
               </Link>
             </motion.div>
           ))}
