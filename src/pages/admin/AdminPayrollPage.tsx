@@ -5,6 +5,7 @@ import { buildSalaryStructure, type SalaryStructure } from '@/utils/payrollCalcu
 import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
 import PayslipPreview from '@/components/payroll/PayslipPreview';
 import { CRM_INPUT, CrmBtn } from '@/components/crm/CrmUi';
+import { formatINR } from '@/lib/inr';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -35,7 +36,7 @@ interface EmployeeRow {
   status: string;
 }
 
-export default function AdminPayrollPage() {
+export default function AdminPayrollPage({ embedded = false }: { embedded?: boolean } = {}) {
   const [tab, setTab] = useState<Tab>('generate');
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [allPayroll, setAllPayroll] = useState<PayrollRow[]>([]);
@@ -204,10 +205,10 @@ export default function AdminPayrollPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] font-['Inter',sans-serif] antialiased">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className={embedded ? '' : "min-h-screen bg-[#f4f5f7] font-['Inter',sans-serif] antialiased"}>
+      <div className={embedded ? '' : 'mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8'}>
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
+        {!embedded && <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0A1628] to-[#1E3852]">
               <Wallet className="h-5 w-5 text-[#C9A84C]" strokeWidth={1.8} />
@@ -217,7 +218,7 @@ export default function AdminPayrollPage() {
               <p className="text-xs text-[#6b7280]">Generate payslips, track history, and view summaries</p>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Tabs */}
         <div className="mb-6 flex gap-1 rounded-xl border border-black/[0.06] bg-white p-1 shadow-sm">
@@ -297,8 +298,8 @@ export default function AdminPayrollPage() {
                           <p className="text-[10px] text-[#6b7280]">{emp.employee_id} &middot; {emp.designation} &middot; {emp.department}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-bold text-[#0A1628]">CTC: \u20b9{(Number(emp.salary) || 0).toLocaleString()}/mo</p>
-                          <p className="text-[10px] font-semibold text-emerald-600">Net: \u20b9{salary.netPay.toLocaleString()}</p>
+                          <p className="text-xs font-bold text-[#0A1628]">CTC: {formatINR(Number(emp.salary) || 0)}/mo</p>
+                          <p className="text-[10px] font-semibold text-emerald-600">Net: {formatINR(salary.netPay)}</p>
                         </div>
                         {exists ? (
                           <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-bold text-emerald-700">Generated</span>
@@ -371,11 +372,30 @@ export default function AdminPayrollPage() {
                       <td className="px-4 py-3 text-xs text-[#6b7280]">{MONTHS[p.month - 1]} {p.year}</td>
                       <td className="px-4 py-3 text-xs font-semibold text-[#0A1628]">{p.employee_name || p.employee_id}</td>
                       <td className="px-4 py-3 text-xs text-[#6b7280]">{p.department || '\u2014'}</td>
-                      <td className="px-4 py-3 text-xs text-[#0A1628]">\u20b9{(Number(p.basic_pay ?? 0) + Number(p.hra ?? 0) + Number(p.allowances ?? 0)).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-xs text-red-500">\u20b9{Number(p.deductions ?? 0).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-xs font-bold text-[#0A1628]">\u20b9{Number(p.net_pay ?? 0).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-xs text-[#0A1628]">{formatINR(Number(p.basic_pay ?? 0) + Number(p.hra ?? 0) + Number(p.allowances ?? 0))}</td>
+                      <td className="px-4 py-3 text-xs text-red-500">{formatINR(Number(p.deductions ?? 0))}</td>
+                      <td className="px-4 py-3 text-xs font-bold text-[#0A1628]">{formatINR(Number(p.net_pay ?? 0))}</td>
                       <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${p.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{p.status}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${p.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{p.status}</span>
+                          {p.status === 'Pending' && (
+                            <button
+                              onClick={async () => {
+                                if (!confirm(`Mark ${p.employee_name || 'this'} payroll as Paid?`)) return;
+                                try {
+                                  await leadSupabase.employees.markPaid(p.id);
+                                  const today = new Date().toISOString().split('T')[0];
+                                  setAllPayroll((prev) => prev.map((x) => x.id === p.id ? { ...x, status: 'Paid', payment_date: today } : x));
+                                } catch (e: any) {
+                                  alert(e?.message ?? 'Failed to mark as paid');
+                                }
+                              }}
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[9px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100"
+                            >
+                              Mark Paid
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -391,9 +411,9 @@ export default function AdminPayrollPage() {
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: 'Total Employees', value: String(currentMonthPay.length), icon: Users },
-                { label: 'Total Gross', value: `\u20b9${totalGross.toLocaleString()}`, icon: IndianRupee },
-                { label: 'Total Deductions', value: `\u20b9${totalDeductions.toLocaleString()}`, icon: Filter },
-                { label: 'Total Net Pay', value: `\u20b9${totalNet.toLocaleString()}`, icon: TrendingUp },
+                { label: 'Total Gross', value: formatINR(totalGross), icon: IndianRupee },
+                { label: 'Total Deductions', value: formatINR(totalDeductions), icon: Filter },
+                { label: 'Total Net Pay', value: formatINR(totalNet), icon: TrendingUp },
               ].map(({ label, value, icon: Icon }) => (
                 <div key={label} className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-sm">
                   <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-xl bg-[#0A1628]/5">
@@ -425,9 +445,9 @@ export default function AdminPayrollPage() {
                         <tr key={dept} className="border-b border-black/[0.04]">
                           <td className="px-3 py-2 text-xs font-semibold text-[#0A1628]">{dept || '\u2014'}</td>
                           <td className="px-3 py-2 text-xs text-[#6b7280]">{deptPay.length}</td>
-                          <td className="px-3 py-2 text-xs text-[#0A1628]">\u20b9{deptPay.reduce((s: number, p: any) => s + Number(p.basic_pay ?? 0) + Number(p.hra ?? 0) + Number(p.allowances ?? 0), 0).toLocaleString()}</td>
-                          <td className="px-3 py-2 text-xs text-red-500">\u20b9{deptPay.reduce((s: number, p: any) => s + Number(p.deductions ?? 0), 0).toLocaleString()}</td>
-                          <td className="px-3 py-2 text-xs font-bold text-[#0A1628]">\u20b9{deptPay.reduce((s: number, p: any) => s + Number(p.net_pay ?? 0), 0).toLocaleString()}</td>
+                          <td className="px-3 py-2 text-xs text-[#0A1628]">{formatINR(deptPay.reduce((s: number, p: any) => s + Number(p.basic_pay ?? 0) + Number(p.hra ?? 0) + Number(p.allowances ?? 0), 0))}</td>
+                          <td className="px-3 py-2 text-xs text-red-500">{formatINR(deptPay.reduce((s: number, p: any) => s + Number(p.deductions ?? 0), 0))}</td>
+                          <td className="px-3 py-2 text-xs font-bold text-[#0A1628]">{formatINR(deptPay.reduce((s: number, p: any) => s + Number(p.net_pay ?? 0), 0))}</td>
                         </tr>
                       );
                     })}

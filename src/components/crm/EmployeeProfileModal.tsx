@@ -1,12 +1,17 @@
-import { Mail, Phone, MapPin, Building2, CreditCard, CalendarDays, Hourglass, UserRound, Wallet, Sparkles, X, CheckCircle2, Download } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { Mail, Phone, Building2, CreditCard, CalendarDays, Hourglass, UserRound, Wallet, Sparkles, X, CheckCircle2, Download, Camera, Loader2, Check } from 'lucide-react';
 import { buildSalaryStructure } from '@/utils/payrollCalculator';
 import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
+import { formatINR } from '@/lib/inr';
+import { leadSupabase } from '@/services/leadSupabase';
 
 type Props = {
   me: any;
   stats: any;
   payroll: any[];
   onClose: () => void;
+  /** Called after the profile photo changes so the parent can refresh `me`. */
+  onChanged?: () => void;
 };
 
 function fmtTime12(t: string | null | undefined): string {
@@ -23,11 +28,41 @@ function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 }
 
-export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Props) {
+export default function EmployeeProfileModal({ me, stats, payroll, onClose, onChanged }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoDone, setPhotoDone] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+
+  const handlePhotoFile = async (file?: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { setPhotoError('Please choose an image file.'); return; }
+    if (file.size > 5 * 1024 * 1024) { setPhotoError('Image too large — max 5 MB.'); return; }
+    setPhotoError('');
+    setPhotoUploading(true);
+    try {
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Could not read the file'));
+        reader.readAsDataURL(file);
+      });
+      await leadSupabase.employees.uploadPhoto(me.id, base64);
+      setPhotoDone(true);
+      setTimeout(() => setPhotoDone(false), 2000);
+      onChanged?.();
+    } catch (e: any) {
+      setPhotoError(e?.message ?? 'Photo upload failed');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
   const profileRows: { icon: any; label: string; value: string }[] = [
     { icon: Mail, label: 'Email', value: me.email || '—' },
     { icon: Phone, label: 'Phone', value: me.phone || '—' },
-    { icon: MapPin, label: 'Address', value: me.address || '—' },
+    { icon: Phone, label: 'Alternate Phone', value: me.alternate_phone || '—' },
+    { icon: CalendarDays, label: 'Date of Birth', value: me.date_of_birth ? new Date(me.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+    { icon: UserRound, label: 'Gender', value: me.gender || '—' },
     { icon: Building2, label: 'Department', value: me.department || '—' },
     { icon: CreditCard, label: 'Employee ID', value: me.employee_id || '—' },
     { icon: CalendarDays, label: 'Joining Date', value: me.joining_date ? new Date(me.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
@@ -51,7 +86,7 @@ export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Pr
         { label: 'Emergency Contact', value: [me.emergency_contact_name, me.emergency_contact_phone].filter(Boolean).join(' · ') || '—' },
       ]
     : [
-        { label: 'Monthly Salary', value: `₹${(Number(me.salary ?? 0) || 0).toLocaleString()}` },
+        { label: 'Monthly Salary', value: formatINR(me.salary) },
         { label: 'Bank', value: me.bank_name || '—' },
         { label: 'Account', value: me.bank_account_number || '—', mono: true },
         { label: 'IFSC', value: me.ifsc_code || '—', mono: true },
@@ -95,6 +130,22 @@ export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Pr
                   <span className="text-lg font-extrabold text-[#D6B85D]">{initials(me.name || 'E')}</span>
                 )}
               </div>
+              {/* Photo upload — employees own their picture */}
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={photoUploading}
+                title="Change profile photo"
+                className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] text-[#0A1628] shadow ring-2 ring-white transition-all hover:brightness-110 disabled:opacity-60 sm:h-7 sm:w-7"
+              >
+                {photoUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : photoDone ? <Check className="h-3 w-3" strokeWidth={3} /> : <Camera className="h-3 w-3" strokeWidth={2.2} />}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => { handlePhotoFile(e.target.files?.[0]); e.target.value = ''; }}
+              />
             </div>
             <div className="min-w-0">
               <p className="truncate font-['Inter',sans-serif] text-[17px] font-bold tracking-tight text-white sm:text-[20px]">{me.name || 'Employee'}</p>
@@ -102,6 +153,7 @@ export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Pr
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em] text-white/60 ring-1 ring-white/10">
                 ID {me.employee_id || '—'}
               </span>
+              {photoError && <p className="mt-1 text-[10px] font-semibold text-red-300">{photoError}</p>}
             </div>
             <button onClick={onClose} className="ml-auto min-h-[44px] min-w-[44px] shrink-0 rounded-lg p-2.5 text-white/40 transition-colors hover:bg-white/10 hover:text-white">
               <X className="h-5 w-5" />
@@ -183,15 +235,15 @@ export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Pr
                     </div>
                     <div className="text-right">
                       <p className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Net Pay</p>
-                      <p className="mt-0.5 font-['Inter',sans-serif] text-[24px] font-bold tracking-tight text-emerald-600 tabular-nums">₹{(Number(latestPay.net_pay ?? 0) || 0).toLocaleString()}</p>
+                      <p className="mt-0.5 font-['Inter',sans-serif] text-[24px] font-bold tracking-tight text-emerald-600 tabular-nums">{formatINR(Number(latestPay.net_pay ?? 0))}</p>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {[
-                      { label: 'Basic', value: `₹${(Number(latestPay.basic_pay ?? 0) || 0).toLocaleString()}` },
-                      { label: 'HRA', value: `₹${(Number(latestPay.hra ?? 0) || 0).toLocaleString()}` },
-                      { label: 'Allowances', value: `₹${(Number(latestPay.allowances ?? 0) || 0).toLocaleString()}` },
-                      { label: 'Deductions', value: `-₹${(Number(latestPay.deductions ?? 0) || 0).toLocaleString()}` },
+                      { label: 'Basic', value: formatINR(latestPay.basic_pay) },
+                      { label: 'HRA', value: formatINR(latestPay.hra) },
+                      { label: 'Allowances', value: formatINR(latestPay.allowances) },
+                      { label: 'Deductions', value: `-${formatINR(latestPay.deductions)}` },
                     ].map((r) => (
                       <div key={r.label} className="rounded-xl border border-black/[0.05] bg-[#fafafa] p-2.5">
                         <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9ca3af]">{r.label}</p>
@@ -222,7 +274,7 @@ export default function EmployeeProfileModal({ me, stats, payroll, onClose }: Pr
                               {new Date(p.year, p.month - 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
                             </p>
                             <div className="flex items-center gap-2">
-                              <p className="text-[11.5px] font-bold tabular-nums text-[#0A1628]">₹{(Number(p.net_pay ?? 0) || 0).toLocaleString()}</p>
+                              <p className="text-[11.5px] font-bold tabular-nums text-[#0A1628]">{formatINR(Number(p.net_pay ?? 0))}</p>
                               <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${p.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{p.status}</span>
                             </div>
                           </div>

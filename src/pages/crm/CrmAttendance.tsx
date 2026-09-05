@@ -3,9 +3,10 @@ import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader } from '@/components/crm/CrmUi';
 import AttendanceDashboard from '@/components/crm/AttendanceDashboard';
 import WeeklyTimesheet from '@/components/crm/WeeklyTimesheet';
-import { Calendar, Clock } from 'lucide-react';
+import TodayRoster from '@/components/crm/TodayRoster';
+import { Calendar, Clock, CalendarCheck } from 'lucide-react';
 
-type Tab = 'live' | 'timesheet';
+type Tab = 'live' | 'roster' | 'timesheet';
 
 /**
  * Admin attendance page — Jibble-style.
@@ -30,7 +31,8 @@ export default function CrmAttendance() {
           <div className="mb-6 flex gap-1.5 overflow-x-auto rounded-2xl border border-black/[0.06] bg-white p-1.5 shadow-[0_1px_2px_rgba(10,22,40,0.05)]">
             {[
               { key: 'live' as const, label: 'Live Dashboard', icon: Clock },
-              { key: 'timesheet' as const, label: 'Weekly Timesheet', icon: Calendar },
+              { key: 'roster' as const, label: 'Today\'s Roster', icon: CalendarCheck },
+              { key: 'timesheet' as const, label: 'Timesheets', icon: Calendar },
             ].map((t) => {
               const Icon = t.icon;
               const active = tab === t.key;
@@ -50,6 +52,7 @@ export default function CrmAttendance() {
           </div>
 
           {tab === 'live' && <AttendanceDashboard />}
+          {tab === 'roster' && <TodayRoster />}
           {tab === 'timesheet' && <WeeklyTimesheet />}
         </CrmPageBody>
       </main>

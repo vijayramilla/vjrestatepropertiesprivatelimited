@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { leadSupabase } from '@/services/leadSupabase';
 import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 import {
@@ -13,6 +13,8 @@ type Props = {
   activeBreak: any;
   /** Called after clock-in/out or break start/end to refresh parent data */
   onChanged: () => void;
+  /** Compact day-snapshot strip rendered at the bottom of the card. */
+  footer?: ReactNode;
 };
 
 type CameraStage = 'idle' | 'starting' | 'ready' | 'captured' | 'failed';
@@ -28,7 +30,7 @@ type CameraStage = 'idle' | 'starting' | 'ready' | 'captured' | 'failed';
  *
  * Also handles break start / end.
  */
-export default function ClockInOut({ today, activeBreak, onChanged }: Props) {
+export default function ClockInOut({ today, activeBreak, onChanged, footer }: Props) {
   const isClockedIn = Boolean(today?.check_in);
   const isOnBreak = Boolean(activeBreak);
   const isCheckedOut = Boolean(today?.check_out);
@@ -210,6 +212,38 @@ export default function ClockInOut({ today, activeBreak, onChanged }: Props) {
   const currentTime = now.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
   const currentDate = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
+  const statusPill = isCheckedOut
+    ? { label: 'Shift complete', cls: 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/40' }
+    : isOnBreak
+    ? { label: 'On break', cls: 'bg-amber-400/15 text-amber-300 ring-amber-300/40' }
+    : isClockedIn
+    ? { label: 'On shift', cls: 'bg-emerald-500/15 text-emerald-300 ring-emerald-400/40' }
+    : { label: 'Not started', cls: 'bg-white/10 text-white/70 ring-white/15' };
+
+  const tiles = [
+    {
+      key: 'in', label: 'Check-in',
+      time: today?.check_in ? String(today.check_in).slice(0, 5) : '—',
+      selfie: today?.check_in_selfie_url,
+      caption: isClockedIn ? (today?.check_in_location || 'GPS captured') : 'Not yet',
+      icon: LogIn, iconCls: 'bg-emerald-50 text-emerald-600',
+    },
+    {
+      key: 'out', label: 'Check-out',
+      time: today?.check_out ? String(today.check_out).slice(0, 5) : '—',
+      selfie: today?.check_out_selfie_url,
+      caption: isCheckedOut ? 'Shift ended' : isClockedIn ? 'Tap to end shift' : 'Not yet',
+      icon: LogOut, iconCls: 'bg-amber-50 text-amber-600',
+    },
+    {
+      key: 'brk', label: 'Break',
+      time: `${today?.total_break_minutes ?? 0}m`,
+      selfie: null,
+      caption: isOnBreak ? 'On break now' : (today?.total_break_minutes ?? 0) > 0 ? 'Total today' : 'Not yet',
+      icon: Coffee, iconCls: 'bg-[#C9A84C]/[0.12] text-[#96782A]',
+    },
+  ];
+
   // Compute hours worked so far
   let hoursWorked = '0h 0m';
   if (today?.check_in) {
@@ -348,74 +382,71 @@ export default function ClockInOut({ today, activeBreak, onChanged }: Props) {
 
   // Main widget
   return (
-    <div className="rounded-3xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.05)] overflow-hidden">
-      {/* Live clock header */}
-      <div className="bg-gradient-to-r from-[#0A1628] to-[#1E3852] px-5 py-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[#D6B85D]/70">Current Time</p>
-            <p className="font-mono text-[22px] font-bold tabular-nums text-white">{currentTime}</p>
-            <p className="text-[11px] font-semibold text-white/40">{currentDate}</p>
+    <div className="overflow-hidden rounded-3xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.05)]">
+      {/* Slim live header — time + status + hours on one band */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#0A1628] via-[#12273C] to-[#1E3852] px-4 py-3 sm:px-5">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-48 w-48 rounded-full bg-[#C9A84C]/[0.14] blur-[70px]" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/60 to-transparent" />
+        <div className="relative flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide ring-1 ${statusPill.cls}`}>
+              <span className="h-1.5 w-1.5 rounded-full bg-current" /> {statusPill.label}
+            </span>
+            <p className="font-mono text-[22px] font-bold leading-none tabular-nums text-white sm:text-[26px]">{currentTime}</p>
+            <p className="hidden text-[11px] font-semibold text-white/45 md:block">{currentDate}</p>
           </div>
-          <div className="text-right">
-            <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-[#D6B85D]/70">Today's Hours</p>
-            <p className="font-mono text-[22px] font-bold tabular-nums text-white">{hoursWorked}</p>
+          <div className="ml-auto flex shrink-0 items-center gap-2.5">
+            <div className="text-right">
+              <p className="text-[8.5px] font-bold uppercase tracking-[0.18em] text-[#D6B85D]/80">Today's Hours</p>
+              <p className="mt-0.5 font-mono text-[17px] font-bold leading-none tabular-nums text-white sm:text-[19px]">{hoursWorked}</p>
+            </div>
             {today?.overtime_minutes > 0 && (
-              <p className="text-[10px] font-bold text-amber-400">+{today.overtime_minutes}m overtime</p>
+              <p className="rounded-full bg-amber-400/15 px-2 py-1 text-[9.5px] font-bold text-amber-400 ring-1 ring-amber-300/30">+{today.overtime_minutes}m OT</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Status strip with selfie thumbnails */}
-      <div className="grid grid-cols-3 gap-px bg-black/[0.04]">
-        <div className="bg-white px-3 py-3 text-center">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Check-in</p>
-          <p className="mt-0.5 text-[13px] font-bold tabular-nums text-[#0A1628]">
-            {today?.check_in ? String(today.check_in).slice(0, 5) : '—'}
-          </p>
-          {today?.check_in_selfie_url && (
-            <img src={today.check_in_selfie_url} alt="Clock-in selfie" className="mx-auto mt-1.5 h-8 w-8 rounded-lg object-cover ring-1 ring-emerald-200" title="Clock-in selfie" />
-          )}
-        </div>
-        <div className="bg-white px-3 py-3 text-center">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Check-out</p>
-          <p className="mt-0.5 text-[13px] font-bold tabular-nums text-[#0A1628]">
-            {today?.check_out ? String(today.check_out).slice(0, 5) : '—'}
-          </p>
-          {today?.check_out_selfie_url && (
-            <img src={today.check_out_selfie_url} alt="Clock-out selfie" className="mx-auto mt-1.5 h-8 w-8 rounded-lg object-cover ring-1 ring-amber-200" title="Clock-out selfie" />
-          )}
-        </div>
-        <div className="bg-white px-3 py-3 text-center">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Break</p>
-          <p className="mt-0.5 text-[13px] font-bold tabular-nums text-[#0A1628]">
-            {today?.total_break_minutes ?? 0}m
-          </p>
-        </div>
+      {/* Today's checkpoints — three across, compact */}
+      <div className="grid grid-cols-3 gap-2 border-b border-black/[0.05] bg-[#fafafa] p-2.5 sm:gap-2.5 sm:p-3">
+        {tiles.map((t) => (
+          <div key={t.key} className="flex min-w-0 flex-col items-center gap-2 rounded-2xl border border-black/[0.05] bg-white p-2.5 text-center shadow-[0_1px_2px_rgba(10,22,40,0.04)] sm:flex-row sm:gap-2.5 sm:p-2.5 sm:text-left">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 sm:rounded-xl ${t.iconCls}`}>
+              <t.icon className="h-4 w-4" strokeWidth={1.9} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{t.label}</p>
+              <p className="mt-0.5 truncate font-mono text-[14px] font-bold tabular-nums text-[#0A1628] sm:text-[15px]">{t.time}</p>
+              <p className="mt-0.5 hidden truncate text-[9.5px] font-semibold text-[#9ca3af] sm:block">{t.caption}</p>
+            </div>
+            {t.selfie && (
+              <img src={t.selfie} alt={`${t.label} selfie`} className="hidden h-9 w-9 shrink-0 rounded-lg object-cover shadow sm:block" />
+            )}
+          </div>
+        ))}
       </div>
 
       {/* Main action area */}
-      <div className="p-5">
+      <div className="p-3 sm:p-4">
         {!isClockedIn ? (
           /* ── CLOCK IN button ── */
           <button
             onClick={() => handleClockAction('clockIn')}
-            className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-5 text-[15px] font-bold text-white shadow-[0_8px_32px_rgba(16,185,129,0.35)] transition-all hover:brightness-105 hover:shadow-[0_12px_40px_rgba(16,185,129,0.45)] active:scale-[0.98]"
+            className="group flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 px-5 py-3 text-[13.5px] font-bold text-white shadow-[0_6px_24px_rgba(16,185,129,0.3)] transition-all hover:brightness-105 hover:shadow-[0_10px_32px_rgba(16,185,129,0.4)] active:scale-[0.98]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-              <LogIn className="h-5 w-5" strokeWidth={2.2} />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+              <LogIn className="h-4 w-4" strokeWidth={2.2} />
             </div>
             <div className="text-left">
-              <p className="text-[15px] font-bold">Clock In</p>
-              <p className="text-[10px] font-semibold text-white/70">Selfie + GPS verification</p>
+              <p className="text-[13.5px] font-bold leading-tight">Clock In</p>
+              <p className="text-[9.5px] font-semibold text-white/70">Selfie + GPS verification</p>
             </div>
           </button>
         ) : isCheckedOut ? (
           /* ── Already checked out ── */
-          <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-5 text-center">
-            <CheckCircle2 className="mx-auto h-8 w-8 text-emerald-500" />
-            <p className="mt-2 text-[13px] font-bold text-[#0A1628]">Shift completed</p>
+          <div className="rounded-2xl border border-black/[0.06] bg-[#fafafa] p-4 text-center">
+            <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+            <p className="mt-1.5 text-[13px] font-bold text-[#0A1628]">Shift completed</p>
             <p className="mt-0.5 text-[11px] text-[#6b7280]">
               {hoursWorked} worked · {today?.total_break_minutes ?? 0}m break
               {today?.overtime_minutes > 0 ? ` · ${today.overtime_minutes}m overtime` : ''}
@@ -470,14 +501,14 @@ export default function ClockInOut({ today, activeBreak, onChanged }: Props) {
             <button
               onClick={() => handleClockAction('clockOut')}
               disabled={isOnBreak}
-              className="group flex w-full items-center justify-center gap-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-5 text-[15px] font-bold text-white shadow-[0_8px_32px_rgba(245,158,11,0.35)] transition-all hover:brightness-105 hover:shadow-[0_12px_40px_rgba(245,158,11,0.45)] active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
+              className="group flex w-full items-center justify-center gap-2.5 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 px-5 py-3 text-[13.5px] font-bold text-white shadow-[0_6px_24px_rgba(245,158,11,0.3)] transition-all hover:brightness-105 hover:shadow-[0_10px_32px_rgba(245,158,11,0.4)] active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20">
-                <LogOut className="h-5 w-5" strokeWidth={2.2} />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+                <LogOut className="h-4 w-4" strokeWidth={2.2} />
               </div>
               <div className="text-left">
-                <p className="text-[15px] font-bold">Clock Out</p>
-                <p className="text-[10px] font-semibold text-white/70">
+                <p className="text-[13.5px] font-bold leading-tight">Clock Out</p>
+                <p className="text-[9.5px] font-semibold text-white/70">
                   {isOnBreak ? 'End your break first' : 'Selfie + GPS verification'}
                 </p>
               </div>
@@ -485,6 +516,13 @@ export default function ClockInOut({ today, activeBreak, onChanged }: Props) {
           </div>
         )}
       </div>
+
+      {/* Compact day-snapshot strip */}
+      {footer && (
+        <div className="grid grid-cols-2 gap-px border-t border-black/[0.05] bg-black/[0.04] sm:grid-cols-4">
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

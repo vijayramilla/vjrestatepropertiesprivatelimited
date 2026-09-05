@@ -526,6 +526,49 @@ async function executeAction(action, params) {
       return { id: data.id };
     }
 
+    // ── Lead status update (admin) — mirrors api/data-proxy.ts ─────────
+    case 'lead.setStatus': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id, status } = params;
+      if (!id) throw new Error('Booking id is required');
+      if (!['new', 'confirmed', 'completed', 'cancelled', 'no_show'].includes(status)) {
+        throw new Error('Invalid status');
+      }
+      const { data: row, error: fetchErr } = await supabaseAdmin
+        .from('property_leads')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+      if (fetchErr) throw new Error(fetchErr.message);
+      if (!row) throw new Error('Booking not found');
+      const { error } = await supabaseAdmin
+        .from('property_leads')
+        .update({ status })
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return { id };
+    }
+
+    // ── Lead delete (admin) — mirrors api/data-proxy.ts ──────────────
+    case 'lead.remove': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id } = params;
+      if (!id) throw new Error('Booking id is required');
+      const { data: row, error: fetchErr } = await supabaseAdmin
+        .from('property_leads')
+        .select('id')
+        .eq('id', id)
+        .maybeSingle();
+      if (fetchErr) throw new Error(fetchErr.message);
+      if (!row) throw new Error('Booking not found');
+      const { error } = await supabaseAdmin
+        .from('property_leads')
+        .delete()
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return { id };
+    }
+
     case 'user.track': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const { uid, ...payload } = params;

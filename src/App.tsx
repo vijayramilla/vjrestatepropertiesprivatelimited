@@ -50,9 +50,13 @@ const CrmEmployeeForm = lazy(() => import('./pages/crm/CrmEmployeeForm'));
 const CrmEmployeeDetail = lazy(() => import('./pages/crm/CrmEmployeeDetail'));
 const CrmMyClients = lazy(() => import('./pages/crm/CrmMyClients'));
 const CrmLeads = lazy(() => import('./pages/crm/CrmLeads'));
+const CrmAssignedClients = lazy(() => import('./pages/crm/CrmAssignedClients'));
+const CrmBookings = lazy(() => import('./pages/crm/CrmBookings'));
 const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
 const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
 const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
+const CrmPayroll = lazy(() => import('./pages/crm/CrmPayroll'));
+const CrmMyBookings = lazy(() => import('./pages/crm/CrmMyBookings'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
@@ -283,6 +287,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/crm/assigned-clients"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmAssignedClients /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/bookings"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmBookings /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
         path="/crm/earnings"
         element={
           <CrmRoute>
@@ -392,6 +412,22 @@ function AppRoutes() {
           <CrmRoute>
             <LazyPage><CrmGeofences /></LazyPage>
           </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/payroll"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmPayroll /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/my-bookings"
+        element={
+          <EmployeeRoute>
+            <LazyPage><CrmMyBookings /></LazyPage>
+          </EmployeeRoute>
         }
       />
       <Route

@@ -461,6 +461,19 @@ export async function supabaseSavePropertyLead(input: Record<string, unknown>): 
   await callDataProxy('lead.create', input, { isPublic: true });
 }
 
+/**
+ * Booking lifecycle (admin-only via the data proxy): Requested → Confirmed →
+ * Completed, or Cancelled / No Show. Applies to property_leads rows whose
+ * lead_type is book_visit (the CRM Bookings section writes these back).
+ */
+export async function supabaseSetPropertyLeadStatus(id: string, status: string): Promise<void> {
+  await callDataProxy('lead.setStatus', { id, status });
+}
+
+export async function supabaseDeletePropertyLead(id: string): Promise<void> {
+  await callDataProxy('lead.remove', { id });
+}
+
 /* ── Users ───────────────────────────────────────────────────────────────── */
 
 export async function supabaseTrackUser(payload: {

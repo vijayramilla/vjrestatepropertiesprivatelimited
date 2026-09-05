@@ -1,6 +1,7 @@
 import { ArrowLeft, Download, MessageCircle } from 'lucide-react';
 import type { SalaryStructure } from '@/utils/payrollCalculator';
-import { formatCurrency, numberToWords, getMonthName } from '@/utils/payrollCalculator';
+import { numberToWords, getMonthName } from '@/utils/payrollCalculator';
+import { formatINR } from '@/lib/inr';
 
 interface Props {
   employee: any;
@@ -18,7 +19,7 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
   const monthName = getMonthName(month);
 
   const handleWhatsApp = () => {
-    const msg = `Dear ${employee?.name || 'Employee'},\n\nYour payslip for ${monthName} ${year} has been generated.\n\nNet Pay: \u20b9${formatCurrency(salary.netPay)}\n\nPlease contact HR for queries.\n\n\u2014 VJR Estate`;
+    const msg = `Dear ${employee?.name || 'Employee'},\n\nYour payslip for ${monthName} ${year} has been generated.\n\nNet Pay: ${formatINR(salary.netPay)}\n\nPlease contact HR for queries.\n\n\u2014 VJR Estate`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
@@ -126,12 +127,12 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
               ].map(([label, val], i) => (
                 <div key={String(label)} className={`flex justify-between px-3 py-1.5 text-[11px] ${i % 2 === 0 ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
                   <span className="text-[#6b7280]">{label}</span>
-                  <span className="font-semibold text-[#0A1628]">\u20b9{formatCurrency(val as number)}</span>
+                  <span className="font-semibold text-[#0A1628]">{formatINR(val as number)}</span>
                 </div>
               ))}
               <div className="flex justify-between bg-[#0A1628] px-3 py-1.5 text-[11px]">
                 <span className="font-bold text-white">GROSS</span>
-                <span className="font-bold text-[#C9A84C]">\u20b9{formatCurrency(salary.grossEarnings)}</span>
+                <span className="font-bold text-[#C9A84C]">{formatINR(salary.grossEarnings)}</span>
               </div>
             </div>
 
@@ -151,12 +152,12 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
               ].map(([label, val], i) => (
                 <div key={String(label)} className={`flex justify-between px-3 py-1.5 text-[11px] ${i % 2 === 0 ? 'bg-white' : 'bg-[#f8f9fa]'}`}>
                   <span className="text-[#6b7280]">{label}</span>
-                  <span className="font-semibold text-red-500">-\u20b9{formatCurrency(val as number)}</span>
+                  <span className="font-semibold text-red-500">-{formatINR(val as number)}</span>
                 </div>
               ))}
               <div className="flex justify-between bg-[#0A1628] px-3 py-1.5 text-[11px]">
                 <span className="font-bold text-white">TOTAL</span>
-                <span className="font-bold text-red-400">-\u20b9{formatCurrency(salary.totalDeductions)}</span>
+                <span className="font-bold text-red-400">-{formatINR(salary.totalDeductions)}</span>
               </div>
             </div>
           </div>
@@ -165,7 +166,7 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
           <div className="mx-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
             <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.12em] text-emerald-700">Employer Contributions (paid by VJR Estate, not deducted)</p>
             <p className="text-[10px] text-emerald-600">
-              PF: \u20b9{formatCurrency(salary.employerPF)} &nbsp;|&nbsp; ESI: \u20b9{formatCurrency(salary.employerESI)} &nbsp;|&nbsp; Gratuity: \u20b9{formatCurrency(Math.round(salary.basicPay * 0.0481))}
+              PF: {formatINR(salary.employerPF)} &nbsp;|&nbsp; ESI: {formatINR(salary.employerESI)} &nbsp;|&nbsp; Gratuity: {formatINR(Math.round(salary.basicPay * 0.0481))}
             </p>
           </div>
 
@@ -176,7 +177,7 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#0A1628]">Net Pay (Take Home)</p>
                 <p className="mt-1 text-[11px] text-[#0A1628]/70">{numberToWords(salary.netPay)}</p>
               </div>
-              <p className="text-2xl font-bold text-[#0A1628]">\u20b9{formatCurrency(salary.netPay)}</p>
+              <p className="text-2xl font-bold text-[#0A1628]">{formatINR(salary.netPay)}</p>
             </div>
           </div>
 
@@ -190,7 +191,7 @@ export default function PayslipPreview({ employee, salary, month, year, workingD
                 { label: 'YTD Net Pay', value: salary.netPay * month },
               ].map((r) => (
                 <div key={r.label} className="text-center">
-                  <p className="text-[11px] font-bold text-[#0A1628]">\u20b9{formatCurrency(r.value)}</p>
+                  <p className="text-[11px] font-bold text-[#0A1628]">{formatINR(r.value)}</p>
                   <p className="text-[9px] text-[#6b7280]">{r.label}</p>
                 </div>
               ))}

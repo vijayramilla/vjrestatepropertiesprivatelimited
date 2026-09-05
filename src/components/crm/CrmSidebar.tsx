@@ -19,6 +19,8 @@ import {
   Wallet,
   Clock,
   MapPin,
+  CalendarDays,
+  Users,
 } from 'lucide-react';
 import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
 import { useEmployeeSession } from '@/hooks/useEmployeeSession';
@@ -45,6 +47,8 @@ const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
     label: 'Pipeline',
     items: [
       { id: 'leads', title: 'Leads', icon: ListChecks, path: '/crm/leads', perm: 'clients.view' },
+      { id: 'assigned-clients', title: 'Assigned Clients', icon: Users, path: '/crm/assigned-clients', perm: 'clients.view' },
+      { id: 'bookings', title: 'Bookings', icon: CalendarDays, path: '/crm/bookings', perm: 'clients.view' },
       { id: 'requirements', title: 'Requirements', icon: ClipboardList, path: '/crm/requirements', perm: 'requirements.view' },
       { id: 'agents', title: 'Agents', icon: UserCog, path: '/crm/agents', perm: 'agents.view' },
     ],
@@ -56,7 +60,7 @@ const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
       { id: 'employees', title: 'Employees', icon: Briefcase, path: '/crm/employees', perm: null },
       { id: 'attendance', title: 'Attendance', icon: Clock, path: '/crm/attendance', perm: null },
       { id: 'geofences', title: 'Geofences', icon: MapPin, path: '/crm/geofences', perm: null },
-      { id: 'payroll', title: 'Payroll', icon: Wallet, path: '/admin/payroll', perm: null },
+      { id: 'payroll', title: 'Payroll', icon: Wallet, path: '/crm/payroll', perm: null },
       { id: 'events', title: 'Events', icon: Megaphone, path: '/crm/events', perm: null },
       { id: 'storage', title: 'Storage', icon: HardDrive, path: '/crm/storage', perm: null },
     ],

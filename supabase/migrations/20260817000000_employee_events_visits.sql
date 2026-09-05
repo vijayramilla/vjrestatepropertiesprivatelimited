@@ -18,7 +18,7 @@ CREATE INDEX IF NOT EXISTS idx_employee_events_date ON public.employee_events(ev
 CREATE TABLE IF NOT EXISTS public.client_visits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
-  client_sno INTEGER NOT NULL REFERENCES public.crm_clients(sno) ON DELETE CASCADE,
+  client_sno BIGINT NOT NULL REFERENCES public.crm_clients(sno) ON DELETE CASCADE,
   visit_date DATE NOT NULL,
   status TEXT NOT NULL DEFAULT 'Scheduled',           -- Scheduled | Completed | Cancelled
   notes TEXT DEFAULT '',

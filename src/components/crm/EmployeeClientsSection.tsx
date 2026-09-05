@@ -1,22 +1,41 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { leadSupabase } from '@/services/leadSupabase';
 import { CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
-import { Users, Phone, MapPin, ChevronDown, ClipboardList, Save, MessageSquare, Search, Calendar, Clock } from 'lucide-react';
+import { Users, Phone, MapPin, ChevronDown, ClipboardList, Save, MessageSquare, Search, Calendar, Clock, Plus, X, Loader2 } from 'lucide-react';
 
-const CLIENT_STATUSES = ['New Lead', 'Site Visit', 'Negotiation', 'Closed', 'Lost'];
+const CLIENT_STATUSES = ['Site Visit', 'Token Done', 'Visit Done', 'Closed'];
 
 const STATUS_PILL: Record<string, string> = {
-  'New Lead': 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
   'Site Visit': 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
-  Negotiation: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200',
+  'Token Done': 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  'Visit Done': 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
   Closed: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
-  Lost: 'bg-red-50 text-red-600 ring-1 ring-red-200',
 };
 
-function Pill({ value }: { value: string }) {
+const LEAD_TYPE_PILL: Record<string, string> = {
+  'new lead': 'bg-sky-50 text-sky-700 ring-1 ring-sky-200',
+  'old lead': 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+};
+
+function leadTypeLabel(v: string | undefined | null): string {
+  const s = (v ?? 'new lead').toLowerCase();
+  return s === 'old lead' ? 'Old Lead' : 'New Lead';
+}
+
+function Pill({ value, leadType }: { value: string; leadType?: string }) {
+  if (value) {
+    return (
+      <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_PILL[value] ?? 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'}`}>
+        {value}
+      </span>
+    );
+  }
+  // Fresh leads carry no pipeline status — the lead type tells the story.
+  const lt = leadTypeLabel(leadType);
+  const ltKey = (leadType ?? 'new lead').toLowerCase();
   return (
-    <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${STATUS_PILL[value] ?? 'bg-gray-100 text-gray-600 ring-1 ring-gray-200'}`}>
-      {value || '—'}
+    <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ${LEAD_TYPE_PILL[ltKey] ?? 'bg-sky-50 text-sky-700 ring-1 ring-sky-200'}`}>
+      {lt}
     </span>
   );
 }
@@ -69,6 +88,7 @@ type Props = {
 
 export default function EmployeeClientsSection({ clients, visits, me, preview = false, onChanged, extra }: Props) {
   const [filter, setFilter] = useState('All');
+  const [leadTypeFilter, setLeadTypeFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [expandedSno, setExpandedSno] = useState<number | null>(null);
   const [statusDraft, setStatusDraft] = useState<Record<number, { status: string; note: string }>>({});
@@ -78,6 +98,11 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
   const [visitDate, setVisitDate] = useState<Record<number, string>>({});
   const [visitTime, setVisitTime] = useState<Record<number, string>>({});
   const [savingVisit, setSavingVisit] = useState<number | null>(null);
+  // Add-client sheet (telecallers can create leads straight from the portal)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', phone: '', type: '', budget: '', location: '', requirements: '', lead_type: 'new lead' });
+  const [addSaving, setAddSaving] = useState(false);
+  const [addError, setAddError] = useState('');
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -93,10 +118,26 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
     const q = search.trim().toLowerCase();
     return clients.filter((c: any) => {
       if (filter !== 'All' && c.status !== filter) return false;
+      if (leadTypeFilter !== 'All' && (c.lead_type ?? 'new lead') !== leadTypeFilter) return false;
       if (q && !((c.name ?? '').toLowerCase().includes(q) || String(c.phone ?? '').includes(q))) return false;
       return true;
     });
-  }, [clients, filter, search]);
+  }, [clients, filter, leadTypeFilter, search]);
+
+  /** One-tap pipeline update from the collapsed card (Salesforce-path style). */
+  const handleQuickStatus = async (client: any, nextStatus: string) => {
+    if ((statusDraft[client.sno]?.status ?? client.status) === nextStatus) return;
+    setSavingStatus(client.sno);
+    try {
+      await leadSupabase.crmClients.updateStatus(client.sno, nextStatus, '');
+      setStatusDraft((m) => ({ ...m, [client.sno]: { status: nextStatus, note: m[client.sno]?.note ?? '' } }));
+      onChanged?.();
+    } catch (e: any) {
+      alert(e?.message ?? 'Failed to update status');
+    } finally {
+      setSavingStatus(null);
+    }
+  };
 
   const handleUpdateStatus = async (client: any) => {
     const draft = statusDraft[client.sno];
@@ -137,6 +178,30 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
     finally { setReqSaving(null); }
   };
 
+  const handleAddClient = async () => {
+    if (!addForm.name.trim()) return;
+    setAddSaving(true);
+    setAddError('');
+    try {
+      await leadSupabase.crmClients.create({
+        name: addForm.name.trim(),
+        phone: addForm.phone.trim(),
+        type: addForm.type.trim(),
+        budget: addForm.budget.trim(),
+        location: addForm.location.trim(),
+        requirements: addForm.requirements.trim(),
+        lead_type: addForm.lead_type,
+      });
+      setAddForm({ name: '', phone: '', type: '', budget: '', location: '', requirements: '', lead_type: 'new lead' });
+      setAddOpen(false);
+      onChanged?.();
+    } catch (e: any) {
+      setAddError(e?.message ?? 'Failed to add client');
+    } finally {
+      setAddSaving(false);
+    }
+  };
+
   return (
     <CrmCard className="overflow-hidden">
       {/* Header bar */}
@@ -144,11 +209,19 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
         <Users className="h-4 w-4 text-[#D6B85D]" strokeWidth={1.8} />
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">My Clients</p>
         <span className="rounded-full bg-[#C9A84C]/[0.16] px-2 py-0.5 text-[9.5px] font-bold text-[#D6B85D]">{filtered.length} shown</span>
+        {!preview && (
+          <button
+            onClick={() => setAddOpen(true)}
+            className="ml-auto inline-flex min-h-[32px] items-center gap-1.5 rounded-lg bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] px-3 text-[10.5px] font-bold text-[#0A1628] shadow-[0_2px_8px_rgba(201,168,76,0.35)] transition-all hover:brightness-[1.05] active:scale-[0.98]"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} /> Add Client
+          </button>
+        )}
       </div>
 
       <div className="p-3 sm:p-4 lg:p-5">
-        {/* Filters — horizontal scroll on mobile */}
-        <div className="mb-3 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
+        {/* Filters — pipeline status, horizontal scroll on mobile */}
+        <div className="mb-2 overflow-x-auto pb-1 -mx-1 px-1 sm:mx-0 sm:px-0">
           <div className="flex gap-1.5 sm:flex-wrap" style={{ minWidth: 'max-content' }}>
             {['All', ...CLIENT_STATUSES].map((s) => (
               <button
@@ -166,6 +239,24 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
           </div>
         </div>
 
+        {/* Filters — lead type (new / old) */}
+        <div className="mb-3 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Lead</span>
+          {['All', 'new lead', 'old lead'].map((lt) => (
+            <button
+              key={lt}
+              onClick={() => setLeadTypeFilter(lt)}
+              className={`inline-flex shrink-0 items-center rounded-full border px-3 py-1 text-[10.5px] font-bold transition-all duration-200 ${
+                leadTypeFilter === lt
+                  ? 'border-[#0A1628]/40 bg-[#0A1628] text-white shadow-sm'
+                  : 'border-black/10 bg-white text-[#6b7280] hover:bg-black/[0.03]'
+              }`}
+            >
+              {lt === 'All' ? 'All' : leadTypeLabel(lt)}
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
         <div className="relative mb-3">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ca3af]" strokeWidth={1.8} />
@@ -180,7 +271,7 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
         {filtered.length === 0 ? (
           <p className="py-10 text-center text-xs text-[#9ca3af]">No clients match — try another filter or search.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {filtered.map((c: any) => {
               const open = expandedSno === c.sno;
               const draft = statusDraft[c.sno];
@@ -204,10 +295,10 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
 
                     {/* Name + meta — fills available space */}
                     <div className="min-w-0 flex-1">
-                      {/* Line 1: name + status */}
+                      {/* Line 1: name + status/lead type */}
                       <div className="flex items-center gap-2">
                         <p className="truncate text-[13px] font-bold text-[#0A1628]">{c.name || `Client #${c.sno}`}</p>
-                        <Pill value={draft?.status || c.status} />
+                        <Pill value={draft?.status || c.status} leadType={c.lead_type} />
                       </div>
                       {/* Line 2: phone + visit */}
                       <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-[#6b7280]">
@@ -243,9 +334,75 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
                     </div>
                   </div>
 
+                  {/* ── Pipeline path — one-tap status update (Salesforce Lightning style) ── */}
+                  {!preview && (
+                    <div className="border-t border-black/[0.05] bg-white px-2 py-2 sm:px-3">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5" style={{ minWidth: '100%' }}>
+                        <span className="hidden shrink-0 text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af] sm:inline">Move to</span>
+                        {CLIENT_STATUSES.map((st) => {
+                          const current = statusDraft[c.sno]?.status ?? c.status;
+                          const active = current === st;
+                          const busy = savingStatus === c.sno;
+                          const dotCls = active
+                            ? st === 'Closed' ? 'bg-emerald-500' : st === 'Visit Done' ? 'bg-purple-500' : st === 'Token Done' ? 'bg-blue-500' : 'bg-[#96782A]'
+                            : 'bg-black/15';
+                          return (
+                            <button
+                              key={st}
+                              type="button"
+                              onClick={() => handleQuickStatus(c, st)}
+                              disabled={busy}
+                              className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all duration-150 disabled:opacity-60 ${
+                                active
+                                  ? st === 'Closed'
+                                    ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                    : st === 'Visit Done'
+                                      ? 'border-purple-200 bg-purple-50 text-purple-700'
+                                      : st === 'Token Done'
+                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                        : 'border-[#C9A84C]/60 bg-[#C9A84C]/[0.14] text-[#8a6d1f] shadow-sm'
+                                  : 'border-black/[0.07] bg-white text-[#6b7280] hover:border-[#C9A84C]/40 hover:text-[#0A1628]'
+                              }`}
+                              title={`Move ${c.name || 'client'} to ${st}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${dotCls}`} />
+                              {st}
+                              {active && busy && <span className="h-2.5 w-2.5 animate-spin rounded-full border border-current border-t-transparent" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── Expanded details ── */}
                   {open && (
                     <div className="space-y-3 border-t border-black/[0.05] bg-[#fafafa] px-3 pb-3 pt-3 sm:px-4 sm:pb-4">
+                      {/* Lead type quick switch */}
+                      {!preview && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-[9px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Lead type</span>
+                          {['new lead', 'old lead'].map((lt) => (
+                            <button
+                              key={lt}
+                              onClick={async () => {
+                                try {
+                                  await leadSupabase.crmClients.updateStatus(c.sno, c.status || '', '', { leadType: lt });
+                                  onChanged?.();
+                                } catch (e: any) { alert(e?.message ?? 'Failed to update lead type'); }
+                              }}
+                              className={`rounded-full border px-2.5 py-1 text-[10px] font-bold transition-all ${
+                                (c.lead_type ?? 'new lead') === lt
+                                  ? 'border-[#0A1628]/50 bg-[#0A1628] text-white'
+                                  : 'border-black/10 bg-white text-[#6b7280] hover:bg-black/[0.03]'
+                              }`}
+                            >
+                              {leadTypeLabel(lt)}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
                       {/* Requirement + Note */}
                       <div className="space-y-2">
                         <div>
@@ -324,6 +481,7 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
                             onChange={(e) => setStatusDraft((m) => ({ ...m, [c.sno]: { status: e.target.value, note: m[c.sno]?.note ?? '' } }))}
                             className={`${CRM_INPUT} h-7 flex-1 sm:w-[120px] text-[10px]`}
                           >
+                            <option value="">{leadTypeLabel(c.lead_type)} — fresh</option>
                             {CLIENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                           <button
@@ -345,6 +503,115 @@ export default function EmployeeClientsSection({ clients, visits, me, preview = 
           </div>
         )}
       </div>
+
+      {/* ── Add Client sheet (telecaller self-service) ── */}
+      {addOpen && (
+        <div className="fixed inset-0 z-[85] flex items-end justify-center bg-[#050b14]/75 backdrop-blur-sm sm:items-center sm:p-4" onClick={() => { if (!addSaving) setAddOpen(false); }}>
+          <div onClick={(e) => e.stopPropagation()} className="relative flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-[24px] bg-white shadow-[0_40px_120px_rgba(0,0,0,0.55)] sm:rounded-[24px]">
+            <div className="flex shrink-0 justify-center bg-white pt-2.5 sm:hidden">
+              <div className="h-1 w-9 rounded-full bg-black/15" />
+            </div>
+            <div className="flex items-center gap-2.5 border-b border-black/[0.06] bg-gradient-to-r from-[#0A1628] to-[#1E3852] px-4 py-3.5 sm:px-5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#C9A84C]/[0.18] text-[#D6B85D] ring-1 ring-[#C9A84C]/40">
+                <Plus className="h-4 w-4" strokeWidth={2} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white">Add New Client</p>
+                <p className="text-[10px] font-semibold text-white/45">Creates the lead under your name — admins see it instantly</p>
+              </div>
+              <button onClick={() => setAddOpen(false)} disabled={addSaving} className="min-h-[40px] min-w-[40px] shrink-0 rounded-lg p-2 text-white/50 transition-colors hover:bg-white/10 hover:text-white">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-4 sm:p-5">
+              <div>
+                <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Client Name <span className="text-red-500">*</span></label>
+                <input
+                  value={addForm.name}
+                  onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Full name"
+                  className={CRM_INPUT}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Contact Number</label>
+                <input
+                  value={addForm.phone}
+                  onChange={(e) => setAddForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="10-digit mobile"
+                  inputMode="tel"
+                  className={CRM_INPUT}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Lead Type</label>
+                  <select
+                    value={addForm.lead_type}
+                    onChange={(e) => setAddForm((f) => ({ ...f, lead_type: e.target.value }))}
+                    className={CRM_INPUT}
+                  >
+                    <option value="new lead">New Lead</option>
+                    <option value="old lead">Old Lead</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Property Type</label>
+                  <input
+                    value={addForm.type}
+                    onChange={(e) => setAddForm((f) => ({ ...f, type: e.target.value }))}
+                    placeholder="PG Building, plot…"
+                    className={CRM_INPUT}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Budget</label>
+                  <input
+                    value={addForm.budget}
+                    onChange={(e) => setAddForm((f) => ({ ...f, budget: e.target.value }))}
+                    placeholder="e.g. 4 Cr"
+                    className={CRM_INPUT}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Preferred Location</label>
+                  <input
+                    value={addForm.location}
+                    onChange={(e) => setAddForm((f) => ({ ...f, location: e.target.value }))}
+                    placeholder="Marathalli, Whitefield…"
+                    className={CRM_INPUT}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="mb-1 block text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">Requirement / Notes</label>
+                <textarea
+                  value={addForm.requirements}
+                  onChange={(e) => setAddForm((f) => ({ ...f, requirements: e.target.value }))}
+                  placeholder="What the client is looking for…"
+                  rows={3}
+                  className={`${CRM_INPUT} h-auto resize-none py-2.5`}
+                />
+              </div>
+              {addError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-600">{addError}</p>}
+            </div>
+
+            <div className="shrink-0 border-t border-black/[0.06] bg-[#fafafa] p-4" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+              <button
+                onClick={handleAddClient}
+                disabled={addSaving || !addForm.name.trim()}
+                className="inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] px-5 text-[13px] font-bold text-[#0A1628] shadow-[0_8px_24px_rgba(201,168,76,0.35)] transition-all hover:brightness-[1.05] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {addSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" strokeWidth={2.2} />}
+                {addSaving ? 'Adding…' : 'Add Client'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </CrmCard>
   );
 }

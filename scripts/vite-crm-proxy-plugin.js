@@ -67,6 +67,23 @@ const SUPER_ADMIN_DISPLAY_NAMES = {
 };
 
 const COLUMN_DEFAULTS = {
+  employees: {
+    access_enabled: 'BOOLEAN NOT NULL DEFAULT FALSE',
+    face_verify_required: 'BOOLEAN NOT NULL DEFAULT FALSE',
+    face_verify_frequency: "TEXT NOT NULL DEFAULT 'daily'",
+    payroll_visible: 'BOOLEAN NOT NULL DEFAULT TRUE',
+    bookings_visible: 'BOOLEAN NOT NULL DEFAULT TRUE',
+    kyc_required: 'BOOLEAN NOT NULL DEFAULT TRUE',
+    commission_rate: 'NUMERIC DEFAULT 0',
+    work_start_time: "TIME DEFAULT '09:30'",
+    auto_logout_time: "TIME DEFAULT '21:00'",
+    login_count: 'INTEGER NOT NULL DEFAULT 0',
+    last_login: 'TIMESTAMPTZ',
+    date_of_birth: 'DATE',
+    gender: "TEXT DEFAULT ''",
+    father_or_spouse_name: "TEXT DEFAULT ''",
+    alternate_phone: "TEXT DEFAULT ''",
+  },
   employee_attendance: {
     check_in_lat: 'DOUBLE PRECISION',
     check_in_lng: 'DOUBLE PRECISION',
@@ -101,6 +118,49 @@ async function employeeInsertRetry(table, payload) {
 
 function normalizeEmail(email) {
   return email.trim().toLowerCase();
+}
+
+/** 'HH:MM' → 'HH:MM:00' for TIME columns (Supabase rejects bare HH:MM). */
+function normalizeTime(val) {
+  if (!val) return null;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(val).trim());
+  if (m) return `${m[1].padStart(2, '0')}:${m[2]}:00`;
+  return String(val).trim() || null;
+}
+
+// Front-end form fields (camelCase) → employees table columns. Anything not in
+// this map is dropped so PostgREST never sees an unknown column (the dev-proxy
+// equivalent of the production proxy's explicit mapping).
+const EMPLOYEE_FIELD_MAP = {
+  employeeId: 'employee_id', name: 'name', email: 'email', phone: 'phone',
+  alternatePhone: 'alternate_phone', gender: 'gender', fatherOrSpouseName: 'father_or_spouse_name',
+  dateOfBirth: 'date_of_birth', designation: 'designation', department: 'department',
+  joiningDate: 'joining_date', status: 'status', salary: 'salary',
+  accessEnabled: 'access_enabled', faceVerifyRequired: 'face_verify_required',    faceVerifyFrequency: 'face_verify_frequency', payrollVisible: 'payroll_visible',
+    bookingsVisible: 'bookings_visible', kycRequired: 'kyc_required',
+  commissionRate: 'commission_rate', workStartTime: 'work_start_time', autoLogoutTime: 'auto_logout_time',
+  address: 'address', emergencyContactName: 'emergency_contact_name',
+  emergencyContactPhone: 'emergency_contact_phone', bankAccountNumber: 'bank_account_number',
+  bankName: 'bank_name', ifscCode: 'ifsc_code', panNumber: 'pan_number',
+  aadharNumber: 'aadhar_number', uanNumber: 'uan_number', esiNumber: 'esi_number',
+  profilePhotoUrl: 'profile_photo_url', notes: 'notes',
+};
+
+function mapEmployeeFields(fields) {
+  const payload = {};
+  for (const [k, v] of Object.entries(fields)) {
+    if (v === undefined || !EMPLOYEE_FIELD_MAP[k]) continue;
+    const col = EMPLOYEE_FIELD_MAP[k];
+    if (col === 'email') { payload[col] = normalizeEmail(v); continue; }
+    // Optional newer profile columns: only sent when filled in, so writes keep
+    // working on environments where the migration hasn't run yet.
+    if ((col === 'date_of_birth' || col === 'gender' || col === 'father_or_spouse_name' || col === 'alternate_phone') && (v === '' || v == null)) continue;
+    if (col === 'joining_date') { payload[col] = v === '' || v == null ? null : v; continue; }
+    if (col === 'salary' || col === 'commission_rate') { payload[col] = v === '' || v == null ? null : v; continue; }
+    if (col === 'work_start_time' || col === 'auto_logout_time') { payload[col] = normalizeTime(v); continue; }
+    payload[col] = v;
+  }
+  return payload;
 }
 
 // Columns that actually exist in the properties table.
@@ -423,34 +483,131 @@ async function executeAction(action, params) {
 
     // ── Employees ─────────────────────────────────────────────────────
     case 'employees.list': {
-      const { search, status, department, page = 1, limit = 20 } = params;
+      const { search, status, department, designation, page = 1, limit = 20 } = params;
       let filters = [];
       if (search) filters.push(`or=(name.ilike.%25${encodeURIComponent(search)}%25,employee_id.ilike.%25${encodeURIComponent(search)}%25,email.ilike.%25${encodeURIComponent(search)}%25)`);
       if (status) filters.push(`status=eq.${encodeURIComponent(status)}`);
       if (department) filters.push(`department=eq.${encodeURIComponent(department)}`);
+      if (designation) filters.push(`designation=eq.${encodeURIComponent(designation)}`);
       filters.push(`limit=${limit}`, `offset=${(page - 1) * limit}`, 'order=created_at.desc');
       const { data, count } = await supabaseFetch('GET', `employees?${filters.join('&')}`, null);
-      return { data: data ?? [], count: count ?? (data ?? []).length };
+      const rows = (data ?? []).map((e) => ({ ...e, assigned_clients: 0, active_assigned_clients: 0, today_visits: 0 }));
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const [assignRes, visitsRes] = await Promise.all([
+          supabaseFetch('GET', 'crm_clients?select=assigned_employee,status', null),
+          supabaseFetch('GET', `client_visits?select=employee_id&visit_date=eq.${today}`, null),
+        ]);
+        const byEmp = new Map(rows.map((e) => [e.id, e]));
+        for (const c of assignRes?.data ?? []) {
+          const e = byEmp.get(c.assigned_employee);
+          if (e) {
+            e.assigned_clients += 1;
+            if (c.status !== 'Closed') e.active_assigned_clients += 1;
+          }
+        }
+        for (const v of visitsRes?.data ?? []) {
+          const e = byEmp.get(v.employee_id);
+          if (e) e.today_visits += 1;
+        }
+      } catch { /* enrichment is best-effort */ }
+      // KYC onboarding status per employee (no row = not started yet).
+      try {
+        const kycRes = await employeeFetch('GET', 'employee_kyc?select=employee_id,status', null);
+        const kycByEmp = new Map((kycRes.data ?? []).map((k) => [k.employee_id, k.status]));
+        for (const e of rows) e.kyc_status = kycByEmp.get(e.id) ?? 'not_started';
+      } catch { /* KYC table may not exist yet on older environments */ }
+      const stats = {
+        total: rows.length,
+        active: rows.filter((e) => e.status === 'Active').length,
+        onLeave: rows.filter((e) => e.status === 'On Leave' || e.status === 'Leave').length,
+        newThisMonth: rows.filter((e) => {
+          if (!e.joining_date) return false;
+          const d = new Date(e.joining_date);
+          const now = new Date();
+          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        }).length,
+      };
+      return { data: rows, stats };
     }
 
     case 'employees.get': {
-      const { data } = await supabaseFetch('GET', `employees?id=eq.${encodeURIComponent(params.id)}&select=*`, null);
-      return data?.[0] ?? null;
+      const { id } = params;
+      if (params._auth?.role === 'employee') {
+        const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        const meRow = me.data?.[0];
+        if (!meRow || meRow.id !== id) throw new Error('Forbidden');
+      }
+      const { data } = await supabaseFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
+      const row = data?.[0] ?? null;
+      if (!row) return { data: null, history: [], attendance: [], leaves: [], payroll: [] };
+      let kycStatus = null;
+      try {
+        const kycRes = await employeeFetch('GET', `employee_kyc?employee_id=eq.${encodeURIComponent(id)}&select=status`, null);
+        kycStatus = kycRes.data?.[0]?.status ?? null;
+      } catch { /* table not present yet */ }
+      const [histRes, attRes, leaveRes, payRes] = await Promise.all([
+        employeeFetch('GET', `employee_history?employee_id=eq.${encodeURIComponent(id)}&order=created_at.desc`, null),
+        employeeFetch('GET', `employee_attendance?employee_id=eq.${encodeURIComponent(id)}&order=date.desc&limit=31`, null),
+        employeeFetch('GET', `employee_leaves?employee_id=eq.${encodeURIComponent(id)}&order=created_at.desc`, null),
+        employeeFetch('GET', `employee_payroll?employee_id=eq.${encodeURIComponent(id)}&order=year.desc&limit=100`, null),
+      ]);
+      return {
+        data: { ...row, kyc_status: kycStatus },
+        history: histRes.data ?? [],
+        attendance: attRes.data ?? [],
+        leaves: leaveRes.data ?? [],
+        payroll: payRes.data ?? [],
+      };
     }
 
     case 'employees.create': {
-      const { data } = await employeeInsertRetry('employees', params);
-      return data?.[0];
+      const { _auth, ...rest } = params;
+      const payload = mapEmployeeFields(rest);
+      let result;
+      try {
+        result = await employeeFetch('POST', 'employees?select=*', payload);
+      } catch (e) {
+        // Auto-create a missing column once, then retry (same as production).
+        const m = /Could not find the '(\w+)' column/.exec(e.message) || /column \\?["'](\w+)/.exec(e.message);
+        if (!m) throw e;
+        await ensureColumns('employees', [m[1]]);
+        result = await employeeFetch('POST', 'employees?select=*', payload);
+      }
+      const row = result?.data?.[0] ?? null;
+      if (row?.id) {
+        try {
+          await employeeFetch('POST', 'employee_history', {
+            employee_id: row.id, event_type: 'joined', title: 'Joined',
+            description: `${row.name || ''} joined as ${row.designation || 'employee'}`,
+            event_date: row.joining_date ?? new Date().toISOString().slice(0, 10), created_by: _auth?.email ?? '',
+          });
+        } catch { /* non-fatal */ }
+      }
+      return { data: row };
     }
 
     case 'employees.update': {
-      const { id, ...fields } = params;
-      await supabaseFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, fields);
-      return { id };
+      const { id, _auth, addHistory, historyType, historyTitle, historyDesc, ...rest } = params;
+      const payload = mapEmployeeFields(rest);
+      if (Object.keys(payload).length > 0) {
+        payload.updated_at = new Date().toISOString();
+        await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(id)}`, payload);
+      }
+      if (addHistory) {
+        try {
+          await employeeFetch('POST', 'employee_history', {
+            employee_id: id, event_type: historyType ?? 'updated', title: historyTitle ?? 'Updated',
+            description: historyDesc ?? '', created_by: _auth?.email ?? '',
+          });
+        } catch { /* non-fatal */ }
+      }
+      const { data } = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(id)}&select=*`, null);
+      return { data: data?.[0] ?? null };
     }
 
     case 'employees.delete': {
-      await supabaseFetch('DELETE', `employees?id=eq.${encodeURIComponent(params.id)}`);
+      await employeeFetch('DELETE', `employees?id=eq.${encodeURIComponent(params.id)}`);
       return { id: params.id };
     }
 
@@ -571,11 +728,21 @@ async function executeAction(action, params) {
 
     // ── Admin management ──────────────────────────────────────────────
     case 'admin.verify': {
-      const email = normalizeEmail(params.email ?? '');
-      if (isSuperAdminEmail(email)) return { role: 'super_admin', permissions: null, display_name: SUPER_ADMIN_DISPLAY_NAMES[email] ?? 'Admin' };
-      const { data } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(email)}&select=id,role,permissions,display_name`, null);
-      if (data?.length) return { role: data[0].role, permissions: data[0].permissions, display_name: data[0].display_name };
-      return null;
+      // Resolve from the verified token identity (same as production) — the
+      // front end never sends an email, so reading params.email here used to
+      // return null and crash every admin page that reads verify.role.
+      const auth = params._auth;
+      if (!auth?.authorized) throw new Error('Unauthorized');
+      if (auth.role === 'employee') {
+        const emp = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(auth.email)}&select=*`, null);
+        return { data: emp.data?.[0] ?? null, email: auth.email, role: 'employee', permissions: [] };
+      }
+      let dbRow = null;
+      try {
+        const adm = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(auth.email)}&select=id,email,display_name,role,permissions,created_at`, null);
+        dbRow = adm.data?.[0] ?? null;
+      } catch { /* admin_users may be unreachable — token role still applies */ }
+      return { data: dbRow, email: auth.email, role: auth.role ?? null, permissions: auth.permissions ?? null };
     }
 
     case 'admin.list': {
@@ -616,82 +783,269 @@ async function executeAction(action, params) {
       return { email: avatarEmail };
     }
 
-    // ── CRM Clients ───────────────────────────────────────────────────
+    // ── CRM Clients — mirrors api/crm-proxy.ts (same schema contracts) ──
     case 'crmClients.list': {
-      const { search, agentId, page = 1, limit = 20 } = params;
-      let filters = [];
-      if (search) filters.push(`or=(client_name.ilike.%25${encodeURIComponent(search)}%25,client_phone.ilike.%25${encodeURIComponent(search)}%25)`);
-      if (agentId) filters.push(`assigned_agent=eq.${encodeURIComponent(agentId)}`);
-      filters.push(`limit=${limit}`, `offset=${(page - 1) * limit}`, 'order=created_at.desc');
-      const { data, count } = await supabaseFetch('GET', `crm_clients?${filters.join('&')}`, null);
-      return { data: data ?? [], count: count ?? (data ?? []).length };
+      const { data } = await supabaseFetch('GET', 'crm_clients?order=sno.desc', null);
+      const rows = data ?? [];
+      const empIds = [...new Set(rows.map((r) => r.assigned_employee).filter(Boolean))];
+      let empMap = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await employeeFetch('GET', `employees?id=in.(${empIds.join(',')})&select=id,employee_id,name`, null);
+        (emps ?? []).forEach((e) => { empMap[e.id] = e; });
+      }
+      return { data: rows.map((r) => ({ ...r, assigned_employee_info: r.assigned_employee && empMap[r.assigned_employee] ? empMap[r.assigned_employee] : null })) };
+    }
+
+    // Assigned Clients dashboard — mirrors api/crm-proxy.ts.
+    case 'crmClients.assignedView': {
+      if (params._auth?.role === 'employee') throw new Error('Forbidden');
+      const clientRes = await supabaseFetch('GET', 'crm_clients?assigned_employee=not.is.null&order=sno.desc', null);
+      const rows = clientRes.data ?? [];
+      const empIds = [...new Set(rows.map((r) => r.assigned_employee).filter(Boolean))];
+      let empMap = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await employeeFetch('GET', `employees?id=in.(${empIds.join(',')})&select=id,employee_id,name,designation,department,status`, null);
+        (emps ?? []).forEach((e) => { empMap[e.id] = e; });
+      }
+      const todayISO = new Date().toISOString().split('T')[0];
+      let visitRows = [];
+      try {
+        const { data } = await supabaseFetch('GET', `client_visits?visit_date=gte.${todayISO}&order=visit_date.asc`, null);
+        visitRows = data ?? [];
+      } catch { /* visits may not be configured */ }
+      const nextVisitBy = {};
+      const upcomingCount = {};
+      for (const v of visitRows) {
+        const key = v.client_sno;
+        if (key == null) continue;
+        upcomingCount[key] = (upcomingCount[key] ?? 0) + 1;
+        if (!nextVisitBy[key]) nextVisitBy[key] = v;
+      }
+      const enriched = [];
+      for (const r of rows) {
+        let lastActivity = null;
+        try {
+          const actRes = await supabaseFetch('GET', `crm_client_activity?client_sno=eq.${encodeURIComponent(r.sno)}&order=created_at.desc&limit=1`, null);
+          lastActivity = actRes.data?.[0] ?? null;
+        } catch { /* no activity yet */ }
+        enriched.push({
+          ...r,
+          assigned_employee_info: r.assigned_employee && empMap[r.assigned_employee] ? empMap[r.assigned_employee] : null,
+          last_activity: lastActivity,
+          next_visit: nextVisitBy[r.sno] ?? null,
+          upcoming_visits: upcomingCount[r.sno] ?? 0,
+        });
+      }
+      return { data: enriched };
     }
 
     case 'crmClients.upsert': {
-      const { sno, ...fields } = params;
-      const { data: existing } = await supabaseFetch('GET', `crm_clients?sno=eq.${sno}&select=id`, null);
+      const payload = { ...(params.data ?? params) };
+      delete payload.assigned_employee_info; // not a DB column
+      const sno = payload.sno;
+      if (sno == null) throw new Error('sno is required');
+      const { data: existing } = await supabaseFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=id`, null);
       if (existing?.length) {
-        await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(existing[0].id)}`, fields);
-        return { id: existing[0].id, sno };
+        await supabaseFetch('PATCH', `crm_clients?sno=eq.${encodeURIComponent(sno)}`, payload);
+        return { data: payload };
       }
-      const { data } = await supabaseFetch('POST', 'crm_clients', { sno, ...fields });
-      return data?.[0];
+      const { data } = await supabaseFetch('POST', 'crm_clients', payload);
+      return { data: data?.[0] ?? payload };
+    }
+
+    // Telecaller / sales self-service: add a new lead from the portal. Mirrors
+    // api/crm-proxy.ts — employees create and get self-assigned.
+    case 'crmClients.create': {
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const name = params.name;
+      if (!name?.trim()) throw new Error('Client name is required');
+      const maxRes = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null);
+      const sno = (maxRes.data?.[0]?.sno ?? 0) + 1;
+      let assigned_employee = params.assigned_employee ?? null;
+      let performedBy = params._auth?.email ?? '';
+      let performedById = null;
+      if (isEmployee) {
+        const meRes = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,employee_id,name`, null);
+        const me = meRes.data?.[0] ?? null;
+        if (!me) throw new Error('Employee not found');
+        assigned_employee = me.id;
+        performedBy = `${me.name} (${me.employee_id})`;
+        performedById = me.id;
+      }
+      const payload = {
+        sno,
+        name: name.trim(),
+        phone: params.phone ?? '',
+        email: params.email ?? '',
+        type: params.type ?? '',
+        budget: params.budget ?? '',
+        location: params.location ?? '',
+        requirements: params.requirements ?? '',
+        notes: params.notes ?? '',
+        source: params.source ?? '',
+        client_role: params.client_role ?? 'Buyer',
+        lead_type: params.lead_type ?? 'new lead',
+        status: '',
+        assigned_employee,
+      };
+      const { data } = await supabaseFetch('POST', 'crm_clients', payload);
+      await supabaseFetch('POST', 'crm_client_activity', {
+        client_sno: sno, action: 'created', status: '',
+        note: `Lead created by ${performedBy}${isEmployee ? ' (self-assigned)' : ''}`, performed_by: performedBy, performed_by_id: performedById,
+      });
+      return { data: data?.[0] ?? payload };
     }
 
     case 'crmClients.delete': {
-      await supabaseFetch('DELETE', `crm_clients?id=eq.${encodeURIComponent(params.id)}`);
-      return { id: params.id };
+      if (params.sno == null) throw new Error('sno is required');
+      await supabaseFetch('DELETE', `crm_clients?sno=eq.${encodeURIComponent(params.sno)}`);
+      return { message: 'Deleted' };
     }
 
     case 'crmClients.maxSno': {
       const { data } = await supabaseFetch('GET', 'crm_clients?select=sno&order=sno.desc&limit=1', null);
-      return { maxSno: data?.[0]?.sno ?? 0 };
+      return { data: data?.[0]?.sno ?? 0 };
+    }
+
+    case 'crmClients.updateStatus': {
+      const { sno, status, note, leadType } = params;
+      if (sno == null || (!status && !leadType)) throw new Error('sno and status are required');
+      const isEmployee = params._auth?.role === 'employee';
+      const clientRes = await supabaseFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=sno,name,status,assigned_employee`, null);
+      const client = clientRes.data?.[0] ?? null;
+      if (!client) throw new Error('Client not found');
+      let performedBy = params._auth?.email ?? '';
+      let performedById = null;
+      if (isEmployee) {
+        const meRes = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,employee_id,name`, null);
+        const me = meRes.data?.[0] ?? null;
+        if (!me) throw new Error('Employee not found');
+        if (client.assigned_employee !== me.id) throw new Error('Client is not assigned to you');
+        performedById = me.id;
+        performedBy = `${me.name} (${me.employee_id})`;
+      }
+      const updates = { updated_at: new Date().toISOString() };
+      if (status !== undefined && status !== null) updates.status = status;
+      if (leadType !== undefined && leadType !== null) updates.lead_type = leadType;
+      await supabaseFetch('PATCH', `crm_clients?sno=eq.${encodeURIComponent(sno)}`, updates);
+      await supabaseFetch('POST', 'crm_client_activity', {
+        client_sno: sno, action: status !== undefined && status !== null ? 'status_changed' : 'lead_type_changed',
+        status: status !== undefined && status !== null ? status : client.status ?? '',
+        note: note ?? (leadType ? `Lead type set to ${leadType}` : ''),
+        performed_by: performedBy, performed_by_id: performedById,
+      });
+      return { data: { sno, status: updates.status ?? client.status } };
     }
 
     case 'crmClients.activity': {
-      const { clientId } = params;
-      const { data } = await supabaseFetch('GET', `crm_client_activity?client_id=eq.${encodeURIComponent(clientId)}&order=created_at.desc&limit=50`, null);
+      if (params.sno == null) throw new Error('sno is required');
+      const { data } = await supabaseFetch('GET', `crm_client_activity?client_sno=eq.${encodeURIComponent(params.sno)}&order=created_at.desc&limit=50`, null);
       return { data: data ?? [] };
     }
 
     // ── Employee self-service ─────────────────────────────────────────
     case 'employees.me': {
-      const { data } = await supabaseFetch('GET', `employees?email=eq.${encodeURIComponent(params.email)}&select=*`, null);
-      return data?.[0] ?? null;
+      const email = params._auth?.email ?? '';
+      if (!email) throw new Error('Unauthorized');
+      const { data } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(email)}&select=*`, null);
+      return { data: data?.[0] ?? null };
     }
 
     case 'employees.clients': {
-      const { data } = await supabaseFetch('GET', `crm_clients?assigned_agent=eq.${encodeURIComponent(params.employeeId)}&order=created_at.desc`, null);
-      return { data: data ?? [] };
+      let empId = params.employeeId;
+      let locked = false;
+      if (!empId && params._auth?.role === 'employee') {
+        const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,kyc_required`, null);
+        const meRow = me.data?.[0] ?? null;
+        empId = meRow?.id;
+        // KYC gate — same policy as production: while KYC is required but not
+        // verified, the employee's client pipeline stays locked.
+        if (meRow && meRow.kyc_required !== false) {
+          let status = null;
+          try {
+            const kycRow = await employeeFetch('GET', `employee_kyc?employee_id=eq.${encodeURIComponent(empId)}&select=status`, null);
+            status = kycRow.data?.[0]?.status ?? null;
+          } catch { /* KYC table may not exist yet */ }
+          if (status !== 'verified') locked = true;
+        }
+      }
+      if (!empId) throw new Error('employeeId is required');
+      if (locked) return { data: { employee: { id: empId }, locked: true, reason: 'kyc', clients: [] } };
+      const [empRes, clientRes] = await Promise.all([
+        employeeFetch('GET', `employees?id=eq.${encodeURIComponent(empId)}&select=id,employee_id,name,email`, null),
+        employeeFetch('GET', `crm_clients?assigned_employee=eq.${encodeURIComponent(empId)}&order=sno.desc`, null),
+      ]);
+      return { data: { employee: empRes.data?.[0] ?? null, locked: false, clients: clientRes.data ?? [] } };
     }
 
     case 'employees.assignClient': {
-      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { assigned_agent: params.employeeId });
-      return { id: params.clientId };
+      const { employeeId, sno } = params;
+      if (!employeeId || sno == null) throw new Error('employeeId and sno are required');
+      const empRes = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_id,name`, null);
+      const emp = empRes.data?.[0] ?? null;
+      if (!emp) throw new Error('Employee not found');
+      const clientRes = await supabaseFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=sno,name,status`, null);
+      const client = clientRes.data?.[0] ?? null;
+      if (!client) throw new Error('Client not found');
+      await supabaseFetch('PATCH', `crm_clients?sno=eq.${encodeURIComponent(sno)}`, { assigned_employee: employeeId, updated_at: new Date().toISOString() });
+      await supabaseFetch('POST', 'crm_client_activity', {
+        client_sno: sno, action: 'assigned', status: client.status ?? '',
+        note: `Assigned to ${emp.name} (${emp.employee_id})`, performed_by: params._auth?.email ?? '', performed_by_id: employeeId,
+      });
+      return { message: 'Client assigned' };
     }
 
     case 'employees.unassignClient': {
-      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { assigned_agent: null });
-      return { id: params.clientId };
+      const { sno } = params;
+      if (sno == null) throw new Error('sno is required');
+      const clientRes = await supabaseFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=sno,name,status`, null);
+      const client = clientRes.data?.[0] ?? null;
+      if (client) {
+        await supabaseFetch('PATCH', `crm_clients?sno=eq.${encodeURIComponent(sno)}`, { assigned_employee: null, updated_at: new Date().toISOString() });
+        await supabaseFetch('POST', 'crm_client_activity', {
+          client_sno: sno, action: 'unassigned', status: client.status ?? '',
+          note: 'Assignment removed', performed_by: params._auth?.email ?? '',
+        });
+      }
+      return { message: 'Client unassigned' };
     }
 
     case 'employees.saveNotes': {
-      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(params.clientId)}`, { notes: params.notes });
-      return { id: params.clientId };
+      // Personal notes on the employee record (portal Notes popup) — same as prod.
+      const email = params._auth?.email ?? '';
+      const meRes = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(email)}&select=id`, null);
+      const me = meRes.data?.[0] ?? null;
+      if (!me) throw new Error('Employee not found');
+      await supabaseFetch('PATCH', `employees?id=eq.${encodeURIComponent(me.id)}`, { notes: params.notes ?? '', updated_at: new Date().toISOString() });
+      return { message: 'Notes saved' };
     }
 
     case 'employees.uploadPhoto': {
-      const { employeeId: empId, photoBase64, photoType } = params;
-      const buffer = decodeBase64(photoBase64);
-      const path = `employee-photos/${empId}/${Date.now()}.jpg`;
+      const { employeeId: empId, base64 } = params;
+      if (!empId || !base64) throw new Error('employeeId and base64 are required');
+      // Employees may only set their own photo; admins may set anyone's.
+      if (params._auth?.role === 'employee') {
+        const meRes = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        const me = meRes.data?.[0] ?? null;
+        if (!me || me.id !== empId) throw new Error('Forbidden');
+      }
+      const buffer = decodeBase64(base64);
+      if (!buffer || buffer.length === 0) throw new Error('Empty image');
+      if (buffer.length > 5 * 1024 * 1024) throw new Error('Image too large (max 5 MB)');
+      const extMatch = /^data:image\/(jpeg|png|webp)/.exec(base64 ?? '');
+      const ext = extMatch ? (extMatch[1] === 'jpeg' ? 'jpg' : extMatch[1]) : 'jpg';
+      const path = `employee-photos/${empId}-${Date.now()}.${ext}`;
       const e = getEnv();
-      await fetch(`${e.CLI_URL}/storage/v1/object/employee-photos/${path}`, {
+      const up = await fetch(`${e.CLI_URL}/storage/v1/object/employee-photos/${path}`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${e.CLI_KEY || e.CLI_ANON}`, 'Content-Type': photoType || 'image/jpeg' },
+        headers: { 'Authorization': `Bearer ${e.CLI_KEY || e.CLI_ANON}`, 'Content-Type': `image/${ext === 'jpg' ? 'jpeg' : ext}` },
         body: buffer,
       });
-      const { data: urlData } = await supabaseFetch('GET', `employee-photos?name=eq.${path}`);
-      return { url: `${e.CLI_URL}/storage/v1/object/public/employee-photos/${path}` };
+      if (!up.ok) throw new Error('Upload failed');
+      const photoUrl = `${e.CLI_URL}/storage/v1/object/public/employee-photos/${path}`;
+      await supabaseFetch('PATCH', `employees?id=eq.${encodeURIComponent(empId)}`, { profile_photo_url: photoUrl, updated_at: new Date().toISOString() });
+      return { data: { profilePhotoUrl: photoUrl } };
     }
 
     case 'employees.faceVerify': {
@@ -715,9 +1069,21 @@ async function executeAction(action, params) {
     }
 
     case 'employees.updateClientDetail': {
-      const { clientId, ...fields } = params;
-      await supabaseFetch('PATCH', `crm_clients?id=eq.${encodeURIComponent(clientId)}`, fields);
-      return { id: clientId };
+      const { sno, requirements, notes } = params;
+      if (sno == null) throw new Error('sno is required');
+      const email = params._auth?.email ?? '';
+      const meRes = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(email)}&select=id`, null);
+      const me = meRes.data?.[0] ?? null;
+      if (!me) throw new Error('Employee not found');
+      const clientRes = await supabaseFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=sno,assigned_employee`, null);
+      const client = clientRes.data?.[0] ?? null;
+      if (!client) throw new Error('Client not found');
+      if (client.assigned_employee !== me.id) throw new Error('Client is not assigned to you');
+      const updates = { updated_at: new Date().toISOString() };
+      if (requirements !== undefined) updates.requirements = requirements;
+      if (notes !== undefined) updates.notes = notes;
+      await supabaseFetch('PATCH', `crm_clients?sno=eq.${encodeURIComponent(sno)}`, updates);
+      return { message: 'Client details updated' };
     }
 
     case 'employees.sessionStats': {
@@ -743,6 +1109,122 @@ async function executeAction(action, params) {
     case 'employees.requestFaceVerify': {
       const { data } = await supabaseFetch('POST', 'employee_face_verifications', { employee_id: params.employeeId, status: 'pending', requested_by: params.requestedBy, created_at: new Date().toISOString() });
       return data?.[0];
+    }
+
+    // ── KYC onboarding: employee submits Aadhaar/PAN docs, admin verifies ───
+    case 'employees.kycGet': {
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      let employeeId = params.employeeId;
+      if (isEmployee) {
+        const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        if (!me.data?.[0]) throw new Error('Employee not found');
+        employeeId = me.data[0].id;
+      }
+      if (!employeeId) throw new Error('employeeId is required');
+      const [empRes, kycRes, docsRes] = await Promise.all([
+        employeeFetch('GET', `employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_id,name,email,designation,department,pan_number,aadhar_number,date_of_birth,gender,status`, null),
+        employeeFetch('GET', `employee_kyc?employee_id=eq.${encodeURIComponent(employeeId)}&select=*`, null),
+        employeeFetch('GET', `employee_kyc_documents?employee_id=eq.${encodeURIComponent(employeeId)}&select=*`, null),
+      ]);
+      return {
+        data: {
+          employee: empRes.data?.[0] ?? null,
+          kyc: kycRes.data?.[0] ?? null,
+          documents: docsRes.data ?? [],
+        },
+      };
+    }
+    case 'employees.kycUploadDoc': {
+      if (params._auth?.role !== 'employee') throw new Error('Forbidden');
+      const { docType, base64 } = params;
+      if (!['aadhaar_front', 'aadhaar_back', 'pan'].includes(docType)) throw new Error('Invalid document type');
+      if (!base64) throw new Error('Document image is required');
+      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,employee_id`, null);
+      const meRow = me.data?.[0];
+      if (!meRow) throw new Error('Employee not found');
+      const buffer = decodeBase64(base64);
+      if (buffer.length === 0) throw new Error('Empty file');
+      if (buffer.length > 5 * 1024 * 1024) throw new Error('File too large (max 5 MB)');
+      const extMatch = /^data:image\/(jpeg|png|webp)/.exec(base64 ?? '');
+      const ext = extMatch ? (extMatch[1] === 'jpeg' ? 'jpg' : extMatch[1]) : 'jpg';
+      const path = `${meRow.employee_id}/kyc/${docType}-${Date.now()}.${ext}`;
+      const e = getEnv();
+      const up = await fetch(`${e.CLI_URL}/storage/v1/object/employee-photos/${path}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${e.CLI_KEY || e.CLI_ANON}`, 'Content-Type': `image/${ext === 'jpg' ? 'jpeg' : ext}`, 'apikey': e.CLI_KEY || e.CLI_ANON },
+        body: buffer,
+      });
+      if (!up.ok) { const t = await up.text(); throw new Error('Upload failed: ' + (t || up.status)); }
+      const fileUrl = `${e.CLI_URL}/storage/v1/object/public/employee-photos/${path}`;
+      const existing = await employeeFetch('GET', `employee_kyc_documents?employee_id=eq.${encodeURIComponent(meRow.id)}&doc_type=eq.${docType}&select=id`, null);
+      if (existing.data?.length) {
+        await employeeFetch('PATCH', `employee_kyc_documents?id=eq.${encodeURIComponent(existing.data[0].id)}`, { file_url: fileUrl, uploaded_at: new Date().toISOString() });
+      } else {
+        await employeeFetch('POST', 'employee_kyc_documents', { employee_id: meRow.id, doc_type: docType, file_url: fileUrl, uploaded_at: new Date().toISOString() });
+      }
+      return { data: { employee_id: meRow.id, doc_type: docType, file_url: fileUrl } };
+    }
+    case 'employees.kycSubmit': {
+      if (params._auth?.role !== 'employee') throw new Error('Forbidden');
+      const { panNumber, aadharNumber } = params;
+      const pan = String(panNumber ?? '').trim().toUpperCase();
+      const aadhar = String(aadharNumber ?? '').replace(/[\s-]/g, '');
+      if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) throw new Error('PAN format looks wrong — expected 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)');
+      if (aadhar && !/^\d{12}$/.test(aadhar)) throw new Error('Aadhaar must be exactly 12 digits');
+      if (!pan || !aadhar) throw new Error('PAN and Aadhaar numbers are required to submit KYC');
+      const me = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,employee_id,name`, null);
+      const meRow = me.data?.[0];
+      if (!meRow) throw new Error('Employee not found');
+      const docs = await employeeFetch('GET', `employee_kyc_documents?employee_id=eq.${encodeURIComponent(meRow.id)}&select=doc_type`, null);
+      const have = new Set((docs.data ?? []).map((d) => d.doc_type));
+      const missing = ['aadhaar_front', 'aadhaar_back', 'pan'].filter((t) => !have.has(t));
+      if (missing.length > 0) throw new Error('Please upload every required document (Aadhaar front, Aadhaar back and PAN) before submitting.');
+      await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(meRow.id)}`, { pan_number: pan, aadhar_number: aadhar, updated_at: new Date().toISOString() });
+      const now = new Date().toISOString();
+      const kycExisting = await employeeFetch('GET', `employee_kyc?employee_id=eq.${encodeURIComponent(meRow.id)}&select=id`, null);
+      const kycPayload = { status: 'pending', submitted_at: now, admin_note: '', reviewed_at: null, reviewed_by: '', updated_at: now };
+      if (kycExisting.data?.length) {
+        await employeeFetch('PATCH', `employee_kyc?id=eq.${encodeURIComponent(kycExisting.data[0].id)}`, kycPayload);
+      } else {
+        await employeeFetch('POST', 'employee_kyc', { employee_id: meRow.id, ...kycPayload });
+      }
+      try {
+        await employeeFetch('POST', 'employee_history', {
+          employee_id: meRow.id, event_type: 'kyc_submitted', title: 'KYC submitted',
+          description: `Submitted Aadhaar ${aadhar.slice(0, 4)}… & PAN ${pan} for verification`,
+        });
+      } catch { /* non-fatal */ }
+      return { data: { employee_id: meRow.id, status: 'pending' } };
+    }
+    case 'employees.kycReview': {
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { employeeId, decision, note } = params;
+      if (!employeeId) throw new Error('employeeId is required');
+      if (!['verified', 'changes_requested'].includes(decision)) throw new Error('Invalid decision');
+      const emp = await employeeFetch('GET', `employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_id,name`, null);
+      if (!emp.data?.[0]) throw new Error('Employee not found');
+      const now = new Date().toISOString();
+      const kycExisting = await employeeFetch('GET', `employee_kyc?employee_id=eq.${encodeURIComponent(employeeId)}&select=id`, null);
+      const kycPayload = {
+        status: decision, reviewed_at: now, reviewed_by: params._auth?.email ?? '',
+        admin_note: String(note ?? '').slice(0, 500), updated_at: now,
+      };
+      if (kycExisting.data?.length) {
+        await employeeFetch('PATCH', `employee_kyc?id=eq.${encodeURIComponent(kycExisting.data[0].id)}`, kycPayload);
+      } else {
+        await employeeFetch('POST', 'employee_kyc', { employee_id: employeeId, ...kycPayload });
+      }
+      try {
+        await employeeFetch('POST', 'employee_history', {
+          employee_id: employeeId,
+          event_type: decision === 'verified' ? 'kyc_verified' : 'kyc_rejected',
+          title: decision === 'verified' ? 'KYC verified' : 'KYC changes requested',
+          description: decision === 'verified' ? 'Admin approved the KYC documents' : `Admin requested changes: ${note || 'please re-upload the documents'}`,
+          created_by: params._auth?.email ?? '',
+        });
+      } catch { /* non-fatal */ }
+      return { data: { employee_id: employeeId, status: decision } };
     }
 
     // ── Attendance ────────────────────────────────────────────────────
@@ -804,37 +1286,136 @@ async function executeAction(action, params) {
       return active ?? null;
     }
 
-    // ── Events ────────────────────────────────────────────────────────
+    // ── Employee events (wishings / announcements) — mirrors api/crm-proxy.ts ──
     case 'events.list': {
-      const { data } = await supabaseFetch('GET', 'events?order=event_date.desc&limit=100', null);
-      return { data: data ?? [] };
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { data } = await employeeFetch('GET', 'employee_events?order=event_date.desc&limit=100', null);
+      let rows = data ?? [];
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,department,designation`, null);
+        const meRow = me?.[0];
+        if (meRow) {
+          rows = rows.filter((ev) => {
+            const depts = ev.target_departments ?? [];
+            const desigs = ev.target_designations ?? [];
+            const emps = ev.target_employee_ids ?? [];
+            if (depts.length === 0 && desigs.length === 0 && emps.length === 0) return true; // everyone
+            if (depts.includes(meRow.department)) return true;
+            if (desigs.includes(meRow.designation)) return true;
+            if (emps.includes(meRow.id)) return true;
+            return false;
+          });
+        }
+      }
+      return { data: rows };
     }
     case 'events.create': {
-      const { data } = await supabaseFetch('POST', 'events', params);
-      return data?.[0];
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { title, description, eventType, eventDate, imageUrl, targetDepartments, targetDesignations, targetEmployeeIds } = params;
+      if (!title) throw new Error('Title is required');
+      const { data } = await employeeFetch('POST', 'employee_events', {
+        title, description: description ?? '', event_type: eventType ?? 'Update',
+        event_date: eventDate ?? null, image_url: imageUrl ?? '', created_by: params._auth?.email ?? '',
+        target_departments: targetDepartments ?? [], target_designations: targetDesignations ?? [],
+        target_employee_ids: targetEmployeeIds ?? [],
+      });
+      return { data: data?.[0] ?? null };
     }
     case 'events.update': {
-      const { id, ...fields } = params;
-      await supabaseFetch('PATCH', `events?id=eq.${encodeURIComponent(id)}`, fields);
-      return { id };
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { id, title, description, eventType, eventDate, imageUrl, targetDepartments, targetDesignations, targetEmployeeIds } = params;
+      const updates = {};
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (eventType !== undefined) updates.event_type = eventType;
+      if (eventDate !== undefined) updates.event_date = eventDate;
+      if (imageUrl !== undefined) updates.image_url = imageUrl;
+      if (targetDepartments !== undefined) updates.target_departments = targetDepartments;
+      if (targetDesignations !== undefined) updates.target_designations = targetDesignations;
+      if (targetEmployeeIds !== undefined) updates.target_employee_ids = targetEmployeeIds;
+      await employeeFetch('PATCH', `employee_events?id=eq.${encodeURIComponent(id)}`, updates);
+      return { message: 'Event updated' };
     }
     case 'events.delete': {
-      await supabaseFetch('DELETE', `events?id=eq.${encodeURIComponent(params.id)}`);
-      return { id: params.id };
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { id } = params;
+      await employeeFetch('DELETE', `employee_events?id=eq.${encodeURIComponent(id)}`);
+      return { message: 'Event deleted' };
     }
 
-    // ── Visits ────────────────────────────────────────────────────────
+    // ── Client site visits — mirrors api/crm-proxy.ts ──
     case 'visits.list': {
-      const { data } = await supabaseFetch('GET', `site_visits?client_id=eq.${encodeURIComponent(params.clientId)}&order=visit_date.desc`, null);
-      return { data: data ?? [] };
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      let path = 'client_visits?order=visit_date.desc&limit=200';
+      if (params.employeeId) path += `&employee_id=eq.${encodeURIComponent(params.employeeId)}`;
+      if (params.clientSno) path += `&client_sno=eq.${encodeURIComponent(params.clientSno)}`;
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        if (!me?.[0]) throw new Error('Employee not found');
+        path += `&employee_id=eq.${encodeURIComponent(me[0].id)}`;
+      }
+      const { data } = await employeeFetch('GET', path, null);
+      const rows = data ?? [];
+      const empIds = [...new Set(rows.map((r) => r.employee_id).filter(Boolean))];
+      let empMap = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await employeeFetch('GET', `employees?id=in.(${empIds.join(',')})&select=id,employee_id,name`, null);
+        (emps ?? []).forEach((e) => { empMap[e.id] = e; });
+      }
+      const snos = [...new Set(rows.map((r) => r.client_sno).filter((x) => x != null))];
+      let clientMap = {};
+      if (snos.length > 0) {
+        const { data: cl } = await employeeFetch('GET', `crm_clients?sno=in.(${snos.join(',')})&select=sno,name,phone,status,lead_type,type,budget,location,requirements`, null);
+        (cl ?? []).forEach((c) => { clientMap[c.sno] = c; });
+      }
+      return { data: rows.map((r) => ({ ...r, employee_info: empMap[r.employee_id] ?? null, client_info: clientMap[r.client_sno] ?? null })) };
     }
     case 'visits.add': {
-      const { data } = await supabaseFetch('POST', 'site_visits', params);
-      return data?.[0];
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { clientSno, visitDate, notes, visitTime } = params;
+      if (clientSno == null || !visitDate) throw new Error('clientSno and visitDate are required');
+      let employeeId = params.employeeId;
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        if (!me?.[0]) throw new Error('Employee not found');
+        employeeId = me[0].id;
+        const { data: client } = await employeeFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(clientSno)}&select=assigned_employee`, null);
+        if (!client?.[0] || client[0].assigned_employee !== employeeId) throw new Error('Client is not assigned to you');
+      }
+      if (!employeeId) throw new Error('employeeId is required');
+      const { data } = await employeeFetch('POST', 'client_visits', {
+        employee_id: employeeId, client_sno: clientSno, visit_date: visitDate, notes: notes ?? '',
+        visit_time: normalizeTime(visitTime),
+      });
+      const { data: client } = await employeeFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(clientSno)}&select=name,status`, null);
+      await employeeFetch('POST', 'crm_client_activity', {
+        client_sno: clientSno, action: 'visit_scheduled', status: client?.[0]?.status ?? '',
+        note: `Site visit scheduled for ${visitDate}${visitTime ? ' at ' + visitTime : ''}${notes ? ' — ' + notes : ''}`, performed_by: params._auth?.email ?? '', performed_by_id: employeeId,
+      });
+      return { data: data?.[0] ?? null };
     }
     case 'visits.updateStatus': {
-      await supabaseFetch('PATCH', `site_visits?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
-      return { id: params.id };
+      const isEmployee = params._auth?.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { id, status } = params;
+      if (!status) throw new Error('status is required');
+      const { data: visit } = await employeeFetch('GET', `client_visits?id=eq.${encodeURIComponent(id)}&select=*`, null);
+      const visitRow = visit?.[0] ?? null;
+      if (!visitRow) throw new Error('Visit not found');
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        if (!me?.[0] || visitRow.employee_id !== me[0].id) throw new Error('Forbidden');
+      }
+      await employeeFetch('PATCH', `client_visits?id=eq.${encodeURIComponent(id)}`, { status });
+      const { data: client } = await employeeFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(visitRow.client_sno)}&select=name,status`, null);
+      await employeeFetch('POST', 'crm_client_activity', {
+        client_sno: visitRow.client_sno, action: 'visit_status', status: client?.[0]?.status ?? '',
+        note: `Site visit marked ${status}`, performed_by: params._auth?.email ?? '', performed_by_id: visitRow.employee_id,
+      });
+      return { message: 'Visit updated' };
     }
 
     // ── Geofences ─────────────────────────────────────────────────────
@@ -1173,6 +1754,17 @@ async function executeAction(action, params) {
       return { data: leads ?? [] };
     }
 
+    // ── Lead status update (admin) ────────────────────────────────────
+    case 'lead.setStatus': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      if (!params.id) throw new Error('Booking id is required');
+      if (!['new', 'confirmed', 'completed', 'cancelled', 'no_show'].includes(params.status)) throw new Error('Invalid status');
+      const { data: existing } = await supabaseFetch('GET', `property_leads?id=eq.${encodeURIComponent(params.id)}&select=id`);
+      if (!existing?.length) throw new Error('Booking not found');
+      await supabaseFetch('PATCH', `property_leads?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
+      return { id: params.id };
+    }
+
     // ── Settings ──────────────────────────────────────────────────────
     case 'settings.update': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
@@ -1238,6 +1830,150 @@ async function executeAction(action, params) {
       if (aupd.isShortlisted !== undefined) appUpdates.is_shortlisted = aupd.isShortlisted;
       await supabaseFetch('PATCH', `job_applications?id=eq.${encodeURIComponent(_appid)}`, appUpdates);
       return { id: _appid };
+    }
+
+    case 'employees.recordLogin': {
+      // Mirrors api/crm-proxy.ts — employee login counter + daily row.
+      if (params._auth?.role !== 'employee') throw new Error('Forbidden');
+      const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,employee_id,name,login_count`, null);
+      const meRow = me?.[0];
+      if (!meRow) throw new Error('Employee not found');
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: existing } = await employeeFetch('GET', `employee_logins?employee_id=eq.${encodeURIComponent(meRow.id)}&login_date=eq.${today}&select=id`, null);
+      if (!existing?.length) {
+        await employeeFetch('POST', 'employee_logins', { employee_id: meRow.id, user_agent: (params.userAgent ?? '').slice(0, 200) });
+        await employeeFetch('PATCH', `employees?id=eq.${encodeURIComponent(meRow.id)}`, { login_count: (meRow.login_count ?? 0) + 1, last_login: new Date().toISOString() });
+      }
+      return { message: 'Login recorded' };
+    }
+
+    case 'clients.activity': {
+      // Mirrors api/crm-proxy.ts — admin sees all; an employee only their own.
+      const { sno } = params;
+      if (sno == null) throw new Error('sno is required');
+      const isEmployee = params._auth?.role === 'employee';
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        const { data: client } = await employeeFetch('GET', `crm_clients?sno=eq.${encodeURIComponent(sno)}&select=assigned_employee`, null);
+        if (!me?.[0] || !client?.[0] || client[0].assigned_employee !== me[0].id) throw new Error('Forbidden');
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
+      }
+      const { data } = await employeeFetch('GET', `crm_client_activity?client_sno=eq.${encodeURIComponent(sno)}&order=created_at.desc&limit=100`, null);
+      return { data: data ?? [] };
+    }
+
+    case 'attendance.liveStatus': {
+      // Admin: who is currently clocked in today — mirrors api/crm-proxy.ts.
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const { data: clockedIn } = await employeeFetch('GET', `employee_attendance?date=eq.${dateStr}&check_in=not.is.null&order=check_in.desc&select=id,employee_id,check_in,check_out,status,check_in_location,check_in_lat,check_in_lng`, null);
+      const empIds = [...new Set((clockedIn ?? []).map((r) => r.employee_id).filter(Boolean))];
+      let empMap = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await employeeFetch('GET', `employees?id=in.(${empIds.join(',')})&select=id,name,employee_id,designation,department,profile_photo_url,work_start_time`, null);
+        (emps ?? []).forEach((e) => { empMap[e.id] = e; });
+      }
+      let onLeaveIds = new Set();
+      try {
+        const { data: leaves } = await employeeFetch('GET', `employee_leaves?status=eq.Approved&start_date=lte.${dateStr}&end_date=gte.${dateStr}&select=employee_id`, null);
+        (leaves ?? []).forEach((l) => onLeaveIds.add(l.employee_id));
+      } catch { /* leaves may not be configured */ }
+      const toMinutes = (t) => {
+        if (!t) return null;
+        const m = /^(\d{1,2}):(\d{2})/.exec(String(t));
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const results = (clockedIn ?? []).map((r) => {
+        const emp = empMap[r.employee_id] ?? null;
+        const ci = toMinutes(r.check_in);
+        const ws = emp ? toMinutes(emp.work_start_time) : null;
+        const lateMinutes = ci != null && ws != null && ci > ws ? ci - ws : 0;
+        return { ...r, employee: emp, is_on_shift: !r.check_out, on_leave: onLeaveIds.has(r.employee_id), late_minutes: lateMinutes };
+      });
+      const onShift = results.filter((r) => r.is_on_shift);
+      const done = results.filter((r) => !r.is_on_shift);
+      return { onShift, done, total: results.length };
+    }
+
+    case 'attendance.weeklyReport': {
+      // Mirrors api/crm-proxy.ts — whole-org weekly hours, or one employee.
+      const isEmployee = params._auth?.role === 'employee';
+      let empId = params.employeeId;
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id`, null);
+        if (!me?.[0]) throw new Error('Employee not found');
+        empId = me[0].id;
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
+      }
+      const { startDate, endDate } = params;
+      if (!startDate || !endDate) throw new Error('startDate and endDate are required');
+      let path = `employee_attendance?date=gte.${startDate}&date=lte.${endDate}`;
+      if (empId) path += `&employee_id=eq.${encodeURIComponent(empId)}`;
+      path += '&order=date.asc';
+      const { data: rows } = await employeeFetch('GET', path, null);
+      const report = (rows ?? []).map((r) => {
+        let workedMinutes = 0;
+        if (r.check_in && r.check_out) {
+          const [ciH, ciM] = String(r.check_in).split(':').map(Number);
+          const [coH, coM] = String(r.check_out).split(':').map(Number);
+          workedMinutes = Math.max(0, (coH * 60 + coM) - (ciH * 60 + ciM) - (r.total_break_minutes ?? 0));
+        }
+        return { ...r, worked_minutes: workedMinutes };
+      });
+      const sum = (key) => report.reduce((s, r) => s + (r[key] ?? 0), 0);
+      const summary = { totalWorkedMinutes: sum('worked_minutes'), totalOvertimeMinutes: sum('overtime_minutes'), totalBreakMinutes: sum('total_break_minutes'), daysWorked: report.filter((r) => r.check_in).length };
+      if (!empId && report.length > 0) {
+        const ids = [...new Set(report.map((r) => r.employee_id))];
+        let empMeta = {};
+        try {
+          const { data: emps } = await employeeFetch('GET', `employees?id=in.(${ids.join(',')})&select=id,name,employee_id,designation,department,profile_photo_url`, null);
+          (emps ?? []).forEach((e) => { empMeta[e.id] = e; });
+        } catch { /* meta optional */ }
+        const perEmployee = {};
+        for (const id of ids) {
+          const days = report.filter((r) => r.employee_id === id);
+          perEmployee[id] = {
+            employee: empMeta[id] ?? {},
+            totalWorkedMinutes: days.reduce((s, r) => s + r.worked_minutes, 0),
+            totalOvertimeMinutes: days.reduce((s, r) => s + (r.overtime_minutes ?? 0), 0),
+            totalBreakMinutes: days.reduce((s, r) => s + (r.total_break_minutes ?? 0), 0),
+            daysWorked: days.filter((r) => r.check_in).length,
+          };
+        }
+        return { data: report.map((r) => ({ ...r, employee_info: empMeta[r.employee_id] ?? null })), summary, perEmployee };
+      }
+      return { data: report, summary };
+    }
+
+    // ── Bookings access for sales & telecaller agents — mirrors api/crm-proxy.ts ──
+    case 'bookings.visibility': {
+      if (!params._auth?.authorized || params._auth.role === 'employee') throw new Error('Forbidden');
+      let enabled = true;
+      try {
+        const { data } = await employeeFetch('GET', 'employees?status=neq.Terminated&select=bookings_visible&limit=1', null);
+        enabled = data?.[0] ? data[0].bookings_visible !== false : true;
+      } catch (e) { console.warn('[crm-proxy] bookings.visibility failed:', e); }
+      return { enabled };
+    }
+    case 'bookings.setVisibility': {
+      if (params._auth?.role === 'employee' || !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const enabled = Boolean(params.enabled);
+      await employeeFetch('PATCH', 'employees?status=neq.Terminated', { bookings_visible: enabled, updated_at: new Date().toISOString() });
+      return { enabled };
+    }
+    case 'bookings.mine': {
+      const isEmployee = params._auth?.role === 'employee';
+      if (isEmployee) {
+        const { data: me } = await employeeFetch('GET', `employees?email=eq.${encodeURIComponent(params._auth.email)}&select=id,bookings_visible`, null);
+        if (!me?.[0]) throw new Error('Employee not found');
+        if (me[0].bookings_visible === false) throw new Error('Bookings access is turned off by your admin');
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
+      }
+      const { data } = await supabaseFetch('GET', 'property_leads?lead_type=eq.book_visit&order=created_at.desc&limit=200&select=id,buyer_name,buyer_phone,property_title,property_type,property_area,property_price,visit_date,visit_time,status,created_at', null);
+      return { data: (data ?? []).filter((r) => r.buyer_name || r.buyer_phone) };
     }
 
     default:

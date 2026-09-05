@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Pencil, Phone, MessageSquare, Search, X, Check, IndianRupee, Plus, ExternalLink, ToggleLeft, ToggleRight, LayoutDashboard, Briefcase } from 'lucide-react';
+import { Pencil, Phone, MessageSquare, Search, X, Check, IndianRupee, Plus, ExternalLink, ToggleLeft, ToggleRight, LayoutDashboard, Briefcase, UserPlus, UserX, History, Loader2 } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmChip, CrmBtn, CrmCard } from '@/components/crm/CrmUi';
 
@@ -21,6 +21,17 @@ function parseDateSafe(d: string | null | undefined): Date | null {
   if (!d) return null;
   const dt = new Date(/^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d);
   return isNaN(dt.getTime()) ? null : dt;
+}
+
+function activityLabel(action: string): string {
+  return (action ?? '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function activityTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const dt = new Date(iso);
+  if (isNaN(dt.getTime())) return '';
+  return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ' · ' + dt.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 function formatDate(d: string | null) {
@@ -84,19 +95,91 @@ export default function CrmLeads() {
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('default');
+
+  useEffect(() => {
+    leadSupabase.employees.list({ status: 'Active' })
+      .then((r) => setAgents((r.data ?? []).filter((a: any) => a.status === 'Active')))
+      .catch(() => {});
+  }, []);
+
+  async function loadActivity(sno: number) {
+    setActivityLoading(true);
+    try {
+      const res = await leadSupabase.crmClients.activity(sno);
+      setActivity(res.data ?? []);
+    } catch {
+      setActivity([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  }
+
+  async function handleAssign(employeeId: string) {
+    if (!selectedClient) return;
+    setAssigning(true);
+    setAssignMsg('');
+    try {
+      if (employeeId) await leadSupabase.employees.assignClient(employeeId, selectedClient.sno);
+      else await leadSupabase.employees.unassignClient(selectedClient.sno);
+      const agent = agents.find((a: any) => a.id === employeeId) ?? null;
+      const updated = {
+        ...selectedClient,
+        assigned_employee: employeeId || null,
+        assigned_employee_info: agent ? { id: agent.id, employee_id: agent.employee_id, name: agent.name } : null,
+      } as SheetClient;
+      setSelectedClient(updated);
+      setClients((prev) => prev.map((c) => (c.sno === updated.sno ? updated : c)));
+      setAssignId(employeeId);
+      setAssignMsg(employeeId && agent ? `Assigned to ${agent.name}` : 'Assignment removed');
+      loadActivity(selectedClient.sno);
+    } catch (e: any) {
+      setAssignMsg(e?.message ?? 'Assignment failed');
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  async function handleLogStatus() {
+    if (!selectedClient || !statusLog.status) return;
+    setAssigning(true);
+    setAssignMsg('');
+    try {
+      await leadSupabase.crmClients.updateStatus(selectedClient.sno, statusLog.status, statusLog.note);
+      const updated = { ...selectedClient, status: statusLog.status } as SheetClient;
+      setSelectedClient(updated);
+      setClients((prev) => prev.map((c) => (c.sno === updated.sno ? updated : c)));
+      setStatusLog((s) => ({ ...s, note: '' }));
+      setAssignMsg('Status updated — change logged on this lead');
+      loadActivity(selectedClient.sno);
+    } catch (e: any) {
+      setAssignMsg(e?.message ?? 'Update failed');
+    } finally {
+      setAssigning(false);
+    }
+  }
   const [selectedClient, setSelectedClient] = useState<SheetClient | null>(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<SheetClient>>({});
   const [saving, setSaving] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [addForm, setAddForm] = useState({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: 'New Lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
+  const [addForm, setAddForm] = useState({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: '', lead_type: 'new lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
   const [addSaving, setAddSaving] = useState(false);
   const [addError, setAddError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [perms, setPerms] = useState<string[] | null>(null);
   const canEdit = perms === null || perms.length === 0;
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // ── Team assignment center: employees who can own leads ──
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentFilter, setAgentFilter] = useState('');
+  const [assignId, setAssignId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignMsg, setAssignMsg] = useState('');
+  const [statusLog, setStatusLog] = useState<{ status: string; note: string }>({ status: '', note: '' });
+  const [activity, setActivity] = useState<any[] | null>(null);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   useEffect(() => {
     leadSupabase.admin.verify().then(p => setPerms(p.permissions ?? null)).catch(() => {});
@@ -166,6 +249,9 @@ export default function CrmLeads() {
     if (activeFilter === 'instagram') list = list.filter((c) => c.source.toLowerCase() === 'instagram');
     if (activeFilter === 'buyer') list = list.filter((c) => (c.client_role || 'Buyer') === 'Buyer');
     if (activeFilter === 'seller') list = list.filter((c) => c.client_role === 'Seller');
+    if (activeFilter === 'unassigned') list = list.filter((c) => !c.assigned_employee);
+    if (activeFilter === 'assigned') list = list.filter((c) => !!c.assigned_employee);
+    if (agentFilter) list = list.filter((c) => c.assigned_employee === agentFilter);
 
     if (sortKey === 'budget-desc') list.sort((a, b) => b.budget_val - a.budget_val);
     if (sortKey === 'budget-asc') list.sort((a, b) => a.budget_val - b.budget_val);
@@ -174,12 +260,17 @@ export default function CrmLeads() {
       list.sort((a, b) => (parseDateSafe(b.date)?.getTime() ?? 0) - (parseDateSafe(a.date)?.getTime() ?? 0));
 
     return list;
-  }, [clients, search, activeFilter, sortKey]);
+  }, [clients, search, activeFilter, agentFilter, sortKey]);
 
   function openDrawer(client: SheetClient) {
     setSelectedClient(client);
     setEditing(false);
     setEditData({});
+    setAssignId(client.assigned_employee ?? '');
+    setAssignMsg('');
+    setStatusLog({ status: client.status || '', note: '' });
+    setActivity(null);
+    loadActivity(client.sno);
   }
 
   function startEdit() {    if (!selectedClient) return;
@@ -251,6 +342,7 @@ export default function CrmLeads() {
         closing_timeline: '',
         requirements: '',
         status: addForm.status,
+        lead_type: addForm.lead_type,
         date: null,
         notes: addForm.notes,
         buyer_comm_pct: '',
@@ -270,7 +362,7 @@ export default function CrmLeads() {
       await leadSupabase.crmClients.upsert(client);
       setClients(prev => [...prev, client]);
       setAddOpen(false);
-      setAddForm({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: 'New Lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
+      setAddForm({ name: '', phone: '', email: '', type: '', budget: '', location: '', status: '', lead_type: 'new lead', source: '', notes: '', client_role: 'Buyer', property_link: '', property_subtype: '', paid_comm: '' });
     } catch (err) {
       setAddError(err instanceof Error ? err.message : 'Failed to add client');
     } finally {
@@ -285,12 +377,14 @@ export default function CrmLeads() {
     instagram: clients.filter((c) => c.source.toLowerCase() === 'instagram').length,
     buyer: clients.filter((c) => (c.client_role || 'Buyer') === 'Buyer').length,
     seller: clients.filter((c) => c.client_role === 'Seller').length,
+    unassigned: clients.filter((c) => !c.assigned_employee).length,
+    assigned: clients.filter((c) => !!c.assigned_employee).length,
   }), [clients]);
 
   const statusVariant = (status: string) => {
     const s = status.toLowerCase();
     if (s.includes('closed') || s.includes('done')) return 'default' as const;
-    if (s.includes('negotiation') || s.includes('visit')) return 'secondary' as const;
+    if (s.includes('visit') || s.includes('token')) return 'secondary' as const;
     return 'outline' as const;
   };
 
@@ -337,8 +431,8 @@ export default function CrmLeads() {
           ) : (
             <>
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                {(['all', 'buyer', 'seller', 'dated', 'notes', 'instagram'] as const).map((f) => {
-                  const label = { all: 'All Clients', buyer: 'Buyer', seller: 'Seller', dated: 'With Lead Date', notes: 'Has Notes', instagram: 'Instagram Source' }[f];
+                {(['all', 'buyer', 'seller', 'assigned', 'unassigned', 'dated', 'notes', 'instagram'] as const).map((f) => {
+                  const label = { all: 'All Clients', buyer: 'Buyer', seller: 'Seller', assigned: 'Assigned', unassigned: 'Unassigned', dated: 'With Lead Date', notes: 'Has Notes', instagram: 'Instagram Source' }[f];
                   const count = filterCounts[f];
                   return (
                     <CrmChip key={f} active={activeFilter === f} onClick={() => setActiveFilter(f)}>
@@ -347,6 +441,21 @@ export default function CrmLeads() {
                   );
                 })}
                 <div className="flex-1" />
+                {agents.length > 0 && (
+                  <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v)}>
+                    <SelectTrigger className="h-9 w-[190px] rounded-full border-black/10 bg-white text-xs font-bold text-[#6b7280]">
+                      <SelectValue placeholder="Agent: Everyone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Agent: Everyone</SelectItem>
+                      {agents.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name} · {a.designation || a.department || 'Agent'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select value={sortKey} onValueChange={(v: SortKey) => setSortKey(v)}>
                   <SelectTrigger className="h-9 w-[190px] rounded-full border-black/10 bg-white text-xs font-bold text-[#6b7280]">
                     <SelectValue placeholder="Sort: Default (S.No)" />
@@ -375,6 +484,9 @@ export default function CrmLeads() {
                           <div className="truncate text-[14px] font-bold text-[#111827]">{c.name}</div>
                           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${(c.client_role || 'Buyer') === 'Buyer' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
                             {c.client_role || 'Buyer'}
+                          </span>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${(c.lead_type ?? 'new lead') === 'old lead' ? 'bg-indigo-50 text-indigo-700' : 'bg-sky-50 text-sky-700'}`}>
+                            {(c.lead_type ?? 'new lead') === 'old lead' ? 'Old Lead' : 'New Lead'}
                           </span>
                           {c.assigned_employee_info && (
                             <span className="shrink-0 rounded-full bg-[#0A1628]/[0.05] px-2 py-0.5 text-[10px] font-bold text-[#96782A]">
@@ -465,23 +577,28 @@ export default function CrmLeads() {
                     <Briefcase className="h-3 w-3" strokeWidth={1.8} /> Unassigned
                   </p>
                 )}
-                <Badge variant={statusVariant(selectedClient.status)} className="self-start text-[11.5px] font-bold px-3 py-1">
-                  {editing ? (
-                    <select
-                      value={editData.status ?? selectedClient.status}
-                      onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                      className="bg-transparent border-none text-inherit font-bold text-[11.5px] outline-none cursor-pointer"
-                    >
-                      <option>New Lead</option>
-                      <option>Site Visit</option>
-                      <option>Negotiation</option>
-                      <option>Closed</option>
-                      <option>Lost</option>
-                    </select>
-                  ) : (
-                    selectedClient.status
-                  )}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold ${(selectedClient.lead_type ?? 'new lead') === 'old lead' ? 'bg-indigo-50 text-indigo-700' : 'bg-sky-50 text-sky-700'}`}>
+                    {(selectedClient.lead_type ?? 'new lead') === 'old lead' ? 'Old Lead' : 'New Lead'}
+                  </span>
+                  <Badge variant={statusVariant(selectedClient.status)} className="self-start text-[11.5px] font-bold px-3 py-1">
+                    {editing ? (
+                      <select
+                        value={editData.status ?? selectedClient.status}
+                        onChange={(e) => setEditData({ ...editData, status: e.target.value })}
+                        className="bg-transparent border-none text-inherit font-bold text-[11.5px] outline-none cursor-pointer"
+                      >
+                        <option value="">Fresh — no pipeline yet</option>
+                        <option>Site Visit</option>
+                        <option>Token Done</option>
+                        <option>Visit Done</option>
+                        <option>Closed</option>
+                      </select>
+                    ) : (
+                      selectedClient.status
+                    )}
+                  </Badge>
+                </div>
               </SheetHeader>
 
               <div className="p-7 pt-0">
@@ -617,8 +734,8 @@ export default function CrmLeads() {
 
                 <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Deal Pipeline</div>
                 <div className="flex items-center gap-0 mb-5">
-                  {['New Lead', 'Site Visit', 'Negotiation', 'Closed'].map((step, i) => {
-                    const steps = ['New Lead', 'Site Visit', 'Negotiation', 'Closed'];
+                  {['Site Visit', 'Token Done', 'Visit Done', 'Closed'].map((step, i) => {
+                    const steps = ['Site Visit', 'Token Done', 'Visit Done', 'Closed'];
                     const curIdx = steps.indexOf(selectedClient.status);
                     const isActive = i <= curIdx;
                     return (
@@ -750,6 +867,107 @@ export default function CrmLeads() {
 
                 <Separator className="my-5" />
 
+                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Team Assignment</div>
+                <div className="rounded-2xl border border-[#f0f0f0] bg-gradient-to-br from-[#0A1628]/[0.03] to-transparent p-4">
+                  {canEdit ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={assignId}
+                        onChange={(e) => setAssignId(e.target.value)}
+                        className="h-10 flex-1 rounded-xl border border-[#c9a962]/40 bg-white px-3 text-xs font-semibold text-[#0A1628] outline-none focus:ring-2 focus:ring-[#c9a962]/30"
+                      >
+                        <option value="">Unassigned — nobody owns this lead</option>
+                        {agents.map((a: any) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} · {a.employee_id} · {a.designation || a.department}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleAssign(assignId)}
+                        disabled={assigning || assignId === (selectedClient.assigned_employee ?? '')}
+                        className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl bg-[#0A1628] px-4 text-xs font-bold text-white transition-colors hover:bg-[#1E3852] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : assignId ? <UserPlus className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
+                        {assigning ? 'Saving…' : assignId ? 'Assign' : 'Unassign'}
+                      </button>
+                    </div>
+                  ) : selectedClient.assigned_employee_info ? (
+                    <p className="text-xs font-semibold text-[#0A1628]">
+                      Owned by {selectedClient.assigned_employee_info.name} ({selectedClient.assigned_employee_info.employee_id})
+                    </p>
+                  ) : (
+                    <p className="text-xs text-[#9ca3af]">This lead is unassigned.</p>
+                  )}
+                  {canEdit && (
+                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-black/[0.05] pt-3 sm:grid-cols-[130px_1fr_auto]">
+                      <select
+                        value={statusLog.status}
+                        onChange={(e) => setStatusLog((s) => ({ ...s, status: e.target.value }))}
+                        className="h-9 rounded-xl border border-black/10 bg-white px-2.5 text-xs font-bold text-[#0A1628] outline-none"
+                      >
+                        <option value="">Fresh — no pipeline yet</option>
+                        <option>Site Visit</option>
+                        <option>Token Done</option>
+                        <option>Visit Done</option>
+                        <option>Closed</option>
+                      </select>
+                      <input
+                        value={statusLog.note}
+                        onChange={(e) => setStatusLog((s) => ({ ...s, note: e.target.value }))}
+                        placeholder="Note for the team (who spoke, what happened)…"
+                        className="h-9 rounded-xl border border-black/10 bg-white px-3 text-xs text-[#0A1628] outline-none placeholder:text-[#9ca3af] focus:border-[#c9a962]/60"
+                      />
+                      <button
+                        onClick={handleLogStatus}
+                        disabled={assigning || !statusLog.status || statusLog.status === selectedClient.status}
+                        className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-xl border border-[#c9a962]/50 bg-white px-3.5 text-xs font-bold text-[#96782A] transition-colors hover:bg-[#C9A84C]/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        Update Status
+                      </button>
+                    </div>
+                  )}
+                  {assignMsg && <p className="mt-2 text-[11px] font-semibold text-emerald-600">{assignMsg}</p>}
+                </div>
+
+                <Separator className="my-5" />
+
+                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Client Activity</div>
+                <div className="relative rounded-2xl border border-[#f0f0f0] bg-white p-4">
+                  {activityLoading ? (
+                    <div className="space-y-2.5">
+                      {[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-black/[0.04]" />)}
+                    </div>
+                  ) : !activity || activity.length === 0 ? (
+                    <div className="py-4 text-center">
+                      <History className="mx-auto mb-2 h-5 w-5 text-[#c9a962]" strokeWidth={1.5} />
+                      <p className="text-[11.5px] text-[#9ca3af]">No activity yet — status changes and assignments will appear here.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-0">
+                      {activity.map((a: any, i: number) => (
+                        <div key={a.id} className={`flex items-start gap-3 py-2.5 ${i > 0 ? 'border-t border-black/[0.04]' : ''}`}>
+                          <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${a.action === 'status_changed' ? 'bg-[#C9A84C]/[0.15] text-[#96782A]' : 'bg-[#0A1628]/[0.06] text-[#0A1628]'}`}>
+                            <Check className="h-3 w-3" strokeWidth={2.2} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
+                              <p className="text-[12px] font-bold text-[#0A1628]">{activityLabel(a.action)}</p>
+                              {a.status && <span className="text-[11px] font-semibold text-[#96782A]">→ {a.status}</span>}
+                              <span className="ml-auto text-[9.5px] font-semibold text-[#9ca3af]">{activityTime(a.created_at)}</span>
+                            </div>
+                            {a.note && <p className="mt-0.5 break-words text-[11.5px] leading-relaxed text-[#6b7280]">{a.note}</p>}
+                            <p className="mt-0.5 text-[9.5px] font-semibold text-[#c4a84c]">{a.performed_by || 'System'}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <Separator className="my-5" />
+
                 <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Notes</div>
                 {editing ? (
                   <textarea
@@ -875,14 +1093,24 @@ export default function CrmLeads() {
                   className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
               </div>
               <div>
+                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Lead Type</label>
+                <select value={addForm.lead_type} onChange={e => setAddForm({...addForm, lead_type: e.target.value})}
+                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
+                  <option value="new lead">New Lead</option>
+                  <option value="old lead">Old Lead</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
                 <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Status</label>
                 <select value={addForm.status} onChange={e => setAddForm({...addForm, status: e.target.value})}
                   className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
-                  <option>New Lead</option>
+                  <option value="">Fresh — no pipeline yet</option>
                   <option>Site Visit</option>
-                  <option>Negotiation</option>
+                  <option>Token Done</option>
+                  <option>Visit Done</option>
                   <option>Closed</option>
-                  <option>Lost</option>
                 </select>
               </div>
             </div>

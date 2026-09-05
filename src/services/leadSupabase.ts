@@ -73,7 +73,8 @@ function normalizeClient(row: any): SheetClient {
     closed_price: row.closed_price ?? '',
     closing_timeline: row.closing_timeline ?? '',
     requirements: row.requirements ?? '',
-    status: row.status ?? 'New Lead',
+    status: row.status ?? '',
+    lead_type: row.lead_type ?? 'new lead',
     date: row.date ?? null,
     notes: row.notes ?? '',
     buyer_comm_pct: row.buyer_comm_pct ?? '',
@@ -312,6 +313,19 @@ export const leadSupabase = {
     async saveNotes(notes: string): Promise<{ message: string }> {
       return callProxy('employees.saveNotes', { notes });
     },
+    // ── KYC onboarding ────────────────────────────────────────────────
+    async kycGet(employeeId?: string): Promise<{ data: { employee: any; kyc: any; documents: any[] } }> {
+      return callProxy('employees.kycGet', { employeeId });
+    },
+    async kycUploadDoc(docType: 'aadhaar_front' | 'aadhaar_back' | 'pan', base64: string): Promise<{ data: any }> {
+      return callProxy('employees.kycUploadDoc', { docType, base64 });
+    },
+    async kycSubmit(panNumber: string, aadharNumber: string): Promise<{ data: any }> {
+      return callProxy('employees.kycSubmit', { panNumber, aadharNumber });
+    },
+    async kycReview(employeeId: string, decision: 'verified' | 'changes_requested', note?: string): Promise<{ data: any }> {
+      return callProxy('employees.kycReview', { employeeId, decision, note });
+    },
     async updateClientDetail(sno: number, fields: { requirements?: string; notes?: string }): Promise<{ message: string }> {
       return callProxy('employees.updateClientDetail', { sno, ...fields });
     },
@@ -338,7 +352,7 @@ export const leadSupabase = {
     async liveStatus(): Promise<{ onShift: any[]; done: any[]; total: number }> {
       return callProxy('attendance.liveStatus', {});
     },
-    async weeklyReport(startDate: string, endDate: string, employeeId?: string): Promise<{ data: any[]; summary: { totalWorkedMinutes: number; totalOvertimeMinutes: number; totalBreakMinutes: number; daysWorked: number } }> {
+    async weeklyReport(startDate: string, endDate: string, employeeId?: string): Promise<{ data: any[]; summary: { totalWorkedMinutes: number; totalOvertimeMinutes: number; totalBreakMinutes: number; daysWorked: number }; perEmployee?: Record<string, any> }> {
       return callProxy('attendance.weeklyReport', { startDate, endDate, employeeId });
     },
   },
@@ -376,6 +390,20 @@ export const leadSupabase = {
     },
   },
 
+  bookings: {
+    // Admin switch: are bookings visible to Sales & Telecaller agents?
+    async visibility(): Promise<{ enabled: boolean }> {
+      return callProxy('bookings.visibility', {});
+    },
+    async setVisibility(enabled: boolean): Promise<{ enabled: boolean }> {
+      return callProxy('bookings.setVisibility', { enabled });
+    },
+    // Agent view of the property visit bookings (only while the switch is on).
+    async mine(): Promise<{ data: any[] }> {
+      return callProxy('bookings.mine', {});
+    },
+  },
+
   visits: {
     async list(employeeId?: string, clientSno?: number): Promise<{ data: any[] }> {
       return callProxy('visits.list', { employeeId, clientSno });
@@ -399,6 +427,14 @@ export const leadSupabase = {
     async upsert(client: SheetClient): Promise<{ data: SheetClient }> {
       return callProxy('crmClients.upsert', { data: client });
     },
+    /** Telecaller / sales self-service: add a new lead (auto-assigned to the agent). */
+    async create(fields: {
+      name: string; phone?: string; email?: string; type?: string; budget?: string; location?: string;
+      requirements?: string; notes?: string; source?: string; client_role?: string; lead_type?: string;
+    }): Promise<{ data: SheetClient }> {
+      const res = await callProxy('crmClients.create', fields);
+      return { data: normalizeClient(res.data) };
+    },
     async delete(sno: number): Promise<{ message: string }> {
       return callProxy('crmClients.delete', { sno });
     },
@@ -406,11 +442,16 @@ export const leadSupabase = {
       const res = await callProxy('crmClients.maxSno', {});
       return { data: res.data ?? 0 };
     },
-    async updateStatus(sno: number, status: string, note?: string): Promise<{ data: { sno: number; status: string } }> {
-      return callProxy('crmClients.updateStatus', { sno, status, note });
+    async updateStatus(sno: number, status: string, note?: string, opts?: { leadType?: string }): Promise<{ data: { sno: number; status: string } }> {
+      return callProxy('crmClients.updateStatus', { sno, status, note, leadType: opts?.leadType });
     },
     async activity(sno: number): Promise<{ data: any[] }> {
       return callProxy('clients.activity', { sno });
+    },
+    /** Assigned Clients dashboard: pipeline rows + owner + next visit + last activity. */
+    async assignedView(): Promise<{ data: any[] }> {
+      const res = await callProxy('crmClients.assignedView', {});
+      return { data: res.data ?? [] };
     },
   },
 

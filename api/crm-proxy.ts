@@ -85,12 +85,18 @@ const COLUMN_DEFAULTS: Record<string, Record<string, string>> = {
     face_verify_required: 'BOOLEAN NOT NULL DEFAULT FALSE',
     face_verify_frequency: "TEXT NOT NULL DEFAULT 'daily'",
     payroll_visible: 'BOOLEAN NOT NULL DEFAULT TRUE',
+    bookings_visible: 'BOOLEAN NOT NULL DEFAULT TRUE',
+    kyc_required: 'BOOLEAN NOT NULL DEFAULT TRUE',
     access_enabled: 'BOOLEAN NOT NULL DEFAULT FALSE',
     commission_rate: 'NUMERIC DEFAULT 0',
     work_start_time: "TIME DEFAULT '09:30'",
     auto_logout_time: "TIME DEFAULT '21:00'",
     login_count: 'INTEGER NOT NULL DEFAULT 0',
     last_login: 'TIMESTAMPTZ',
+    date_of_birth: 'DATE',
+    gender: "TEXT DEFAULT ''",
+    father_or_spouse_name: "TEXT DEFAULT ''",
+    alternate_phone: "TEXT DEFAULT ''",
   },
   employee_attendance: {
     check_in_lat: 'DOUBLE PRECISION',
@@ -568,6 +574,49 @@ async function executeAction(action: string, params: any): Promise<any> {
         })),
       };
     }
+    // Assigned Clients dashboard — every pipeline row with its owner, next site
+    // visit and the latest activity so admins see telecaller status updates live.
+    case 'crmClients.assignedView': {
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { data: clientRows, error: cliErr } = await supabaseCli.from('crm_clients').select('*').not('assigned_employee', 'is', null).order('sno', { ascending: false });
+      if (cliErr) throw new Error(cliErr.message);
+      const rows = clientRows ?? [];
+      const empIds: string[] = [...new Set(rows.map((r: any) => r.assigned_employee).filter(Boolean))];
+      let empMap: Record<string, any> = {};
+      if (empIds.length > 0) {
+        const { data: emps } = await supabaseCli.from('employees').select('id,employee_id,name,designation,department,status').in('id', empIds);
+        if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
+      }
+      const todayISO = new Date().toISOString().split('T')[0];
+      let visitRows: any[] = [];
+      try {
+        const { data } = await supabaseCli.from('client_visits').select('*').gte('visit_date', todayISO).order('visit_date', { ascending: true });
+        visitRows = data ?? [];
+      } catch { /* visits may not be configured */ }
+      const nextVisitBy: Record<number, any> = {};
+      const upcomingCount: Record<number, number> = {};
+      for (const v of visitRows) {
+        const key = v.client_sno;
+        if (key == null) continue;
+        upcomingCount[key] = (upcomingCount[key] ?? 0) + 1;
+        if (!nextVisitBy[key]) nextVisitBy[key] = v;
+      }
+      const enriched = await Promise.all(rows.map(async (r: any) => {
+        let lastActivity: any = null;
+        try {
+          const { data: acts } = await supabaseCli.from('crm_client_activity').select('action,status,note,performed_by,created_at').eq('client_sno', r.sno).order('created_at', { ascending: false }).limit(1);
+          lastActivity = acts?.[0] ?? null;
+        } catch { /* no activity yet */ }
+        return {
+          ...r,
+          assigned_employee_info: r.assigned_employee && empMap[r.assigned_employee] ? empMap[r.assigned_employee] : null,
+          last_activity: lastActivity,
+          next_visit: nextVisitBy[r.sno] ?? null,
+          upcoming_visits: upcomingCount[r.sno] ?? 0,
+        };
+      }));
+      return { data: enriched };
+    }
     case 'crmClients.upsert': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
       const client = { ...(params.data ?? params) };
@@ -581,6 +630,49 @@ async function executeAction(action: string, params: any): Promise<any> {
         if (error) throw new Error(error.message);
       }
       return { data: client };
+    }
+    // Telecaller / sales self-service: add a new lead straight from the portal.
+    // Employees can only create (and it auto-assigns to themselves); admins may
+    // create unassigned or assign to any employee.
+    case 'crmClients.create': {
+      const isEmployee = params._auth.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { name } = params;
+      if (!name?.trim()) throw new Error('Client name is required');
+      const { data: max } = await supabaseCli.from('crm_clients').select('sno').order('sno', { ascending: false }).limit(1);
+      const sno = (max?.[0]?.sno ?? 0) + 1;
+      let assigned_employee = params.assigned_employee ?? null;
+      let performedBy = params._auth.email;
+      let performedById: string | null = null;
+      if (isEmployee) {
+        const { data: me } = await supabaseCli.from('employees').select('id,employee_id,name').eq('email', params._auth.email).maybeSingle();
+        if (!me) throw new Error('Employee not found');
+        assigned_employee = me.id;
+        performedBy = `${me.name} (${me.employee_id})`;
+        performedById = me.id;
+      }
+      const { data: created, error } = await supabaseCli.from('crm_clients').insert({
+        sno,
+        name: name.trim(),
+        phone: params.phone ?? '',
+        email: params.email ?? '',
+        type: params.type ?? '',
+        budget: params.budget ?? '',
+        location: params.location ?? '',
+        requirements: params.requirements ?? '',
+        notes: params.notes ?? '',
+        source: params.source ?? '',
+        client_role: params.client_role ?? 'Buyer',
+        lead_type: params.lead_type ?? 'new lead',
+        status: '',
+        assigned_employee,
+      }).select().single();
+      if (error) throw new Error(error.message);
+      await supabaseCli.from('crm_client_activity').insert({
+        client_sno: sno, action: 'created', status: '',
+        note: `Lead created by ${performedBy}${isEmployee ? ' (self-assigned)' : ''}`, performed_by: performedBy, performed_by_id: performedById,
+      });
+      return { data: created };
     }
     case 'crmClients.delete': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
@@ -619,7 +711,38 @@ async function executeAction(action: string, params: any): Promise<any> {
           return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
         }).length,
       };
-      return { data: all, stats };
+      // Live assignment & visit workload per employee so the team views show
+      // exactly who carries which clients today — the accountability layer of
+      // the sales/telecaller structure.
+      const enrichedAll = all.map((e: any) => ({ ...e, assigned_clients: 0, active_assigned_clients: 0, today_visits: 0 }));
+      if (all.length > 0) {
+        const [assignRes, visitsRes] = await Promise.all([
+          supabaseCli.from('crm_clients').select('assigned_employee,status'),
+          supabaseCli.from('client_visits').select('employee_id').eq('visit_date', new Date().toISOString().split('T')[0]),
+        ]);
+        const assigned = assignRes.data ?? [];
+        const todayVisits = visitsRes.data ?? [];
+        const byEmp = new Map<string, any>();
+        enrichedAll.forEach((e: any) => byEmp.set(e.id, e));
+        for (const c of assigned) {
+          const e = byEmp.get(c.assigned_employee);
+          if (e) {
+            e.assigned_clients += 1;
+            if (c.status !== 'Closed') e.active_assigned_clients += 1;
+          }
+        }
+        for (const v of todayVisits) {
+          const e = byEmp.get(v.employee_id);
+          if (e) e.today_visits += 1;
+        }
+      }
+      // KYC onboarding status per employee (no row = not started yet).
+      try {
+        const { data: kycRows } = await supabaseCli.from('employee_kyc').select('employee_id,status');
+        const kycByEmp = new Map((kycRows ?? []).map((k: any) => [k.employee_id, k.status]));
+        for (const e of enrichedAll) e.kyc_status = kycByEmp.get(e.id) ?? 'not_started';
+      } catch { /* KYC table may not exist yet on older environments */ }
+      return { data: enrichedAll, stats };
     }
     case 'employees.get': {
       const { id } = params;
@@ -629,13 +752,19 @@ async function executeAction(action: string, params: any): Promise<any> {
       }
       const { data: emp, error } = await supabaseCli.from('employees').select('*').eq('id', id).single();
       if (error) throw new Error(error.message);
+      // KYC status rides along so profiles/lists can show onboarding progress.
+      let kycStatus: string | null = null;
+      try {
+        const { data: kycRow } = await supabaseCli.from('employee_kyc').select('status').eq('employee_id', id).maybeSingle();
+        kycStatus = kycRow?.status ?? null;
+      } catch { /* table not present yet */ }
       const [histRes, attRes, leaveRes, payrollRes] = await Promise.all([
         supabaseCli.from('employee_history').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
         supabaseCli.from('employee_attendance').select('*').eq('employee_id', id).order('date', { ascending: false }).limit(31),
         supabaseCli.from('employee_leaves').select('*').eq('employee_id', id).order('created_at', { ascending: false }),
         supabaseCli.from('employee_payroll').select('*').eq('employee_id', id).order('year', { ascending: false }).order('month', { ascending: false }),
       ]);
-      return { data: emp, history: histRes.data ?? [], attendance: attRes.data ?? [], leaves: leaveRes.data ?? [], payroll: payrollRes.data ?? [] };
+      return { data: { ...emp, kyc_status: kycStatus }, history: histRes.data ?? [], attendance: attRes.data ?? [], leaves: leaveRes.data ?? [], payroll: payrollRes.data ?? [] };
     }
     case 'employees.create': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
@@ -647,6 +776,12 @@ async function executeAction(action: string, params: any): Promise<any> {
       // the account email) always matches, regardless of how it was typed.
       if (fields.email) payload.email = normalizeEmail(fields.email);
       if (fields.phone) payload.phone = fields.phone;
+      // Optional newer profile columns: sent only when actually filled in, so
+      // writes keep working on environments where the migration hasn't run yet.
+      if (fields.alternatePhone) payload.alternate_phone = fields.alternatePhone;
+      if (fields.gender) payload.gender = fields.gender;
+      if (fields.fatherOrSpouseName) payload.father_or_spouse_name = fields.fatherOrSpouseName;
+      if (fields.dateOfBirth) payload.date_of_birth = fields.dateOfBirth;
       if (fields.designation) payload.designation = fields.designation;
       if (fields.department) payload.department = fields.department;
       // Date/numeric columns reject '' — coerce empty to null.
@@ -657,6 +792,8 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (fields.faceVerifyRequired !== undefined) payload.face_verify_required = fields.faceVerifyRequired;
       if (fields.faceVerifyFrequency !== undefined) payload.face_verify_frequency = fields.faceVerifyFrequency;
       if (fields.payrollVisible !== undefined) payload.payroll_visible = fields.payrollVisible;
+      if (fields.bookingsVisible !== undefined) payload.bookings_visible = fields.bookingsVisible;
+      if (fields.kycRequired !== undefined) payload.kyc_required = fields.kycRequired;
       if (fields.commissionRate !== undefined) payload.commission_rate = fields.commissionRate === '' || fields.commissionRate == null ? null : fields.commissionRate;
       payload.work_start_time = normalizeTime(fields.workStartTime);
       payload.auto_logout_time = normalizeTime(fields.autoLogoutTime);
@@ -687,6 +824,12 @@ async function executeAction(action: string, params: any): Promise<any> {
       // Store the email lowercase so the Google sign-in lookup always matches.
       if (fields.email !== undefined) updates.email = normalizeEmail(fields.email);
       if (fields.phone !== undefined) updates.phone = fields.phone;
+      // Optional newer profile columns: only sent when non-empty so edits keep
+      // working on environments where the migration hasn't run yet.
+      if (fields.alternatePhone) updates.alternate_phone = fields.alternatePhone;
+      if (fields.gender) updates.gender = fields.gender;
+      if (fields.fatherOrSpouseName) updates.father_or_spouse_name = fields.fatherOrSpouseName;
+      if (fields.dateOfBirth) updates.date_of_birth = fields.dateOfBirth;
       if (fields.designation !== undefined) updates.designation = fields.designation;
       if (fields.department !== undefined) updates.department = fields.department;
       // Date/numeric columns reject '' — coerce empty to null.
@@ -697,6 +840,8 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (fields.faceVerifyRequired !== undefined) updates.face_verify_required = fields.faceVerifyRequired;
       if (fields.faceVerifyFrequency !== undefined) updates.face_verify_frequency = fields.faceVerifyFrequency;
       if (fields.payrollVisible !== undefined) updates.payroll_visible = fields.payrollVisible;
+      if (fields.bookingsVisible !== undefined) updates.bookings_visible = fields.bookingsVisible;
+      if (fields.kycRequired !== undefined) updates.kyc_required = fields.kycRequired;
       if (fields.commissionRate !== undefined) updates.commission_rate = fields.commissionRate === '' || fields.commissionRate == null ? null : fields.commissionRate;
       if (fields.workStartTime !== undefined) updates.work_start_time = normalizeTime(fields.workStartTime);
       if (fields.autoLogoutTime !== undefined) updates.auto_logout_time = normalizeTime(fields.autoLogoutTime);
@@ -861,15 +1006,24 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
       let empId = params.employeeId;
       if (isEmployee) {
-        const { data: me } = await supabaseCli.from('employees').select('id').eq('email', params._auth.email).maybeSingle();
+        const { data: me } = await supabaseCli.from('employees').select('id,kyc_required').eq('email', params._auth.email).maybeSingle();
         if (!me) throw new Error('Employee not found');
         empId = me.id;
+        // KYC gate — when the admin requires KYC onboarding, the client pipeline
+        // stays locked until the employee's documents are verified. Admins who
+        // switch kyc_required off let the employee proceed without it.
+        if (me.kyc_required !== false) {
+          const { data: kycRow } = await supabaseCli.from('employee_kyc').select('status').eq('employee_id', empId).maybeSingle().catch(() => ({ data: null }));
+          if (!kycRow || kycRow.status !== 'verified') {
+            return { data: { employee: { id: empId }, locked: true, reason: 'kyc', clients: [] } };
+          }
+        }
       }
       if (!empId) throw new Error('employeeId is required');
       const { data: emp } = await supabaseCli.from('employees').select('id,employee_id,name,email').eq('id', empId).maybeSingle();
       const { data: clients, error } = await supabaseCli.from('crm_clients').select('*').eq('assigned_employee', empId).order('sno', { ascending: false });
       if (error) throw new Error(error.message);
-      return { data: { employee: emp, clients: clients ?? [] } };
+      return { data: { employee: emp, locked: false, clients: clients ?? [] } };
     }
     case 'employees.assignClient': {
       if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
@@ -1011,8 +1165,8 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'crmClients.updateStatus': {
-      const { sno, status, note } = params;
-      if (!sno || !status) throw new Error('sno and status are required');
+      const { sno, status, note, leadType } = params;
+      if (!sno || (!status && !leadType)) throw new Error('sno and status are required');
       const isEmployee = params._auth.role === 'employee';
       const { data: client, error: clientErr } = await supabaseCli.from('crm_clients').select('sno,name,status,assigned_employee').eq('sno', sno).maybeSingle();
       if (clientErr) throw new Error(clientErr.message);
@@ -1028,13 +1182,18 @@ async function executeAction(action: string, params: any): Promise<any> {
       } else if (!hasPerm(params._auth, 'clients.view')) {
         throw new Error('Forbidden');
       }
-      const { error } = await supabaseCli.from('crm_clients').update({ status, updated_at: new Date().toISOString() }).eq('sno', sno);
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (status !== undefined && status !== null) updates.status = status;
+      if (leadType !== undefined && leadType !== null) updates.lead_type = leadType;
+      const { error } = await supabaseCli.from('crm_clients').update(updates).eq('sno', sno);
       if (error) throw new Error(error.message);
       await supabaseCli.from('crm_client_activity').insert({
-        client_sno: sno, action: 'status_changed', status, note: note ?? '',
+        client_sno: sno, action: status !== undefined && status !== null ? 'status_changed' : 'lead_type_changed',
+        status: status !== undefined && status !== null ? status : client.status ?? '',
+        note: note ?? (leadType ? `Lead type set to ${leadType}` : ''),
         performed_by: performedBy, performed_by_id: performedById,
       });
-      return { data: { sno, status } };
+      return { data: { sno, status: updates.status ?? client.status } };
     }
     case 'clients.activity': {
       const { sno } = params;
@@ -1139,7 +1298,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       const snos: number[] = [...new Set(rows.map((r: any) => r.client_sno))];
       let clientMap: Record<number, any> = {};
       if (snos.length > 0) {
-        const { data: cl } = await supabaseCli.from('crm_clients').select('sno,name,phone,status').in('sno', snos);
+        const { data: cl } = await supabaseCli.from('crm_clients').select('sno,name,phone,status,lead_type,type,budget,location,requirements').in('sno', snos);
         if (cl) cl.forEach((c: any) => { clientMap[c.sno] = c; });
       }
       return {
@@ -1200,9 +1359,15 @@ async function executeAction(action: string, params: any): Promise<any> {
 
     // ── Employee photo upload (base64 → storage) ─────────────────────────────
     case 'employees.uploadPhoto': {
-      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
       const { employeeId, base64 } = params;
       if (!employeeId || !base64) throw new Error('employeeId and base64 are required');
+      // Employees may only set their own photo; admins may set anyone's.
+      if (params._auth.role === 'employee') {
+        const { data: me } = await supabaseCli.from('employees').select('id').eq('email', params._auth.email).maybeSingle();
+        if (!me || me.id !== employeeId) throw new Error('Forbidden');
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
+      }
       const { data: emp } = await supabaseCli.from('employees').select('id,employee_id').eq('id', employeeId).maybeSingle();
       if (!emp) throw new Error('Employee not found');
       const buffer = decodeBase64(base64);
@@ -1313,6 +1478,109 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (error) throw new Error(error.message);
       return { message: 'Notes saved' };
     }
+
+    // ── KYC onboarding: employee submits Aadhaar/PAN docs, admin verifies ───
+    case 'employees.kycGet': {
+      const isEmployee = params._auth.role === 'employee';
+      if (!isEmployee && !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      let employeeId = params.employeeId;
+      if (isEmployee) {
+        const { data: me } = await supabaseCli.from('employees').select('id').eq('email', params._auth.email).maybeSingle();
+        if (!me) throw new Error('Employee not found');
+        employeeId = me.id;
+      }
+      if (!employeeId) throw new Error('employeeId is required');
+      const [empRes, kycRes, docsRes] = await Promise.all([
+        supabaseCli.from('employees').select('id,employee_id,name,email,designation,department,pan_number,aadhar_number,date_of_birth,gender,status').eq('id', employeeId).maybeSingle(),
+        supabaseCli.from('employee_kyc').select('*').eq('employee_id', employeeId).maybeSingle(),
+        supabaseCli.from('employee_kyc_documents').select('*').eq('employee_id', employeeId),
+      ]);
+      if (empRes.error) throw new Error(empRes.error.message);
+      return {
+        data: {
+          employee: empRes.data ?? null,
+          kyc: kycRes.data ?? null,
+          documents: docsRes.data ?? [],
+        },
+      };
+    }
+    case 'employees.kycUploadDoc': {
+      if (params._auth.role !== 'employee') throw new Error('Forbidden');
+      const { docType, base64 } = params;
+      if (!['aadhaar_front', 'aadhaar_back', 'pan'].includes(docType)) throw new Error('Invalid document type');
+      if (!base64) throw new Error('Document image is required');
+      const { data: me, error: meErr } = await supabaseCli.from('employees').select('id,employee_id').eq('email', params._auth.email).maybeSingle();
+      if (meErr) throw new Error(meErr.message);
+      if (!me) throw new Error('Employee not found');
+      const buffer = decodeBase64(base64);
+      if (buffer.length === 0) throw new Error('Empty file');
+      if (buffer.length > 5 * 1024 * 1024) throw new Error('File too large (max 5 MB)');
+      const extMatch = /^data:image\/(jpeg|png|webp)/.exec(base64 ?? '');
+      const ext = extMatch ? (extMatch[1] === 'jpeg' ? 'jpg' : extMatch[1]) : 'jpg';
+      const path = `${me.employee_id}/kyc/${docType}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabaseCliAdmin.storage.from('employee-photos').upload(path, buffer, { contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`, upsert: true });
+      if (upErr) throw new Error('Upload failed: ' + upErr.message);
+      const fileUrl = `https://eimvaxrmiizdlgonhiov.supabase.co/storage/v1/object/public/employee-photos/${path}`;
+      const { data: docRow, error } = await supabaseCli.from('employee_kyc_documents').upsert(
+        { employee_id: me.id, doc_type: docType, file_url: fileUrl, uploaded_at: new Date().toISOString() },
+        { onConflict: 'employee_id,doc_type' },
+      ).select().single();
+      if (error) throw new Error(error.message);
+      return { data: docRow };
+    }
+    case 'employees.kycSubmit': {
+      if (params._auth.role !== 'employee') throw new Error('Forbidden');
+      const { panNumber, aadharNumber } = params;
+      const pan = String(panNumber ?? '').trim().toUpperCase();
+      const aadhar = String(aadharNumber ?? '').replace(/[\s-]/g, '');
+      if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) throw new Error('PAN format looks wrong — expected 5 letters, 4 digits, 1 letter (e.g. ABCDE1234F)');
+      if (aadhar && !/^\d{12}$/.test(aadhar)) throw new Error('Aadhaar must be exactly 12 digits');
+      if (!pan || !aadhar) throw new Error('PAN and Aadhaar numbers are required to submit KYC');
+      const { data: me, error: meErr } = await supabaseCli.from('employees').select('id,employee_id,name').eq('email', params._auth.email).maybeSingle();
+      if (meErr) throw new Error(meErr.message);
+      if (!me) throw new Error('Employee not found');
+      // All three document photos must be on file before submission is allowed.
+      const { data: docs } = await supabaseCli.from('employee_kyc_documents').select('doc_type').eq('employee_id', me.id);
+      const have = new Set((docs ?? []).map((d: any) => d.doc_type));
+      const missing = ['aadhaar_front', 'aadhaar_back', 'pan'].filter((t) => !have.has(t));
+      if (missing.length > 0) throw new Error('Please upload every required document (Aadhaar front, Aadhaar back and PAN) before submitting.');
+      const { error: empErr } = await supabaseCli.from('employees').update({ pan_number: pan, aadhar_number: aadhar, updated_at: new Date().toISOString() }).eq('id', me.id);
+      if (empErr) throw new Error(empErr.message);
+      const now = new Date().toISOString();
+      const { data: kycRow, error: kycErr } = await supabaseCli.from('employee_kyc').upsert(
+        { employee_id: me.id, status: 'pending', submitted_at: now, admin_note: '', reviewed_at: null, reviewed_by: '', updated_at: now },
+        { onConflict: 'employee_id' },
+      ).select().single();
+      if (kycErr) throw new Error(kycErr.message);
+      await supabaseCli.from('employee_history').insert({
+        employee_id: me.id, event_type: 'kyc_submitted', title: 'KYC submitted',
+        description: `Submitted Aadhaar ${aadhar.slice(0, 4)}… & PAN ${pan} for verification`,
+      });
+      return { data: kycRow };
+    }
+    case 'employees.kycReview': {
+      if (!hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const { employeeId, decision, note } = params;
+      if (!employeeId) throw new Error('employeeId is required');
+      if (!['verified', 'changes_requested'].includes(decision)) throw new Error('Invalid decision');
+      const { data: emp } = await supabaseCli.from('employees').select('id,employee_id,name').eq('id', employeeId).maybeSingle();
+      if (!emp) throw new Error('Employee not found');
+      const now = new Date().toISOString();
+      const { data: kycRow, error: kycErr } = await supabaseCli.from('employee_kyc').upsert(
+        { employee_id: employeeId, status: decision, reviewed_at: now, reviewed_by: params._auth.email ?? '', admin_note: String(note ?? '').slice(0, 500), updated_at: now },
+        { onConflict: 'employee_id' },
+      ).select().single();
+      if (kycErr) throw new Error(kycErr.message);
+      await supabaseCli.from('employee_history').insert({
+        employee_id: employeeId,
+        event_type: decision === 'verified' ? 'kyc_verified' : 'kyc_rejected',
+        title: decision === 'verified' ? 'KYC verified' : 'KYC changes requested',
+        description: decision === 'verified' ? 'Admin approved the KYC documents' : `Admin requested changes: ${note || 'please re-upload the documents'}`,
+        created_by: params._auth.email ?? '',
+      });
+      return { data: kycRow };
+    }
+
     case 'employees.updateClientDetail': {
       if (params._auth.role !== 'employee') throw new Error('Forbidden');
       const { sno, requirements, notes } = params;
@@ -1558,46 +1826,67 @@ async function executeAction(action: string, params: any): Promise<any> {
         .eq('date', dateStr)
         .not('check_in', 'is', null)
         .order('check_in', { ascending: false });
-      // Get employee names
+      // Get employee names + shift start so the roster can flag late arrivals
       const empIds = [...new Set((clockedIn ?? []).map((r: any) => r.employee_id))];
       let empMap: Record<string, any> = {};
       if (empIds.length > 0) {
-        const { data: emps } = await supabaseCli.from('employees').select('id,name,employee_id,designation,department,profile_photo_url').in('id', empIds);
+        const { data: emps } = await supabaseCli.from('employees').select('id,name,employee_id,designation,department,profile_photo_url,work_start_time').in('id', empIds);
         if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
       }
-      const results = (clockedIn ?? []).map((r: any) => ({
-        ...r,
-        employee: empMap[r.employee_id] ?? null,
-        is_on_shift: !r.check_out,
-      }));
+      // Approved leave today → so the roster shows "On leave", never "Absent".
+      let onLeaveIds = new Set<string>();
+      try {
+        const { data: leaves } = await supabaseCli.from('employee_leaves').select('employee_id').eq('status', 'Approved').lte('start_date', dateStr).gte('end_date', dateStr);
+        if (leaves) onLeaveIds = new Set(leaves.map((l: any) => l.employee_id));
+      } catch { /* leaves may not be configured */ }
+      const toMinutes = (t?: string | null) => {
+        if (!t) return null;
+        const m = /^(\d{1,2}):(\d{2})/.exec(String(t));
+        return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+      };
+      const results = (clockedIn ?? []).map((r: any) => {
+        const emp = empMap[r.employee_id] ?? null;
+        const ci = toMinutes(r.check_in);
+        const ws = emp ? toMinutes(emp.work_start_time) : null;
+        const lateMinutes = ci != null && ws != null && ci > ws ? ci - ws : 0;
+        return {
+          ...r,
+          employee: emp,
+          is_on_shift: !r.check_out,
+          on_leave: onLeaveIds.has(r.employee_id),
+          late_minutes: lateMinutes,
+        };
+      });
       const onShift = results.filter((r: any) => r.is_on_shift);
       const done = results.filter((r: any) => !r.is_on_shift);
       return { onShift, done, total: results.length };
     }
 
     case 'attendance.weeklyReport': {
-      // Admin or employee: weekly hours breakdown
+      // Admin: whole-org weekly hours (employeeId optional). Employee: always
+      // their own shift (self service).
       const isEmployee = params._auth.role === 'employee';
       let empId = params.employeeId;
       if (isEmployee) {
         const { data: me } = await supabaseCli.from('employees').select('id').eq('email', params._auth.email).maybeSingle();
         if (!me) throw new Error('Employee not found');
         empId = me.id;
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
       }
-      if (!empId) throw new Error('employeeId is required');
       const { startDate, endDate } = params;
       if (!startDate || !endDate) throw new Error('startDate and endDate are required');
-      const { data: rows } = await supabaseCli.from('employee_attendance')
+      let query = supabaseCli.from('employee_attendance')
         .select('*')
-        .eq('employee_id', empId)
         .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true });
+        .lte('date', endDate);
+      if (empId) query = query.eq('employee_id', empId);
+      const { data: rows } = await query.order('date', { ascending: true });
       // Compute daily hours
       const report = (rows ?? []).map((r: any) => {
         let workedMinutes = 0;
         if (r.check_in && r.check_out) {
-        const [ciH, ciM] = String(r.check_in).split(':').map(Number);
+          const [ciH, ciM] = String(r.check_in).split(':').map(Number);
           const [coH, coM] = String(r.check_out).split(':').map(Number);
           workedMinutes = Math.max(0, (coH * 60 + coM) - (ciH * 60 + ciM) - (r.total_break_minutes ?? 0));
         }
@@ -1606,7 +1895,82 @@ async function executeAction(action: string, params: any): Promise<any> {
       const totalWorked = report.reduce((s: number, r: any) => s + r.worked_minutes, 0);
       const totalOvertime = report.reduce((s: number, r: any) => s + (r.overtime_minutes ?? 0), 0);
       const totalBreaks = report.reduce((s: number, r: any) => s + (r.total_break_minutes ?? 0), 0);
-      return { data: report, summary: { totalWorkedMinutes: totalWorked, totalOvertimeMinutes: totalOvertime, totalBreakMinutes: totalBreaks, daysWorked: report.filter((r: any) => r.check_in).length } };
+      const summary = { totalWorkedMinutes: totalWorked, totalOvertimeMinutes: totalOvertime, totalBreakMinutes: totalBreaks, daysWorked: report.filter((r: any) => r.check_in).length };
+      // Attach employee identity for whole-org timesheets so the admin can drill
+      // down per person without one query per employee.
+      if (!empId && report.length > 0) {
+        const ids = [...new Set(report.map((r: any) => r.employee_id))];
+        let empMeta: Record<string, any> = {};
+        try {
+          const { data: emps } = await supabaseCli.from('employees').select('id,name,employee_id,designation,department,profile_photo_url').in('id', ids);
+          if (emps) emps.forEach((e: any) => { empMeta[e.id] = e; });
+        } catch { /* meta optional */ }
+        const perEmployee: Record<string, any> = {};
+        for (const id of ids) {
+          const days = report.filter((r: any) => r.employee_id === id);
+          const m = empMeta[id] ?? {};
+          perEmployee[id] = {
+            employee: m,
+            totalWorkedMinutes: days.reduce((s: number, r: any) => s + r.worked_minutes, 0),
+            totalOvertimeMinutes: days.reduce((s: number, r: any) => s + (r.overtime_minutes ?? 0), 0),
+            totalBreakMinutes: days.reduce((s: number, r: any) => s + (r.total_break_minutes ?? 0), 0),
+            daysWorked: days.filter((r: any) => r.check_in).length,
+          };
+        }
+        return { data: report.map((r: any) => ({ ...r, employee_info: empMeta[r.employee_id] ?? null })), summary, perEmployee };
+      }
+      return { data: report, summary };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // BOOKINGS ACCESS FOR SALES & TELECALLER AGENTS
+    // ═══════════════════════════════════════════════════════════════════
+    // The owner flips one global switch from the Bookings page. It is stored as
+    // bookings_visible on every employee row (the column auto-creates on first
+    // use), and the employee portal shows Bookings only while it is on.
+
+    case 'bookings.visibility': {
+      if (!params._auth?.authorized || params._auth.role === 'employee') throw new Error('Forbidden');
+      let enabled = true;
+      try {
+        const { data } = await supabaseCli.from('employees').select('bookings_visible').not('status', 'eq', 'Terminated').limit(1).maybeSingle();
+        enabled = data ? data.bookings_visible !== false : true;
+      } catch (e) { console.warn('[crm-proxy] bookings.visibility failed:', e); }
+      return { enabled };
+    }
+    case 'bookings.setVisibility': {
+      if (params._auth.role === 'employee' || !hasPerm(params._auth, 'clients.view')) throw new Error('Forbidden');
+      const enabled = Boolean(params.enabled);
+      let updRes = await supabaseCli.from('employees')
+        .update({ bookings_visible: enabled, updated_at: new Date().toISOString() })
+        .not('status', 'eq', 'Terminated');
+      while (updRes.error && /Could not find the '(\w+)' column/.test(updRes.error.message)) {
+        const m = /Could not find the '(\w+)' column/.exec(updRes.error.message);
+        if (m) await ensureColumns('employees', [m[1]]);
+        updRes = await supabaseCli.from('employees')
+          .update({ bookings_visible: enabled, updated_at: new Date().toISOString() })
+          .not('status', 'eq', 'Terminated');
+      }
+      if (updRes.error) throw new Error(updRes.error.message);
+      return { enabled };
+    }
+    case 'bookings.mine': {
+      // Bookings visible to agents only while the admin switch is on.
+      const isEmployee = params._auth.role === 'employee';
+      if (isEmployee) {
+        const { data: me } = await supabaseCli.from('employees').select('id,bookings_visible').eq('email', params._auth.email).maybeSingle();
+        if (!me) throw new Error('Employee not found');
+        if (me.bookings_visible === false) throw new Error('Bookings access is turned off by your admin');
+      } else if (!hasPerm(params._auth, 'clients.view')) {
+        throw new Error('Forbidden');
+      }
+      const { data, error } = await supabaseAdmin.from('property_leads')
+        .select('id,buyer_name,buyer_phone,property_title,property_type,property_area,property_price,visit_date,visit_time,status,created_at')
+        .eq('lead_type', 'book_visit')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error) throw new Error(error.message);
+      return { data: (data ?? []).filter((r: any) => r.buyer_name || r.buyer_phone) };
     }
 
     // ── Geofences ─────────────────────────────────────────────────────────

@@ -11,6 +11,8 @@ export interface SheetClient {
   closing_timeline: string;
   requirements: string;
   status: string;
+  /** Lead origin dimension: 'new lead' | 'old lead' — separate from pipeline status. */
+  lead_type?: string;
   date: string | null;
   notes: string;
   buyer_comm_pct: string;

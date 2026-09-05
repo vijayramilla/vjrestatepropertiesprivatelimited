@@ -42,7 +42,7 @@ export default function EmployeeLogin() {
   };
 
   return (
-    <div className="relative flex min-h-[100dvh] w-full items-center justify-center overflow-hidden bg-[#0A1628] px-4 py-10">
+    <div className="relative flex min-h-[100dvh] w-full overflow-x-hidden overflow-y-auto bg-[#0A1628] px-4 py-8">
       {/* ambient glows */}
       <div className="pointer-events-none absolute -top-40 left-1/2 h-[480px] w-[720px] -translate-x-1/2 rounded-full bg-[#C9A84C]/[0.08] blur-[120px]" />
       <div className="pointer-events-none absolute -bottom-52 -right-32 h-[420px] w-[420px] rounded-full bg-[#1E3852]/60 blur-[100px]" />
@@ -51,7 +51,7 @@ export default function EmployeeLogin() {
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
-        className="relative w-full max-w-[430px]"
+        className="relative m-auto w-full max-w-[430px]"
       >
         <div className="rounded-3xl border border-white/[0.08] bg-white p-8 shadow-[0_24px_80px_rgba(0,0,0,0.45)] sm:p-10">
           <div className="flex flex-col items-center text-center">

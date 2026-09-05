@@ -5,16 +5,17 @@ import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
 import { buildSalaryStructure } from '@/utils/payrollCalculator';
 import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
+import { formatINR } from '@/lib/inr';
 import {
   ArrowLeft, Pencil, UserRound, Users, History, CalendarCheck, CalendarDays, Wallet, LogIn,
   Phone, Mail, MapPin, Sparkles, Search, Plus, Link2, Unlink, MessageSquare, Check, LayoutDashboard,
-  ScanFace, ShieldCheck, ExternalLink, Clock, BellRing, Loader2, Trash2, Download, Coffee,
+  ScanFace, ShieldCheck, ExternalLink, Clock, BellRing, Loader2, Trash2, Download, Coffee, AlertTriangle, BadgeCheck,
 } from 'lucide-react';
 
-type Tab = 'profile' | 'clients' | 'logins' | 'faceid' | 'history' | 'attendance' | 'leaves' | 'payroll';
+type Tab = 'profile' | 'clients' | 'logins' | 'faceid' | 'kyc' | 'history' | 'attendance' | 'leaves' | 'payroll';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const CLIENT_STATUSES = ['New Lead', 'Site Visit', 'Negotiation', 'Closed', 'Lost'];
+const CLIENT_STATUSES = ['Site Visit', 'Token Done', 'Visit Done', 'Closed'];
 
 const STATUS_PILL: Record<string, string> = {
   Active: 'bg-emerald-50 text-emerald-700',
@@ -29,15 +30,37 @@ const STATUS_PILL: Record<string, string> = {
   Approved: 'bg-emerald-50 text-emerald-700',
   Rejected: 'bg-red-50 text-red-600',
   Paid: 'bg-emerald-50 text-emerald-700',
-  'New Lead': 'bg-blue-50 text-blue-700',
   'Site Visit': 'bg-amber-50 text-amber-700',
-  Negotiation: 'bg-orange-50 text-orange-700',
+  'Token Done': 'bg-blue-50 text-blue-700',
+  'Visit Done': 'bg-purple-50 text-purple-700',
   Closed: 'bg-emerald-50 text-emerald-700',
-  Lost: 'bg-red-50 text-red-600',
+  'KYC Verified': 'bg-emerald-50 text-emerald-700',
+  'Needs Action': 'bg-red-50 text-red-600',
+  'Not Started': 'bg-gray-100 text-gray-600',
 };
 
 function Pill({ value }: { value: string }) {
   return <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10.5px] font-bold ${STATUS_PILL[value] ?? 'bg-gray-100 text-gray-600'}`}>{value || '—'}</span>;
+}
+
+const KYC_DOCS = [
+  { key: 'aadhaar_front', label: 'Aadhaar — Front' },
+  { key: 'aadhaar_back', label: 'Aadhaar — Back' },
+  { key: 'pan', label: 'PAN Card' },
+];
+
+function kycLabel(status: string | null | undefined): string {
+  if (status === 'verified') return 'KYC Verified';
+  if (status === 'pending') return 'Pending';
+  if (status === 'changes_requested') return 'Needs Action';
+  return 'Not Started';
+}
+
+function kycBannerCls(status: string | null | undefined): string {
+  if (status === 'verified') return 'border-emerald-200 bg-emerald-50/80';
+  if (status === 'changes_requested') return 'border-red-200 bg-red-50/70';
+  if (status === 'pending') return 'border-amber-200 bg-amber-50/70';
+  return 'border-black/[0.06] bg-white';
 }
 
 function initials(name: string) {
@@ -108,6 +131,10 @@ export default function CrmEmployeeDetail() {
   const [leaveForm, setLeaveForm] = useState({ leaveType: 'Casual', startDate: '', endDate: '', reason: '' });
   const [showHistoryForm, setShowHistoryForm] = useState(false);
   const [histForm, setHistForm] = useState({ eventType: 'note', title: '', description: '', eventDate: new Date().toISOString().split('T')[0] });
+  // KYC review
+  const [kycData, setKycData] = useState<any>(null);
+  const [kycNote, setKycNote] = useState('');
+  const [kycBusy, setKycBusy] = useState<'verified' | 'changes_requested' | null>(null);
 
   const isEmployee = role === 'employee';
 
@@ -120,7 +147,7 @@ export default function CrmEmployeeDetail() {
         leadSupabase.admin.verify().catch(() => ({ role: undefined as string | undefined })),
       ]);
       setData(empRes.data);
-      setRole(verify.role ?? null);
+      setRole(verify?.role ?? null);
       // Face-ID request rows are internal plumbing — never show them as history events.
       setHistory((empRes.history ?? []).filter((h: any) => h.event_type !== 'face_verify_request'));
       setLeaves(empRes.leaves ?? []);
@@ -178,6 +205,17 @@ export default function CrmEmployeeDetail() {
   }, [id, attMonth, attYear]);
 
   useEffect(() => { if (tab === 'attendance') fetchAttendance(); }, [tab, fetchAttendance]);
+
+  const fetchKyc = useCallback(async () => {
+    if (!id) return;
+    try {
+      const res = await leadSupabase.employees.kycGet(id);
+      setKycData(res.data);
+      setKycNote('');
+    } catch (e) { console.error(e); }
+  }, [id]);
+
+  useEffect(() => { if (tab === 'kyc' && !isEmployee) fetchKyc(); }, [tab, isEmployee, fetchKyc]);
 
   const copyLoginLink = async () => {
     const url = `${window.location.origin}/employee-login`;
@@ -287,6 +325,19 @@ export default function CrmEmployeeDetail() {
     } catch (err: any) {
       console.error('[payslip PDF]', err);
       alert('Failed to generate payslip PDF: ' + (err?.message ?? err));
+    }
+  };
+
+  const handleKycReview = async (decision: 'verified' | 'changes_requested') => {
+    if (!id || !kycData?.employee?.id) return;
+    setKycBusy(decision);
+    try {
+      await leadSupabase.employees.kycReview(kycData.employee.id, decision, kycNote);
+      await Promise.all([fetchKyc(), fetch()]);
+    } catch (e: any) {
+      alert(e?.message ?? 'Failed to save the KYC decision.');
+    } finally {
+      setKycBusy(null);
     }
   };
 
@@ -414,6 +465,7 @@ export default function CrmEmployeeDetail() {
     ...(isEmployee ? [] : [
       { key: 'logins', label: 'Logins', icon: LogIn },
       { key: 'faceid', label: 'Face ID', icon: ScanFace },
+      { key: 'kyc', label: 'KYC', icon: ShieldCheck },
       { key: 'history', label: 'History', icon: History },
       { key: 'attendance', label: 'Attendance', icon: CalendarCheck },
       { key: 'leaves', label: 'Leaves', icon: CalendarDays },
@@ -483,6 +535,7 @@ export default function CrmEmployeeDetail() {
                   { label: 'Status', value: e.status || 'Active', pill: true },
                   { label: 'Login Access', value: e.access_enabled ? 'Enabled' : 'Disabled', pill: true },
                   { label: 'Payroll', value: (e.payroll_visible === true || e.payroll_visible === 'true') ? 'Visible' : 'Hidden', pill: true },
+                  { label: 'KYC', value: kycLabel(e.kyc_status ?? null), pill: true },
                   { label: 'Logins (total)', value: String(e.login_count ?? 0) },
                   { label: 'Last Login', value: e.last_login ? new Date(e.last_login).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Never' },
                   { label: 'Joining Date', value: e.joining_date ? new Date(e.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
@@ -519,6 +572,10 @@ export default function CrmEmployeeDetail() {
                   {[
                     { icon: Mail, label: 'Email', value: e.email || '—' },
                     { icon: Phone, label: 'Phone', value: e.phone || '—' },
+                    { icon: Phone, label: 'Alternate Phone', value: e.alternate_phone || '—' },
+                    { icon: CalendarDays, label: 'Date of Birth', value: e.date_of_birth ? new Date(e.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                    { icon: UserRound, label: 'Gender', value: e.gender || '—' },
+                    { icon: Users, label: 'Father / Husband / Spouse', value: e.father_or_spouse_name || '—' },
                     { icon: MapPin, label: 'Address', value: e.address || '—' },
                     { icon: Sparkles, label: 'Notes', value: e.notes || '—' },
                   ].map((r) => (
@@ -537,7 +594,7 @@ export default function CrmEmployeeDetail() {
                 <h3 className="mb-4 font-['Inter',sans-serif] text-[16px] font-semibold">Salary & Bank</h3>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {[
-                    { label: e.designation === 'Channel Partner' ? 'Compensation' : 'Monthly Salary', value: e.designation === 'Channel Partner' ? 'Commission-based — no fixed salary' : `₹${(e.salary ?? 0).toLocaleString()}` },
+                    { label: e.designation === 'Channel Partner' ? 'Compensation' : 'Monthly Salary', value: e.designation === 'Channel Partner' ? 'Commission-based — no fixed salary' : formatINR(e.salary) },
                     { label: 'Bank', value: e.bank_name || '—' },
                     { label: 'Account', value: e.bank_account_number || '—' },
                     { label: 'IFSC', value: e.ifsc_code || '—' },
@@ -550,6 +607,59 @@ export default function CrmEmployeeDetail() {
                     <div key={r.label} className="rounded-xl border border-black/[0.05] bg-[#fafafa] p-3.5">
                       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{r.label}</p>
                       <p className="mt-1 font-mono text-[12.5px] font-semibold text-[#0A1628]">{r.value}</p>
+                    </div>
+                  )                  )}
+                </div>
+              </CrmCard>
+
+              {/* Workspace access — KYC gate & bookings permission live toggles */}
+              <CrmCard className="p-5 sm:p-6">
+                <h3 className="mb-1 font-['Inter',sans-serif] text-[16px] font-semibold">Workspace Access</h3>
+                <p className="mb-4 text-[11.5px] text-[#6b7280]">Control what this employee can open in their portal — changes apply instantly.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    {
+                      key: 'kycRequired' as const, label: 'KYC onboarding required',
+                      desc: e.kyc_required === false
+                        ? 'Off — {name} can use My Clients without KYC.'
+                        : e.kyc_status === 'verified'
+                          ? 'On & verified — client pipeline is unlocked.'
+                          : `On — My Clients stays locked until ${(e.kyc_status ?? 'not_started') === 'not_started' ? 'KYC is submitted' : 'KYC is verified'}.`,
+                      on: e.kyc_required !== false,
+                      icon: <ShieldCheck className="h-4 w-4" strokeWidth={1.8} />,
+                    },
+                    {
+                      key: 'bookingsVisible' as const, label: 'Bookings in portal',
+                      desc: e.bookings_visible === false
+                        ? 'Off — telecaller/sales cannot open Bookings.'
+                        : 'On — website site-visit bookings appear for follow-up.',
+                      on: e.bookings_visible !== false,
+                      icon: <CalendarDays className="h-4 w-4" strokeWidth={1.8} />,
+                    },
+                  ].map((p) => (
+                    <div key={p.key} className="flex items-start gap-3 rounded-xl border border-black/[0.05] bg-[#fafafa] p-3.5">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-[#96782A] ring-1 ring-black/[0.06]">{p.icon}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] font-bold text-[#0A1628]">{p.label}</p>
+                        <p className="mt-0.5 text-[10.5px] leading-snug text-[#6b7280]">{p.desc.replace('{name}', e.name || 'the employee')}</p>
+                      </div>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={p.on}
+                        onClick={async () => {
+                          try {
+                            await leadSupabase.employees.update(id!, { [p.key]: !p.on });
+                            await fetch();
+                          } catch (err: any) {
+                            alert(err?.message ?? `Could not update ${p.label.toLowerCase()}`);
+                          }
+                        }}
+                        className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${p.on ? 'bg-emerald-500' : 'bg-black/15'}`}
+                        title={p.on ? 'Turn off' : 'Turn on'}
+                      >
+                        <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200 ${p.on ? 'left-[18px]' : 'left-0.5'}`} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -615,7 +725,7 @@ export default function CrmEmployeeDetail() {
                                 <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" strokeWidth={1.6} />{c.phone || '—'}</span>
                                 {c.location && <span>{c.location}</span>}
                                 <span className="text-[#C9A84C]/80">·</span>
-                                <span className="font-semibold text-emerald-600">₹{c.budget || '—'}</span>
+                                <span className="font-semibold text-emerald-600">{c.budget ? formatINR(c.budget) : '—'}</span>
                               </p>
                             </div>
                           </div>
@@ -927,6 +1037,122 @@ export default function CrmEmployeeDetail() {
             </div>
           )}
 
+          {/* ═════════ KYC (admin review) ═════════ */}
+          {tab === 'kyc' && (
+            <div className="space-y-5">
+              {!kycData ? (
+                <div className="h-48 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />
+              ) : (
+                <>
+                  {(() => {
+                    const emp = kycData.employee ?? {};
+                    const krow = kycData.kyc ?? {};
+                    const st = krow.status ?? 'not_started';
+                    const docs = kycData.documents ?? [];
+                    return (
+                      <>
+                        {/* Status banner */}
+                        <div className={`flex flex-wrap items-center gap-3 rounded-2xl border px-4 py-3.5 sm:px-5 sm:py-4 ${kycBannerCls(st)}`}>
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${st === 'verified' ? 'bg-emerald-500 text-white' : st === 'changes_requested' ? 'bg-red-500 text-white' : st === 'pending' ? 'bg-amber-400 text-white' : 'bg-[#0A1628] text-[#D6B85D]'}`}>
+                            {st === 'verified' ? <BadgeCheck className="h-5 w-5" strokeWidth={2} /> : <ShieldCheck className="h-5 w-5" strokeWidth={1.8} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[14px] font-bold text-[#0A1628]">KYC Onboarding</p>
+                            <p className="text-[11px] font-medium text-[#6b7280]">
+                              {st === 'not_started' && 'Employee has not submitted any KYC documents yet.'}
+                              {st === 'pending' && <>Submitted on {new Date(krow.submitted_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} — awaiting your review.</>}
+                              {st === 'changes_requested' && <>Changes requested on {krow.reviewed_at ? new Date(krow.reviewed_at).toLocaleDateString('en-IN') : '—'} — waiting for the employee to resubmit.</>}
+                              {st === 'verified' && <>Verified on {krow.reviewed_at ? new Date(krow.reviewed_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}{krow.reviewed_by ? ` by ${krow.reviewed_by}` : ''}.</>}
+                            </p>
+                            {krow.admin_note && (
+                              <p className="mt-1.5 flex items-start gap-1 rounded-lg bg-black/[0.04] px-2.5 py-1.5 text-[11px] font-medium leading-relaxed text-[#4b5563]">
+                                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-[#96782A]" strokeWidth={1.8} /> {krow.admin_note}
+                              </p>
+                            )}
+                          </div>
+                          <Pill value={kycLabel(st)} />
+                        </div>
+
+                        {/* Declared identity numbers */}
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          {[
+                            { label: 'PAN', value: emp.pan_number || '—', mono: true },
+                            { label: 'Aadhaar', value: emp.aadhar_number || '—', mono: true },
+                            { label: 'Date of Birth', value: emp.date_of_birth ? new Date(emp.date_of_birth).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
+                            { label: 'Gender', value: emp.gender || '—' },
+                          ].map((r) => (
+                            <div key={r.label} className="rounded-2xl border border-black/[0.06] bg-white p-3.5 shadow-[0_1px_2px_rgba(10,22,40,0.05)] sm:p-4">
+                              <p className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{r.label}</p>
+                              <p className={`mt-1 break-words text-[13px] font-semibold text-[#0A1628] ${r.mono ? 'font-mono' : ''}`}>{r.value}</p>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Documents */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          {KYC_DOCS.map((d) => {
+                            const doc = docs.find((x: any) => x.doc_type === d.key);
+                            return (
+                              <div key={d.key} className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.05)]">
+                                <div className="flex aspect-[4/3] w-full items-center justify-center bg-[#f4f5f7]">
+                                  {doc ? (
+                                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="block h-full w-full" title="Open full image">
+                                      <img src={doc.file_url} alt={d.label} className="h-full w-full object-cover transition-opacity hover:opacity-90" />
+                                    </a>
+                                  ) : (
+                                    <div className="flex flex-col items-center gap-1 text-[#cbd5e1]">
+                                      <ShieldCheck className="h-7 w-7" strokeWidth={1.3} />
+                                      <span className="text-[10px] font-semibold">Not uploaded</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center justify-between gap-2 border-t border-black/[0.05] px-3.5 py-2.5">
+                                  <p className="min-w-0 truncate text-[11.5px] font-bold text-[#0A1628]">{d.label}</p>
+                                  {doc ? (
+                                    <a href={doc.file_url} target="_blank" rel="noreferrer" className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-black/10 bg-white px-2 py-1 text-[9.5px] font-bold text-[#96782A] transition-colors hover:bg-[#C9A84C]/[0.1]">
+                                      <ExternalLink className="h-2.5 w-2.5" strokeWidth={2} /> Open
+                                    </a>
+                                  ) : (
+                                    <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[9px] font-bold uppercase text-gray-500">Missing</span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Review decision */}
+                        <div className="rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(10,22,40,0.05)] sm:p-5">
+                          <h3 className="mb-1 font-['Inter',sans-serif] text-[14px] font-semibold text-[#0A1628]">Review decision</h3>
+                          <p className="mb-3 text-[11px] text-[#6b7280]">
+                            Compare the documents with the declared PAN / Aadhaar above, then approve or ask the employee to fix and re-upload.
+                          </p>
+                          <textarea
+                            value={kycNote}
+                            onChange={(e2) => setKycNote(e2.target.value)}
+                            placeholder="Note to the employee (shown on their dashboard) — optional for approval, recommended when requesting changes"
+                            rows={2}
+                            className={`${CRM_INPUT} w-full resize-none`}
+                          />
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <CrmBtn variant="gold" onClick={() => handleKycReview('verified')} disabled={kycBusy !== null}>
+                              {kycBusy === 'verified' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <BadgeCheck className="h-3.5 w-3.5" />}
+                              {kycBusy === 'verified' ? 'Saving…' : 'Approve KYC'}
+                            </CrmBtn>
+                            <CrmBtn variant="danger" onClick={() => handleKycReview('changes_requested')} disabled={kycBusy !== null}>
+                              {kycBusy === 'changes_requested' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5" />}
+                              {kycBusy === 'changes_requested' ? 'Saving…' : 'Request Changes'}
+                            </CrmBtn>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          )}
+
           {/* ═════════ HISTORY ═════════ */}
           {tab === 'history' && (
             <div>
@@ -1218,11 +1444,11 @@ export default function CrmEmployeeDetail() {
                         {payroll.map((p: any) => (
                           <tr key={p.id} className="border-b border-black/[0.04]">
                             <td className="px-4 py-4 text-sm text-[#6b7280]">{MONTHS[p.month - 1]} {p.year}</td>
-                            <td className="px-4 py-4 text-sm text-[#0A1628]">₹{(p.basic_pay ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-4 text-sm text-[#0A1628]">₹{(p.hra ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-4 text-sm text-[#0A1628]">₹{(p.allowances ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-4 text-sm text-red-600">₹{(p.deductions ?? 0).toLocaleString()}</td>
-                            <td className="px-4 py-4 text-sm font-bold text-[#0A1628]">₹{(p.net_pay ?? 0).toLocaleString()}</td>
+                            <td className="px-4 py-4 text-sm text-[#0A1628]">{formatINR(p.basic_pay)}</td>
+                            <td className="px-4 py-4 text-sm text-[#0A1628]">{formatINR(p.hra)}</td>
+                            <td className="px-4 py-4 text-sm text-[#0A1628]">{formatINR(p.allowances)}</td>
+                            <td className="px-4 py-4 text-sm text-red-600">{formatINR(p.deductions)}</td>
+                            <td className="px-4 py-4 text-sm font-bold text-[#0A1628]">{formatINR(p.net_pay)}</td>
                             <td className="px-4 py-4"><Pill value={p.status} /></td>
                             <td className="px-4 py-4 text-sm text-[#6b7280]">{p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-IN') : '—'}</td>
                             <td className="px-4 py-4">

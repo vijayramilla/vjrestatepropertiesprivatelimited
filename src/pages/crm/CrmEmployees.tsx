@@ -3,7 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmStatCard, CrmStatGrid, CrmBtn, CRM_INPUT, MotionReveal } from '@/components/crm/CrmUi';
-import { Plus, Users, CheckCircle, UserMinus, Sparkles, Briefcase, Search, LogIn, Link2, Check, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Users, CheckCircle, UserMinus, Sparkles, Briefcase, Search, LogIn, Link2, Check, Trash2, AlertTriangle, LayoutDashboard } from 'lucide-react';
 import { DEPARTMENTS, DESIGNATIONS_BY_DEPARTMENT } from '@/data/employeeHierarchy';
 
 const ALL_DESIGNATIONS = [...new Set(Object.values(DESIGNATIONS_BY_DEPARTMENT).flat())];
@@ -19,6 +19,24 @@ const STATUS_PILL: Record<string, string> = {
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+}
+
+const KYC_LABELS: Record<string, string> = {
+  verified: 'Verified',
+  pending: 'Under Review',
+  changes_requested: 'Needs Action',
+};
+
+const KYC_PILL: Record<string, string> = {
+  verified: 'bg-emerald-50 text-emerald-700',
+  pending: 'bg-amber-50 text-amber-700',
+  changes_requested: 'bg-red-50 text-red-600',
+  not_started: 'bg-gray-100 text-gray-500',
+};
+
+function kycPill(status: string | null | undefined): { label: string; cls: string } {
+  const st = status ?? 'not_started';
+  return { label: KYC_LABELS[st] ?? 'Not Started', cls: KYC_PILL[st] ?? 'bg-gray-100 text-gray-500' };
 }
 
 export default function CrmEmployees() {
@@ -73,7 +91,7 @@ export default function CrmEmployees() {
         leadSupabase.employees.list({ search, department: dept, status: statusFilter, designation: designationFilter }),
         leadSupabase.admin.verify().catch(() => ({ role: undefined as string | undefined })),
       ]);
-      setIsEmployee(verify.role === 'employee');
+      setIsEmployee(verify?.role === 'employee');
       setData(res.data ?? []);
       setStats(res.stats ?? { total: 0, active: 0, onLeave: 0, newThisMonth: 0 });
     } catch (e) {
@@ -178,14 +196,23 @@ export default function CrmEmployees() {
                     className="cursor-pointer rounded-2xl border border-black/[0.06] bg-white p-4 shadow-[0_1px_2px_rgba(10,22,40,0.05)] transition-shadow active:scale-[0.99]"
                   >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A1628] to-[#1E3852] text-[11px] font-extrabold text-[#D6B85D]">
-                        {initials(e.name || 'U')}
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#0A1628] to-[#1E3852] text-[11px] font-extrabold text-[#D6B85D]">
+                        {e.profile_photo_url ? (
+                          <img src={e.profile_photo_url} alt={e.name || 'Employee'} className="h-full w-full object-cover" />
+                        ) : initials(e.name || 'U')}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <p className="truncate text-[14px] font-bold text-[#111827]">{e.name || 'Unnamed'}</p>
                           <div className="flex shrink-0 items-center gap-1.5">
                             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${STATUS_PILL[e.status] ?? 'bg-gray-100 text-gray-600'}`}>{e.status || 'Active'}</span>
+                            <button
+                              onClick={(ev) => { ev.stopPropagation(); navigate(`/crm/employees/${e.id}/dashboard`); }}
+                              title="Open live dashboard"
+                              className="rounded-lg p-1.5 text-[#96782A] transition-colors hover:bg-[#C9A84C]/[0.1]"
+                            >
+                              <LayoutDashboard className="h-3.5 w-3.5" />
+                            </button>
                             <button
                               onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }}
                               disabled={deleting}
@@ -202,6 +229,17 @@ export default function CrmEmployees() {
                           <span className="text-[#C9A84C]/80">·</span>
                           <span>{e.department || '—'}</span>
                         </div>
+                        <span className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${kycPill(e.kyc_status).cls}`}>
+                          <span className="h-1 w-1 rounded-full bg-current opacity-60" /> KYC {kycPill(e.kyc_status).label}
+                        </span>
+                        {(e.assigned_clients ?? 0) > 0 && (
+                          <p className="mt-1.5 inline-flex flex-wrap items-center gap-1.5">
+                            <span className="rounded-full bg-[#C9A84C]/[0.12] px-2 py-0.5 text-[10px] font-bold text-[#96782A]">{(e.active_assigned_clients ?? 0)} active · {(e.assigned_clients ?? 0)} assigned</span>
+                            {(e.today_visits ?? 0) > 0 && (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">{e.today_visits} visit{(e.today_visits ?? 0) === 1 ? '' : 's'} today</span>
+                            )}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -214,7 +252,7 @@ export default function CrmEmployees() {
                   <table className="w-full min-w-[760px] border-collapse text-sm">
                     <thead className="border-b border-black/[0.06] bg-[#fafafa]">
                       <tr>
-                        {['Employee ID', 'Name', 'Designation', 'Department', 'Logins', 'Joining Date', 'Status', 'Delete'].map((h) => (
+                        {['Employee ID', 'Name', 'Designation', 'Department', 'Logins', 'Assigned Leads', 'Joining Date', 'Status', 'KYC', 'Delete'].map((h) => (
                           <th key={h} className="px-4 py-3.5 text-left text-[10.5px] font-bold uppercase tracking-[1px] text-[#6b7280] lg:px-6">{h}</th>
                         ))}
                       </tr>
@@ -228,8 +266,17 @@ export default function CrmEmployees() {
                         >
                           <td className="px-4 py-4 font-mono text-sm text-[#96782A] lg:px-6">{e.employee_id}</td>
                           <td className="px-4 py-4 lg:px-6">
-                            <p className="text-sm font-medium text-[#0A1628]">{e.name || 'Unnamed'}</p>
-                            {e.email && <p className="text-xs text-[#6b7280]">{e.email}</p>}
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-[#0A1628] to-[#1E3852] text-[10px] font-extrabold text-[#D6B85D]">
+                                {e.profile_photo_url ? (
+                                  <img src={e.profile_photo_url} alt={e.name || 'Employee'} className="h-full w-full object-cover" />
+                                ) : initials(e.name || 'U')}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium text-[#0A1628]">{e.name || 'Unnamed'}</p>
+                                {e.email && <p className="truncate text-xs text-[#6b7280]">{e.email}</p>}
+                              </div>
+                            </div>
                           </td>
                           <td className="px-4 py-4 text-sm text-[#6b7280] lg:px-6">{e.designation || '—'}</td>
                           <td className="px-4 py-4 text-sm text-[#6b7280] lg:px-6">{e.department || '—'}</td>
@@ -238,6 +285,20 @@ export default function CrmEmployees() {
                               <LogIn className="h-3.5 w-3.5 text-[#96782A]" strokeWidth={1.8} />
                               {e.login_count ?? 0}
                             </span>
+                          </td>
+                          <td className="px-4 py-4 lg:px-6">
+                            {(e.assigned_clients ?? 0) > 0 ? (
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 rounded-full bg-[#C9A84C]/[0.12] px-2.5 py-1 text-[11px] font-bold text-[#96782A]">
+                                  {(e.active_assigned_clients ?? 0)} active · {(e.assigned_clients ?? 0)} total
+                                </span>
+                                {(e.today_visits ?? 0) > 0 && (
+                                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">{(e.today_visits ?? 0)} today</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-[11px] font-medium text-[#9ca3af]">No leads</span>
+                            )}
                           </td>
                           <td className="px-4 py-4 text-sm text-[#6b7280] lg:px-6">
                             {e.joining_date ? new Date(e.joining_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
@@ -249,14 +310,29 @@ export default function CrmEmployees() {
                             </span>
                           </td>
                           <td className="px-4 py-4 lg:px-6">
-                            <button
-                              onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }}
-                              disabled={deleting}
-                              title="Delete employee"
-                              className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
-                            >
-                              <Trash2 className="h-3 w-3" /> Delete
-                            </button>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold ${kycPill(e.kyc_status).cls}`}>
+                              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+                              {kycPill(e.kyc_status).label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 lg:px-6">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={(ev) => { ev.stopPropagation(); navigate(`/crm/employees/${e.id}/dashboard`); }}
+                                title="Open live dashboard"
+                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold text-[#96782A] transition-colors hover:bg-[#C9A84C]/[0.12]"
+                              >
+                                <LayoutDashboard className="h-3 w-3" /> Live
+                              </button>
+                              <button
+                                onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }}
+                                disabled={deleting}
+                                title="Delete employee"
+                                className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[10.5px] font-bold text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Trash2 className="h-3 w-3" /> Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
