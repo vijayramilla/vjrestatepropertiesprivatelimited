@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -7,12 +7,11 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   Check,
-  Clock,
-  MapPin,
-  TrendingUp,
+  ChevronDown,
 } from 'lucide-react';
 import PropertyCard from '../components/PropertyCard';
-import { BANGALORE_AREAS, PROPERTY_TYPES, filterLocalities, PRICE_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS } from '../data/properties';
+import { PROPERTY_TYPES, PRICE_BUDGET_PRESETS, MAX_LOCALITY_SELECTIONS } from '../data/properties';
+import { searchBangaloreAreas } from '@/data/bangaloreAreas';
 import { toggleLocalitySelection } from '@/lib/localitySelection';
 import {
   filterProperties,
@@ -30,6 +29,7 @@ import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { setPageMeta } from '@/lib/siteMeta';
 import { Button } from '@/components/ui/liquid-glass-button';
 import VJRAIButton from '../components/ai/VJRAIButton';
+import SearchBarDropdown from '@/components/properties/SearchBarDropdown';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import {
   fetchBangalorePlacesSuggestions,
@@ -38,22 +38,20 @@ import {
 
 type SortOption = 'price_asc' | 'price_desc' | 'rental_desc' | 'newest';
 
-type TrendingItem = { label: string };
-
-const TRENDING_SEARCHES: TrendingItem[] = [
-  { label: 'Koramangala' },
-  { label: 'Whitefield' },
-  { label: 'Indiranagar' },
-  { label: 'HSR Layout' },
-  { label: 'Electronic City' },
-  { label: 'Hebbal' },
-  { label: 'Jayanagar' },
-  { label: 'Marathahalli' },
-  { label: 'Bellandur' },
-  { label: 'Sarjapur Road' },
-  { label: 'Yelahanka' },
-  { label: 'Banashankari' },
-  { label: 'BTM Layout' },
+const TRENDING_SEARCHES: string[] = [
+  'Koramangala',
+  'Whitefield',
+  'Indiranagar',
+  'HSR Layout',
+  'Electronic City',
+  'Hebbal',
+  'Jayanagar',
+  'Marathahalli',
+  'Bellandur',
+  'Sarjapur Road',
+  'Yelahanka',
+  'Banashankari',
+  'BTM Layout',
 ];
 
 const PRICE_SLIDER_MAX = 100_000_000;
@@ -154,20 +152,6 @@ function BudgetRangeSlider({
   );
 }
 
-function highlightMatch(text: string, query: string): ReactNode {
-  const q = query.trim();
-  if (!q) return text;
-  const idx = text.toLowerCase().indexOf(q.toLowerCase());
-  if (idx === -1) return text;
-  return (
-    <>
-      {text.slice(0, idx)}
-      <span className="font-semibold text-gray-900">{text.slice(idx, idx + q.length)}</span>
-      {text.slice(idx + q.length)}
-    </>
-  );
-}
-
 function loadRecentSearches(): string[] {
   try {
     const raw = localStorage.getItem(RECENT_SEARCHES_KEY);
@@ -175,6 +159,36 @@ function loadRecentSearches(): string[] {
   } catch {
     return [];
   }
+}
+
+/**
+ * One dismissal owner for the anchored locality dropdown: taps outside the
+ * toolbar (i.e. on the listings below) and the Escape key both close it.
+ * Clicks anywhere inside the toolbar/dropdown never close it — the input is
+ * inside the same container, so typing cannot trigger close-and-reopen.
+ */
+function useDropdownDismiss(
+  open: boolean,
+  close: () => void,
+  containerRef: RefObject<HTMLElement | null>,
+) {
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: TouchEvent | MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('touchstart', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('touchstart', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, close, containerRef]);
 }
 
 function FilterTypePill({
@@ -260,6 +274,9 @@ export default function PropertiesPage() {
 
   const sortRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+  useDropdownDismiss(searchOpen, closeSearch, toolbarRef);
   const listingsRef = useRef<HTMLDivElement>(null);
 
   const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
@@ -301,10 +318,13 @@ export default function PropertiesPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    // Only the desktop sort dropdown needs outside-click dismissal. The
+    // locality search is a modal panel that owns its own dismissal (backdrop,
+    // X button, Done) — closing it here on any document tap re-opened the
+    // panel on top of itself, producing the duplicate-popup bug.
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as Node;
       if (!isMobile && sortRef.current && !sortRef.current.contains(target)) setSortOpen(false);
-      if (toolbarRef.current && !toolbarRef.current.contains(target)) setSearchOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -447,22 +467,6 @@ export default function PropertiesPage() {
     });
   };
 
-  const localitySuggestions = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
-    const fromList = filterLocalities(searchQuery, 20);
-    const fromData = properties
-      .map((p) => p.area as string | undefined)
-      .filter((a): a is string => typeof a === 'string' && a.trim().length > 0)
-      .map((a) => a.trim());
-    return Array.from(new Set([...fromList, ...fromData]))
-      .filter((a) => a.toLowerCase().includes(q))
-      // Drop filterLocalities' raw-query fallback (it echoes the whole query
-      // back when nothing matches) unless the text is itself a known area.
-      .filter((a) => a.toLowerCase() !== q || (BANGALORE_AREAS as readonly string[]).includes(a))
-      .slice(0, 20);
-  }, [searchQuery, properties]);
-  const isTypingLocality = searchQuery.trim().length > 0;
 
   // Google Places suggestions — covers every Bangalore locality A–Z, including
   // areas missing from the static list, so no location is ever left out.
@@ -482,15 +486,6 @@ export default function PropertiesPage() {
     };
   }, [searchQuery, searchOpen, mapsLoaded]);
 
-  // Google suggestions already covered by the canonical locality list or by
-  // the smart-parse chips (which for multi-word queries may not surface in
-  // localitySuggestions at all).
-  const googlePlacesToShow = useMemo(() => {
-    if (googlePlaces.length === 0) return [];
-    const known = new Set<string>();
-    localitySuggestions.forEach((l) => known.add(l.toLowerCase()));
-    return googlePlaces.filter((g) => !known.has(g.locality.toLowerCase()));
-  }, [googlePlaces, localitySuggestions]);
 
   const isDefaultPrice = priceRange[0] === 0 && priceRange[1] === PRICE_SLIDER_MAX;
 
@@ -499,7 +494,6 @@ export default function PropertiesPage() {
     !isDefaultPrice ||
     minAreaSqft != null;
 
-  const hasActiveSearch = selectedLocations.length > 0;
   const localitySlotsLeft = MAX_LOCALITY_SELECTIONS - selectedLocations.length;
 
   const saveRecentSearch = (term: string) => {
@@ -520,43 +514,29 @@ export default function PropertiesPage() {
     });
   };
 
-  const selectGooglePlace = (suggestion: GooglePlacesSuggestion) => {
-    toggleLocation(suggestion.locality);
-    saveRecentSearch(suggestion.locality);
-    setSearchQuery('');
-    setSearchOpen(false);
-  };
+  /** Live suggestions for the typed query — static area list first, then Google extras. */
+  const searchSuggestions = useMemo(() => {
+    if (!searchOpen || !searchQuery.trim()) return [];
+    const matches = searchBangaloreAreas(searchQuery, 40).map((a) => a.name);
+    const known = new Set(matches.map((m) => m.toLowerCase()));
+    const extras = googlePlaces
+      .map((g) => g.locality)
+      .filter((s) => !known.has(s.toLowerCase()));
+    return [...matches, ...extras];
+  }, [searchOpen, searchQuery, googlePlaces]);
 
   const handleSearchSubmit = () => {
     const resolved = resolveLocalityForSearch(searchQuery);
     if (resolved) {
       toggleLocation(resolved);
       saveRecentSearch(resolved);
-    } else if (googlePlacesToShow[0]) {
-      // Any Bangalore area Google knows about — the static list misses some.
-      toggleLocation(googlePlacesToShow[0].locality);
-      saveRecentSearch(googlePlacesToShow[0].locality);
+    } else if (searchSuggestions[0]) {
+      // Any Bangalore area the static list or Google knows about.
+      toggleLocation(searchSuggestions[0]);
+      saveRecentSearch(searchSuggestions[0]);
     }
     setSearchQuery('');
     setSearchOpen(false);
-  };
-
-  const applyTrendingItem = (item: TrendingItem) => {
-    toggleLocation(item.label);
-    setSearchQuery('');
-    saveRecentSearch(item.label);
-  };
-
-  const applyRecentSearch = (term: string) => {
-    toggleLocation(term);
-    setSearchQuery('');
-    saveRecentSearch(term);
-  };
-
-  const selectLocalitySuggestion = (loc: string) => {
-    toggleLocation(loc);
-    setSearchQuery('');
-    saveRecentSearch(loc);
   };
 
   const filtersPanelContent = (
@@ -667,65 +647,87 @@ export default function PropertiesPage() {
         }`}
       >
         <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+          {/* The search bar IS the input — suggestions expand beneath it.
+              Entire bar (input + chips + button) sits inside toolbarRef, so
+              taps while typing can never dismiss the dropdown. */}
           <div className="relative min-w-0 flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-gray-400" />
             <div
-              role="search"
-              className={`prop-search-shell ${
-                searchOpen || hasActiveSearch ? 'prop-search-shell-active' : 'prop-search-shell-idle'
+              className={`prop-searchbar group ${
+                searchOpen ? 'prop-searchbar-open' : ''
               }`}
-              onClick={() => {
-                setSearchOpen(true);
-                setSortOpen(false);
-              }}
             >
-              {selectedLocations.length > 0 && (
-                <div className="flex max-w-[45%] shrink-0 items-center gap-1 overflow-x-auto sm:max-w-[52%] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+                  searchOpen ? 'bg-[#C9A84C]/15 text-[#C9A84C]' : 'bg-[#0A1628] text-[#C9A84C]'
+                } transition-colors duration-200 group-hover:bg-[#1E3852]`}
+              >
+                <Search size={15} />
+              </span>
+
+              {selectedLocations.length > 0 ? (
+                <span className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {selectedLocations.map((loc) => (
                     <span key={loc} className="prop-loc-chip">
-                      <span className="max-w-[4.5rem] truncate sm:max-w-[5.5rem]">{loc}</span>
+                      <span className="max-w-[5rem] truncate sm:max-w-[6rem]">{loc}</span>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleLocation(loc);
-                        }}
-                        className="shrink-0 rounded-full p-1 hover:bg-white/20"
+                        onClick={() => toggleLocation(loc)}
+                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-white/25"
                         aria-label={`Remove ${loc}`}
                       >
                         <X size={10} />
                       </button>
                     </span>
                   ))}
-                </div>
-              )}
+                </span>
+              ) : null}
+
               <input
-                type="search"
-                enterKeyHint="search"
+                ref={searchInputRef}
+                type="text"
                 autoComplete="off"
-                placeholder={
-                  selectedLocations.length > 0
-                    ? localitySlotsLeft > 0
-                      ? `Add locality (${localitySlotsLeft} left)...`
-                      : 'Maximum 4 localities selected'
-                    : 'Search area, type or budget...'
-                }
-                disabled={localitySlotsLeft <= 0 && !searchQuery}
+                enterKeyHint="search"
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
-                  setSearchOpen(true);
-                  setSortOpen(false);
+                  if (!searchOpen) setSearchOpen(true);
                 }}
-                onFocus={() => {
-                  setSearchOpen(true);
-                  setSortOpen(false);
-                }}
+                onFocus={() => setSearchOpen(true)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearchSubmit();
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSearchSubmit();
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    if (searchQuery) setSearchQuery('');
+                    else setSearchOpen(false);
+                  }
                 }}
-                className="prop-search-input"
+                aria-label="Search Bangalore localities"
+                placeholder="Search any Bangalore area…"
+                className="min-w-[6rem] flex-1 min-h-[44px] border-0 bg-transparent text-[13.5px] font-medium text-[#0A1628] outline-none placeholder:text-gray-400 sm:text-[14.5px]"
               />
+
+              {searchQuery ? (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearchQuery('');
+                    searchInputRef.current?.focus();
+                  }}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X size={14} />
+                </button>
+              ) : (
+                <ChevronDown
+                  size={15}
+                  className={`shrink-0 text-gray-300 transition-transform duration-200 ${
+                    searchOpen ? 'rotate-180 text-[#C9A84C]' : 'group-hover:text-[#C9A84C]'
+                  }`}
+                />
+              )}
             </div>
           </div>
 
@@ -794,215 +796,24 @@ export default function PropertiesPage() {
           </div>
         </div>
 
-        {(activeFilterChips.length > 0 || selectedLocations.length > 0) && !searchOpen && (
-          <div className="prop-active-bar">
-            {selectedLocations.map((loc) => (
-              <span key={loc} className="prop-active-chip">
-                {loc}
-                <button
-                  type="button"
-                  onClick={() => toggleLocation(loc)}
-                  className="rounded-full p-1 hover:bg-gray-200"
-                  aria-label={`Remove ${loc}`}
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-            {activeFilterChips.map((chip) => (
-              <span key={chip.key} className="prop-active-chip">
-                {chip.label}
-                <button
-                  type="button"
-                  onClick={chip.onRemove}
-                  className="rounded-full p-1 hover:bg-gray-200"
-                  aria-label={`Remove ${chip.label}`}
-                >
-                  <X size={12} />
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={clearEverything}
-              className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-500 underline underline-offset-2 hover:text-black"
-            >
-              Clear all
-            </button>
-          </div>
-        )}
-
-        <AnimatePresence>
-          {searchOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="overflow-hidden border-t border-gray-100 bg-white"
-            >
-              <div className="mx-auto flex max-h-[min(65dvh,560px)] max-w-7xl flex-col">
-                <div className="prop-sheet-handle lg:hidden" />
-                {localityNotice && (
-                  <p className="mx-3 mt-2 rounded-lg bg-[#0A1628] px-3 py-2 text-center text-[12px] font-medium text-white sm:mx-6">
-                    {localityNotice}
-                  </p>
-                )}
-                <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-6 sm:py-4">
-                {isTypingLocality ? (
-                  <div>
-                    <>
-                      <p className="mb-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        <span>Locations</span>
-                          {localitySuggestions.length > 0 && (
-                            <span className="normal-case tracking-normal text-gray-400">
-                              {localitySuggestions.length} match{localitySuggestions.length !== 1 ? 'es' : ''}
-                            </span>
-                          )}
-                        </p>
-                        {localitySuggestions.length > 0 ? (
-                          <div className="space-y-0.5">
-                            {localitySuggestions.map((loc) => (
-                              <button
-                                key={loc}
-                                type="button"
-                                onClick={() => selectLocalitySuggestion(loc)}
-                                className={`flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-3 text-left text-[14px] transition active:bg-gray-100 ${
-                                  selectedLocations.includes(loc)
-                                    ? 'bg-[#0A1628]/5 font-medium text-[#0A1628]'
-                                    : 'text-gray-700 hover:bg-gray-50'
-                                }`}
-                              >
-                                <MapPin size={15} className="shrink-0 text-gray-400" />
-                                <span className="flex-1 truncate">{highlightMatch(loc, searchQuery.trim())}</span>
-                                {selectedLocations.includes(loc) ? (
-                                  <span className="shrink-0 rounded-full bg-gray-900 px-2 py-0.5 text-[10px] font-medium text-white">
-                                    Added
-                                  </span>
-                                ) : (
-                                  <span className="shrink-0 text-[11px] text-gray-400">+ Add</span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="rounded-xl bg-gray-50 px-3 py-4 text-center text-[13px] text-gray-500">
-                            No localities match &ldquo;{searchQuery.trim()}&rdquo;. Try a different spelling or area name.
-                          </p>
-                        )}
-                      </>
-
-                    {googlePlacesToShow.length > 0 && (
-                      <div className="mt-3 border-t border-gray-100 pt-3">
-                        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                          <MapPin size={12} className="text-[#C9A84C]" />
-                          More areas on Google Maps
-                          <span className="ml-auto normal-case tracking-normal text-gray-400">
-                            {googlePlacesToShow.length} found
-                          </span>
-                        </p>
-                        <div className="space-y-0.5">
-                          {googlePlacesToShow.map((suggestion) => (
-                            <button
-                              key={suggestion.placeId}
-                              type="button"
-                              onClick={() => selectGooglePlace(suggestion)}
-                              className="flex w-full min-h-[48px] items-center gap-2.5 rounded-xl px-3 py-2.5 text-left transition hover:bg-gray-50 active:bg-gray-100"
-                            >
-                              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white">
-                                <MapPin size={14} className="text-[#C9A84C]" />
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[14px] font-medium text-gray-800">
-                                  {highlightMatch(suggestion.mainText, searchQuery.trim())}
-                                </span>
-                                <span className="block truncate text-[11px] text-gray-400">
-                                  {suggestion.secondaryText}
-                                </span>
-                              </span>
-                              <span className="shrink-0 text-[11px] font-medium text-gray-400">+ Add</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <div className="mb-4">
-                      <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                        <TrendingUp size={12} />
-                        Trending Searches
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {TRENDING_SEARCHES.map((item) => {
-                          const isSelected = selectedLocations.includes(item.label);
-                          return (
-                            <button
-                              key={item.label}
-                              type="button"
-                              onClick={() => applyTrendingItem(item)}
-                              disabled={!isSelected && localitySlotsLeft <= 0}
-                              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[12px] font-medium transition active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40 ${
-                                isSelected
-                                  ? 'border-[#0A1628] bg-[#0A1628] text-white'
-                                  : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-[#C9A84C]'
-                              }`}
-                            >
-                              <MapPin size={11} className={isSelected ? 'text-white' : 'text-gray-400'} />
-                              {item.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {recentSearches.length > 0 && (
-                      <div>
-                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                          Recent Searches
-                        </p>
-                        <div className="space-y-0.5">
-                          {recentSearches.map((term) => (
-                            <div
-                              key={term}
-                              className="flex items-center justify-between rounded-xl px-2 py-2.5 active:bg-gray-100"
-                            >
-                              <button
-                                type="button"
-                                className="flex flex-1 items-center gap-3 text-left text-[14px] text-gray-700"
-                                onClick={() => applyRecentSearch(term)}
-                              >
-                                <Clock size={15} className="shrink-0 text-gray-400" />
-                                {term}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeRecentSearch(term)}
-                                className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                                aria-label={`Remove ${term}`}
-                              >
-                                <X size={14} />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                  </>
-                )}
-                </div>
-
-                <div className="shrink-0 border-t border-gray-100 bg-white px-3 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
-                  <button type="button" onClick={handleSearchSubmit} className="prop-apply-btn">
-                    Apply Search
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Locality suggestions — anchored directly beneath the search bar.
+            No second input here: the bar above is the one and only search bar. */}
+        <SearchBarDropdown
+          open={searchOpen}
+          onClose={closeSearch}
+          selected={selectedLocations}
+          onToggle={toggleLocation}
+          notice={localityNotice}
+          trending={TRENDING_SEARCHES}
+          recentSearches={recentSearches}
+          onRemoveRecent={removeRecentSearch}
+          slotsLeft={localitySlotsLeft}
+          suggestions={searchSuggestions}
+          onSelectExtra={(loc) => {
+            toggleLocation(loc);
+            saveRecentSearch(loc);
+          }}
+        />
       </div>
 
       {/* Spacer for fixed toolbar (includes expanded search panel height) */}
@@ -1177,6 +988,8 @@ export default function PropertiesPage() {
           </main>
         </div>
       </div>
+
+      {/* Inline locality search dropdown — anchored to the toolbar like housing.com */}
 
       <VJRAIButton userRole="public" />
     </div>

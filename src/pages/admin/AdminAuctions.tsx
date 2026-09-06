@@ -761,7 +761,7 @@ export default function AdminAuctions() {
                       onChange={(e) =>
                         handleStatusChange(auction.id, e.target.value as AuctionStatus)
                       }
-                      className="cursor-pointer rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 outline-none transition-colors hover:border-black focus-visible:border-black"
+                      className="cursor-pointer rounded-lg border border-gray-200 bg-white px-2 py-1 text-[11px] font-semibold text-gray-700 outline-none transition-colors hover:border-[#C9A84C] focus-visible:border-black"
                       aria-label={`Change status for ${auction.title}`}
                     >
                       {STATUS_ORDER.map((s) => (

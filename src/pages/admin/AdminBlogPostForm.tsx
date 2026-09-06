@@ -121,7 +121,7 @@ export default function AdminBlogPostForm() {
               value={form.title}
               onChange={(e) => handleChange('title', e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               placeholder="Blog post title"
             />
           </div>
@@ -133,7 +133,7 @@ export default function AdminBlogPostForm() {
               value={form.slug}
               onChange={(e) => handleChange('slug', e.target.value)}
               required
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               placeholder="blog-post-slug"
             />
           </div>
@@ -145,7 +145,7 @@ export default function AdminBlogPostForm() {
                 type="date"
                 value={form.date}
                 onChange={(e) => handleChange('date', e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               />
             </div>
             <div>
@@ -153,7 +153,7 @@ export default function AdminBlogPostForm() {
               <select
                 value={form.category}
                 onChange={(e) => handleChange('category', e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               >
                 {CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>{cat}</option>
@@ -169,7 +169,7 @@ export default function AdminBlogPostForm() {
                 type="text"
                 value={form.author}
                 onChange={(e) => handleChange('author', e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               />
             </div>
             <div>
@@ -178,7 +178,7 @@ export default function AdminBlogPostForm() {
                 type="text"
                 value={form.readTime}
                 onChange={(e) => handleChange('readTime', e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
                 placeholder="5 min read"
               />
             </div>
@@ -190,7 +190,7 @@ export default function AdminBlogPostForm() {
               type="url"
               value={form.image}
               onChange={(e) => handleChange('image', e.target.value)}
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               placeholder="https://images.unsplash.com/..."
             />
           </div>
@@ -201,7 +201,7 @@ export default function AdminBlogPostForm() {
               value={form.excerpt}
               onChange={(e) => handleChange('excerpt', e.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-black"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               placeholder="Short summary of the post"
             />
           </div>
@@ -212,7 +212,7 @@ export default function AdminBlogPostForm() {
               value={form.content}
               onChange={(e) => handleChange('content', e.target.value)}
               rows={16}
-              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 font-mono text-sm text-black outline-none transition-all focus:border-black"
+              className="w-full rounded-lg border border-gray-200 px-4 py-2.5 font-mono text-sm text-black outline-none transition-all focus:border-[#C9A84C]"
               placeholder="Blog post content with HTML tags..."
             />
           </div>

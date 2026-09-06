@@ -1,8 +1,20 @@
 import { Link } from 'react-router-dom';
-import { ArrowUpRight, Instagram, Linkedin, Mail, MapPin, MessageCircle, Phone, Youtube } from 'lucide-react';
+import { motion } from 'framer-motion';
+import {
+  ArrowUpRight,
+  Instagram,
+  Linkedin,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Phone,
+  Youtube,
+} from 'lucide-react';
 import { siteContact } from '@/data/siteContact';
 
 const SERIF = "'Instrument Serif', Georgia, serif";
+
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 const columns = [
   {
@@ -31,7 +43,9 @@ const columns = [
     links: [
       { label: 'EMI Calculator', to: '/emi-calculator' },
       { label: 'Browse Bangalore Areas', to: '/properties' },
-      { label: 'Investment Guide', to: '/about' },
+      { label: 'Bangalore Map', to: '/bangalore-map' },
+      { label: 'Property Valuation', to: '/premium-valuation' },
+      { label: 'Investment Guide', to: '/blog' },
     ],
   },
 ];
@@ -47,10 +61,50 @@ export default function Footer() {
   const c = siteContact;
 
   return (
-    <footer className="w-full bg-[#0A1628] text-white">
-      <div className="mx-auto w-full max-w-7xl px-5 sm:px-8 md:px-12 lg:px-16">
-        {/* Top: brand + navigation */}
-        <div className="grid grid-cols-1 gap-12 border-b border-white/10 py-14 md:grid-cols-12 md:gap-8 lg:py-16">
+    <footer className="relative w-full overflow-hidden bg-[#0A1628] text-white">
+      {/* Ambient gold glow, premium finish */}
+      <div className="pointer-events-none absolute -top-48 left-1/2 h-96 w-[820px] -translate-x-1/2 rounded-full bg-[#C9A84C]/[0.07] blur-3xl" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/60 to-transparent" />
+
+      <div className="relative mx-auto w-full max-w-7xl px-5 sm:px-8 md:px-12 lg:px-16">
+        {/* ── Newsletter / CTA band ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-20px' }}
+          transition={{ duration: 0.6, ease: EASE }}
+          className="flex flex-col items-start justify-between gap-6 border-b border-white/10 py-12 md:flex-row md:items-center lg:py-14"
+        >
+          <div className="max-w-xl">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#C9A84C]">
+              Start Investing
+            </p>
+            <p className="mt-2 text-2xl leading-tight text-white md:text-[28px]" style={{ fontFamily: SERIF }}>
+              Find your next rental income asset.
+            </p>
+          </div>
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+            <a
+              href={c.whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-7 text-[12px] font-bold uppercase tracking-[0.12em] text-[#0A1628] transition-all hover:-translate-y-0.5 hover:bg-[#E4C877]"
+            >
+              <MessageCircle size={15} />
+              WhatsApp Us
+            </a>
+            <Link
+              to="/submit-requirement"
+              className="inline-flex min-h-[48px] items-center justify-center gap-1 rounded-xl border border-white/20 px-7 text-[12px] font-bold uppercase tracking-[0.12em] text-white transition-all hover:-translate-y-0.5 hover:border-[#C9A84C] hover:text-[#C9A84C]"
+            >
+              Share Requirement
+              <ArrowUpRight size={14} />
+            </Link>
+          </div>
+        </motion.div>
+
+        {/* ── Brand + navigation ── */}
+        <div className="grid grid-cols-1 gap-12 border-b border-white/10 py-12 md:grid-cols-12 md:gap-8 lg:py-14">
           {/* Brand */}
           <div className="md:col-span-5">
             <Link to="/" className="inline-block">
@@ -58,13 +112,13 @@ export default function Footer() {
                 VJR Estate
               </span>
             </Link>
-            <p className="mt-2 text-[13px] uppercase tracking-[0.24em] text-[#C9A84C]">
-              Your Rental Income Expert · Bengaluru
+            <p className="mt-2 text-[12px] uppercase tracking-[0.24em] text-[#C9A84C]">
+              Your Rental Income Expert · Bangalore
             </p>
             <p className="mt-5 max-w-md text-sm font-light leading-relaxed text-white/55">
               VJR Estate specialises in PG buildings and rental-yielding real estate across
-              Bangalore — income-first assets, curated for you, and supported
-              through acquisition and beyond.
+              Bangalore — income-first assets, curated for you, and supported through
+              acquisition and beyond.
             </p>
 
             <div className="mt-6 space-y-2.5 text-[13px] text-white/60">
@@ -101,7 +155,7 @@ export default function Footer() {
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={label}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition-all duration-200 hover:border-[#C9A84C] hover:bg-[#C9A84C] hover:text-[#0A1628]"
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 text-white/70 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#C9A84C] hover:bg-[#C9A84C] hover:text-[#0A1628]"
                 >
                   <Icon size={15} />
                 </a>
@@ -136,43 +190,34 @@ export default function Footer() {
             ))}
           </div>
 
-          {/* Contact CTA */}
+          {/* Office card */}
           <div className="md:col-span-2">
             <div className="flex h-full flex-col justify-between gap-6 rounded-2xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-sm">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/40">
-                  Start Investing
+                  Visit Office
                 </p>
-                <p
-                  className="mt-2 text-[22px] leading-tight text-white"
-                  style={{ fontFamily: SERIF }}
-                >
-                  Find your next rental income asset.
+                <p className="mt-2 text-[15px] font-semibold leading-snug text-white">
+                  {c.addressShort}
+                </p>
+                <p className="mt-1.5 text-[12px] leading-relaxed text-white/45">
+                  {c.hoursLabel}
                 </p>
               </div>
-              <div className="space-y-2">
-                <a
-                  href={c.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-[#0A1628] transition-all hover:bg-[#E4C877]"
-                >
-                  <MessageCircle size={14} />
-                  WhatsApp Us
-                </a>
-                <Link
-                  to="/submit-requirement"
-                  className="flex w-full items-center justify-center gap-1 rounded-xl border border-white/20 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition-all hover:border-[#C9A84C] hover:text-[#C9A84C]"
-                >
-                  Share Requirement
-                  <ArrowUpRight size={13} />
-                </Link>
-              </div>
+              <a
+                href={c.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-1 rounded-xl border border-white/20 px-4 py-3 text-[11px] font-bold uppercase tracking-[0.12em] text-white transition-all hover:border-[#C9A84C] hover:text-[#C9A84C]"
+              >
+                Get Directions
+                <ArrowUpRight size={13} />
+              </a>
             </div>
           </div>
         </div>
 
-        {/* Bottom bar */}
+        {/* ── Bottom bar ── */}
         <div className="flex flex-col gap-4 py-7 md:flex-row md:items-center md:justify-between">
           <p className="text-[11.5px] text-white/35">
             © {new Date().getFullYear()} VJR Estate Properties Private Limited. All rights reserved.

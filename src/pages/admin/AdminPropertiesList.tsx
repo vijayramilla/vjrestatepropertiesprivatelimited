@@ -356,14 +356,14 @@ export default function AdminPropertiesList() {
           <>
             <motion.div variants={container} initial="initial" animate="animate" className="space-y-3 md:hidden">
               {filteredProperties.map((property) => (
-                <motion.article key={property.id} variants={fadeUp} className={`admin-card p-4 ${selectedIds.has(property.id) ? 'ring-2 ring-blue-400' : ''}`}>
+                <motion.article key={property.id} variants={fadeUp} className={`admin-card p-4 ${selectedIds.has(property.id) ? 'ring-2 ring-[#C9A84C]' : ''}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       <input
                         type="checkbox"
                         checked={selectedIds.has(property.id)}
                         onChange={() => toggleSelect(property.id)}
-                        className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-black"
+                        className="mt-1 h-4 w-4 shrink-0 cursor-pointer rounded border-gray-300 accent-[#C9A84C]"
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-mono text-gray-400">
@@ -415,7 +415,7 @@ export default function AdminPropertiesList() {
                     <button
                       type="button"
                       onClick={() => openDelete(property.id)}
-                      className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-gray-100 text-[11px] font-semibold uppercase tracking-wide text-black transition-colors hover:bg-gray-200"
+                      className="admin-btn-ghost-danger"
                     >
                       <Trash size={14} />
                       Delete
@@ -426,68 +426,65 @@ export default function AdminPropertiesList() {
             </motion.div>
 
               <motion.div variants={container} initial="initial" animate="animate" className="admin-card hidden overflow-hidden md:block">
-              <div className="grid grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/50 px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
-                <div className="col-span-1 flex items-center">
+              <div className="grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_130px] items-center gap-4 border-b border-gray-200 bg-[#FBF9F3] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+                <div className="flex items-center">
                   <input
                     type="checkbox"
                     checked={filteredProperties.length > 0 && selectedIds.size === filteredProperties.length}
                     onChange={toggleSelectAll}
-                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-black"
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#C9A84C]"
                   />
                 </div>
-                <p className="col-span-1">ID</p>
-                <p className="col-span-1">Title</p>
-                <p className="col-span-1">Type</p>
-                <p className="col-span-1">Area</p>
-                <p className="col-span-1">Price</p>
-                <p className="col-span-1">Monthly</p>
-                <p className="col-span-1">Status</p>
-                <p className="col-span-1">Featured</p>
-                <p className="col-span-2">Listed By</p>
-                <p className="col-span-1">Actions</p>
+                <p>ID</p>
+                <p>Property</p>
+                <p>Type</p>
+                <p>Area</p>
+                <p>Price</p>
+                <p>Monthly</p>
+                <p>Status</p>
+                <p className="text-center">Featured</p>
+                <p className="text-right">Actions</p>
               </div>
 
               {filteredProperties.map((property) => (
                 <motion.div
                   key={property.id}
                   variants={fadeUp}
-                  className={`grid grid-cols-12 gap-4 border-b border-gray-50 px-5 py-3.5 transition-colors last:border-0 hover:bg-gray-50/40 ${selectedIds.has(property.id) ? 'bg-blue-50/60' : ''}`}
+                  className={`grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_130px] items-center gap-4 border-b border-gray-100 px-5 py-3.5 transition-colors last:border-0 hover:bg-[#FBF7EC]/50 ${selectedIds.has(property.id) ? 'bg-[#C9A84C]/[0.08]' : ''}`}
                 >
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={selectedIds.has(property.id)}
                       onChange={() => toggleSelect(property.id)}
-                      className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-black"
+                      className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-[#C9A84C]"
                     />
                   </div>
-                  <p className="col-span-1 truncate text-[11px] font-mono text-gray-500">{property.propertyCode}</p>
-                  <p className="col-span-1 truncate text-sm font-medium text-black">{property.title}</p>
-                  <div className="col-span-1">
-                    <p className="text-xs text-gray-800">{property.type}</p>
+                  <p className="truncate text-[11px] font-mono text-gray-500">{property.propertyCode}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#0A1628]">{property.title}</p>
+                    <p className="truncate text-[11px] text-gray-500">{property.userDisplayName || '—'}</p>
                   </div>
-                  <p className="col-span-1 text-xs text-gray-800">{property.area}</p>
-                  <p className="col-span-1 text-sm text-black">{property.price_label}</p>
-                  <p className="col-span-1 text-sm text-black">{property.monthly_rental_label}</p>
-                  <div className="col-span-1">
+                  <p className="truncate text-xs text-gray-700">{property.type}</p>
+                  <p className="truncate text-xs text-gray-700">{property.area}</p>
+                  <p className="truncate text-sm font-medium text-[#0A1628]">{property.price_label}</p>
+                  <p className="truncate text-sm text-gray-600">{property.monthly_rental_label}</p>
+                  <div>
                     <AdminBadge variant={property.status === 'Ready' ? 'success' : 'muted'}>
                       {property.status}
                     </AdminBadge>
                   </div>
-                  <div className="col-span-1 flex items-center">
+                  <div className="flex justify-center">
                     <FeaturedToggle
                       featured={property.featured}
                       onToggle={() => handleToggleFeatured(property.id, property.featured)}
                     />
                   </div>
-                  <div className="col-span-1 min-w-0">
-                    <p className="truncate text-xs font-medium text-gray-800">{property.userDisplayName || '—'}</p>
-                  </div>
-                  <div className="col-span-1 flex gap-2">
+                  <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => navigate(`/admin/properties/${property.id}/edit`)}
-                      className="admin-btn-secondary !min-h-[36px] !px-3 !text-[10px]"
+                      className="admin-btn-secondary !min-h-[34px] !px-3 !text-[10px]"
                     >
                       <NotePencil size={12} />
                       Edit
@@ -495,7 +492,7 @@ export default function AdminPropertiesList() {
                     <button
                       type="button"
                       onClick={() => openDelete(property.id)}
-                      className="flex items-center gap-1 rounded-xl border border-gray-300 px-3 py-1 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:bg-gray-100"
+                      className="admin-btn-ghost-danger !min-h-[34px] !px-3"
                     >
                       <Trash size={12} />
                       Delete
@@ -548,7 +545,7 @@ export default function AdminPropertiesList() {
                   type="button"
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="flex-1 min-h-[44px] rounded-xl bg-black px-5 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-gray-900 disabled:opacity-50"
+                  className="admin-btn-danger flex-1"
                 >
                   {deleting ? 'Deleting...' : 'Delete'}
                 </button>
@@ -566,25 +563,25 @@ export default function AdminPropertiesList() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 80, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2"
+            className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-6"
           >
-            <div className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white px-6 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.12)]">
+            <div className="flex items-center gap-4 rounded-2xl border border-[#C9A84C]/25 bg-white px-6 py-3 shadow-[0_12px_40px_rgba(10,22,40,0.18)]">
               <span className="text-sm font-medium text-gray-700">
-                <span className="font-bold text-black">{selectedIds.size}</span>{' '}
+                <span className="font-bold text-[#0A1628]">{selectedIds.size}</span>{' '}
                 {selectedIds.size === 1 ? 'property' : 'properties'} selected
               </span>
               <div className="h-5 w-px bg-gray-200" />
               <button
                 type="button"
                 onClick={() => setSelectedIds(new Set())}
-                className="text-sm text-gray-500 hover:text-black transition-colors"
+                className="text-sm text-gray-500 transition-colors hover:text-[#0A1628]"
               >
                 Clear
               </button>
               <button
                 type="button"
                 onClick={openBulkDelete}
-                className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700"
+                className="admin-btn-danger !min-h-[40px] !px-4 !text-[11px]"
               >
                 <Trash size={15} />
                 Delete {selectedIds.size === 1 ? 'Property' : 'Properties'}
@@ -635,7 +632,7 @@ export default function AdminPropertiesList() {
                   type="button"
                   onClick={handleBulkDelete}
                   disabled={deleting}
-                  className="flex-1 min-h-[44px] rounded-xl bg-red-600 px-5 text-xs font-semibold uppercase tracking-wide text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+                  className="admin-btn-danger flex-1"
                 >
                   {deleting ? 'Deleting...' : `Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'Property' : 'Properties'}`}
                 </button>

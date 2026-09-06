@@ -234,6 +234,29 @@ select:focus {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
 }
 
+/* ── Global brand polish ─────────────────────────────────────────── */
+
+/* Brand-tinted text selection everywhere */
+::selection {
+  background: rgba(201, 168, 76, 0.28);
+  color: inherit;
+}
+
+/* Smooth focus ring in brand gold for public-site inputs */
+body:not(.admin-theme) input:focus,
+body:not(.admin-theme) select:focus,
+body:not(.admin-theme) textarea:focus {
+  outline: none;
+}
+
+/* Premium smooth scrolling with reduced-motion respect */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: rgba(201, 168, 76, 0.18);
+  }
+}
+
 .hero-pattern {
   background-image:
     linear-gradient(135deg, transparent 40%, rgba(17, 17, 17, 0.3) 40%, rgba(17, 17, 17, 0.3) 42%, transparent 42%),

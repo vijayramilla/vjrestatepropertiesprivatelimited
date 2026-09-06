@@ -34,8 +34,8 @@ function ChipGroup<T extends string>({
           onClick={() => onChange(opt)}
           className={`rounded-xl px-4 py-2.5 text-sm font-medium transition ${
             value === opt
-              ? 'bg-black text-white'
-              : 'border border-gray-200 bg-white text-gray-800 hover:border-gray-400'
+              ? 'bg-[#0A1628] text-white shadow-[0_4px_14px_-6px_rgba(10,22,40,0.5)]'
+              : 'border border-gray-200 bg-white text-gray-800 hover:border-[#C9A84C]'
           }`}
         >
           {opt}

@@ -143,7 +143,7 @@ function RatingStars({
 // ── Job form modal (create / edit) ──────────────────────────────────────
 
 const inputCls =
-  'min-h-[44px] w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-black outline-none transition-all placeholder:text-gray-400 focus:border-black focus:ring-2 focus:ring-black/10';
+  'min-h-[44px] w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-black outline-none transition-all placeholder:text-gray-400 focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/20';
 const labelCls = 'mb-2 block text-xs font-medium uppercase tracking-[0.1em] text-gray-500';
 
 interface JobFormState {
@@ -296,7 +296,7 @@ function JobFormModal({
                 onClick={onClose}
                 disabled={saving}
                 aria-label="Close"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-black hover:text-black disabled:opacity-40"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-[#C9A84C] hover:text-black disabled:opacity-40"
               >
                 <X size={18} />
               </button>
@@ -442,7 +442,7 @@ function CandidateDetail({
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-black hover:text-black"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition-colors hover:border-[#C9A84C] hover:text-black"
         >
           <X size={18} />
         </button>
@@ -589,7 +589,7 @@ function CandidateDetail({
               disabled={app.status === s}
               onClick={() => onStatusChange(s)}
               className={`flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-3 text-[11px] font-semibold uppercase tracking-wide transition-all disabled:opacity-40 ${
-                app.status === s ? STATUS_CONFIG[s].chip : 'border border-gray-200 bg-white text-gray-600 hover:border-black hover:text-black'
+                app.status === s ? STATUS_CONFIG[s].chip : 'border border-gray-200 bg-white text-gray-600 hover:border-[#C9A84C] hover:text-black'
               }`}
             >
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: STATUS_CONFIG[s].dot }} />
@@ -852,7 +852,7 @@ export default function AdminCareersPage() {
                 className={`flex min-h-[44px] shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-[12px] font-semibold uppercase tracking-[0.1em] transition-all sm:px-4 ${
                   active
                     ? 'bg-[#0A1628] text-[#C9A84C] shadow-sm'
-                    : 'border border-gray-200 bg-white text-gray-500 hover:border-black hover:text-black'
+                    : 'border border-gray-200 bg-white text-gray-500 hover:border-[#C9A84C] hover:text-black'
                 }`}
               >
                 <Icon size={15} />
@@ -947,7 +947,7 @@ export default function AdminCareersPage() {
                           <button
                             type="button"
                             onClick={() => handleOpenCandidate(app)}
-                            className="flex min-h-[38px] items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-[10px] font-semibold uppercase tracking-wide text-gray-700 hover:border-black hover:text-black"
+                            className="flex min-h-[38px] items-center gap-1.5 rounded-xl border border-gray-200 px-3 text-[10px] font-semibold uppercase tracking-wide text-gray-700 hover:border-[#C9A84C] hover:text-black"
                           >
                             <Eye size={13} /> View
                           </button>
@@ -1010,7 +1010,7 @@ export default function AdminCareersPage() {
                         <button
                           type="button"
                           onClick={() => handleOpenCandidate(app)}
-                          className="flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 px-2 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:border-black hover:text-black"
+                          className="flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 px-2 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:border-[#C9A84C] hover:text-black"
                         >
                           <Eye size={12} /> View
                         </button>
@@ -1018,7 +1018,7 @@ export default function AdminCareersPage() {
                           <button
                             type="button"
                             onClick={() => handleScheduleInterview(app.id)}
-                            className="flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 px-2 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:border-black hover:text-black"
+                            className="flex min-h-[36px] items-center gap-1 rounded-lg border border-gray-200 px-2 text-[10px] font-semibold uppercase text-gray-700 transition-colors hover:border-[#C9A84C] hover:text-black"
                           >
                             <CalendarCheck size={12} /> Interview
                           </button>

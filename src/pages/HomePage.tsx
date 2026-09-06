@@ -5,6 +5,10 @@ import HomePropertyGrid from '../components/home/HomePropertyGrid';
 import HomeSearchBar from '../components/home/HomeSearchBar';
 import HomeCategoryGrid from '../components/home/HomeCategoryGrid';
 import HomeHowItWorks from '../components/home/HomeHowItWorks';
+import HomeAboutVjr from '../components/home/HomeAboutVjr';
+import HomeWhyVjr from '../components/home/HomeWhyVjr';
+import HomeTestimonials from '../components/home/HomeTestimonials';
+import HomeInsights from '../components/home/HomeInsights';
 import HomeContactCta from '../components/home/HomeContactCta';
 import VJRAIButton from '../components/ai/VJRAIButton';
 
@@ -87,7 +91,11 @@ export default function HomePage() {
       <HomeCategoryGrid />
       <HomePropertyGrid />
       <HomeListingsSection />
+      <HomeAboutVjr />
       <HomeHowItWorks />
+      <HomeWhyVjr />
+      <HomeTestimonials />
+      <HomeInsights />
       <HomeContactCta />
 
       <VJRAIButton userRole="public" />

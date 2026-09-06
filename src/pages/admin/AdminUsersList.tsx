@@ -284,12 +284,12 @@ export default function AdminUsersList() {
             placeholder="Search by email, name, or location..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="min-h-[44px] w-full border-0 border-b border-gray-300 bg-transparent pb-2 font-sans text-base outline-none focus:border-black sm:flex-1 sm:text-sm"
+            className="min-h-[44px] w-full border-0 border-b border-gray-300 bg-transparent pb-2 font-sans text-base outline-none focus:border-[#C9A84C] sm:flex-1 sm:text-sm"
           />
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as typeof filterStatus)}
-            className="min-h-[44px] w-full border border-gray-300 bg-white px-3 font-sans text-sm outline-none focus:border-black sm:w-auto"
+            className="min-h-[44px] w-full border border-gray-300 bg-white px-3 font-sans text-sm outline-none focus:border-[#C9A84C] sm:w-auto"
           >
             <option value="all">All Users</option>
             <option value="online">Online Now</option>

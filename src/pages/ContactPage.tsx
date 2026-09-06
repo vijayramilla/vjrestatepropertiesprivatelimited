@@ -1,293 +1,268 @@
 import { useRef } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
-import { Phone, Mail, MapPin, Clock, MessageCircle, ArrowUpRight } from 'lucide-react';
+import { Phone, Envelope, MapPin, Clock, WhatsappLogo, ArrowUpRight, ArrowRight } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
-import Contact3DCard from '@/components/contact/Contact3DCard';
-import ContactFloatingOrb from '@/components/contact/ContactFloatingOrb';
 import { siteContact } from '@/data/siteContact';
 
-const DM_SANS = "'DM Sans', system-ui, sans-serif";
+const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const CHANNELS = [
+  {
+    icon: Phone,
+    title: 'Call Us',
+    content: siteContact.phoneDisplay,
+    note: siteContact.hoursLabel,
+    href: `tel:${siteContact.phoneTel}`,
+    external: false,
+  },
+  {
+    icon: WhatsappLogo,
+    title: 'WhatsApp',
+    content: siteContact.phoneDisplay,
+    note: 'Fastest response — typically within minutes',
+    href: siteContact.whatsappUrl,
+    external: true,
+  },
+  {
+    icon: Envelope,
+    title: 'Email Us',
+    content: siteContact.email,
+    note: 'For detailed enquiries & documentation',
+    href: `mailto:${siteContact.email}`,
+    external: false,
+  },
+  {
+    icon: Clock,
+    title: 'Office Hours',
+    content: siteContact.hoursLabel,
+    note: 'Walk-ins welcome at our HSR Layout office',
+    href: '',
+    external: false,
+  },
+];
 
 export default function ContactPage() {
+  const c = siteContact;
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: heroRef,
     offset: ['start start', 'end start'],
   });
-
   const heroOpacity = useTransform(scrollYProgress, [0, 0.55], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.55], [1, 0.94]);
   const heroY = useTransform(scrollYProgress, [0, 0.55], [0, 80]);
 
-  const contactCards = [
-    {
-      icon: <Phone size={32} strokeWidth={1.25} className="text-black" />,
-      title: 'Call Us',
-      content: siteContact.phoneDisplay,
-      link: `tel:${siteContact.phoneTel}`,
-      delay: 0.1,
-    },
-    {
-      icon: <Mail size={32} strokeWidth={1.25} className="text-black" />,
-      title: 'Email Us',
-      content: siteContact.email,
-      link: `mailto:${siteContact.email}`,
-      delay: 0.2,
-    },
-    {
-      icon: <MessageCircle size={32} strokeWidth={1.25} className="text-black" />,
-      title: 'WhatsApp',
-      content: siteContact.phoneDisplay,
-      link: siteContact.whatsappUrl,
-      external: true,
-      delay: 0.3,
-    },
-    {
-      icon: <MapPin size={32} strokeWidth={1.25} className="text-black" />,
-      title: 'Office',
-      content: siteContact.address,
-      delay: 0.4,
-      footer: (
-        <a
-          href={siteContact.mapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hoverable inline-flex items-center gap-1.5 text-sm text-black/55 underline-offset-4 transition-colors hover:text-black hover:underline"
-          style={{ fontFamily: DM_SANS }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          View on Google Maps
-          <ArrowUpRight size={14} />
-        </a>
-      ),
-    },
-    {
-      icon: <Clock size={32} strokeWidth={1.25} className="text-black" />,
-      title: 'Office Hours',
-      content: siteContact.hoursLabel,
-      delay: 0.5,
-    },
-  ];
-
   return (
-    <div className="contact-page min-h-screen overflow-hidden bg-white pt-[72px] text-black">
-      <div className="pointer-events-none fixed inset-0">
-        <ContactFloatingOrb
-          delay={0}
-          className="absolute left-10 top-28 h-64 w-64 rounded-full bg-black blur-3xl"
-        />
-        <ContactFloatingOrb
-          delay={0.5}
-          className="absolute right-16 top-44 h-96 w-96 rounded-full bg-black blur-3xl"
-        />
-        <ContactFloatingOrb
-          delay={1}
-          className="absolute bottom-24 left-1/3 h-80 w-80 rounded-full bg-black blur-3xl"
-        />
-      </div>
-
+    <div className="min-h-screen bg-white pt-[72px]">
+      {/* ── Hero ── */}
       <motion.section
         ref={heroRef}
-        style={{ opacity: heroOpacity, scale: heroScale, y: heroY }}
-        className="relative flex min-h-[calc(100dvh-72px)] items-center justify-center px-4 sm:px-6 md:px-8"
+        style={{ opacity: heroOpacity, y: heroY }}
+        className="relative flex min-h-[70svh] items-center justify-center overflow-hidden bg-[#0A1628] px-5 text-center"
       >
-        <div className="mx-auto max-w-7xl text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-[760px] -translate-x-1/2 rounded-full bg-[#C9A84C]/10 blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[#C9A84C]/50 to-transparent" />
+
+        <div className="relative mx-auto max-w-4xl">
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.15, duration: 0.7, ease: EASE }}
+            className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#C9A84C]"
           >
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.25, duration: 0.8 }}
-              className="mb-6 text-[10px] font-medium uppercase tracking-[0.3em] text-black/45 md:text-xs"
-              style={{ fontFamily: DM_SANS }}
-            >
-              VJR Estate · Get In Touch
-            </motion.p>
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.45, duration: 0.8 }}
-              className="font-display mb-8 text-5xl font-light leading-[1.05] tracking-tight text-black md:text-7xl lg:text-8xl"
-            >
-              Let&apos;s Talk
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.65, duration: 0.8 }}
-              className="mx-auto max-w-2xl text-base leading-relaxed text-black/55 md:text-lg"
-              style={{ fontFamily: DM_SANS }}
-            >
-              Connect with our Bangalore real estate team for rental income assets,
-              commercial properties, and premium investment opportunities.
-            </motion.p>
-          </motion.div>
+            VJR Estate · Get In Touch
+          </motion.p>
+          <motion.h1
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25, duration: 0.75, ease: EASE }}
+            className="font-display mt-6 text-4xl font-bold leading-[1.05] tracking-[-0.02em] text-white sm:text-5xl md:text-7xl"
+          >
+            Let&rsquo;s talk about
+            <span className="block text-[#E4C877]">your next asset.</span>
+          </motion.h1>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4, duration: 0.75, ease: EASE }}
+            className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg"
+          >
+            Rental income properties, PG buildings and commercial assets across Bangalore —
+            our team responds to every enquiry, fast.
+          </motion.p>
         </div>
       </motion.section>
 
-      <section className="relative px-4 py-24 sm:px-6 md:px-8 md:py-32 lg:px-12 xl:px-16">
-        <div className="mx-auto max-w-7xl">
+      {/* ── Channels ── */}
+      <section className="py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-16">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="mb-16 text-center md:mb-20"
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.6, ease: EASE }}
+            className="mb-12 text-center"
           >
-            <h2 className="font-display mb-5 text-4xl font-light text-black md:text-5xl">
-              Contact Us
-            </h2>
-            <p
-              className="mx-auto max-w-2xl text-base text-black/55 md:text-lg"
-              style={{ fontFamily: DM_SANS }}
-            >
-              Reach us by phone, WhatsApp, or email — we respond quickly to every enquiry.
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
+              Reach Us
             </p>
+            <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+              Choose the channel that suits you
+            </h2>
           </motion.div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
-            {contactCards.map((card) => (
-              <Contact3DCard key={card.title} {...card} />
-            ))}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
+            {CHANNELS.map((ch, i) => {
+              const inner = (
+                <>
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0A1628] text-[#C9A84C] transition-colors duration-300 group-hover:bg-[#C9A84C] group-hover:text-[#0A1628]">
+                    <ch.icon size={22} weight="duotone" />
+                  </span>
+                  <h3 className="mt-5 text-sm font-bold text-[#0A1628]">{ch.title}</h3>
+                  <p className="mt-1.5 break-words text-[15px] font-semibold text-gray-700">
+                    {ch.content}
+                  </p>
+                  <p className="mt-2 text-xs leading-relaxed text-gray-400">{ch.note}</p>
+                  {ch.href && (
+                    <span className="mt-4 inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#C9A84C]">
+                      {ch.external ? 'Open' : 'Contact'} <ArrowRight size={11} weight="bold" />
+                    </span>
+                  )}
+                </>
+              );
+              const cls =
+                'group flex h-full flex-col rounded-2xl border border-[#EBEBEB] bg-white p-6 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:shadow-[0_16px_40px_rgba(10,22,40,0.08)]';
+              return (
+                <motion.div
+                  key={ch.title}
+                  initial={{ opacity: 0, y: 24 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-40px' }}
+                  transition={{ duration: 0.5, delay: i * 0.08, ease: EASE }}
+                >
+                  {ch.href ? (
+                    <a
+                      href={ch.href}
+                      target={ch.external ? '_blank' : undefined}
+                      rel={ch.external ? 'noopener noreferrer' : undefined}
+                      className={cls}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <div className={cls}>{inner}</div>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       </section>
 
-      <section className="relative border-t border-black/8 py-24 md:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-          <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-16">
+      {/* ── Visit the office ── */}
+      <section className="border-y border-[#EBEBEB] bg-[#F8F9FA] py-16 md:py-24">
+        <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-16">
+          <div className="grid grid-cols-1 items-center gap-10 lg:grid-cols-2 lg:gap-16">
             <motion.div
-              initial={{ opacity: 0, x: -50 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.6, ease: EASE }}
             >
-              <p
-                className="mb-4 text-[10px] font-medium uppercase tracking-[0.22em] text-black/45"
-                style={{ fontFamily: DM_SANS }}
-              >
-                Why VJR Estate
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
+                Visit Our Office
               </p>
-              <h3 className="font-display mb-6 text-3xl font-light text-black md:text-4xl">
-                Trusted advisors across Bangalore
-              </h3>
-              <p
-                className="mb-6 text-base leading-relaxed text-black/55 md:text-lg"
-                style={{ fontFamily: DM_SANS }}
-              >
-                We specialise in connecting investors and buyers with curated rental
-                buildings, commercial assets, and income-generating properties across Bengaluru.
+              <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+                Sit with us over the numbers
+              </h2>
+              <p className="mt-4 text-[15px] leading-relaxed text-gray-500 md:text-base">
+                The best property decisions happen face to face. Walk into our HSR Layout
+                office and review rent rolls, occupancy and pricing with a specialist — no
+                obligation, no pressure.
               </p>
-              <p
-                className="text-base leading-relaxed text-black/55 md:text-lg"
-                style={{ fontFamily: DM_SANS }}
-              >
-                Whether you are buying, selling, or exploring investment options, our team guides you
-                through every step with transparent pricing and on-ground expertise.
+              <p className="mt-6 flex items-start gap-2 text-[15px] font-medium text-[#0A1628]">
+                <MapPin size={16} weight="fill" className="mt-0.5 shrink-0 text-[#C9A84C]" />
+                {c.address}
               </p>
+              <a
+                href={c.mapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-7 inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-[#0A1628] px-8 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-[#1E3852]"
+              >
+                Open in Maps
+                <ArrowUpRight size={15} weight="bold" />
+              </a>
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, x: 50, rotateY: -8 }}
-              whileInView={{ opacity: 1, x: 0, rotateY: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-              style={{ perspective: 1200 }}
-              className="group relative h-80 overflow-hidden rounded-2xl md:h-96"
+              initial={{ opacity: 0, y: 28 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.65, delay: 0.1, ease: EASE }}
+              className="relative overflow-hidden rounded-2xl bg-[#0A1628] p-8 md:p-10"
             >
-              <div className="absolute inset-0 border border-black/10 bg-gradient-to-br from-[#fafafa] via-white to-[#f5f5f5] shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-transform duration-500 group-hover:scale-[1.02]" />
-              <div className="relative z-10 flex h-full flex-col justify-between p-8 md:p-10">
-                <div>
-                  <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-2xl border border-black/10 bg-[#fafafa]">
-                    <MapPin size={28} strokeWidth={1.25} className="text-black" />
-                  </div>
-                  <p
-                    className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-black/45"
-                    style={{ fontFamily: DM_SANS }}
-                  >
-                    Visit our office
-                  </p>
-                  <p
-                    className="text-lg leading-relaxed text-black md:text-xl"
-                    style={{ fontFamily: DM_SANS }}
-                  >
-                    {siteContact.addressShort}
-                  </p>
-                  <p
-                    className="mt-3 text-sm leading-relaxed text-black/55"
-                    style={{ fontFamily: DM_SANS }}
-                  >
-                    {siteContact.address}
-                  </p>
-                </div>
-                <a
-                  href={siteContact.mapsUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hoverable inline-flex w-fit items-center gap-2 border border-[#0A1628]/25 px-5 py-3 text-[11px] font-medium uppercase tracking-[0.16em] text-[#0A1628] transition-colors hover:border-[#0A1628] hover:bg-[#0A1628] hover:text-white"
-                  style={{ fontFamily: DM_SANS }}
+              <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#C9A84C]/15 blur-3xl" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#C9A84C]">
+                Selling a Property?
+              </p>
+              <p className="mt-4 text-xl leading-snug text-white md:text-2xl" style={{ letterSpacing: '-0.01em' }}>
+                We connect sellers with serious, pre-qualified buyers across Bangalore —
+                income assets move fast on our books.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <Link
+                  to="/list-property"
+                  className="inline-flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#C9A84C] px-6 text-sm font-bold text-[#0A1628] transition-all hover:-translate-y-0.5 hover:bg-[#E8C76A]"
                 >
-                  Open in Maps
-                  <ArrowUpRight size={14} />
-                </a>
+                  List Your Property
+                  <ArrowRight size={15} weight="bold" />
+                </Link>
+                <Link
+                  to="/submit-requirement"
+                  className="inline-flex min-h-[46px] flex-1 items-center justify-center rounded-xl border border-white/20 px-6 text-sm font-bold text-white transition-all hover:border-[#C9A84C] hover:text-[#C9A84C]"
+                >
+                  Post a Requirement
+                </Link>
               </div>
             </motion.div>
           </div>
         </div>
       </section>
 
-      <section className="relative border-t border-black/8 bg-white px-4 py-24 sm:px-6 md:px-8 md:py-32 lg:px-12 xl:px-16">
-        <div className="mx-auto max-w-4xl text-center">
+      {/* ── Final CTA ── */}
+      <section className="py-16 md:py-24">
+        <div className="mx-auto max-w-4xl px-5 text-center sm:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 24 }}
             whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            viewport={{ once: true, margin: '-40px' }}
+            transition={{ duration: 0.6, ease: EASE }}
           >
-            <h2 className="font-display mb-6 text-4xl font-light tracking-tight text-black md:text-6xl lg:text-7xl">
+            <h2 className="font-display text-3xl font-bold tracking-tight text-[#0A1628] md:text-5xl">
               Ready to begin?
             </h2>
-            <p
-              className="mb-10 text-lg leading-relaxed text-black/55 md:text-xl"
-              style={{ fontFamily: DM_SANS }}
-            >
-              Looking to sell your property? We connect sellers with serious buyers across
-              Bangalore.
+            <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-gray-500 md:text-lg">
+              Talk to a VJR Estate specialist today — free guidance on rental yields,
+              property selection and the best income opportunities in Bangalore.
             </p>
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.15, duration: 0.6 }}
-              className="flex flex-col items-center justify-center gap-4 sm:flex-row sm:gap-5"
-            >
+            <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
               <a
-                href={`tel:${siteContact.phoneTel}`}
-                className="hoverable inline-flex items-center gap-3 rounded-full bg-[#0A1628] px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-white transition-colors hover:bg-[#1E3852]"
-                style={{ fontFamily: DM_SANS }}
+                href={`tel:${c.phoneTel}`}
+                className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-9 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/20 transition-all hover:-translate-y-0.5 hover:bg-[#1E3852]"
               >
-                <Phone size={18} />
-                Call Us Now
+                <Phone size={17} weight="fill" />
+                Call {c.phoneDisplay}
               </a>
               <a
-                href={`mailto:${siteContact.email}`}
-                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-[#0A1628] bg-transparent px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-[#0A1628] transition-colors hover:bg-[#0A1628] hover:text-white"
-                style={{ fontFamily: DM_SANS }}
+                href={c.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-[#25D366] px-9 text-sm font-bold text-white shadow-lg shadow-[#25D366]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl"
               >
-                <Mail size={18} />
-                Send Email
+                <WhatsappLogo size={17} weight="fill" />
+                WhatsApp Us
               </a>
-              <Link
-                to="/submit-requirement"
-                className="hoverable inline-flex items-center gap-3 rounded-full border-2 border-[#0A1628]/20 bg-[#f5f5f5] px-10 py-4 text-sm font-medium uppercase tracking-[0.12em] text-[#0A1628] transition-colors hover:border-[#0A1628] hover:bg-white"
-                style={{ fontFamily: DM_SANS }}
-              >
-                Submit Your Property
-              </Link>
-            </motion.div>
+            </div>
           </motion.div>
         </div>
       </section>

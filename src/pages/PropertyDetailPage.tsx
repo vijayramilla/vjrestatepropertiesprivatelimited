@@ -86,6 +86,8 @@ function getTopLabel(property: Property): string {
   if (isPlotProperty(property.type) && plotSub) {
     return `${plotSub.toUpperCase()} FOR SALE`;
   }
+  // 'Residential Rental Income' reads awkwardly — display as 'Residential Building For Sale'
+  if (property.type === 'Residential Rental Income') return 'RESIDENTIAL BUILDING FOR SALE';
   return `${property.type.toUpperCase()} FOR SALE`;
 }
 
@@ -99,6 +101,7 @@ function getImageBadge(property: Property): string {
   if (isPlotProperty(property.type) && plotSub) {
     return plotSub.toUpperCase();
   }
+  if (property.type === 'Residential Rental Income') return 'RESIDENTIAL BUILDING';
   return property.type.toUpperCase();
 }
 
@@ -364,7 +367,7 @@ export default function PropertyDetailPage() {
     >
       {/* Top nav */}
       <nav
-        className="sticky top-0 z-40 bg-[#fff] border-b border-[#e8e8e8] h-12 lg:h-[52px] flex items-center"
+        className="sticky top-0 z-40 flex h-12 items-center border-b border-[#e8e8e8] bg-[#fff]/95 backdrop-blur-md lg:h-[52px]"
       >
         <div className="w-full px-4 lg:px-12 xl:px-16 flex items-center justify-between">
           <button
@@ -742,15 +745,15 @@ export default function PropertyDetailPage() {
         </div>
       </div>
 
-      {/* Mobile sticky bottom bar — safe-area aware, full-width grid */}
+      {/* Mobile sticky bottom bar — safe-area aware, WhatsApp-first like housing.com */}
       <div
         className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e8e8e8] bg-white/95 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-stretch gap-2 px-3 py-2.5 lg:px-12 xl:px-16">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-stretch gap-1.5 px-3 py-2.5 lg:px-12 xl:px-16">
           <div className="flex min-h-[48px] min-w-0 flex-col justify-center pr-1">
             <p
-              className="truncate text-[20px] font-medium leading-none tracking-tight text-[#000] sm:text-[22px]"
+              className="truncate text-[20px] font-medium leading-none tracking-tight text-[#0A1628] sm:text-[22px]"
               style={fontPrice}
             >
               {formatCardTotalPrice(property.price)}
@@ -766,15 +769,32 @@ export default function PropertyDetailPage() {
 
           <button
             type="button"
-            onClick={handleShare}
-            aria-label="Share property"
-            className="flex min-h-[48px] min-w-[72px] touch-manipulation flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-[#0A1628] bg-white px-3 active:scale-[0.98] sm:min-w-[80px]"
+            onClick={handleHeart}
+            aria-label={saved ? 'Remove from shortlist' : 'Save to shortlist'}
+            className="flex min-h-[48px] min-w-[44px] touch-manipulation flex-col items-center justify-center rounded-xl border border-[#e0e2e5] bg-white active:scale-[0.98]"
           >
-            <ShareNetwork size={18} weight="duotone" color="#0A1628" />
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0A1628]" style={fontUI}>
-              Share
+            <Heart
+              size={18}
+              weight={saved ? 'fill' : 'regular'}
+              color={saved ? '#C9A84C' : '#888'}
+            />
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-[#888]" style={fontUI}>
+              {saved ? 'Saved' : 'Save'}
             </span>
           </button>
+
+          <a
+            href={siteContact.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Chat on WhatsApp"
+            className="flex min-h-[48px] min-w-[48px] touch-manipulation flex-col items-center justify-center rounded-xl bg-[#25D366] active:scale-[0.98]"
+          >
+            <WhatsappLogo size={18} weight="fill" color="#fff" />
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-white" style={fontUI}>
+              Chat
+            </span>
+          </a>
 
           <button
             type="button"

@@ -14,7 +14,7 @@ import { db, rtdb, auth } from '@/lib/firebase'
 import AdminLayout from '@/components/admin/AdminLayout'
 import { AdminPageHeader, AdminPageShell } from '@/components/admin/AdminUi'
 import SupabaseImage from '@/components/common/SupabaseImage'
-import { BANGALORE_AREAS } from '@/data/properties'
+import AreaLocalityPicker from '@/components/admin/AreaLocalityPicker'
 import type { LandLocationValue } from '@/lib/mapGeocoding'
 import { uploadAuctionImages, deletePropertyImageByUrl } from '@/lib/propertyImages'
 import {
@@ -427,22 +427,13 @@ export default function AdminAuctionForm() {
 
               {/* Area / Locality */}
               <div className="sm:col-span-2">
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Area / Locality *
-                </label>
-                <select
+                <AreaLocalityPicker
                   value={form.location}
-                  onChange={(e) => {
-                    setField('location', e.target.value)
-                    setField('city', 'Bangalore')
+                  onChange={(area) => {
+                    setField('location', area);
+                    setField('city', 'Bangalore');
                   }}
-                  className={inputClass}
-                >
-                  <option value="">Select Area / Locality</option>
-                  {BANGALORE_AREAS.map((area) => (
-                    <option key={area} value={area}>{area}</option>
-                  ))}
-                </select>
+                />
               </div>
               <div className="sm:col-span-2">
                 <label className={labelClass}>Images</label>

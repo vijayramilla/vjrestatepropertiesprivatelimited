@@ -42,7 +42,7 @@ import {
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
-import { BANGALORE_AREAS } from '@/data/properties';
+import AreaLocalityPicker from '@/components/admin/AreaLocalityPicker';
 import type { LandLocationValue } from '@/lib/mapGeocoding';
 import {
   canonicalPropertyType,
@@ -670,7 +670,7 @@ export default function AdminPropertyForm() {
     return (
       <AdminLayout title={isEditMode ? 'Edit Property' : 'Add Property'}>
         <div className="flex h-96 items-center justify-center">
-          <div className="h-9 w-9 animate-spin rounded-full border-2 border-black border-t-transparent" />
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#0A1628] border-t-transparent" />
         </div>
       </AdminLayout>
     );
@@ -1004,30 +1004,20 @@ export default function AdminPropertyForm() {
                     error={errors.area}
                   />
                 ) : (
-                  <>
-                    <select
-                      value={formData.area}
-                      onChange={(e) => {
-                        updateFormData('area', e.target.value);
-                        if (errors.area) {
-                          setErrors((prev) => {
-                            const nextErrors = { ...prev };
-                            delete nextErrors.area;
-                            return nextErrors;
-                          });
-                        }
-                      }}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition-colors focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/20"
-                    >
-                      <option value="">Select Area / Locality</option>
-                      {BANGALORE_AREAS.map((area) => (
-                        <option key={area} value={area}>{area}</option>
-                      ))}
-                    </select>
-                    {errors.area && (
-                      <p className="mt-2 text-xs text-red-600">{errors.area}</p>
-                    )}
-                  </>
+                  <AreaLocalityPicker
+                    value={formData.area}
+                    onChange={(area) => {
+                      updateFormData('area', area);
+                      if (errors.area) {
+                        setErrors((prev) => {
+                          const nextErrors = { ...prev };
+                          delete nextErrors.area;
+                          return nextErrors;
+                        });
+                      }
+                    }}
+                    error={errors.area}
+                  />
                 )}
               </div>
 
@@ -1257,7 +1247,7 @@ export default function AdminPropertyForm() {
                       onClick={() => handleAreaUnitChange('sqft')}
                       className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                         (formData.area_unit ?? 'sqft') === 'sqft'
-                          ? 'bg-black text-white'
+                          ? 'bg-[#0A1628] text-white shadow-[0_4px_14px_-6px_rgba(10,22,40,0.5)]'
                           : 'bg-gray-100 text-gray-600'
                       }`}
                     >
@@ -1268,7 +1258,7 @@ export default function AdminPropertyForm() {
                       onClick={() => handleAreaUnitChange('acres')}
                       className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
                         formData.area_unit === 'acres'
-                          ? 'bg-black text-white'
+                          ? 'bg-[#0A1628] text-white shadow-[0_4px_14px_-6px_rgba(10,22,40,0.5)]'
                           : 'bg-gray-100 text-gray-600'
                       }`}
                     >

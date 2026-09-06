@@ -21,22 +21,24 @@ export default async function handler(req: any, res: any) {
     try {
       const property = await fetchProperty(id);
       if (property) {
+        // Housing.com-style: property name first, then the numbers.
+        const title = property.title.replace(new RegExp(`\\s*—\\s*${SITE_NAME}$`), '');
         const facts = [
-          property.price ? `Price: ${formatPrice(property.price)}` : '',
-          property.monthlyRental ? `Rent: ${property.monthlyRental}` : '',
-          property.katha ? `Katha: ${property.katha}` : '',
+          property.price ? formatPrice(property.price) : '',
+          property.monthlyRental ? `Rental Income ${property.monthlyRental}` : '',
         ]
           .filter(Boolean)
-          .join(' | ');
-        const header = [
-          property.type ? `${property.type.toUpperCase()} FOR SALE` : 'Property',
+          .join(' · ');
+        const description = [
+          property.type ? `${property.type} for sale` : '',
           property.location ? `${property.location}, Bangalore` : '',
+          facts,
         ]
           .filter(Boolean)
           .join(' · ');
         meta = {
-          title: `${facts ? `${facts} — ` : ''}${property.title}`,
-          description: header,
+          title: `${title} | VJR Estate`,
+          description,
           image: property.image
             ? `${origin}/api/og-image?id=${encodeURIComponent(id)}&v=${OG_IMAGE_VERSION}`
             : meta.image,
@@ -58,6 +60,7 @@ export default async function handler(req: any, res: any) {
     `<meta property="og:image" content="${escapeHtml(meta.image)}" />`,
     `<meta property="og:image:width" content="1200" />`,
     `<meta property="og:image:height" content="630" />`,
+    `<meta property="og:image:alt" content="${escapeHtml(meta.title)}" />`,
     `<meta name="twitter:card" content="summary_large_image" />`,
     `<meta name="twitter:title" content="${escapeHtml(meta.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(meta.description)}" />`,

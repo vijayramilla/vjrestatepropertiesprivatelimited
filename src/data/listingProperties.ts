@@ -73,7 +73,8 @@ export function isPlotType(type: string): boolean {
 const RAW_TYPE_LABELS: Record<string, string> = {
   'PG Building': 'PG Building',
   'PG Buildings': 'PG Building',
-  'Residential Rental Income': 'Residential Rental Income',
+  'Residential Rental Income': 'Residential Building',
+  'Residential Rental': 'Residential Building',
   'Commercial Properties': 'Commercial Properties',
   'Residential Plot': 'Residential Plot',
   'PG Plot': 'Residential Plot',

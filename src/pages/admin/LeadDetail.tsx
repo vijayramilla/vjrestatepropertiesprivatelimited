@@ -349,10 +349,10 @@ export default function LeadDetail() {
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder="Add a note..."
-                    className="flex-1 h-10 px-3 rounded-xl border border-border bg-muted/30 text-sm outline-none focus:border-blue-400 transition-colors"
+                    className="flex-1 h-10 px-3 rounded-xl border border-border bg-muted/30 text-sm outline-none focus:border-[#C9A84C] transition-colors"
                     onKeyDown={(e) => e.key === 'Enter' && handleAddNote()}
                   />
-                  <button onClick={handleAddNote} className="px-4 py-2 rounded-xl bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 transition-colors">Add</button>
+                  <button onClick={handleAddNote} className="px-4 py-2 rounded-xl bg-[#0A1628] text-white text-xs font-bold hover:bg-[#1E3852] transition-colors">Add</button>
                 </div>
               )}
               <div className="space-y-2.5 max-h-[300px] overflow-y-auto">
