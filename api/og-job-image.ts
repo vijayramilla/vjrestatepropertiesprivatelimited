@@ -35,6 +35,7 @@ export default async function handler(req: any, res: any) {
 
 function escapeSvg(s: string): string {
   return s
+    .replace(/_/g, ' ')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

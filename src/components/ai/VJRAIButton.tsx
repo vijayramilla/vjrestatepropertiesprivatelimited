@@ -1,9 +1,14 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Bot, X, Sparkles } from 'lucide-react';
 import { useSiteSettings } from '@/context/SiteSettingsContext';
-import VJRAIPanel from './VJRAIPanel';
 import type { UserRole } from '../../ai/ragEngine';
+
+// Performance: the Nexa chat panel (RAG engine, Firestore connectors and
+// the whole chat UI) is heavy. It only ever needs to load when the user
+// opens the assistant — so it's code-split out of the page bundles entirely
+// and fetched on first open.
+const VJRAIPanel = lazy(() => import('./VJRAIPanel'));
 
 /**
  * Floating launcher for Nexa — VJR Estate's property intelligence assistant.
@@ -27,8 +32,12 @@ export default function VJRAIButton({
 
   return (
     <>
-      {/* Panel self-manages mount/unmount + slide animation via its own AnimatePresence. */}
-      <VJRAIPanel isOpen={isOpen} onClose={() => setIsOpen(false)} userRole={userRole} />
+      {/* Panel is code-split; loads on first open of the assistant. */}
+      {isOpen && (
+        <Suspense fallback={null}>
+          <VJRAIPanel isOpen={isOpen} onClose={() => setIsOpen(false)} userRole={userRole} />
+        </Suspense>
+      )}
 
       {/* Launcher */}
       <div className={`fixed z-[115] flex flex-col items-end gap-2 ${className}`}>

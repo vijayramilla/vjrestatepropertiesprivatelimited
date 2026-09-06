@@ -9,7 +9,7 @@ import {
   AdminSkeletonList,
   AdminToolbar,
 } from '@/components/admin/AdminUi';
-import { MagnifyingGlass } from 'phosphor-react';
+import { MagnifyingGlass } from '@phosphor-icons/react';
 import { leadSupabase } from '@/services/leadSupabase';
 
 const API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:5000';

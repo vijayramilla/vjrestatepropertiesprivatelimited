@@ -26,7 +26,7 @@ import {
   ChartLine,
   ListChecks,
   WarningCircle,
-} from 'phosphor-react';
+} from '@phosphor-icons/react';
 import {
   ResponsiveContainer,
   BarChart,

@@ -101,17 +101,8 @@ export default function Navbar() {
     setProfilePos({ top: rect.bottom + 10, right: window.innerWidth - rect.right });
   }, []);
 
-  useEffect(() => {
-    const id = 'dm-sans-font';
-    if (!document.getElementById(id)) {
-      const link = document.createElement('link');
-      link.id = id;
-      link.rel = 'stylesheet';
-      link.href =
-        'https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap';
-      document.head.appendChild(link);
-    }
-  }, []);
+  // DM Sans is now self-hosted via @fontsource (bundled in the CSS) —
+  // no Google Fonts runtime injection, no render-blocking fetch.
 
   useEffect(() => {
     const handleScroll = () => {

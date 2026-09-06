@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Calendar, Download, Filter, ChevronDown, ChevronUp, Loader2, FileText, TrendingUp, Users, IndianRupee, Eye } from 'lucide-react';
 import { leadSupabase } from '@/services/leadSupabase';
 import { buildSalaryStructure, type SalaryStructure } from '@/utils/payrollCalculator';
-import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
+const generatePayslipPDF = (...args: Parameters<typeof import('@/utils/payslipPDFGenerator')['generatePayslipPDF']>) =>
+  import('@/utils/payslipPDFGenerator').then((m) => m.generatePayslipPDF(...args));
 import PayslipPreview from '@/components/payroll/PayslipPreview';
 import { CRM_INPUT, CrmBtn } from '@/components/crm/CrmUi';
 import { formatINR } from '@/lib/inr';

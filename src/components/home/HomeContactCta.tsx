@@ -31,29 +31,39 @@ export default function HomeContactCta() {
           </div>
 
           <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row md:w-auto md:flex-col md:gap-3 lg:flex-row">
-            <a
+            <motion.a
               href={siteContact.whatsappUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 text-sm font-bold text-white shadow-lg shadow-[#25D366]/20 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-[#25D366]/30"
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 text-sm font-bold text-white shadow-lg shadow-[#25D366]/20 transition-shadow hover:shadow-xl hover:shadow-[#25D366]/30"
             >
               <WhatsappLogo size={18} weight="fill" />
               Chat on WhatsApp
-            </a>
-            <a
+            </motion.a>
+            <motion.a
               href={`tel:${siteContact.phoneTel}`}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-6 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/20 transition-all hover:-translate-y-0.5 hover:bg-[#1E3852] hover:shadow-xl hover:shadow-[#0A1628]/30"
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-6 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/20 transition-shadow hover:bg-[#1E3852] hover:shadow-xl hover:shadow-[#0A1628]/30"
             >
               <Phone size={18} weight="fill" />
               Call {siteContact.phoneDisplay}
-            </a>
-            <Link
-              to="/contact"
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl border border-[#0A1628]/15 bg-white px-6 text-sm font-bold text-[#0A1628] transition-all hover:-translate-y-0.5 hover:border-[#C9A84C] hover:text-[#C9A84C]"
+            </motion.a>
+            <motion.div
+              whileHover={{ y: -2 }}
+              whileTap={{ scale: 0.97 }}
+              className="flex-1"
             >
-              Visit Office
-              <ArrowRight size={16} weight="bold" />
-            </Link>
+              <Link
+                to="/contact"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-[#0A1628]/15 bg-white px-6 text-sm font-bold text-[#0A1628] transition-colors hover:border-[#C9A84C] hover:text-[#C9A84C]"
+              >
+                Visit Office
+                <ArrowRight size={16} weight="bold" />
+              </Link>
+            </motion.div>
           </div>
         </motion.div>
       </div>

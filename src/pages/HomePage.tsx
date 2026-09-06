@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useScroll, useSpring, useReducedMotion } from 'framer-motion';
 import HomeListingsSection from '../components/home/HomeListingsSection';
 import HomePropertyGrid from '../components/home/HomePropertyGrid';
 import HomeSearchBar from '../components/home/HomeSearchBar';
@@ -35,16 +35,32 @@ function Kicker({ children, light = false }: { children: ReactNode; light?: bool
 }
 
 export default function HomePage() {
+  const reduceMotion = useReducedMotion();
+  // Scroll-linked gold progress hairline — transform-only, compositor-safe.
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
+
   return (
     <div className="bg-white">
+      {/* Gold reading-progress bar pinned to the very top */}
+      <motion.div
+        aria-hidden
+        className="fixed inset-x-0 top-0 z-[70] h-[2.5px] origin-left bg-gradient-to-r from-[#96782A] via-[#E4C877] to-[#C9A84C]"
+        style={{ scaleX: progress }}
+      />
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative flex min-h-[100svh] w-full flex-col overflow-hidden bg-[#0A1628]">
-        <div className="absolute inset-0">
-          <img
+        <div className="absolute inset-0 overflow-hidden">
+          {/* Slow cinematic settle on load (Ken Burns) — skipped for
+              reduced-motion users. */}
+          <motion.img
             src={HERO_IMAGE}
             alt="Rental income property in Bengaluru"
             className="h-full w-full object-cover object-center"
             decoding="async"
+            initial={reduceMotion ? false : { scale: 1.14 }}
+            animate={reduceMotion ? undefined : { scale: 1 }}
+            transition={{ duration: 9, ease: [0.22, 1, 0.36, 1] }}
           />
         </div>
 

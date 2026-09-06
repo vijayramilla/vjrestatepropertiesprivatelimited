@@ -49,6 +49,8 @@ Consider:
 - Floor and facing adjustments
 - Circle rate / government guidance value for ${input.locality}
 
+IMPORTANT: Never use the underscore character "_" anywhere in the returned values — especially "explanation" and "comparableLocalities" strings. If a word would normally contain an underscore, replace it with a normal space.
+
 Return a JSON object ONLY (no markdown, no code blocks):
 {
   "marketValue": <number in INR>,
@@ -98,6 +100,22 @@ Return a JSON object ONLY (no markdown, no code blocks):
     if (!result.marketValue || !result.pricePerSqft) {
       console.error('Invalid valuation result:', result);
       return null;
+    }
+
+    // Hard guarantee on top of the prompt rule: no underscores may reach the
+    // UI in explanations or locality names. Arrays and strings get sanitized;
+    // numbers are untouched.
+    if (typeof result.explanation === 'string') result.explanation = result.explanation.replace(/_/g, ' ');
+    if (Array.isArray(result.comparableLocalities)) {
+      result.comparableLocalities = result.comparableLocalities.map((l) =>
+        typeof l === 'string' ? l.replace(/_/g, ' ') : l,
+      );
+    }
+    if (typeof result.trend === 'string') {
+      const t = result.trend.replace(/_/g, ' ').trim().toLowerCase();
+      if (t.includes('up')) result.trend = 'up';
+      else if (t.includes('down')) result.trend = 'down';
+      else if (t.includes('stable')) result.trend = 'stable';
     }
 
     return result;

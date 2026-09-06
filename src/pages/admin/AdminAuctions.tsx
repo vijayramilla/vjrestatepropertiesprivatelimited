@@ -32,7 +32,7 @@ import {
   Timer,
   MagnifyingGlass,
   FunnelSimple,
-} from 'phosphor-react'
+} from '@phosphor-icons/react'
 import {
   PieChart,
   Pie,

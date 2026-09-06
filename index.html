@@ -4,15 +4,14 @@
 <head>
   <meta charset="UTF-8" />
 
-  <!-- Preconnect to external services -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://maps.googleapis.com" />
+  <!-- Preconnect only to services used during first paint / first data fetch.
+       Fonts are self-hosted (@fontsource) — no Google Fonts connections.
+       Maps SDK is deferred (loaded on demand), so no maps.googleapis.com.
+       Stale preconnects waste up to ~150ms of connection setup per origin. -->
   <link rel="preconnect" href="https://firestore.googleapis.com" />
   <link rel="preconnect" href="https://storage.googleapis.com" />
-
-  <!-- DNS prefetch for Firebase -->
   <link rel="dns-prefetch" href="https://firebaseapp.com" />
+  <link rel="dns-prefetch" href="https://maps.googleapis.com" />
 
   <!-- Viewport -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -22,16 +21,9 @@
   <meta name="application-name" content="VJR Estate" />
   <meta name="apple-mobile-web-app-title" content="VJR Estate" />
 
-  <!-- Preload critical font -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" as="style" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
-  <!-- Preload secondary fonts -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" as="style" />
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
-
-  <!-- CRM uses Inter (Salesforce Sans-style neutral UI sans), already loaded above -->
+  <!-- All fonts (Aileron, Poppins, Instrument Serif, Inter) are self-hosted
+       via @fontsource and bundled — zero external font requests, no
+       render-blocking stylesheets, no FOIT on slow connections. -->
 
   <link rel="canonical" href="https://vjrestate.com/" />
 

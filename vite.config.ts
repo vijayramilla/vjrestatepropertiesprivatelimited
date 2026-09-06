@@ -60,16 +60,20 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('node_modules/firebase')) return 'vendor-firebase';
           if (id.includes('node_modules/framer-motion') || id.includes('node_modules/motion/')) return 'vendor-motion';
-          if (id.includes('node_modules/@tsparticles')) return 'vendor-particles';
-          if (id.includes('node_modules/@phosphor-icons') || id.includes('node_modules/phosphor-react')) return 'vendor-icons';
+          // NOTE: tsparticles must NOT get a manual chunk — forcing one made
+          // Rollup colocate a shared fetch helper (used by supabase-js in the
+          // entry) into the particles chunk, eagerly loading ~63KB of the
+          // particles engine on every page.
+          // Phosphor icons tree-shake with @phosphor-icons/react — no manual
+          // vendor chunk; unused icons get dropped per-page automatically.
           if (id.includes('node_modules/react-router')) return 'vendor-router';
           if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) return 'vendor-react';
-          if (id.includes('node_modules/@react-google-maps/api')) return 'vendor-maps';
-          if (id.includes('node_modules/@google/generative-ai')) return 'vendor-ai';
-          if (id.includes('node_modules/jspdf')) return 'vendor-pdf';
-          if (id.includes('node_modules/html2canvas')) return 'vendor-canvas';
-          if (id.includes('node_modules/three')) return 'vendor-three';
-          if (id.includes('node_modules/@react-three')) return 'vendor-three';
+          // NOTE: never bucket lazily-loaded libs (jspdf, html2canvas, three,
+          // generative-ai, tsparticles). A manual chunk for a lazy lib makes
+          // Rollup colocate shared helpers (e.g. supabase's fetch polyfill)
+          // INTO that bucket — which then gets statically imported by the
+          // entry, eagerly loading hundreds of KB. Rollup's automatic
+          // code-splitting places lazy libs in their own chunks safely.
           // recharts intentionally kept in main bundle to avoid forwardRef/React context issues
 
         },

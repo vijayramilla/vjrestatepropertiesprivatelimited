@@ -279,7 +279,14 @@ export default function PropertiesPage() {
   useDropdownDismiss(searchOpen, closeSearch, toolbarRef);
   const listingsRef = useRef<HTMLDivElement>(null);
 
-  const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
+  const { isLoaded: mapsLoaded, requestMaps } = useGoogleMapsLoader();
+
+  // Performance: the Maps SDK is deferred app-wide. Request it only when
+  // the locality search opens, so Places suggestions keep working without
+  // loading the SDK during the initial page render.
+  useEffect(() => {
+    if (searchOpen && !mapsLoaded) requestMaps();
+  }, [searchOpen, mapsLoaded, requestMaps]);
 
   useEffect(() => {
     setPageMeta(

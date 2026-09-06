@@ -67,7 +67,6 @@ const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
 const AdminCareersPage = lazy(() => import('./pages/admin/AdminCareersPage'));
 const AdminStorage = lazy(() => import('./pages/admin/AdminStorage'));
 const AdminPayrollPage = lazy(() => import('./pages/admin/AdminPayrollPage'));
-// const ARVideoPage = lazy(() => import('./pages/ARVideoPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
@@ -101,12 +100,9 @@ function AppRoutes() {
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
-        <Route path="/vastu-calculator" element={<Navigate to="/properties" replace />} />
-        <Route path="/property-valuation" element={<Navigate to="/properties" replace />} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
         <Route path="/bangalore-land-investment-guide" element={<Navigate to="/properties" replace />} />
-        {/* <Route path="/ar-video" element={<LazyPage><ARVideoPage /></LazyPage>} /> */}
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />

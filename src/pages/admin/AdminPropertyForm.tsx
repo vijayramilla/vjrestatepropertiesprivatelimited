@@ -32,7 +32,7 @@ import {
   callDataProxy,
 } from '@/lib/supabaseData';
 import { AnimatePresence, motion } from 'framer-motion';
-import { XCircle } from 'phosphor-react';
+import { XCircle } from '@phosphor-icons/react';
 import {
   KARNATAKA_KATHA_GROUPS,
   KARNATAKA_KATHA_CUSTOM_VALUE,

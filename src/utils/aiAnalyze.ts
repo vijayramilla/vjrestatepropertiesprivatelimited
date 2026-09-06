@@ -79,6 +79,7 @@ Format EXACTLY as below — use these exact headers:
 [One powerful closing sentence with recommendation]
 
 Keep factual, data-driven, and Bangalore-specific.
+IMPORTANT: Never use the underscore character "_" anywhere in your output — not in headers, labels, distances, or verdicts. If a word would normally contain an underscore, replace it with a normal space. Carefully check the entire response before finalizing and remove every "_" character.
 Total: 200-250 words maximum.`;
 
   try {
@@ -115,7 +116,9 @@ Total: 200-250 words maximum.`;
     }
 
     console.log('OpenRouter response received:', text.length, 'chars');
-    return text;
+    // Hard guarantee on top of the prompt rule: strip any underscore the
+    // model slips past the instruction (replaced with spaces).
+    return text.replace(/_/g, ' ');
   } catch (err: any) {
     console.error('OpenRouter API error:', err);
     console.error('Error details:', err.message);

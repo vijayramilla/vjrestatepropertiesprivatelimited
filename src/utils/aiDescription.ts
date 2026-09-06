@@ -142,6 +142,7 @@ Rules:
 - Use Indian Rupee symbol or "Rs." and Indian number formats (lakhs/crores)
 - Keep every number/fact from the raw text; do NOT invent data
 - Turn leftover one-line selling points into the Investment Highlights bullets
+- IMPORTANT: Never use the underscore character "_" anywhere in the output. No underscores in the title, headers, bullets, or property details. If a word would normally contain an underscore, replace it with a normal space. Carefully check the output before finalizing and remove every "_" character.
 - Maximum 1100 characters
 - Output the description ONLY, no preamble, no code fences
 
@@ -176,5 +177,12 @@ ${raw}`;
     throw new Error('AI returned no content');
   }
 
-  return text.replace(/```/g, '').trim();
+  // Hard guarantee on top of the prompt rule: AI models occasionally emit
+  // underscores in headings or field labels — they render badly on cards,
+  // share previews and printouts. Replace with spaces, collapse doubles.
+  return text
+    .replace(/```/g, '')
+    .replace(/_/g, ' ')
+    .replace(/ {2,}/g, ' ')
+    .trim();
 }

@@ -19,7 +19,7 @@ import {
   HardDrive,
   GearSix,
   Signpost,
-} from 'phosphor-react';
+} from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useUnreviewedApplicationsCount } from '@/hooks/useUnreviewedApplicationsCount';

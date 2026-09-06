@@ -22,7 +22,7 @@ import {
   supabaseGetAuction,
   callDataProxy,
 } from '@/lib/supabaseData'
-import { ArrowLeft, Link, Spinner, Upload, X } from 'phosphor-react'
+import { ArrowLeft, Link, Spinner, Upload, X } from '@phosphor-icons/react'
 import {
   AUCTION_STATUS_CONFIG,
   type AuctionCategory,

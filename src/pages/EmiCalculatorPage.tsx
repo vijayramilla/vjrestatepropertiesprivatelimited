@@ -14,12 +14,19 @@ import {
   Landmark,
   GitCompare,
 } from 'lucide-react';
+import { lazy, Suspense } from 'react';
 import { setDefaultSiteMeta } from '@/lib/siteMeta';
-import { SparklesCore } from '@/components/ui/sparkles';
 import { computeSnapshot, formatIndian, formatIndianFull, calcInflationAdjustedEMI } from '@/components/emi/calculations';
 import TiltCard from '@/components/emi/TiltCard';
 import AnimatedCounter from '@/components/emi/AnimatedCounter';
-import ThreeDChart from '@/components/emi/ThreeDChart';
+
+// Performance: three.js (~820KB) and the particles engine (~63KB) are only
+// needed on the decorative background and the '3D' tab — code-split them so
+// the EMI calculator itself loads instantly.
+const SparklesCore = lazy(() =>
+  import('@/components/ui/sparkles').then((m) => ({ default: m.SparklesCore })),
+);
+const ThreeDChart = lazy(() => import('@/components/emi/ThreeDChart'));
 import { StackedBarChart, BalanceLineChart, PaymentComparisonChart } from '@/components/emi/Charts';
 import PrepaymentPanel from '@/components/emi/PrepaymentPanel';
 import TaxBenefits from '@/components/emi/TaxBenefits';
@@ -93,13 +100,15 @@ export default function EmiCalculatorPage() {
       </button>
 
       <div className="pointer-events-none absolute inset-0 z-0 opacity-30">
-        <SparklesCore
-          particleColor={isDark ? '#ffffff' : '#000000'}
-          particleDensity={25}
-          minSize={0.5}
-          maxSize={1.5}
-          speed={2}
-        />
+        <Suspense fallback={null}>
+          <SparklesCore
+            particleColor={isDark ? '#ffffff' : '#000000'}
+            particleDensity={25}
+            minSize={0.5}
+            maxSize={1.5}
+            speed={2}
+          />
+        </Suspense>
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(0,0,0,0.03),transparent)]" />
@@ -296,7 +305,9 @@ export default function EmiCalculatorPage() {
                       </div>
                     )}
                     {activeTab === '3d' && (
-                      <ThreeDChart data={snapshot.amortization} isDark={isDark} />
+                      <Suspense fallback={null}>
+                        <ThreeDChart data={snapshot.amortization} isDark={isDark} />
+                      </Suspense>
                     )}
                     {activeTab === 'prepayment' && (
                       <PrepaymentPanel loan={{ amount, rate, tenure }} tenureMonths={tenureMonths} />

@@ -21,8 +21,10 @@ export default async function handler(req: any, res: any) {
     try {
       const property = await fetchProperty(id);
       if (property) {
+        // No-underscore rule: property data must never surface an "_" in shared text.
+        const noUnderscores = (s: string) => s.replace(/_/g, ' ');
         // Housing.com-style: property name first, then the numbers.
-        const title = property.title.replace(new RegExp(`\\s*—\\s*${SITE_NAME}$`), '');
+        const title = noUnderscores(property.title).replace(new RegExp(`\\s*—\\s*${SITE_NAME}$`), '');
         const facts = [
           property.price ? formatPrice(property.price) : '',
           property.monthlyRental ? `Rental Income ${property.monthlyRental}` : '',
@@ -30,8 +32,8 @@ export default async function handler(req: any, res: any) {
           .filter(Boolean)
           .join(' · ');
         const description = [
-          property.type ? `${property.type} for sale` : '',
-          property.location ? `${property.location}, Bangalore` : '',
+          property.type ? `${noUnderscores(property.type)} for sale` : '',
+          property.location ? `${noUnderscores(property.location)}, Bangalore` : '',
           facts,
         ]
           .filter(Boolean)

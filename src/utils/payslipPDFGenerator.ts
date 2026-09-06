@@ -1,11 +1,15 @@
-import { applyPlugin } from 'jspdf-autotable';
 import type { SalaryStructure } from './payrollCalculator';
 import { formatCurrency, numberToWords, getMonthName } from './payrollCalculator';
 
-// Lazy-load jsPDF to keep initial bundle small
+// Lazy-load jsPDF to keep initial bundle small. jspdf-autotable statically
+// imports jspdf, so BOTH must stay inside this dynamic loader — a static
+// import here pulled the whole PDF family (437KB) into every page that
+// imports this module.
 async function loadJsPDF() {
-  const jsPDFModule = await import('jspdf');
-  const JsPDF = jsPDFModule.default ?? jsPDFModule.jsPDF;
+  const [{ default: JsPDF }, { applyPlugin }] = await Promise.all([
+    import('jspdf'),
+    import('jspdf-autotable'),
+  ]);
   applyPlugin(JsPDF);
   return JsPDF;
 }

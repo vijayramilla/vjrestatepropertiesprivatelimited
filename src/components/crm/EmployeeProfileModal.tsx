@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { Mail, Phone, Building2, CreditCard, CalendarDays, Hourglass, UserRound, Wallet, Sparkles, X, CheckCircle2, Download, Camera, Loader2, Check } from 'lucide-react';
 import { buildSalaryStructure } from '@/utils/payrollCalculator';
-import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
+const generatePayslipPDF = (...args: Parameters<typeof import('@/utils/payslipPDFGenerator')['generatePayslipPDF']>) =>
+  import('@/utils/payslipPDFGenerator').then((m) => m.generatePayslipPDF(...args));
 import { formatINR } from '@/lib/inr';
 import { leadSupabase } from '@/services/leadSupabase';
 

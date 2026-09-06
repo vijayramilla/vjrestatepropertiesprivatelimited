@@ -24,7 +24,7 @@ import {
   AdminBadge,
 } from '@/components/admin/AdminUi';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Trash, NotePencil, Plus } from 'phosphor-react';
+import { Trash, NotePencil, Plus } from '@phosphor-icons/react';
 
 const container = {
   animate: { transition: { staggerChildren: 0.05 } },

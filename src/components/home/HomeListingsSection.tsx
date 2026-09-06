@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import PremiumPropertyCard from './PremiumPropertyCard';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
@@ -75,19 +76,38 @@ export default function HomeListingsSection() {
                 New PG buildings and rental income assets as they come to market.
               </p>
           </div>
-          <Link
-            to="/properties"
-            className="inline-flex items-center gap-1 self-start border-b border-black pb-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-black transition hover:text-[#666] sm:self-auto"
-            style={{ fontFamily: DM_SANS }}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: '-30px' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
           >
-            View all properties
-          </Link>
+            <Link
+              to="/properties"
+              className="inline-flex items-center gap-1 self-start border-b border-black pb-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-black transition hover:text-[#666] sm:self-auto"
+              style={{ fontFamily: DM_SANS }}
+            >
+              View all properties
+            </Link>
+          </motion.div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
           {loading
             ? [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
             : latestProperties.map((property, index) => (
-                <PremiumPropertyCard key={property.id} property={property} index={index} />
+                <motion.div
+                  key={property.id}
+                  initial={{ opacity: 0, y: 18 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: '-30px' }}
+                  transition={{
+                    duration: 0.45,
+                    delay: (index % 4) * 0.07,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                >
+                  <PremiumPropertyCard property={property} index={index} />
+                </motion.div>
               ))}
         </div>
       </div>

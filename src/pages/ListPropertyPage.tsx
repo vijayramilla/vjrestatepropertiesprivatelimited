@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -58,7 +58,13 @@ export default function ListPropertyPage() {
   const [enhancing, setEnhancing] = useState(false);
   const [descError, setDescError] = useState('');
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const { isLoaded: mapsLoaded } = useGoogleMapsLoader();
+  const { isLoaded: mapsLoaded, requestMaps } = useGoogleMapsLoader();
+
+  // Maps SDK is deferred app-wide; this page hosts a genuine map surface,
+  // so request it as soon as the page mounts.
+  useEffect(() => {
+    requestMaps();
+  }, [requestMaps]);
   const [showSignIn, setShowSignIn] = useState(false);
   const [form, setForm] = useState<FormState>({
     title: '',

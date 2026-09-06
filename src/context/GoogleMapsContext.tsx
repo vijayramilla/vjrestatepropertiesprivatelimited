@@ -1,45 +1,68 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { useJsApiLoader, type Libraries } from '@react-google-maps/api';
-import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { type MapsRuntimeValue } from './MapsLoader';
 
-const GOOGLE_MAPS_LOADER_ID = 'vjr-google-maps-loader';
-// Module-level constant so the array reference is stable across renders;
-// recreating it each render makes the maps loader reload unintentionally.
-const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
-
-interface GoogleMapsContextValue {
-  isLoaded: boolean;
-  loadError: Error | undefined;
+interface GoogleMapsContextValue extends MapsRuntimeValue {
+  /** Ask the provider to start loading the SDK (idempotent). */
+  requestMaps: () => void;
 }
 
-const GoogleMapsContext = createContext<GoogleMapsContextValue>({
+const IDLE_VALUE: GoogleMapsContextValue = {
   isLoaded: false,
   loadError: undefined,
-});
+  requestMaps: () => {},
+};
 
+/**
+ * Surfaces that need the Maps JS SDK at startup. Only genuine map surfaces
+ * belong here — surfaces that merely use Places autocomplete for locality
+ * search should call requestMaps() when their search UI opens instead, so
+ * the SDK never blocks first paint of the main browsing journey.
+ */
+const EAGER_MAPS_ROUTES = [/^\/list-property/];
+
+/**
+ * Performance: the Maps JS SDK used to load on EVERY page because the
+ * provider statically imported @react-google-maps/api. The loader now lives
+ * in its own module that is dynamically imported only after requestMaps() —
+ * removing the wrapper library AND its script-injection side effects from
+ * the initial payload entirely.
+ */
 export function GoogleMapsProvider({ children }: { children: ReactNode }) {
-  const googleMapsApiKey = GOOGLE_MAPS_API_KEY;
+  const [requested, setRequested] = useState<boolean>(() =>
+    EAGER_MAPS_ROUTES.some((re) => re.test(window.location.pathname)),
+  );
+  const [Loader, setLoader] = useState<
+    | ((props: { requestMaps: () => void; children: ReactNode }) => JSX.Element | null)
+    | null
+  >(null);
 
-  const authFailedRef = useRef(false);
-  const [authFailure, setAuthFailure] = useState(false);
-  const loggedKeyRef = useRef(false);
+  const requestMaps = useCallback(() => setRequested(true), []);
 
   useEffect(() => {
-    if (!loggedKeyRef.current) {
-      const hasKey = !!googleMapsApiKey;
-      console.log('[Maps] API key present:', hasKey, hasKey ? `key=${googleMapsApiKey.slice(0, 10)}...` : '');
-      loggedKeyRef.current = true;
-    }
-  }, [googleMapsApiKey]);
+    if (!requested) return;
+    let cancelled = false;
+    import('./MapsLoader').then((m) => {
+      if (!cancelled) setLoader(() => m.default);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [requested]);
 
+  // gm_authFailure passthrough (same behaviour as before).
   useEffect(() => {
     const w = window as unknown as Record<string, (() => void) | undefined>;
     const key = 'gm_authFailure';
     const existing = w[key];
     w[key] = () => {
       console.error('[Maps] gm_authFailure fired — API key rejected or billing disabled');
-      authFailedRef.current = true;
-      setAuthFailure(true);
       if (typeof existing === 'function') existing();
     };
     return () => {
@@ -47,30 +70,22 @@ export function GoogleMapsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: GOOGLE_MAPS_LOADER_ID,
-    googleMapsApiKey,
-    libraries: GOOGLE_MAPS_LIBRARIES,
-  });
-
-  useEffect(() => {
-    if (isLoaded) console.log('[Maps] isLoaded = true');
-    if (loadError) console.error('[Maps] loadError:', loadError.message);
-  }, [isLoaded, loadError]);
-
-  const resolvedError = loadError ?? (authFailure ? new Error('Google Maps API authentication failed') : undefined);
+  const value: GoogleMapsContextValue = requested
+    ? { isLoaded: false, loadError: undefined, requestMaps } // replaced by loader's context below
+    : IDLE_VALUE;
 
   return (
-    <GoogleMapsContext.Provider
-      value={{
-        isLoaded,
-        loadError: resolvedError,
-      }}
-    >
-      {children}
+    <GoogleMapsContext.Provider value={value}>
+      {requested && Loader ? (
+        <Loader requestMaps={requestMaps}>{children}</Loader>
+      ) : (
+        children
+      )}
     </GoogleMapsContext.Provider>
   );
 }
+
+const GoogleMapsContext = createContext<GoogleMapsContextValue>(IDLE_VALUE);
 
 export function useGoogleMapsLoader() {
   return useContext(GoogleMapsContext);

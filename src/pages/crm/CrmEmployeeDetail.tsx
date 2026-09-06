@@ -4,7 +4,8 @@ import { leadSupabase } from '@/services/leadSupabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
 import { buildSalaryStructure } from '@/utils/payrollCalculator';
-import { generatePayslipPDF } from '@/utils/payslipPDFGenerator';
+const generatePayslipPDF = (...args: Parameters<typeof import('@/utils/payslipPDFGenerator')['generatePayslipPDF']>) =>
+  import('@/utils/payslipPDFGenerator').then((m) => m.generatePayslipPDF(...args));
 import { formatINR } from '@/lib/inr';
 import {
   ArrowLeft, Pencil, UserRound, Users, History, CalendarCheck, CalendarDays, Wallet, LogIn,

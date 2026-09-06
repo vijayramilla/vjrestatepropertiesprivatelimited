@@ -27,7 +27,12 @@ export default function LandMapLocationPicker({
   onChange,
   error,
 }: LandMapLocationPickerProps) {
-  const { isLoaded } = useGoogleMapsLoader();
+  const { isLoaded, requestMaps } = useGoogleMapsLoader();
+
+  // This picker renders a real Google Map — request the deferred SDK.
+  useEffect(() => {
+    requestMaps();
+  }, [requestMaps]);
   const [mode, setMode] = useState<LocationMode>('search');
   const [linkInput, setLinkInput] = useState(value?.maps_link ?? '');
   const [searchLoading, setSearchLoading] = useState(false);

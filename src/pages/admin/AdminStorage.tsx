@@ -15,7 +15,7 @@ import {
   FileImage,
   FileText,
   CloudArrowDown,
-} from 'phosphor-react'
+} from '@phosphor-icons/react'
 import {
   PieChart,
   Pie,
