@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData as isSupabaseDataEnabled, supabaseGetProperty } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatCardTotalPrice, formatCardPricePerSqft, formatPrice } from '@/lib/formatPrice';
 import { formatArea } from '@/lib/plotLandForm';
 import { mapFirestoreToProperty } from '@/lib/firestoreProperties';

@@ -1,7 +1,7 @@
-import { collection, getDocs, getDoc, doc, limit, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, getDoc, doc, limit, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { mapFirestoreToProperty, type FirestorePropertyDoc } from '@/lib/firestoreProperties';
-import { useSupabaseData, supabaseFetchAllProperties, supabaseGetProperty } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, supabaseFetchAllProperties, supabaseGetProperty } from '@/lib/supabaseData';
 import { formatINR } from '@/lib/formatPrice';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ export async function getAllProperties(cap = 300): Promise<AiProperty[]> {
   if (propertiesCache && now - propertiesCache.at < PROPERTIES_CACHE_TTL_MS) {
     return propertiesCache.data.slice(0, cap);
   }
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const docs = await supabaseFetchAllProperties();
     const data = docs
       .slice(0, cap)
@@ -115,7 +115,7 @@ export function invalidatePropertiesCache(): void {
 
 /** Fetch a single property by id. */
 export async function getProperty(id: string): Promise<AiProperty | null> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const doc = await supabaseGetProperty(id);
     if (!doc) return null;
     return toAiProperty(id, doc as FirestorePropertyDoc);
@@ -154,47 +154,6 @@ export async function searchProperties(params: PropertySearchParams = {}): Promi
   });
 
   return filtered.slice(0, params.limitCount ?? 20);
-}
-
-// ─── AUCTIONS ────────────────────────────────────────────────────────────────
-
-export interface AiAuction {
-  id: string;
-  title: string;
-  category: string;
-  location: string;
-  city: string;
-  startingBid: number;
-  currentBid: number;
-  bidIncrement: number;
-  totalBids: number;
-  status: string;
-  areaSqft: number;
-  images: string[];
-  auctionEndTime?: Date;
-}
-
-export async function getAuctions(): Promise<AiAuction[]> {
-  const snap = await getDocs(query(collection(db, 'auctions'), orderBy('auctionEndTime', 'asc'), limit(50)));
-  return snap.docs.map((d) => {
-    const raw = d.data() as Record<string, unknown>;
-    const end = raw.auctionEndTime as { toDate?: () => Date } | Date | undefined;
-    return {
-      id: d.id,
-      title: (raw.title as string) ?? 'Auction',
-      category: (raw.category as string) ?? '',
-      location: (raw.location as string) ?? '',
-      city: (raw.city as string) ?? 'Bangalore',
-      startingBid: (raw.startingBid as number) ?? 0,
-      currentBid: (raw.currentBid as number) ?? (raw.startingBid as number) ?? 0,
-      bidIncrement: (raw.bidIncrement as number) ?? 100000,
-      totalBids: (raw.totalBids as number) ?? 0,
-      status: (raw.status as string) ?? 'upcoming',
-      areaSqft: (raw.areaSqft as number) ?? 0,
-      images: (raw.images as string[]) ?? [],
-      auctionEndTime: end && typeof end === 'object' && 'toDate' in end && end.toDate ? end.toDate() : end instanceof Date ? end : undefined,
-    };
-  });
 }
 
 // ─── REQUIREMENTS ────────────────────────────────────────────────────────────

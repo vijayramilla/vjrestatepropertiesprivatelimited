@@ -18,7 +18,7 @@ import {
   Briefcase,
   HardDrive,
   GearSix,
-  Signpost,
+  UsersThree,
 } from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
@@ -55,8 +55,8 @@ const secondaryNavItems: NavItem[] = [
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', match: '/admin/properties/new' },
   { icon: Article, label: 'Blog', path: '/admin/blog', match: '/admin/blog' },
   { icon: Phone, label: 'Owner Contacts', path: '/admin/owner-contacts', match: '/admin/owner-contacts' },
-  { icon: Signpost, label: 'Auctions', path: '/admin/auctions', match: '/admin/auctions' },
   { icon: Briefcase, label: 'Careers', path: '/admin/careers', match: '/admin/careers' },
+  { icon: UsersThree, label: 'Team Page', path: '/admin/team', match: '/admin/team' },
   { icon: HardDrive, label: 'Storage', path: '/admin/storage', match: '/admin/storage' },
   { icon: GearSix, label: 'Settings', path: '/admin/settings', match: '/admin/settings' },
 ];

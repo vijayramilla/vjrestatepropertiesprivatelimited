@@ -61,10 +61,9 @@ const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const CareersPage = lazy(() => import('./pages/CareersPage'));
-const AuctionsPage = lazy(() => import('./pages/AuctionsPage'));
-const AdminAuctions = lazy(() => import('./pages/admin/AdminAuctions'));
-const AdminAuctionForm = lazy(() => import('./pages/admin/AdminAuctionForm'));
+const TeamPage = lazy(() => import('./pages/TeamPage'));
 const AdminCareersPage = lazy(() => import('./pages/admin/AdminCareersPage'));
+const AdminTeamPage = lazy(() => import('./pages/admin/AdminTeamPage'));
 const AdminStorage = lazy(() => import('./pages/admin/AdminStorage'));
 const AdminPayrollPage = lazy(() => import('./pages/admin/AdminPayrollPage'));
 
@@ -102,11 +101,11 @@ function AppRoutes() {
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
+        <Route path="/team" element={<LazyPage><TeamPage /></LazyPage>} />
         <Route path="/bangalore-land-investment-guide" element={<Navigate to="/properties" replace />} />
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
         <Route path="/blog/:slug" element={<LazyPage><BlogPostPage /></LazyPage>} />
         <Route path="/post-requirement" element={<Navigate to="/submit-requirement" replace />} />
-        <Route path="/auctions" element={<LazyPage><AuctionsPage /></LazyPage>} />
         <Route path="*" element={<LazyPage><NotFoundPage /></LazyPage>} />
       </Route>
 
@@ -219,34 +218,18 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/auctions"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminAuctions /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/auctions/new"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminAuctionForm /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
-        path="/admin/auctions/:id/edit"
-        element={
-          <AdminRoute>
-            <LazyPage><AdminAuctionForm /></LazyPage>
-          </AdminRoute>
-        }
-      />
-      <Route
         path="/admin/careers"
         element={
           <AdminRoute>
             <LazyPage><AdminCareersPage /></LazyPage>
+          </AdminRoute>
+        }
+      />
+      <Route
+        path="/admin/team"
+        element={
+          <AdminRoute>
+            <LazyPage><AdminTeamPage /></LazyPage>
           </AdminRoute>
         }
       />

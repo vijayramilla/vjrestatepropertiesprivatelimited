@@ -204,7 +204,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
         </div>
 
         <div className={compact ? 'px-2 py-1.5' : listing ? 'px-4 pb-3 pt-3' : 'px-[18px] pb-[18px] pt-4'}>
-          <h3 className={`line-clamp-2 font-bold leading-snug text-gray-900 ${compact ? 'text-[11px]' : listing ? 'text-[15px]' : 'text-lg md:text-xl'}`} style={{ fontFamily: DM_SANS }}>
+          <h3 className={`line-clamp-2 font-bold leading-snug text-gray-900 ${compact ? 'text-[11px]' : listing ? 'text-[15px] lg:text-[17px]' : 'text-lg md:text-xl'}`} style={{ fontFamily: DM_SANS }}>
             {saleTitle}
           </h3>
 
@@ -219,7 +219,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
                 Asking Price
               </p>
             )}
-            <p className={`font-numeric font-extrabold leading-none tracking-tight text-gray-900 ${compact ? 'text-xs mt-0' : listing ? 'mt-0.5 text-[20px]' : 'mt-0.5 text-[26px]'}`}>
+            <p className={`font-numeric font-extrabold leading-none tracking-tight text-gray-900 ${compact ? 'text-xs mt-0' : listing ? 'mt-0.5 text-[20px] lg:text-[24px]' : 'mt-0.5 text-[26px]'}`}>
               {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}
             </p>
             {isPlotOrLand && (property.price_per_sqft ?? 0) > 0 && (

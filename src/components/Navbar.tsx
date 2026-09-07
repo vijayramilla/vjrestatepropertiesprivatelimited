@@ -13,6 +13,7 @@ import {
 
   Buildings,
   Briefcase,
+  Users,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
@@ -27,6 +28,7 @@ const profileLinks = [
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
 
   { label: 'About Us', path: '/about', Icon: Info },
+  { label: 'Our Team', path: '/team', Icon: Users },
   { label: 'Careers', path: '/careers', Icon: Briefcase },
   { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
   { label: 'Contact Us', path: '/contact', Icon: Phone },
@@ -200,6 +202,7 @@ export default function Navbar() {
               { label: 'Properties', path: '/properties' },
               { label: 'Blog', path: '/blog' },
               { label: 'About', path: '/about' },
+              { label: 'Team', path: '/team' },
               { label: 'Careers', path: '/careers' },
               { label: 'Contact', path: '/contact' },
             ].map(({ label, path }) => (

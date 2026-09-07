@@ -45,7 +45,7 @@ const TOOLTIP_STYLE = {
 
 const BUCKET_META: Record<string, { label: string; color: string; icon: typeof FolderOpen }> = {
   'property-images': { label: 'Property Images', color: '#0A1628', icon: FileImage },
-  'auction-images': { label: 'Auction Images', color: '#C9A84C', icon: FileImage },
+  'team-photos': { label: 'Team Photos', color: '#C9A84C', icon: FileImage },
   resumes: { label: 'Resumes', color: '#3B82F6', icon: FileText },
 }
 

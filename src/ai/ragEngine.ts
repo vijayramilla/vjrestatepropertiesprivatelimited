@@ -1,7 +1,6 @@
 import {
   searchProperties,
   getAllProperties,
-  getAuctions,
   getOpenRequirements,
   calculateRentalYield,
   calculateEMI,
@@ -9,7 +8,6 @@ import {
   analyzeMarket,
   formatINR,
   type AiProperty,
-  type AiAuction,
   type MarketAnalysis,
 } from './dataConnector';
 import { filterLocalities, BANGALORE_AREAS } from '@/data/properties';
@@ -30,7 +28,6 @@ export type QueryIntent =
   | 'MARKET_OVERVIEW'
   | 'LOCATION_QUERY'
   | 'REQUIREMENT_MATCH'
-  | 'AUCTION_QUERY'
   | 'EMI_CALCULATION'
   | 'COMPANY_QUERY'
   | 'GENERAL';
@@ -56,7 +53,6 @@ export function classifyIntent(query: string): QueryIntent {
   if (/(emi|loan|mortgage|finance|down payment)/.test(q)) return 'EMI_CALCULATION';
   if (/(invest|worth buying|good deal|should i buy|buy or (?:rent|wait)|appreciation)/.test(q)) return 'INVESTMENT_ADVICE';
   if (/(market overview|average price|how many|overview|market (?:analysis|trend)|price trend)/.test(q)) return 'MARKET_OVERVIEW';
-  if (/(auction|bank auction|bid)/.test(q)) return 'AUCTION_QUERY';
   if (/(requirement|client|match|buyer looking)/.test(q)) return 'REQUIREMENT_MATCH';
   if (/(contact|phone number|our phone|call (?:you|us)|email (?:us|address|id)|our email|reach (?:you|us)|your address|office address|office location|head office|where are you|your location|hours|timing|open now|open (?:on|during|at)|opening hours|directions|instagram|linkedin|youtube|social media|whatsapp)/.test(q)) return 'COMPANY_QUERY';
   if (/(about (?:the )?(?:company|vjr)|about you|who is|who are|founder|\bvijay\b|vijay ram|ceo|mission|vision|company story|our story|company history|our history|how did.*start|when.*founded|our services|services you offer|what do you do|advisory)/.test(q)) return 'COMPANY_QUERY';
@@ -207,7 +203,6 @@ function buildFallbackAnswer(
   properties: AiProperty[],
   calculations: Record<string, unknown>,
   marketData: MarketAnalysis | null,
-  auctions: AiAuction[],
   query: string,
 ): string {
   const parts: string[] = [];
@@ -231,11 +226,6 @@ function buildFallbackAnswer(
       parts.push(`We focus on ${c.focus.join(', ')} across Bangalore.`);
       parts.push(`Reach us at ${c.phone} or ${c.email}.`);
     }
-  } else if (intent === 'AUCTION_QUERY' && auctions.length > 0) {
-    parts.push('Here are the current auctions:');
-    auctions.slice(0, 6).forEach((a) => {
-      parts.push(`• ${a.title} — ${a.location}, starting at ${formatINR(a.startingBid)} — ${a.status.toUpperCase()}`);
-    });
   } else if (intent === 'MARKET_OVERVIEW' && marketData) {
     parts.push(`I found ${marketData.totalListings} propert${marketData.totalListings === 1 ? 'y' : 'ies'} currently listed.`);
     parts.push(`• Average price: ${formatINR(marketData.avgPrice)}`);
@@ -298,7 +288,6 @@ const SUGGESTIONS: Record<QueryIntent, string[]> = {
   MARKET_OVERVIEW: ['Which locality has the most listings?', 'Show highest yielding properties', 'What is the average price per sq.ft?'],
   LOCATION_QUERY: ['Show properties in this area', 'Compare with the neighboring locality', 'What is the average price here?'],
   REQUIREMENT_MATCH: ['Show open requirements', 'Match requirements to listings', 'Which listings fit a ₹2 Cr budget?'],
-  AUCTION_QUERY: ['Show all live auctions', 'Compare auction vs regular listing', 'Which auctions are ending soon?'],
   EMI_CALCULATION: ['What is the rental yield on this?', 'Can I afford this with 20% down payment?', 'Show similar properties at lower price'],
   COMPANY_QUERY: ['What is your office address?', 'How can I contact VJR Estate?', 'Tell me about the founder'],
   GENERAL: ['Show all properties', 'What is the market overview?', 'Find PG buildings in Bangalore'],
@@ -324,7 +313,6 @@ export async function processQuery(
   const params = extractSearchParams(userQuery);
 
   let properties: AiProperty[] = [];
-  let auctions: AiAuction[] = [];
   let marketData: MarketAnalysis | null = null;
   let requirements: unknown[] = [];
   const calculations: Record<string, unknown> = {};
@@ -335,9 +323,6 @@ export async function processQuery(
     if (intent === 'COMPANY_QUERY') {
       // Company profile is static knowledge — no Firestore query needed.
       sources.push('Based on the available company information');
-    } else if (intent === 'AUCTION_QUERY') {
-      auctions = await getAuctions();
-      sources.push('Based on available auction information');
     } else if (intent === 'MARKET_OVERVIEW') {
       properties = await getAllProperties(300);
       marketData = analyzeMarket(properties);
@@ -418,13 +403,6 @@ export async function processQuery(
   const propertySummary = properties.slice(0, 12).map(summarizeProperty).join('\n---\n');
   const calculationContext = Object.keys(calculations).length > 0 ? `\nCALCULATED DATA:\n${JSON.stringify(calculations, null, 2)}` : '';
   const marketContext = marketData ? `\nMARKET OVERVIEW:\n${JSON.stringify(marketData, null, 2)}` : '';
-  const auctionContext =
-    auctions.length > 0
-      ? `\nAUCTION DATA:\n${auctions
-          .slice(0, 5)
-          .map((a) => `${a.title} — ${a.location} — Starting: ${formatINR(a.startingBid)} — Status: ${a.status}`)
-          .join('\n')}`
-      : '';
   const requirementContext =
     requirements.length > 0 ? `\nOPEN REQUIREMENTS:\n${JSON.stringify(requirements.slice(0, 8), null, 2)}` : '';
   const companyContext =
@@ -447,10 +425,10 @@ CORE RULES:
 
 VJR ESTATE PROPERTY DATA (${properties.length} properties):
 ${propertySummary}
-${calculationContext}${marketContext}${auctionContext}${requirementContext}${companyContext}`;
+${calculationContext}${marketContext}${requirementContext}${companyContext}`;
 
   const suggestedQuestions = generateSuggestedQuestions(intent, userQuery);
-  const confidence: RagResponse['confidence'] = properties.length > 0 || auctions.length > 0 ? 'HIGH' : 'MEDIUM';
+  const confidence: RagResponse['confidence'] = properties.length > 0 ? 'HIGH' : 'MEDIUM';
 
   // ── STEP 4: GENERATE ─────────────────────────────────────────────────────
   try {
@@ -458,7 +436,7 @@ ${calculationContext}${marketContext}${auctionContext}${requirementContext}${com
     return { answer, properties: properties.slice(0, 8), intent, sources, calculations, confidence, suggestedQuestions };
   } catch (err) {
     console.error('VJR AI generation error (using deterministic fallback):', err);
-    const answer = buildFallbackAnswer(intent, properties, calculations, marketData, auctions, userQuery);
+    const answer = buildFallbackAnswer(intent, properties, calculations, marketData, userQuery);
     return { answer, properties: properties.slice(0, 8), intent, sources, calculations, confidence, suggestedQuestions };
   }
 }

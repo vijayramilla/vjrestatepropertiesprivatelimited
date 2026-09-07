@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, onSnapshot, updateDoc, doc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseUsers, callDataProxy } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseUsers, callDataProxy } from '@/lib/supabaseData';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
@@ -95,7 +95,7 @@ export default function AdminUsersList() {
       }
 
       setLoading(true);
-      if (useSupabaseData()) {
+      if (isSupabaseDataEnabled()) {
         firestoreUnsub = subscribeSupabaseUsers((rows) => {
           const usersList: User[] = rows.map((data) => ({
             id: data.uid,
@@ -198,7 +198,7 @@ export default function AdminUsersList() {
 
   const handleSuspend = async (userId: string) => {
     try {
-      if (useSupabaseData()) {
+      if (isSupabaseDataEnabled()) {
         await callDataProxy('user.suspend', { uid: userId, suspended: true });
       } else {
         await updateDoc(doc(db, 'users', userId), { suspended: true });
@@ -211,7 +211,7 @@ export default function AdminUsersList() {
 
   const handleUnsuspend = async (userId: string) => {
     try {
-      if (useSupabaseData()) {
+      if (isSupabaseDataEnabled()) {
         await callDataProxy('user.suspend', { uid: userId, suspended: false });
       } else {
         await updateDoc(doc(db, 'users', userId), { suspended: false });

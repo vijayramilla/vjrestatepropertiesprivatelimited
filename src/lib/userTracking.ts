@@ -3,7 +3,7 @@ import type { DocumentData } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { db } from './firebase';
 import {
-  useSupabaseData,
+  isSupabaseDataEnabled,
   supabaseTrackUser,
   supabaseCheckUserSuspended,
 } from './supabaseData';
@@ -133,7 +133,7 @@ export function buildGpsLocation(lat: number, lng: number): GpsLocation {
 
 /** Create or update the user's own doc with the given payload. */
 async function upsertUserDoc(user: User, payload: Record<string, unknown>): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     try {
       await supabaseTrackUser({
         uid: user.uid,
@@ -217,7 +217,7 @@ export async function flushPendingGpsLocation(user: User): Promise<void> {
 }
 
 export async function trackUserLogin(user: User): Promise<{ suspended: boolean }> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     try {
       const location = await fetchUserLocation();
       const now = new Date().toISOString();
@@ -331,7 +331,7 @@ export async function trackUserLogin(user: User): Promise<{ suspended: boolean }
 }
 
 export async function updateUserPresence(user: User): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     try {
       await supabaseTrackUser({
         uid: user.uid,
@@ -358,7 +358,7 @@ export async function updateUserPresence(user: User): Promise<void> {
 }
 
 export async function checkUserSuspended(user: User): Promise<boolean> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     return supabaseCheckUserSuspended(user.uid);
   }
   try {

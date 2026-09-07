@@ -10,7 +10,7 @@ import {
   orderBy,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseProperties, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseProperties, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -102,7 +102,7 @@ export default function AdminPropertiesList() {
     'Commercial Properties',
   ];
 
-  const supabaseMode = useSupabaseData();
+  const supabaseMode = isSupabaseDataEnabled();
 
   useEffect(() => {
     if (supabaseMode) {

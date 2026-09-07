@@ -54,7 +54,6 @@ export default function PgBuildingDetailsCard({ property }: { property: Property
     { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
     { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
     { label: 'Building Dimensions', value: property.dimensions || '—' },
-    { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
     { label: 'Facing', value: property.facing || '—' },
     { label: 'Age', value: property.age || '—' },
     {

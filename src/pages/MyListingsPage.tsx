@@ -4,7 +4,7 @@ import { where, orderBy } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { subscribeProperties } from '@/lib/firestoreHelpers';
 import { subscribePropertyLeads } from '@/lib/propertyLeads';
-import { useSupabaseData, subscribeSupabaseProperties } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseProperties } from '@/lib/supabaseData';
 import SupabaseImage from '@/components/common/SupabaseImage';
 import type { PropertyLead } from '@/lib/propertyLeads';
 import { formatINR } from '@/lib/formatPrice';
@@ -33,7 +33,7 @@ export default function MyListingsPage() {
 
   useEffect(() => {
     if (!user) return;
-    if (useSupabaseData()) {
+    if (isSupabaseDataEnabled()) {
       const unsub = subscribeSupabaseProperties(
         (docs) => {
           const mapped = docs.map(({ id, data }) => ({ id, ...data } as UserProperty));

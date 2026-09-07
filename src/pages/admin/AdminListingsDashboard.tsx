@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, doc, updateDoc, query, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseProperties, subscribeSupabaseUsers, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseProperties, subscribeSupabaseUsers, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
 import { Phone, MapPin, Globe, Calendar, Clock } from 'lucide-react';
@@ -47,7 +47,7 @@ export default function AdminListingsDashboard() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const supabaseMode = useSupabaseData();
+  const supabaseMode = isSupabaseDataEnabled();
 
   useEffect(() => {
     if (supabaseMode) {

@@ -64,7 +64,7 @@ export default function VJRAIButton({
                 Nexa
               </p>
               <p className="mt-0.5 pr-4 text-[11px] leading-snug text-white/60">
-                Ask me anything about Bangalore properties, yields, EMI &amp; auctions
+                Ask me anything about Bangalore properties, yields &amp; EMI
               </p>
             </motion.div>
           )}

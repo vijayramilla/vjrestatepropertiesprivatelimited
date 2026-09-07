@@ -172,7 +172,7 @@ const PROPERTY_COLUMNS = new Set([
   'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
   'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
   'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
-  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
+  'status', 'featured', 'bank_loan_eligible',
   'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
   'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
   'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
@@ -340,20 +340,6 @@ function rateLimited(key, max = 20, windowMs = 60000) {
   bucket.count += 1;
   if (bucket.count > max) { rateBuckets.delete(key); return true; }
   return false;
-}
-
-const AUCTION_COLUMN_MAP = {
-  startingBid: 'starting_bid', currentBid: 'current_bid', reservePrice: 'reserve_price',
-  bidIncrement: 'bid_increment', totalBids: 'total_bids', areaSqft: 'area_sqft',
-  propertyType: 'property_type', registeredBidders: 'registered_bidders', isFeatured: 'is_featured',
-};
-function mapAuctionFields(fields) {
-  const out = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined) continue;
-    out[AUCTION_COLUMN_MAP[key] ?? key] = value;
-  }
-  return out;
 }
 
 async function nextReqId() {
@@ -1445,7 +1431,7 @@ async function executeAction(action, params) {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       const e = getEnv();
       const quotaBytes = 1024 * 1024 * 1024;
-      const BUCKETS = ['property-images', 'auction-images', 'resumes'];
+      const BUCKETS = ['property-images', 'resumes'];
       const bucketStats = [];
       let totalBytes = 0;
       let totalObjects = 0;
@@ -1493,12 +1479,13 @@ async function executeAction(action, params) {
     case 'image.upload': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { bucket, entityId, name, contentType, dataBase64 } = params;
-      if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!entityId) throw new Error('entityId required');
       if (!ALLOWED_IMAGE_TYPES.test(contentType ?? '')) throw new Error('Invalid image type');
       const buffer = decodeBase64(dataBase64);
       if (buffer.length === 0) throw new Error('Empty file');
       if (buffer.length > MAX_IMAGE_BYTES) throw new Error('Image exceeds 3 MB');
+      if (bucket === 'team-photos' && !isAdmin(params._auth)) throw new Error('Forbidden');
       const safeName = sanitizeFileName(name);
       const path = `${entityId}/${Date.now()}-${safeName}`;
       const e = getEnv();
@@ -1515,8 +1502,9 @@ async function executeAction(action, params) {
     case 'image.delete': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { bucket, path: imgPath } = params;
-      if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!imgPath) throw new Error('path required');
+      if (bucket === 'team-photos' && !isAdmin(params._auth)) throw new Error('Forbidden');
       const e = getEnv();
       await fetch(`${e.REQ_URL}/storage/v1/object/${bucket}/${imgPath}`, {
         method: 'DELETE',
@@ -1599,45 +1587,6 @@ async function executeAction(action, params) {
         await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(r.id)}`, { property_code: code });
       }
       return { count: (toBackfill ?? []).length };
-    }
-
-    // ── Auctions ──────────────────────────────────────────────────────
-    case 'auction.create': {
-      if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const { createdAt: _ac, auctionStartTime: _as, auctionEndTime: _ae, _auth: _ac2, _ip: _aci2, _public: _acp2, ...afields } = params;
-      const auctionId = crypto.randomUUID();
-      await supabaseFetch('POST', 'auctions', {
-        id: auctionId, ...mapAuctionFields(afields),
-        auction_start_time: dbDate(_as), auction_end_time: dbDate(_ae),
-        created_at: dbDate(_ac) ?? new Date().toISOString(),
-      });
-      return { id: auctionId };
-    }
-    case 'auction.update': {
-      if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const { id: _aid, auctionStartTime: _aus, auctionEndTime: _aue, _auth: _au2, _ip: _aui2, _public: _aup2, ...aupd } = params;
-      const auFields = mapAuctionFields(aupd);
-      if (_aus !== undefined) auFields.auction_start_time = dbDate(_aus);
-      if (_aue !== undefined) auFields.auction_end_time = dbDate(_aue);
-      await supabaseFetch('PATCH', `auctions?id=eq.${encodeURIComponent(_aid)}`, auFields);
-      return { id: _aid };
-    }
-    case 'auction.delete': {
-      if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      await supabaseFetch('DELETE', `auctions?id=eq.${encodeURIComponent(params.id)}`);
-      return { id: params.id };
-    }
-    case 'auction.setStatus': {
-      if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      await supabaseFetch('PATCH', `auctions?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
-      return { id: params.id };
-    }
-    case 'bid.place': {
-      if (!params._auth?.authorized) throw new Error('Forbidden');
-      const { auctionId, amount } = params;
-      const bidderName = String(params.bidderName ?? 'Anonymous').slice(0, 60);
-      const bidData = await supabaseRpc('place_bid', { p_auction_id: auctionId, p_bidder_id: params._auth.uid, p_bidder_name: bidderName, p_amount: Number(amount) });
-      return { id: auctionId, currentBid: bidData?.currentBid, totalBids: bidData?.totalBids };
     }
 
     // ── Requirements ──────────────────────────────────────────────────
@@ -1796,6 +1745,25 @@ async function executeAction(action, params) {
     case 'job.delete': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       await supabaseFetch('DELETE', `job_openings?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id };
+    }
+
+    // ── Team members ─────────────────────────────────────────────────
+    case 'team.create': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const memberId = crypto.randomUUID();
+      await supabaseFetch('POST', 'team_members', { id: memberId, ...params });
+      return { id: memberId };
+    }
+    case 'team.update': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id: _tmId, ...tmFields } = params;
+      await supabaseFetch('PATCH', `team_members?id=eq.${encodeURIComponent(_tmId)}`, tmFields);
+      return { id: _tmId };
+    }
+    case 'team.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `team_members?id=eq.${encodeURIComponent(params.id)}`);
       return { id: params.id };
     }
     case 'application.apply': {

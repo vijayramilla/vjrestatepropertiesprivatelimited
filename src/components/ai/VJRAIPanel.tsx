@@ -24,7 +24,7 @@ const QUICK_QUESTIONS = [
   'Show best rental yield properties',
   'Find PG buildings in HSR Layout',
   'Compare top 3 PG buildings',
-  'Show upcoming auctions',
+  'Show properties in Whitefield',
   'Market overview Bangalore',
 ];
 
@@ -199,7 +199,7 @@ const WELCOME: AiMessage = {
   id: 'welcome',
   role: 'assistant',
   content:
-    'Hello! I’m Nexa, your property intelligence assistant for Bangalore real estate.\n\nI can help you:\n\n• Find properties matching your requirements\n• Compare properties\n• Analyze rental income and investment potential\n• Calculate EMI and estimated purchase costs\n• Explore auction properties\n• Understand property details and available information',
+    'Hello! I’m Nexa, your property intelligence assistant for Bangalore real estate.\n\nI can help you:\n\n• Find properties matching your requirements\n• Compare properties\n• Analyze rental income and investment potential\n• Calculate EMI and estimated purchase costs\n• Understand property details and available information',
   timestamp: Date.now(),
 };
 

@@ -10,7 +10,7 @@ import {
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { normalizePropertyRecord } from '@/lib/propertyFilters';
-import { useSupabaseData, subscribeSupabaseProperties } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseProperties } from '@/lib/supabaseData';
 
 export function sanitizeForFirestore<T extends Record<string, unknown>>(data: T): T {
   const result = {} as T;
@@ -39,7 +39,7 @@ export function subscribeProperties(
   onError?: (error: Error) => void,
   ...constraints: QueryConstraint[]
 ): Unsubscribe {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     // Firestore constraints are only used for owner-scoping in MyListingsPage;
     // that page passes { uid } explicitly via subscribeSupabaseProperties, so
     // the generic path here is the public all-properties subscription.

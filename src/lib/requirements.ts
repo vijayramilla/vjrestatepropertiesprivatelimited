@@ -18,7 +18,7 @@ import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { formatINR } from '@/lib/formatPrice';
 import {
-  useSupabaseData,
+  isSupabaseDataEnabled,
   subscribeSupabaseRequirements,
   subscribeSupabaseAdminRequirements,
   supabaseIncrementRequirementClick,
@@ -124,7 +124,7 @@ export function stripPrivateRequirementFields(
 }
 
 export async function generateReqId(): Promise<string> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     // The proxy generates the canonical sequential ID server-side when not
     // provided; return a placeholder that is replaced during creation.
     return `VJR-REQ-${new Date().getFullYear()}-AUTO`;
@@ -139,7 +139,7 @@ export async function createRequirement(
   input: Omit<RequirementDoc, 'reqId' | 'status' | 'clickCount' | 'postedAt'>,
 ): Promise<{ id: string; reqId: string }> {
   const { paymentMode, buyerName, buyerPhone, ...publicInput } = input;
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const res = await callDataProxy('requirement.create', {
       ...publicInput,
       paymentMode,
@@ -171,7 +171,7 @@ export async function createRequirement(
 }
 
 export async function incrementRequirementClickCount(requirementId: string): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await supabaseIncrementRequirementClick(requirementId);
     return;
   }
@@ -234,7 +234,7 @@ export function subscribeRequirements(
   onData: (items: RequirementDoc[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     return subscribeSupabaseRequirements((rows) =>
       startTransition(() => onData(rows as unknown as RequirementDoc[])),
     );
@@ -265,7 +265,7 @@ export function subscribeAdminRequirements(
   onData: (items: RequirementDoc[]) => void,
   onError?: (error: Error) => void,
 ): Unsubscribe {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     return subscribeSupabaseAdminRequirements((rows) =>
       startTransition(() => onData(rows as unknown as RequirementDoc[])),
     );
@@ -342,7 +342,7 @@ export async function updateRequirement(
   id: string,
   data: Partial<RequirementDoc>,
 ): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('requirement.update', { id, ...data });
     return;
   }
@@ -360,7 +360,7 @@ export async function updateRequirement(
 }
 
 export async function deleteRequirement(id: string): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('requirement.delete', { id });
     return;
   }

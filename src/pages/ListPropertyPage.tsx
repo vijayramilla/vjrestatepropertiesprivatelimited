@@ -4,7 +4,7 @@ import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/fi
 import { db } from '@/lib/firebase';
 import { uploadPropertyImages } from '@/lib/propertyImages';
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
-import { useSupabaseData, propertyDocToRow, callDataProxy } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, propertyDocToRow, callDataProxy } from '@/lib/supabaseData';
 import { formatPrice, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
 import { computePlotLandAreaSqft, sqftToAcresGuntas } from '@/lib/plotLandForm';
 import type { AreaUnit } from '@/lib/plotLandForm';
@@ -228,7 +228,7 @@ export default function ListPropertyPage() {
       };
 
       let propertyId: string;
-      if (useSupabaseData()) {
+      if (isSupabaseDataEnabled()) {
         const created = await callDataProxy('property.create', propertyDocToRow(docData));
         propertyId = created.id as string;
       } else {
@@ -241,7 +241,7 @@ export default function ListPropertyPage() {
 
       if (files.length > 0) {
         const urls = await uploadPropertyImages(files, propertyId, user.uid);
-        if (useSupabaseData()) {
+        if (isSupabaseDataEnabled()) {
           await callDataProxy('property.update', { id: propertyId, images: urls });
         } else {
           await updateDoc(doc(db, 'properties', propertyId), { images: urls });

@@ -12,8 +12,8 @@ import { parseSupabaseStoragePath } from '@/lib/supabaseConfig';
  */
 
 interface UploadOptions {
-  bucket: 'property-images' | 'auction-images';
-  /** Folder/entity id inside the bucket (the property or auction id). */
+  bucket: 'property-images' | 'team-photos';
+  /** Folder/entity id inside the bucket (the property id, etc.). */
   entityId: string;
   maxSizeMB?: number;
   maxWidthPx?: number;
@@ -119,7 +119,7 @@ export async function uploadToSupabase(
   options: UploadOptions,
 ): Promise<UploadResult> {
   const { bucket, entityId, maxWidthPx = 2400, quality = 0.85, onProgress } = options;
-  if (!entityId) return { success: false, error: 'entityId (property or auction id) is required' };
+  if (!entityId) return { success: false, error: 'entityId is required' };
 
   const validationError = validateUploadFile(file, options);
   if (validationError) return { success: false, error: validationError };

@@ -26,7 +26,7 @@ import {
 import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
 import { uploadPropertyImages, deletePropertyImageByUrl } from '@/lib/propertyImages';
 import {
-  useSupabaseData,
+  isSupabaseDataEnabled,
   supabaseGetProperty,
   propertyDocToRow,
   callDataProxy,
@@ -77,9 +77,7 @@ interface FormData {
   age: string;
   status: string;
   featured: boolean;
-  bbmp_approved: boolean;
   bank_loan_eligible: boolean;
-  clear_title: boolean;
   highlights: string[];
   amenities: string[];
   description: string;
@@ -148,8 +146,6 @@ const AGES = [
 ];
 
 const HIGHLIGHTS = [
-  'BBMP Approved',
-  'Clear Title',
   'Bank Loan Eligible',
   'Corner Plot',
   'Fully Tenanted',
@@ -221,9 +217,7 @@ export default function AdminPropertyForm() {
     age: 'New',
     status: 'Ready',
     featured: false,
-    bbmp_approved: false,
     bank_loan_eligible: false,
-    clear_title: false,
     highlights: [],
     amenities: [],
     description: '',
@@ -273,7 +267,7 @@ export default function AdminPropertyForm() {
       const fetchProperty = async () => {
         try {
           let data: (FormData & { extra_details?: Record<string, string | number> }) | null = null;
-          if (useSupabaseData()) {
+          if (isSupabaseDataEnabled()) {
             const doc = await supabaseGetProperty(id);
             if (doc) data = doc as unknown as FormData & { extra_details?: Record<string, string | number> };
           } else {
@@ -514,7 +508,7 @@ export default function AdminPropertyForm() {
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
           finalImages = [...finalImages, ...uploaded];
         }
-        if (useSupabaseData()) {
+        if (isSupabaseDataEnabled()) {
           await callDataProxy('property.update', {
             id: propertyId,
             ...propertyDocToRow({ ...payload, images: finalImages }),
@@ -527,7 +521,7 @@ export default function AdminPropertyForm() {
           });
         }
       } else {
-        if (useSupabaseData()) {
+        if (isSupabaseDataEnabled()) {
           const created = await callDataProxy('property.create', propertyDocToRow(payload)) as { id: string; propertyCode: string };
           propertyId = created.id as string;
           if (created.propertyCode) {
@@ -557,7 +551,7 @@ export default function AdminPropertyForm() {
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
           const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
-          if (useSupabaseData()) {
+          if (isSupabaseDataEnabled()) {
             await callDataProxy('property.update', { id: propertyId, images: uploaded });
           } else {
             await updateDoc(doc(db, 'properties', propertyId), sanitizeForFirestore({ images: uploaded }));
@@ -1474,18 +1468,9 @@ export default function AdminPropertyForm() {
           {/* SECTION 5: BBMP & LEGAL */}
           {(isBuildingType || isPlotTypeOnly) && (
           <div className="admin-section">
-            <h2 className="admin-section-title">BBMP & Legal</h2>
+            <h2 className="admin-section-title">Legal</h2>
 
             <div className="space-y-4">
-              <label className="flex items-center gap-3 font-sans text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.bbmp_approved}
-                  onChange={(e) => updateFormData('bbmp_approved', e.target.checked)}
-                  className="w-4 h-4"
-                />
-                BBMP Approved
-              </label>
               <label className="flex items-center gap-3 font-sans text-sm">
                 <input
                   type="checkbox"
@@ -1496,15 +1481,6 @@ export default function AdminPropertyForm() {
                   className="w-4 h-4"
                 />
                 Bank Loan Eligible
-              </label>
-              <label className="flex items-center gap-3 font-sans text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.clear_title}
-                  onChange={(e) => updateFormData('clear_title', e.target.checked)}
-                  className="w-4 h-4"
-                />
-                Clear Title
               </label>
             </div>
           </div>

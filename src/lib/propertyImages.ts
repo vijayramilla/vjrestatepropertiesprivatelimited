@@ -5,7 +5,7 @@ import {
 import { compressImageFile } from '@/utils/supabaseUploader';
 
 /**
- * Property & auction image upload helpers.
+ * Property image upload helpers.
  *
  * Every image is re-encoded to WebP and downscaled on the client before it
  * leaves the device, then uploaded through the authenticated data-proxy
@@ -42,24 +42,6 @@ export async function uploadPropertyImages(
 ): Promise<string[]> {
   const optimized = await optimizeEach(files);
   return supabaseUploadImages('property-images', propertyId, optimized);
-}
-
-export async function uploadAuctionImage(
-  file: File,
-  auctionId: string,
-  _uid: string,
-): Promise<string> {
-  const [url] = await uploadAuctionImages([file], auctionId, _uid);
-  return url;
-}
-
-export async function uploadAuctionImages(
-  files: File[],
-  auctionId: string,
-  _uid: string,
-): Promise<string[]> {
-  const optimized = await optimizeEach(files);
-  return supabaseUploadImages('auction-images', auctionId, optimized);
 }
 
 export async function deletePropertyImageByUrl(url: string): Promise<void> {

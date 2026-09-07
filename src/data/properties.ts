@@ -21,7 +21,6 @@ export interface Property {
   floors: number;
   tenants: number;
   occupancyPercent: number;
-  bbmpApproved: boolean;
   description: string;
   featured: boolean;
   createdAt: string;

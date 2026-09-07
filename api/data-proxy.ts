@@ -21,12 +21,6 @@ const supabaseAdmin = createClient(
   SUPABASE_SERVICE_KEY,
 );
 
-// The org's real Supabase project (employees, CRM clients, storage buckets).
-const supabaseCli = createClient(
-  process.env.SUPABASE_CLI_URL ?? process.env.VITE_SUPABASE_CLI_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co',
-  process.env.SUPABASE_CLI_SERVICE_KEY ?? process.env.VITE_SUPABASE_CLI_SERVICE_KEY ?? '',
-);
-
 const ADMIN_EMAILS = [
   'vijaykodamasuru2023@gmail.com',
   'vijay@vjrestate.in',
@@ -34,7 +28,6 @@ const ADMIN_EMAILS = [
 ];
 const ADMIN_UID = process.env.VITE_ADMIN_UID ?? 'AhaNy8oyMHOFsB3u0dQhG0E0by43';
 const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY ?? '';
-const SUPABASE_URL = process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? 'https://eimvaxrmiizdlgonhiov.supabase.co';
 function assertSupabaseServiceKey() {
   if (!SUPABASE_SERVICE_KEY) {
     throw new Error('Supabase service key is missing. Configure SUPABASE_SERVICE_ROLE_KEY on the server.');
@@ -115,7 +108,7 @@ const PROPERTY_COLUMNS = new Set([
   'rental_yield', 'area_sqft', 'area_unit', 'area_acres', 'area_guntas',
   'price_per_sqft', 'built_up_area_sqft', 'dimensions', 'floor_count',
   'total_units', 'available_units', 'occupancy_percent', 'facing', 'age',
-  'status', 'featured', 'bbmp_approved', 'bank_loan_eligible', 'clear_title',
+  'status', 'featured', 'bank_loan_eligible',
   'katha', 'highlights', 'amenities', 'description', 'listed_days_ago',
   'extra_details', 'images', 'listed_by', 'contact_name', 'contact_phone',
   'map_lat', 'map_lng', 'maps_link', 'agent_id', 'agent_name', 'uid',
@@ -128,13 +121,6 @@ function pickPropertyColumns(obj: Record<string, unknown>): Record<string, unkno
     if (PROPERTY_COLUMNS.has(k)) out[k] = v;
   }
   return out;
-}
-
-function hasPerm(auth: AuthInfo, perm: string): boolean {
-  if (!auth?.authorized) return false;
-  if (auth.role === 'super_admin') return true;
-  if (auth.permissions === null || auth.permissions === undefined) return true;
-  return auth.permissions.length === 0 || auth.permissions.includes(perm);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -210,28 +196,6 @@ function dbDate(v: string | Date | undefined): string | undefined {
   if (!v) return undefined;
   const d = v instanceof Date ? v : new Date(v);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
-}
-
-const AUCTION_COLUMN_MAP: Record<string, string> = {
-  startingBid: 'starting_bid',
-  currentBid: 'current_bid',
-  reservePrice: 'reserve_price',
-  bidIncrement: 'bid_increment',
-  totalBids: 'total_bids',
-  areaSqft: 'area_sqft',
-  propertyType: 'property_type',
-  registeredBidders: 'registered_bidders',
-  isFeatured: 'is_featured',
-};
-
-/** Map the form's camelCase auction fields to DB column names. */
-function mapAuctionFields(fields: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (value === undefined) continue;
-    out[AUCTION_COLUMN_MAP[key] ?? key] = value;
-  }
-  return out;
 }
 
 // ── Main handler ────────────────────────────────────────────────────────────
@@ -346,7 +310,7 @@ async function executeAction(action: string, params: any): Promise<any> {
 
     case 'property.update': {
       if (!auth?.authorized) throw new Error('Forbidden');
-      const { id, createdAt, updatedAt, ...rawFields } = params;
+      const { id, ...rawFields } = params;
       const row = await getPropertyRow(id);
       if (!row) throw new Error('Property not found');
       if (!isAdmin(auth) && row.uid !== auth.uid) throw new Error('Forbidden');
@@ -415,30 +379,23 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { count: toUpdate.length };
     }
 
-    // ── Images (properties, auctions) ───────────────────────────────────
+    // ── Images (properties, auctions, team) ────────────────────────────
     case 'image.upload': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const { bucket, entityId, name, contentType, dataBase64 } = params;
-      if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!entityId) throw new Error('entityId required');
       if (!ALLOWED_IMAGE_TYPES.test(contentType ?? '')) throw new Error('Invalid image type');
       const buffer = decodeBase64(dataBase64);
       if (buffer.length === 0) throw new Error('Empty file');
       if (buffer.length > MAX_IMAGE_BYTES) throw new Error('Image exceeds 8 MB');
 
-      // Mirror Firebase rules: admin OR the property/auction owner may upload.
+      // Mirror Firebase rules: admin OR the property owner may upload.
+      // team-photos is admin-only (same as team_members writes).
       if (!isAdmin(auth)) {
-        if (bucket === 'property-images') {
-          const row = await getPropertyRow(entityId);
-          if (!row || row.uid !== auth.uid) throw new Error('Forbidden');
-        } else {
-          const { data: auction } = await supabaseAdmin
-            .from('auctions')
-            .select('id')
-            .eq('id', entityId)
-            .maybeSingle();
-          if (!auction) throw new Error('Forbidden');
-        }
+        if (bucket === 'team-photos') throw new Error('Forbidden');
+        const row = await getPropertyRow(entityId);
+        if (!row || row.uid !== auth.uid) throw new Error('Forbidden');
       }
 
       const safeName = sanitizeFileName(name);
@@ -454,21 +411,12 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'image.delete': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const { bucket, path } = params;
-      if (!['property-images', 'auction-images'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!path) throw new Error('path required');
       if (!isAdmin(auth)) {
-        const entityId = path.split('/')[0];
-        if (bucket === 'property-images') {
-          const row = await getPropertyRow(entityId);
-          if (!row || row.uid !== auth.uid) throw new Error('Forbidden');
-        } else {
-          const { data: auction } = await supabaseAdmin
-            .from('auctions')
-            .select('id')
-            .eq('id', entityId)
-            .maybeSingle();
-          if (!auction) throw new Error('Forbidden');
-        }
+        if (bucket === 'team-photos') throw new Error('Forbidden');
+        const row = await getPropertyRow(path.split('/')[0]);
+        if (!row || row.uid !== auth.uid) throw new Error('Forbidden');
       }
       const { error } = await supabaseAdmin.storage.from(bucket).remove([path]);
       if (error) throw new Error(error.message);
@@ -810,6 +758,34 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { id };
     }
 
+    // ── Team members ────────────────────────────────────────────────────
+    case 'team.create': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('team_members')
+        .insert(params)
+        .select('id')
+        .single();
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+
+    case 'team.update': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id, ...fields } = params;
+      const { error } = await supabaseAdmin.from('team_members').update(fields).eq('id', id);
+      if (error) throw new Error(error.message);
+      return { id };
+    }
+
+    case 'team.delete': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id } = params;
+      const { error } = await supabaseAdmin.from('team_members').delete().eq('id', id);
+      if (error) throw new Error(error.message);
+      return { id };
+    }
+
     case 'application.apply': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const { referenceId, applicantLat, applicantLng, applicantArea, ...fields } = params;
@@ -894,67 +870,6 @@ async function executeAction(action: string, params: any): Promise<any> {
         counts[t] = count ?? 0;
       }
       return { counts };
-    }
-
-    // ── Auctions ────────────────────────────────────────────────────────
-    case 'auction.create': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { createdAt, auctionStartTime, auctionEndTime, ...fields } = params;
-      const auctionId = randomUUID();
-      const { data, error } = await supabaseAdmin
-        .from('auctions')
-        .insert({
-          id: auctionId,
-          ...mapAuctionFields(fields),
-          auction_start_time: dbDate(auctionStartTime),
-          auction_end_time: dbDate(auctionEndTime),
-          created_at: dbDate(createdAt) ?? new Date().toISOString(),
-        })
-        .select('id')
-        .single();
-      if (error) throw new Error(error.message);
-      return { id: data.id };
-    }
-
-    case 'auction.update': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { id, auctionStartTime, auctionEndTime, ...fields } = params;
-      const updates: Record<string, unknown> = mapAuctionFields(fields);
-      if (auctionStartTime !== undefined) updates.auction_start_time = dbDate(auctionStartTime);
-      if (auctionEndTime !== undefined) updates.auction_end_time = dbDate(auctionEndTime);
-      const { error } = await supabaseAdmin.from('auctions').update(updates).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { id };
-    }
-
-    case 'auction.delete': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { id } = params;
-      const { error } = await supabaseAdmin.from('auctions').delete().eq('id', id);
-      if (error) throw new Error(error.message);
-      return { id };
-    }
-
-    case 'auction.setStatus': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { id, status } = params;
-      const { error } = await supabaseAdmin.from('auctions').update({ status }).eq('id', id);
-      if (error) throw new Error(error.message);
-      return { id };
-    }
-
-    case 'bid.place': {
-      if (!auth?.authorized) throw new Error('Forbidden');
-      const { auctionId, amount } = params;
-      const bidderName = String(params.bidderName ?? 'Anonymous').slice(0, 60);
-      const { data, error } = await supabaseAdmin.rpc('place_bid', {
-        p_auction_id: auctionId,
-        p_bidder_id: auth.uid,
-        p_bidder_name: bidderName,
-        p_amount: Number(amount),
-      });
-      if (error) throw new Error(error.message);
-      return { id: auctionId, currentBid: data?.currentBid, totalBids: data?.totalBids };
     }
 
     default:

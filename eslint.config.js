@@ -35,6 +35,12 @@ export default tseslint.config(
       // (Google Maps, AI providers, Supabase row shapes). Treat it as a
       // warning rather than a hard error so lint stays green.
       '@typescript-eslint/no-explicit-any': 'warn',
+      // Params prefixed with `_` are intentionally unused (kept to preserve
+      // a call-site's argument shape).
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   }
 );

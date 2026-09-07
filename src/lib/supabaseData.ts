@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
   supabaseData,
-  useSupabaseData,
+  isSupabaseDataEnabled,
   supabasePublicUrl,
   parseSupabaseStoragePath,
   tsFacade,
@@ -91,7 +91,7 @@ export function subscribeSupabaseTable<T>(
       if (disposed) return;
       const rows = all as unknown as T[];
       onData(options?.filter ? rows.filter(options.filter) : rows);
-    } catch (e: any) {
+    } catch {
       if (!disposed) onData([]);
     }
   };
@@ -144,9 +144,7 @@ export interface SupabasePropertyRow {
   age?: string | null;
   status?: string | null;
   featured?: boolean | null;
-  bbmp_approved?: boolean | null;
   bank_loan_eligible?: boolean | null;
-  clear_title?: boolean | null;
   katha?: string | null;
   highlights?: string[] | null;
   amenities?: string[] | null;
@@ -239,9 +237,7 @@ export function propertyRowToDoc(row: SupabasePropertyRow): Record<string, unkno
     age: row.age ?? '—',
     status: row.status ?? 'Ready',
     featured: row.featured ?? false,
-    bbmp_approved: row.bbmp_approved ?? false,
     bank_loan_eligible: row.bank_loan_eligible ?? false,
-    clear_title: row.clear_title ?? false,
     katha: row.katha ?? '',
     highlights: row.highlights ?? [],
     amenities: row.amenities ?? [],
@@ -679,78 +675,6 @@ export function subscribeSupabaseApplications(onData: (apps: any[]) => void): ()
   };
 }
 
-/* ── Auctions ────────────────────────────────────────────────────────────── */
-
-function mapAuctionRow(r: any): any {
-  return {
-    id: r.id,
-    title: r.title ?? '',
-    category: r.category ?? 'Residential',
-    location: r.location ?? '',
-    city: r.city ?? 'Bangalore',
-    images: normalizeImages(r.images),
-    description: r.description ?? '',
-    startingBid: r.starting_bid ?? 0,
-    currentBid: r.current_bid ?? r.starting_bid ?? 0,
-    reservePrice: r.reserve_price ?? r.starting_bid ?? 0,
-    bidIncrement: r.bid_increment ?? 100000,
-    totalBids: r.total_bids ?? 0,
-    // Components call .toLocaleString() directly on auction times, so a real
-    // Date is the closest match to what Firestore's Timestamp.toDate() gave.
-    auctionStartTime: tsFacade(r.auction_start_time)?.toDate(),
-    auctionEndTime: tsFacade(r.auction_end_time)?.toDate(),
-    status: r.status ?? 'upcoming',
-    areaSqft: r.area_sqft ?? undefined,
-    propertyType: r.property_type ?? undefined,
-    khata: r.khata ?? undefined,
-    facing: r.facing ?? undefined,
-    registeredBidders: r.registered_bidders ?? 0,
-    isFeatured: r.is_featured ?? false,
-    map_lat: r.map_lat ?? undefined,
-    map_lng: r.map_lng ?? undefined,
-    maps_link: r.maps_link ?? undefined,
-    createdAt: tsFacade(r.created_at),
-  };
-}
-
-export function subscribeSupabaseAuctions(
-  onData: (auctions: any[]) => void,
-  categoryFilter = 'all',
-): () => void {
-  return subscribeSupabaseTable<any>(
-    'auctions',
-    (rows) => {
-      onData(rows.map(mapAuctionRow));
-    },
-    { filter: (r) => categoryFilter === 'all' || r.category === categoryFilter },
-  );
-}
-
-export async function supabaseGetAuction(id: string): Promise<any | null> {
-  if (!client) return null;
-  const { data, error } = await client.from('auctions').select('*').eq('id', id).maybeSingle();
-  if (error || !data) return null;
-  return mapAuctionRow(data);
-}
-
-/** Admin dashboard: latest bids (Firestore auction_bids parity). */
-export function subscribeSupabaseAuctionBids(onData: (bids: any[]) => void): () => void {
-  return subscribeSupabaseTable<any>('auction_bids', (rows) => {
-    const sorted = [...rows].sort((a, b) =>
-      String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')),
-    );
-    onData(
-      sorted.slice(0, 12).map((r) => ({
-        id: r.id,
-        auctionId: r.auction_id ?? '',
-        bidderName: r.bidder_name ?? 'Anonymous',
-        amount: r.amount ?? 0,
-        timestamp: tsFacade(r.created_at),
-      })),
-    );
-  });
-}
-
 /* ── Images: upload / delete (via proxy, with client-side resize) ───────── */
 
 const MAX_DIMENSION = 1600;
@@ -809,7 +733,7 @@ export async function resizeImageForUpload(file: File): Promise<File> {
 }
 
 export async function supabaseUploadImage(
-  bucket: 'property-images' | 'auction-images',
+  bucket: 'property-images' | 'team-photos',
   entityId: string,
   file: File,
 ): Promise<string> {
@@ -826,7 +750,7 @@ export async function supabaseUploadImage(
 }
 
 export async function supabaseUploadImages(
-  bucket: 'property-images' | 'auction-images',
+  bucket: 'property-images' | 'team-photos',
   entityId: string,
   files: File[],
 ): Promise<string[]> {
@@ -879,9 +803,7 @@ const PROPERTY_DOC_TO_ROW: Record<string, string> = {
   total_units: 'total_units',
   available_units: 'available_units',
   occupancy_percent: 'occupancy_percent',
-  bbmp_approved: 'bbmp_approved',
   bank_loan_eligible: 'bank_loan_eligible',
-  clear_title: 'clear_title',
   listed_days_ago: 'listed_days_ago',
   listed_by: 'listed_by',
   contact_name: 'contact_name',
@@ -924,7 +846,7 @@ export function propertyDocToRow(doc: Record<string, unknown>): Record<string, u
  * thrown for the admin UI to display.
  */
 export async function deletePropertyAcrossStores(id: string): Promise<void> {
-  const supabaseActive = useSupabaseData();
+  const supabaseActive = isSupabaseDataEnabled();
 
   if (supabaseActive) {
     const supabaseError = await tryDeleteSupabase(id);
@@ -971,21 +893,6 @@ async function tryDeleteFirestore(id: string): Promise<unknown> {
   } catch (e) {
     return e;
   }
-}
-
-/* ── Bids ─────────────────────────────────────────────────────────────────── */
-
-export async function supabasePlaceBid(
-  auctionId: string,
-  amount: number,
-  bidderName: string,
-): Promise<{ id: string; currentBid: number; totalBids: number }> {
-  const res = await callDataProxy('bid.place', { auctionId, amount, bidderName });
-  return {
-    id: res.id as string,
-    currentBid: Number(res.currentBid ?? 0),
-    totalBids: Number(res.totalBids ?? 0),
-  };
 }
 
 /* ── Open requirements count (navbar badge) ──────────────────────────────── */
@@ -1043,7 +950,7 @@ export interface StorageStats {
  * Storage usage — queries Supabase directly (no data-proxy needed).
  * Reads from storage.objects which is accessible via RLS on public buckets.
  */
-const STORAGE_BUCKETS = ['property-images', 'auction-images', 'resumes'] as const;
+const STORAGE_BUCKETS = ['property-images', 'resumes'] as const;
 
 export async function supabaseGetStorageStats(): Promise<StorageStats> {
   // Try the data proxy first (has service-role access).
@@ -1155,4 +1062,4 @@ export async function supabaseGetDatabaseSummary(): Promise<DatabaseSummary> {
   return { counts: (res.counts ?? {}) as Record<string, number> };
 }
 
-export { useSupabaseData, supabasePublicUrl, nowIso };
+export { isSupabaseDataEnabled, supabasePublicUrl, nowIso };

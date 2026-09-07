@@ -646,14 +646,14 @@ export default function PropertiesPage() {
   );
 
   return (
-    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-12 md:pt-14">
+    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-12 md:pt-14 lg:bg-gray-50">
       <div
         ref={toolbarRef}
         className={`fixed inset-x-0 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg transition-all duration-300 ${
           navbarHidden ? 'top-0' : 'top-12 md:top-14'
         }`}
       >
-        <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+        <div className="mx-auto flex w-full items-center gap-1.5 px-4 py-2 sm:gap-2 sm:px-6 md:px-8 lg:max-w-[1400px] lg:px-12 xl:px-16">
           {/* The search bar IS the input — suggestions expand beneath it.
               Entire bar (input + chips + button) sits inside toolbarRef, so
               taps while typing can never dismiss the dropdown. */}
@@ -877,25 +877,91 @@ export default function PropertiesPage() {
       <AnimatePresence>{sortOpen && isMobile && sortSheet}</AnimatePresence>
 
       {/* Listings */}
-      <div ref={listingsRef} className="w-full scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:px-12 xl:px-16">
+      <div ref={listingsRef} className="w-full scroll-mt-24 px-4 py-6 sm:px-6 md:px-8 lg:max-w-[1400px] lg:mx-auto lg:px-12 xl:px-16">
         <div className="flex gap-6 lg:items-start">
           <aside className="hidden lg:block w-72 shrink-0 sticky top-24 max-h-[calc(100vh-5rem)] overflow-y-auto rounded-3xl border border-gray-100 bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-            <p className="properties-toolbar-heading mb-4 text-sm font-medium text-black">Filters</p>
+            <div className="mb-5 flex items-center justify-between border-b border-gray-100 pb-4">
+              <p className="properties-toolbar-heading text-sm font-medium text-black">Filters</p>
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="text-[11px] font-semibold uppercase tracking-[0.12em] text-gray-400 transition hover:text-[#C9A84C]"
+              >
+                Clear All
+              </button>
+            </div>
             {filtersPanelContent}
+            <div className="prop-filter-section mt-4 sm:mt-5">
+              <h3 className="prop-filter-section-title">Sort By</h3>
+              <div className="space-y-1">
+                {(Object.keys(SORT_LABELS) as SortOption[]).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setSortBy(option)}
+                    className={`flex w-full items-center justify-between rounded-xl px-3.5 py-2.5 text-left text-[13px] font-medium transition ${
+                      sortBy === option
+                        ? 'bg-[#0A1628] text-white shadow-[0_4px_14px_-4px_rgba(10,22,40,0.4)]'
+                        : 'text-gray-600 hover:text-[#0A1628]'
+                    }`}
+                  >
+                    {SORT_LABELS[option]}
+                    {sortBy === option && <Check size={14} />}
+                  </button>
+                ))}
+              </div>
+            </div>
           </aside>
 
           <main className="min-w-0 flex-1">
+        {/* Desktop results header — housing.com style count + sort summary */}
+        <div className="mb-4 hidden items-end justify-between lg:flex">
+          <div>
+            <h1 className="properties-toolbar-heading text-2xl font-medium text-black">
+              Rental Income Properties
+            </h1>
+            <p className="mt-1 text-[13px] text-gray-500">
+              {loading
+                ? 'Loading properties…'
+                : `${filteredProperties.length} ${filteredProperties.length === 1 ? 'property' : 'properties'} available in Bangalore`}
+            </p>
+          </div>
+          <p className="text-[13px] text-gray-400">{SORT_LABELS[sortBy]}</p>
+        </div>
+
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4 }}
-          className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+          className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:hidden"
         >
           <p className="text-[12px] text-gray-400">{SORT_LABELS[sortBy]}</p>
         </motion.div>
 
+        {/* Desktop active-filter chips */}
+        {activeFilterChips.length > 0 && (
+          <div className="mb-4 hidden flex-wrap gap-2 lg:flex">
+            {activeFilterChips.map((chip) => (
+              <span
+                key={chip.key}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[#0A1628] py-1.5 pl-3 pr-1.5 text-xs font-medium text-white"
+              >
+                {chip.label}
+                <button
+                  type="button"
+                  onClick={chip.onRemove}
+                  className="flex h-4 w-4 items-center justify-center rounded-full bg-white/15 transition hover:bg-white/30"
+                  aria-label={`Remove ${chip.label} filter`}
+                >
+                  <X size={9} strokeWidth={3} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
         {loading ? (
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3 lg:gap-5 xl:grid-cols-3 xl:gap-6 2xl:grid-cols-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white shadow-sm">
                 <div className="aspect-[16/9] bg-gray-200" />
@@ -925,7 +991,7 @@ export default function PropertiesPage() {
                           ({items.length})
                         </span>
                       </h2>
-                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3 lg:gap-5 xl:grid-cols-3 xl:gap-6 2xl:grid-cols-4">
                         {items.map((property, index) => (
                           <motion.div
                             key={property.id}
@@ -943,7 +1009,7 @@ export default function PropertiesPage() {
                 })}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 2xl:grid-cols-3 lg:gap-6">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3 lg:gap-5 xl:grid-cols-3 xl:gap-6 2xl:grid-cols-4">
                 {visibleProperties.map((property, index) => (
                   <motion.div
                     key={property.id}

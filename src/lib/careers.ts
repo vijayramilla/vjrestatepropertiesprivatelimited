@@ -15,7 +15,7 @@ import {
 import { db } from '@/lib/firebase';
 import { getJobShareUrl } from '@/lib/siteUrl';
 import {
-  useSupabaseData,
+  isSupabaseDataEnabled,
   subscribeSupabaseJobs,
   subscribeSupabaseApplications,
   supabaseUploadResume,
@@ -337,7 +337,7 @@ export const INITIAL_JOBS: SeedJob[] = [
 
 /** Seed the job_openings collection once on first load if it is empty. */
 export async function seedJobOpeningsIfEmpty(): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     // The SQL migration seeds an empty job_openings table from INITIAL_JOBS
     // (supabase/migrations/20260811000000_site_data_migration.sql).
     return;
@@ -367,7 +367,7 @@ function toDate(v: unknown): Date | undefined {
 }
 
 export function subscribeToJobs(cb: (jobs: JobOpening[]) => void): () => void {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     return subscribeSupabaseJobs((jobs) => cb(jobs as JobOpening[]));
   }
   const q = query(collection(db, 'job_openings'));
@@ -393,7 +393,7 @@ export function subscribeToJobs(cb: (jobs: JobOpening[]) => void): () => void {
 export function subscribeToApplications(
   cb: (apps: JobApplication[]) => void,
 ): () => void {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     return subscribeSupabaseApplications((apps) => cb(apps as JobApplication[]));
   }
   const q = query(collection(db, 'job_applications'));
@@ -562,7 +562,7 @@ export async function submitJobApplication(
   const { url: resumeUrl, fileName: resumeFileName } = await uploadResume(input.jobId, resume);
   const referenceId = makeReferenceId();
   const location = await captureApplicantLocation();
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('application.apply', {
       ...input,
       resumeUrl,
@@ -605,7 +605,7 @@ export async function appendStatusHistory(
   id: string,
   entry: StatusHistoryEntry,
 ): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const { data: row } = await (await import('./supabaseConfig')).supabaseData!
       .from('job_applications')
       .select('status_history')
@@ -639,7 +639,7 @@ export async function appendStatusHistory(
 }
 
 export async function updateApplicationRating(id: string, rating: number): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('application.update', { id, rating });
     return;
   }
@@ -647,7 +647,7 @@ export async function updateApplicationRating(id: string, rating: number): Promi
 }
 
 export async function updateApplicationNotes(id: string, adminNotes: string): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('application.update', { id, adminNotes });
     return;
   }
@@ -655,7 +655,7 @@ export async function updateApplicationNotes(id: string, adminNotes: string): Pr
 }
 
 export async function toggleApplicationViewed(id: string): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('application.update', { id, viewedByAdmin: true });
     return;
   }
@@ -665,7 +665,7 @@ export async function toggleApplicationViewed(id: string): Promise<void> {
 // ── Admin: job openings ──────────────────────────────────────────────────
 
 export async function createJobOpening(input: Omit<JobOpening, 'id'>): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('job.create', {
       title: input.title,
       department: input.department,
@@ -691,7 +691,7 @@ export async function createJobOpening(input: Omit<JobOpening, 'id'>): Promise<v
 }
 
 export async function updateJobOpening(id: string, patch: Partial<JobOpening>): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const fields: Record<string, unknown> = {};
     if (patch.title !== undefined) fields.title = patch.title;
     if (patch.department !== undefined) fields.department = patch.department;
@@ -712,7 +712,7 @@ export async function updateJobOpening(id: string, patch: Partial<JobOpening>): 
 }
 
 export async function toggleJobActive(id: string, isActive: boolean): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('job.toggleActive', { id, isActive });
     return;
   }
@@ -720,7 +720,7 @@ export async function toggleJobActive(id: string, isActive: boolean): Promise<vo
 }
 
 export async function deleteJobOpening(id: string): Promise<void> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     await callDataProxy('job.delete', { id });
     return;
   }

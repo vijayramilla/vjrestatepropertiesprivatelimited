@@ -2,7 +2,7 @@ import { collection, getDocs, type DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { normalizePropertyRecord } from '@/lib/propertyFilters';
 import { getCreatedAtMs } from '@/lib/firestoreHelpers';
-import { useSupabaseData, supabaseFetchAllProperties } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, supabaseFetchAllProperties } from '@/lib/supabaseData';
 
 export interface PropertyFeedRecord extends Record<string, unknown> {
   id: string;
@@ -28,7 +28,7 @@ function slimPropertyRecord(record: DocumentData): DocumentData {
  * The feed refreshes on each page visit via stale-while-revalidate.
  */
 export async function fetchPropertyFeed(): Promise<PropertyFeedRecord[]> {
-  if (useSupabaseData()) {
+  if (isSupabaseDataEnabled()) {
     const rows = await supabaseFetchAllProperties();
     // Rows are already newest-first (ordered by created_at desc in the query).
     return rows

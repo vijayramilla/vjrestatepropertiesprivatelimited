@@ -32,7 +32,6 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Total Rooms', value: String(property.total_units) },
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
       { label: 'Facing', value: property.facing },
       { label: 'Age', value: property.age },
       { label: 'Amenities', value: property.amenities.join(', ') || '—' },
@@ -52,7 +51,6 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Rental Yield', value: property.rental_yield ? `${property.rental_yield}%` : '—' },
       { label: 'Facing', value: property.facing },
       { label: 'Age', value: property.age },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
       { label: 'Loan Eligible', value: str(extra, 'Loan Eligible', 'Yes') },
     ];
   }
@@ -66,7 +64,6 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Facing', value: property.facing },
       { label: 'Age', value: property.age },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
     ];
 
     const subtypeRows: Record<string, DetailRow[]> = {
@@ -128,7 +125,6 @@ function buildDetailRows(property: Property): DetailRow[] {
     return [
       { label: 'Road Width', value: str(extra, 'Road Width') },
       { label: 'Zone', value: str(extra, 'Zone') },
-      { label: 'BBMP Approved', value: property.bbmpApproved ? 'Yes' : 'No' },
       { label: 'Electricity', value: str(extra, 'Electricity') },
       { label: 'Water Source', value: str(extra, 'Water Source') },
       { label: 'Soil Type', value: str(extra, 'Soil Type') },
@@ -148,7 +144,7 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Crop Suitability', value: str(extra, 'Crop Suitability') },
       { label: 'Electricity', value: str(extra, 'Electricity') },
       { label: 'Distance from City', value: str(extra, 'Distance from City') },
-      { label: 'Legal Status', value: str(extra, 'Legal Status', 'Clear Title') },
+      { label: 'Legal Status', value: str(extra, 'Legal Status') },
     ];
   }
 
@@ -273,7 +269,7 @@ function groupRows(rows: DetailRow[]): { title: string; rows: DetailRow[] }[] {
     ) {
       dimensions.push(row);
     } else if (
-      ['BBMP Approved', 'Facing', 'Age', 'Loan Eligible', 'Legal Status', 'Zone', 'FSI / FAR'].includes(row.label)
+      ['Facing', 'Age', 'Loan Eligible', 'Legal Status', 'Zone', 'FSI / FAR'].includes(row.label)
     ) {
       legal.push(row);
     } else {

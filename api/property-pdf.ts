@@ -323,12 +323,6 @@ function buildFilename(title: string, id: string): string {
   return `${clean || 'Property'}-${id}.pdf`.replace(/[\\/]/g, '_');
 }
 
-function buildOrigin(req: any): string {
-  const host = req.headers?.['x-forwarded-host'] || req.headers?.host;
-  const proto = req.headers?.['x-forwarded-proto'] || 'https';
-  return host ? `${proto}://${host}` : '';
-}
-
 /* ------------------------------------------------------------------ */
 /* PDF HTML template — neutral property document, no branding          */
 /* ------------------------------------------------------------------ */
@@ -460,12 +454,8 @@ export function buildPdfHtml(fields: Fields): string {
   if (katha && katha !== 'Not Available' && katha !== '—') keyFacts.push({ k: 'Katha', v: katha });
   if (status) keyFacts.push({ k: 'Status', v: status });
 
-  const bbmp = getBool(fields, 'bbmp_approved');
   const loanEligible = getBool(fields, 'bank_loan_eligible');
-  const clearTitle = getBool(fields, 'clear_title');
-  if (bbmp !== null) keyFacts.push({ k: 'BBMP approved', v: bbmp ? 'Yes' : 'No' });
   if (loanEligible !== null) keyFacts.push({ k: 'Bank loan eligible', v: loanEligible ? 'Yes' : 'No' });
-  if (clearTitle === true) keyFacts.push({ k: 'Clear title', v: 'Yes' });
 
   // ---- Highlights / amenities / description ------------------------
   const highlights = getStringArray(fields, 'highlights').map(cleanText);

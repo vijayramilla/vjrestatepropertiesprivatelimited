@@ -57,7 +57,7 @@ export const supabaseData: SupabaseClient | null = dataLayerUsable
  * existing Firebase paths then stay in use (they are the fallback that keeps
  * the site functional instead of showing empty pages).
  */
-export function useSupabaseData(): boolean {
+export function isSupabaseDataEnabled(): boolean {
   return dataLayerUsable;
 }
 

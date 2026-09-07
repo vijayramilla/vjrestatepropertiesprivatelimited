@@ -562,7 +562,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (error) throw new Error(error.message);
       const rows = data ?? [];
       const empIds: string[] = [...new Set(rows.map((r: any) => r.assigned_employee).filter(Boolean))];
-      let empMap: Record<string, any> = {};
+      const empMap: Record<string, any> = {};
       if (empIds.length > 0) {
         const { data: emps } = await supabaseCli.from('employees').select('id,employee_id,name').in('id', empIds);
         if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
@@ -582,7 +582,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (cliErr) throw new Error(cliErr.message);
       const rows = clientRows ?? [];
       const empIds: string[] = [...new Set(rows.map((r: any) => r.assigned_employee).filter(Boolean))];
-      let empMap: Record<string, any> = {};
+      const empMap: Record<string, any> = {};
       if (empIds.length > 0) {
         const { data: emps } = await supabaseCli.from('employees').select('id,employee_id,name,designation,department,status').in('id', empIds);
         if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
@@ -1290,13 +1290,13 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (error) throw new Error(error.message);
       const rows = data ?? [];
       const empIds: string[] = [...new Set(rows.map((r: any) => r.employee_id))];
-      let empMap: Record<string, any> = {};
+      const empMap: Record<string, any> = {};
       if (empIds.length > 0) {
         const { data: emps } = await supabaseCli.from('employees').select('id,employee_id,name').in('id', empIds);
         if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
       }
       const snos: number[] = [...new Set(rows.map((r: any) => r.client_sno))];
-      let clientMap: Record<number, any> = {};
+      const clientMap: Record<number, any> = {};
       if (snos.length > 0) {
         const { data: cl } = await supabaseCli.from('crm_clients').select('sno,name,phone,status,lead_type,type,budget,location,requirements').in('sno', snos);
         if (cl) cl.forEach((c: any) => { clientMap[c.sno] = c; });
@@ -1678,7 +1678,6 @@ async function executeAction(action: string, params: any): Promise<any> {
       const empRes = await supabaseCli.from('employees').select('daily_work_hours,overtime_enabled,overtime_rate').eq('id', me.id).single();
       const dailyHours = Number(empRes?.data?.daily_work_hours ?? 8);
       const otEnabled = empRes?.data?.overtime_enabled ?? false;
-      const otRate = Number(empRes?.data?.overtime_rate ?? 1.5);
 
       // Parse check_in and check_out to compute worked minutes
       const [ciH, ciM] = String(existing.check_in).split(':').map(Number);
@@ -1828,7 +1827,7 @@ async function executeAction(action: string, params: any): Promise<any> {
         .order('check_in', { ascending: false });
       // Get employee names + shift start so the roster can flag late arrivals
       const empIds = [...new Set((clockedIn ?? []).map((r: any) => r.employee_id))];
-      let empMap: Record<string, any> = {};
+      const empMap: Record<string, any> = {};
       if (empIds.length > 0) {
         const { data: emps } = await supabaseCli.from('employees').select('id,name,employee_id,designation,department,profile_photo_url,work_start_time').in('id', empIds);
         if (emps) emps.forEach((e: any) => { empMap[e.id] = e; });
@@ -1900,7 +1899,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       // down per person without one query per employee.
       if (!empId && report.length > 0) {
         const ids = [...new Set(report.map((r: any) => r.employee_id))];
-        let empMeta: Record<string, any> = {};
+        const empMeta: Record<string, any> = {};
         try {
           const { data: emps } = await supabaseCli.from('employees').select('id,name,employee_id,designation,department,profile_photo_url').in('id', ids);
           if (emps) emps.forEach((e: any) => { empMeta[e.id] = e; });

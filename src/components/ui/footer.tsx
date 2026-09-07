@@ -43,8 +43,6 @@ const columns = [
     links: [
       { label: 'EMI Calculator', to: '/emi-calculator' },
       { label: 'Browse Bangalore Areas', to: '/properties' },
-      { label: 'Bangalore Map', to: '/bangalore-map' },
-      { label: 'Property Valuation', to: '/premium-valuation' },
       { label: 'Investment Guide', to: '/blog' },
     ],
   },

@@ -31,9 +31,7 @@ export interface FirestorePropertyDoc {
   age?: string;
   status?: string;
   featured?: boolean;
-  bbmp_approved?: boolean;
   bank_loan_eligible?: boolean;
-  clear_title?: boolean;
   katha?: string;
   highlights?: string[];
   amenities?: string[];
@@ -165,7 +163,6 @@ export function mapFirestoreToProperty(id: string, data: FirestorePropertyDoc): 
     floors: data.floor_count ?? 0,
     tenants: data.total_units ?? 0,
     occupancyPercent: data.occupancy_percent ?? 0,
-    bbmpApproved: data.bbmp_approved ?? false,
     description: data.description ?? '',
     featured: data.featured ?? false,
     createdAt: createdAt?.toISOString() ?? new Date().toISOString(),

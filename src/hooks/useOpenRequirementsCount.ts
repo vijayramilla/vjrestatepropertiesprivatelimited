@@ -1,13 +1,13 @@
 import { useEffect, useState, startTransition } from 'react';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { useSupabaseData, subscribeSupabaseOpenRequirementsCount } from '@/lib/supabaseData';
+import { isSupabaseDataEnabled, subscribeSupabaseOpenRequirementsCount } from '@/lib/supabaseData';
 
 export function useOpenRequirementsCount(): number {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (useSupabaseData()) {
+    if (isSupabaseDataEnabled()) {
       const unsub = subscribeSupabaseOpenRequirementsCount((value) =>
         startTransition(() => setCount(value)),
       );
