@@ -58,6 +58,8 @@ const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
 const CrmPayroll = lazy(() => import('./pages/crm/CrmPayroll'));
 const CrmMyBookings = lazy(() => import('./pages/crm/CrmMyBookings'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const DisclaimerPage = lazy(() => import('./pages/DisclaimerPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
 const BlogPage = lazy(() => import('./pages/BlogPage'));
 const BlogPostPage = lazy(() => import('./pages/BlogPostPage'));
 const CareersPage = lazy(() => import('./pages/CareersPage'));
@@ -100,6 +102,8 @@ function AppRoutes() {
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
+        <Route path="/disclaimer" element={<LazyPage><DisclaimerPage /></LazyPage>} />
+        <Route path="/terms" element={<LazyPage><TermsPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
         <Route path="/team" element={<LazyPage><TeamPage /></LazyPage>} />
         <Route path="/bangalore-land-investment-guide" element={<Navigate to="/properties" replace />} />

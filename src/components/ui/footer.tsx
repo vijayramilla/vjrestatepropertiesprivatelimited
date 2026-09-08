@@ -223,22 +223,15 @@ export default function Footer() {
             <span className="block sm:inline">CIN: U68100KA2025PTC209772</span>
           </p>
           <div className="flex items-center gap-5 text-[11.5px]">
-            <a
-              href={c.privacyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/45 transition-colors hover:text-[#C9A84C]"
-            >
+            <Link to="/privacy" className="text-white/45 transition-colors hover:text-[#C9A84C]">
               Privacy Policy
-            </a>
-            <a
-              href={c.termsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white/45 transition-colors hover:text-[#C9A84C]"
-            >
+            </Link>
+            <Link to="/terms" className="text-white/45 transition-colors hover:text-[#C9A84C]">
               Terms &amp; Conditions
-            </a>
+            </Link>
+            <Link to="/disclaimer" className="text-white/45 transition-colors hover:text-[#C9A84C]">
+              Disclaimer
+            </Link>
             <Link to="/properties" className="text-white/45 transition-colors hover:text-[#C9A84C]">
               Properties
             </Link>

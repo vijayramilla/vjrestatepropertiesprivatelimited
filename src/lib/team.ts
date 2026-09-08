@@ -10,13 +10,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import {
-  isSupabaseDataEnabled,
-  subscribeSupabaseTable,
   callDataProxy,
   supabaseDeleteImage,
 } from '@/lib/supabaseData';
 import { compressImageFile } from '@/utils/supabaseUploader';
-
 // ── Types ────────────────────────────────────────────────────────────────
 
 export interface TeamMember {
@@ -33,39 +30,7 @@ export interface TeamMember {
 
 export type TeamMemberInput = Omit<TeamMember, 'id' | 'createdAt'>;
 
-// ── Row mapping (Supabase) ───────────────────────────────────────────────
-
-interface TeamMemberRow {
-  id: string;
-  name?: string | null;
-  title?: string | null;
-  photo_url?: string | null;
-  is_active?: boolean | null;
-  sort_order?: number | null;
-  created_at?: string | null;
-}
-
-function mapTeamRow(r: TeamMemberRow): TeamMember {
-  return {
-    id: r.id,
-    name: r.name ?? '',
-    title: r.title ?? '',
-    photoUrl: r.photo_url ?? '',
-    isActive: r.is_active ?? true,
-    sortOrder: r.sort_order ?? 0,
-    createdAt: r.created_at ? new Date(r.created_at) : undefined,
-  };
-}
-
-function memberToRow(m: TeamMemberInput): Record<string, unknown> {
-  return {
-    name: m.name,
-    title: m.title,
-    photo_url: m.photoUrl,
-    is_active: m.isActive,
-    sort_order: m.sortOrder,
-  };
-}
+// ── Helpers ──────────────────────────────────────────────────────────────
 
 function toDate(v: unknown): Date | undefined {
   return v && typeof (v as Timestamp).toDate === 'function'
@@ -81,12 +46,13 @@ export function sortMembers(members: TeamMember[]): TeamMember[] {
   );
 }
 
+/**
+ * Team data always lives in Firestore (public read, admin-only writes —
+ * rules are deployed). Photos are stored in the Supabase `team-photos`
+ * bucket via the data proxy, which works regardless of whether the
+ * Supabase data mode is on.
+ */
 export function subscribeToTeamMembers(cb: (members: TeamMember[]) => void): () => void {
-  if (isSupabaseDataEnabled()) {
-    return subscribeSupabaseTable<TeamMemberRow>('team_members', (rows) => {
-      cb(sortMembers(rows.map(mapTeamRow)));
-    });
-  }
   const q = collection(db, 'team_members');
   return onSnapshot(
     q,
@@ -116,10 +82,6 @@ export function subscribeToTeamMembers(cb: (members: TeamMember[]) => void): () 
 
 /** Creates a member and returns its id (needed to attach a photo after). */
 export async function createTeamMember(input: TeamMemberInput): Promise<string> {
-  if (isSupabaseDataEnabled()) {
-    const res = await callDataProxy('team.create', memberToRow(input));
-    return res.id as string;
-  }
   const ref = await addDoc(collection(db, 'team_members'), {
     ...input,
     createdAt: serverTimestamp(),
@@ -128,16 +90,6 @@ export async function createTeamMember(input: TeamMemberInput): Promise<string> 
 }
 
 export async function updateTeamMember(id: string, patch: Partial<TeamMemberInput>): Promise<void> {
-  if (isSupabaseDataEnabled()) {
-    const fields: Record<string, unknown> = {};
-    if (patch.name !== undefined) fields.name = patch.name;
-    if (patch.title !== undefined) fields.title = patch.title;
-    if (patch.photoUrl !== undefined) fields.photo_url = patch.photoUrl;
-    if (patch.isActive !== undefined) fields.is_active = patch.isActive;
-    if (patch.sortOrder !== undefined) fields.sort_order = patch.sortOrder;
-    await callDataProxy('team.update', { id, ...fields });
-    return;
-  }
   await updateDoc(doc(db, 'team_members', id), patch);
 }
 
@@ -146,11 +98,7 @@ export async function toggleTeamMemberActive(id: string, isActive: boolean): Pro
 }
 
 export async function deleteTeamMember(member: TeamMember): Promise<void> {
-  if (isSupabaseDataEnabled()) {
-    await callDataProxy('team.delete', { id: member.id });
-  } else {
-    await deleteDoc(doc(db, 'team_members', member.id));
-  }
+  await deleteDoc(doc(db, 'team_members', member.id));
   // Best-effort cleanup of the photo object (no-op for external URLs).
   if (member.photoUrl) await supabaseDeleteImage(member.photoUrl);
 }

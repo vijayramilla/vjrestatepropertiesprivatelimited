@@ -38,7 +38,15 @@ ON CONFLICT (id) DO NOTHING;
 DROP POLICY IF EXISTS "storage_public_read" ON storage.objects;
 CREATE POLICY "storage_public_read" ON storage.objects
   FOR SELECT USING (
-    bucket_id IN ('property-images', 'auction-images', 'resumes', 'team-photos')
+    bucket_id IN ('property-images', 'resumes', 'team-photos')
   );
 
-ALTER PUBLICATION supabase_realtime ADD TABLE public.team_members;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime' AND tablename = 'team_members'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.team_members;
+  END IF;
+END $$;

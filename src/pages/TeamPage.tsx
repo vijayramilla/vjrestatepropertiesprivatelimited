@@ -8,6 +8,7 @@ import {
   UserCircle,
 } from '@phosphor-icons/react';
 import { subscribeToTeamMembers, type TeamMember } from '@/lib/team';
+import { subscribeToTeamPageVisible, TEAM_PAGE_DEFAULT_VISIBLE } from '@/lib/teamVisibility';
 import { setPageMeta } from '@/lib/siteMeta';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
@@ -64,6 +65,7 @@ export default function TeamPage() {
   const reduceMotion = useReducedMotion();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+  const [visible, setVisible] = useState(TEAM_PAGE_DEFAULT_VISIBLE);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,6 +80,11 @@ export default function TeamPage() {
     return () => unsub();
   }, []);
 
+  useEffect(
+    () => subscribeToTeamPageVisible(setVisible),
+    [],
+  );
+
   const scrollTo = (el: HTMLDivElement | null) => {
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -90,6 +97,29 @@ export default function TeamPage() {
     ],
     [members.length],
   );
+
+  if (!visible) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-white px-5 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#C9A84C]/10 text-[#B8953A]">
+          <Users size={32} weight="duotone" />
+        </div>
+        <h1 className="mt-5 text-2xl font-semibold text-[#0A1628] sm:text-3xl" style={{ letterSpacing: '-0.02em' }}>
+          Page not available
+        </h1>
+        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-[#5b6b7c]">
+          This page isn&apos;t publicly visible right now. If you believe this is a
+          mistake, please contact us.
+        </p>
+        <a
+          href="/"
+          className="mt-8 inline-flex min-h-[50px] items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-7 text-[12px] font-bold uppercase tracking-[0.14em] text-white transition-all hover:bg-[#1a2f4e] active:scale-[0.98]"
+        >
+          Back to Home
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white">

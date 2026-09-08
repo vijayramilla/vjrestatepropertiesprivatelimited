@@ -47,6 +47,7 @@ export default function AdminAgents() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState<string | null>(null);
   const [perms, setPerms] = useState<string[] | null>(null);
+  const [formError, setFormError] = useState('');
 
   const canEdit = perms === null || perms.length === 0 || perms.includes('agents.edit');
 
@@ -109,18 +110,21 @@ export default function AdminAgents() {
   function openAdd() {
     setEditAgent(null);
     setForm({ name: '', email: '', phone: '' });
+    setFormError('');
     setModalOpen(true);
   }
 
   function openEdit(agent: Agent) {
     setEditAgent(agent);
     setForm({ name: agent.name, email: agent.email, phone: agent.phone ?? '' });
+    setFormError('');
     setModalOpen(true);
   }
 
   async function handleSave() {
     if (!form.name.trim()) return;
     setSaving(true);
+    setFormError('');
     try {
       if (editAgent) {
         await leadSupabase.agents.update(editAgent._id, form);
@@ -132,7 +136,9 @@ export default function AdminAgents() {
       setForm({ name: '', email: '', phone: '' });
       await fetchData();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Failed to save agent:', err);
+      setFormError(msg || 'Could not save the agent. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -350,6 +356,9 @@ export default function AdminAgents() {
               <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone number" type="tel"
                 className="w-full h-10 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
             </div>
+            {formError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] text-red-700">{formError}</div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setModalOpen(false)}
                 className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">Cancel</button>

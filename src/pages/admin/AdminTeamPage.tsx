@@ -13,10 +13,13 @@ import {
   NotePencil,
   Plus,
   Users,
+  Eye,
+  EyeSlash,
   X,
   UploadSimple,
   WarningCircle,
 } from '@phosphor-icons/react';
+import PhotoCropModal from '@/components/admin/PhotoCropModal';
 import {
   subscribeToTeamMembers,
   createTeamMember,
@@ -27,6 +30,11 @@ import {
   type TeamMember,
   type TeamMemberInput,
 } from '@/lib/team';
+import {
+  subscribeToTeamPageVisible,
+  setTeamPageVisible,
+  TEAM_PAGE_DEFAULT_VISIBLE,
+} from '@/lib/teamVisibility';
 
 const inputCls =
   'min-h-[44px] w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-black outline-none transition-all placeholder:text-gray-400 focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/20';
@@ -74,12 +82,14 @@ function MemberFormModal({
   const [photoError, setPhotoError] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [cropOpen, setCropOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setError('');
     setPhotoError('');
     setPhotoFile(null);
+    setCropOpen(false);
     setPhotoPreview(editing?.photoUrl ?? '');
     setForm(
       editing
@@ -90,6 +100,7 @@ function MemberFormModal({
 
   const pickPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
+    e.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setPhotoError('Photo must be an image (JPG, PNG or WebP)');
@@ -100,8 +111,15 @@ function MemberFormModal({
       return;
     }
     setPhotoError('');
-    setPhotoFile(file);
     setPhotoPreview(URL.createObjectURL(file));
+    setCropOpen(true);
+  };
+
+  const handleCropConfirm = (blob: Blob) => {
+    const cropped = new File([blob], 'team-photo.jpg', { type: 'image/jpeg' });
+    setPhotoFile(cropped);
+    setPhotoPreview(URL.createObjectURL(blob));
+    setCropOpen(false);
   };
 
   const clearPhoto = () => {
@@ -140,13 +158,15 @@ function MemberFormModal({
       onClose();
     } catch (err) {
       console.error('Save team member error:', err);
-      setError('Could not save the team member. Please try again.');
+      const msg = err instanceof Error && err.message ? err.message : '';
+      setError(msg ? `Could not save: ${msg}` : 'Could not save the team member. Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <motion.div
@@ -270,13 +290,22 @@ function MemberFormModal({
               <button type="button" onClick={handleSave} disabled={saving} className="admin-btn-primary flex-1 disabled:opacity-50">
                 {saving ? 'Saving…' : editing ? 'Save Changes' : 'Add Member'}
               </button>
-            </div>
-          </motion.div>
+            </div>          </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+
+    {/* ── Photo crop editor ── */}
+    <PhotoCropModal
+      open={cropOpen}
+      src={photoPreview}
+      onCancel={() => setCropOpen(false)}
+      onConfirm={handleCropConfirm}
+    />
+    </>
   );
 }
+
 
 // ── Main page ───────────────────────────────────────────────────────────
 
@@ -287,6 +316,9 @@ export default function AdminTeamPage() {
   const [editing, setEditing] = useState<TeamMember | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [pageVisible, setPageVisible] = useState(TEAM_PAGE_DEFAULT_VISIBLE);
+  const [togglingVisibility, setTogglingVisibility] = useState(false);
+  const [visibilityError, setVisibilityError] = useState('');
 
   useEffect(() => {
     const unsub = subscribeToTeamMembers((list) => {
@@ -295,6 +327,25 @@ export default function AdminTeamPage() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(
+    () => subscribeToTeamPageVisible(setPageVisible),
+    [],
+  );
+
+  const handleToggleVisibility = async () => {
+    setTogglingVisibility(true);
+    setVisibilityError('');
+    try {
+      await setTeamPageVisible(!pageVisible);
+    } catch (err) {
+      console.error('Toggle team page visibility error:', err);
+      const msg = err instanceof Error && err.message ? err.message : '';
+      setVisibilityError(msg || 'Could not update visibility. Please try again.');
+    } finally {
+      setTogglingVisibility(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -328,6 +379,44 @@ export default function AdminTeamPage() {
             Add Team Member
           </button>
         </div>
+
+        {/* ── Public visibility toggle ── */}
+        <div className="admin-card mb-6 flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#C9A84C]/10 text-[#B8953A]">
+              {pageVisible ? <Eye size={20} weight="duotone" /> : <EyeSlash size={20} weight="duotone" />}
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[15px] font-semibold text-black">Team Page Visibility</p>
+                <AdminBadge variant={pageVisible ? 'success' : 'muted'}>
+                  {pageVisible ? 'Public' : 'Hidden'}
+                </AdminBadge>
+              </div>
+              <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
+                {pageVisible
+                  ? 'The /team page is live for every visitor.'
+                  : 'Visitors see a "page not available" notice instead of the team page.'}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={pageVisible}
+            aria-label="Toggle public visibility of the team page"
+            onClick={handleToggleVisibility}
+            disabled={togglingVisibility}
+            className={`relative h-6 w-11 shrink-0 self-start rounded-full transition-colors disabled:opacity-60 sm:self-auto ${pageVisible ? 'bg-[#0A1628]' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute top-0.5 block h-5 w-5 rounded-full bg-white shadow transition-transform ${pageVisible ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+        {visibilityError && (
+          <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700" role="alert">
+            {visibilityError}
+          </div>
+        )}
 
         {loading ? (
           <AdminSkeletonList count={3} />

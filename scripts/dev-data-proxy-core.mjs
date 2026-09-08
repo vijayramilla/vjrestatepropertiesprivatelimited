@@ -642,9 +642,10 @@ async function executeAction(action, params) {
     // ── Team members ────────────────────────────────────────────────────
     case 'team.create': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { _auth: _a, _ip: _i, ...memberFields } = params;
       const { data, error } = await supabaseAdmin
         .from('team_members')
-        .insert(params)
+        .insert(memberFields)
         .select('id')
         .single();
       if (error) throw new Error(error.message);
@@ -653,7 +654,7 @@ async function executeAction(action, params) {
 
     case 'team.update': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { id, ...fields } = params;
+      const { id, _auth: _a, _ip: _i, ...fields } = params;
       const { error } = await supabaseAdmin.from('team_members').update(fields).eq('id', id);
       if (error) throw new Error(error.message);
       return { id };

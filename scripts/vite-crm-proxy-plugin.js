@@ -1752,13 +1752,14 @@ async function executeAction(action, params) {
     case 'team.create': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       const memberId = crypto.randomUUID();
-      await supabaseFetch('POST', 'team_members', { id: memberId, ...params });
+      const { _auth: _ta, _ip: _ti, ...tmFields } = params;
+      await supabaseFetch('POST', 'team_members', { id: memberId, ...tmFields });
       return { id: memberId };
     }
     case 'team.update': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const { id: _tmId, ...tmFields } = params;
-      await supabaseFetch('PATCH', `team_members?id=eq.${encodeURIComponent(_tmId)}`, tmFields);
+      const { id: _tmId, _auth: _tua, _ip: _tui, ...tmUpdFields } = params;
+      await supabaseFetch('PATCH', `team_members?id=eq.${encodeURIComponent(_tmId)}`, tmUpdFields);
       return { id: _tmId };
     }
     case 'team.delete': {
