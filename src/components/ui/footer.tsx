@@ -21,6 +21,7 @@ const columns = [
     title: 'Properties',
     links: [
       { label: 'All Properties', to: '/properties' },
+      { label: 'Quick Pick', to: '/quick-pick' },
       { label: 'PG Buildings', to: '/properties?type=PG%20Buildings' },
       { label: 'Residential Rentals', to: '/properties?type=Residential%20Rental%20Income' },
       { label: 'Commercial Income', to: '/properties?type=Commercial%20Properties' },

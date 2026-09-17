@@ -1,15 +1,9 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { motion } from 'framer-motion';
-import { Calendar } from '@/components/ui/calendar';
+import { AppleCalendarPicker, type DateTimeSelection } from '@/components/ui/apple-calendar-picker';
 import { Button } from '@/components/ui/button';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
-
-export const VISIT_TIME_SLOTS = [
-  '10:00 AM – 12:00 PM',
-  '2:00 PM – 4:00 PM',
-  '5:00 PM – 7:00 PM',
-] as const;
 
 export interface BookVisitProperty {
   id: string;
@@ -33,8 +27,10 @@ export default function BookVisitCalendar({
   source = 'detail',
   onClose,
 }: BookVisitCalendarProps) {
-  const [date, setDate] = useState<Date | undefined>();
-  const [timeSlot, setTimeSlot] = useState<string>('');
+  const [visit, setVisit] = useState<DateTimeSelection>({
+    date: new Date(),
+    time: '10:00 AM',
+  });
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
   const [contactError, setContactError] = useState('');
@@ -51,7 +47,7 @@ export default function BookVisitCalendar({
   }, []);
 
   const handleConfirm = async () => {
-    if (!date || !timeSlot) return;
+    if (!visit) return;
     if (!buyerName.trim()) {
       setContactError('Please enter your name');
       return;
@@ -64,7 +60,7 @@ export default function BookVisitCalendar({
     setContactError('');
     setSubmitting(true);
     try {
-      const visitDate = format(date, 'PPP');
+      const visitDate = format(visit.date, 'PPP');
       await openWhatsAppPropertyEnquiry(
         {
           id: property.id,
@@ -78,7 +74,7 @@ export default function BookVisitCalendar({
         },
         {
           visitDate,
-          visitTime: timeSlot,
+          visitTime: visit.time,
           source,
           leadType: 'book_visit',
           buyerName: buyerName.trim(),
@@ -115,38 +111,29 @@ export default function BookVisitCalendar({
 
       <div className="px-4 pt-4 pb-2">
         <p className="mb-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#888]">
-          Select date
+          Select date & time
         </p>
       </div>
-      <div className="flex justify-center px-2">
-        <Calendar
-          mode="single"
-          selected={date}
-          onSelect={setDate}
-          disabled={{ before: new Date() }}
-          className="rounded-lg border border-[#e8e8e8]"
+      <div className="flex justify-center px-2 pb-2">
+        <AppleCalendarPicker
+          initialDate={visit.date}
+          minDate={new Date()}
+          onDateTimeSelect={setVisit}
         />
       </div>
 
-      <div className="px-4 pt-4 pb-2">
-        <p className="mb-2 font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-[#888]">
-          Select time slot
-        </p>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-          {VISIT_TIME_SLOTS.map((slot) => (
-            <button
-              key={slot}
-              type="button"
-              onClick={() => setTimeSlot(slot)}
-              className={`h-10 border font-sans text-[11px] transition-colors ${
-                timeSlot === slot
-                  ? 'border-black bg-black text-white'
-                  : 'border-[#e8e8e8] bg-white text-[#444] hover:border-[#ccc]'
-              }`}
-            >
-              {slot}
-            </button>
-          ))}
+      {/* Selection summary */}
+      <div className="px-4 pb-2">
+        <div className="flex items-center justify-between border border-[#e8e8e8] px-3 py-2.5">
+          <div>
+            <p className="font-sans text-[9px] font-semibold uppercase tracking-[0.14em] text-[#888]">
+              Visit scheduled
+            </p>
+            <p className="mt-0.5 font-sans text-[13px] font-medium text-black">
+              {format(visit.date, 'EEEE, d MMM yyyy')}
+            </p>
+          </div>
+          <p className="font-numeric text-[13px] font-semibold text-[#C9A84C]">{visit.time}</p>
         </div>
       </div>
 
@@ -189,7 +176,7 @@ export default function BookVisitCalendar({
         <Button
           type="button"
           onClick={handleConfirm}
-          disabled={!date || !timeSlot || !buyerName.trim() || buyerPhone.length < 10 || submitting}
+          disabled={!visit || !buyerName.trim() || buyerPhone.length < 10 || submitting}
           className="h-[46px] w-full rounded-lg bg-black text-[12px] uppercase tracking-[0.1em] text-white hover:bg-[#222]"
         >
           {submitting ? 'Confirming...' : 'Confirm & Continue on WhatsApp'}

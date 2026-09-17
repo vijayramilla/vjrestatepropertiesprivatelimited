@@ -1207,7 +1207,7 @@ export default function CareersPage() {
               <p className="mt-4 text-lg font-semibold text-[#0A1628]">No open roles right now</p>
               <p className="mt-2 text-sm text-[#7c8a9a]">
                 Send your resume to{' '}
-                <a href="mailto:careers@vjrestate.com" className="font-semibold text-[#0A1628] underline underline-offset-2 hover:text-[#B8953A]">
+                <a href="mailto:careers@vjrestate.com" className="font-semibold text-[#0A1628] transition-colors hover:text-[#B8953A]">
                   careers@vjrestate.com
                 </a>{' '}
                 — we&apos;ll reach out when a role opens.
@@ -1225,7 +1225,7 @@ export default function CareersPage() {
 
           <p className="mt-12 text-center text-sm text-[#8a97a8]">
             Don&apos;t see the right fit? Email us at{' '}
-            <a href="mailto:careers@vjrestate.com" className="font-semibold text-[#0A1628] underline underline-offset-2 hover:text-[#B8953A]">
+            <a href="mailto:careers@vjrestate.com" className="font-semibold text-[#0A1628] transition-colors hover:text-[#B8953A]">
               careers@vjrestate.com
             </a>
           </p>

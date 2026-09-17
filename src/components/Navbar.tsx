@@ -12,12 +12,15 @@ import {
   SquaresFour,
 
   Buildings,
+  PlusCircle,
   Briefcase,
   Users,
+  HandSwipeRight,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import { usePropertyAccess } from '@/lib/propertyAccess';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 import LazyImage from './common/LazyImage';
@@ -25,6 +28,7 @@ import LazyImage from './common/LazyImage';
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
 const profileLinks = [
+  { label: 'Quick Pick', path: '/quick-pick', Icon: HandSwipeRight },
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
 
   { label: 'About Us', path: '/about', Icon: Info },
@@ -81,6 +85,7 @@ export default function Navbar() {
   const { shortlistedIds } = useShortlist();
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut, clearError } = useAuth();
   const { showLocationModal } = useLocationPermission();
+  const { canAdd: canAddProperty } = usePropertyAccess();
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
@@ -361,6 +366,20 @@ export default function Navbar() {
                   {label}
                 </Link>
               ))}
+
+              {/* Invite-only entry point: visible only to accounts the admin
+                  has granted Add Property access. */}
+              {canAddProperty && (
+                <Link
+                  to="/list-property"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <PlusCircle size={15} weight="thin" color="#aaaaaa" />
+                  List Property
+                </Link>
+              )}
 
               {showAdminDashboard && (
                 <>

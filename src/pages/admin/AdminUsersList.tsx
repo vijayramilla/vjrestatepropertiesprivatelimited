@@ -6,7 +6,7 @@ import { isSupabaseDataEnabled, subscribeSupabaseUsers, callDataProxy } from '@/
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { motion } from 'framer-motion';
-import { Check, MapPin, Circle } from '@phosphor-icons/react';
+import { Check, MapPin, Circle, Buildings } from '@phosphor-icons/react';
 import { isUserActive, formatLocation, getLocationCoords, getLocationIp, type StoredLocation } from '@/lib/userTracking';
 
 interface LoginHistoryEntry {
@@ -28,6 +28,7 @@ interface User {
   createdAt?: string;
   suspended: boolean;
   loginCount: number;
+  canAddProperty: boolean;
   location?: StoredLocation;
   gpsLocation?: StoredLocation;
   loginHistory?: LoginHistoryEntry[];
@@ -106,6 +107,7 @@ export default function AdminUsersList() {
             createdAt: data.createdAt || 'Unknown',
             suspended: data.suspended || false,
             loginCount: data.loginCount || 0,
+            canAddProperty: data.canAddProperty ?? false,
             location: data.location ?? data.gpsLocation ?? data.ipLocation,
             gpsLocation: data.gpsLocation,
             loginHistory: data.loginHistory,
@@ -134,11 +136,12 @@ export default function AdminUsersList() {
               lastLogin: data.lastLogin || 'Never',
               lastSeen: data.lastSeen || data.lastLogin || 'Never',
               createdAt: data.createdAt || 'Unknown',
-              suspended: data.suspended || false,
-              loginCount: data.loginCount || 0,
-              // location > gps > ip: users with only IP-based login tracking
-              // (never granted GPS) still show their city instead of "Unknown".
-              location: data.location ?? data.gpsLocation ?? data.ipLocation,
+            suspended: data.suspended || false,
+            loginCount: data.loginCount || 0,
+            canAddProperty: data.canAddProperty ?? false,
+            // location > gps > ip: users with only IP-based login tracking
+            // (never granted GPS) still show their city instead of "Unknown".
+            location: data.location ?? data.gpsLocation ?? data.ipLocation,
               gpsLocation: data.gpsLocation,
               loginHistory: data.loginHistory,
             });
@@ -219,6 +222,24 @@ export default function AdminUsersList() {
     } catch (err) {
       console.error('Error unsuspending user:', err);
       alert('Failed to unsuspend user. Deploy Firestore rules with: npm run deploy:rules');
+    }
+  };
+
+  // Grant or revoke the Add Property permission. Firestore-mode is not
+  // supported — the flag lives in the Supabase users table via the proxy.
+  const handleTogglePropertyAccess = async (user: User) => {
+    const next = !user.canAddProperty;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === user.id ? { ...u, canAddProperty: next } : u)),
+    );
+    try {
+      await callDataProxy('user.access', { uid: user.id, canAddProperty: next });
+    } catch (err) {
+      console.error('Error updating property access:', err);
+      setUsers((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, canAddProperty: !next } : u)),
+      );
+      alert('Failed to update property access. Is the data proxy deployed?');
     }
   };
 
@@ -349,6 +370,20 @@ export default function AdminUsersList() {
                       >
                         {user.suspended ? 'Suspended' : 'Active'}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => handleTogglePropertyAccess(user)}
+                        className={`flex min-h-[44px] items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                          user.canAddProperty
+                            ? 'bg-[#C9A84C]/15 text-[#96782A] hover:bg-[#C9A84C]/25'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        <Buildings size={16} />
+                        {user.canAddProperty ? 'Property Access: On' : 'Grant Property Access'}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center justify-end">
                       {user.suspended ? (
                         <button
                           type="button"
@@ -384,6 +419,7 @@ export default function AdminUsersList() {
                         'Logins',
                         'Last Login',
                         'Last Seen',
+                        'Property Access',
                         'Status',
                         'Actions',
                       ].map((h) => (
@@ -448,6 +484,26 @@ export default function AdminUsersList() {
                               )}
                               {formatDateTime(user.lastSeen)}
                             </div>
+                          </td>
+                          <td className="px-4 py-4 lg:px-6">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePropertyAccess(user)}
+                              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                user.canAddProperty
+                                  ? 'bg-[#C9A84C]/15 text-[#96782A] hover:bg-[#C9A84C]/25'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+                              }`}
+                            >
+                              {user.canAddProperty ? (
+                                <>
+                                  <Buildings size={14} weight="fill" />
+                                  Add Property
+                                </>
+                              ) : (
+                                'None — Grant'
+                              )}
+                            </button>
                           </td>
                           <td className="px-4 py-4 lg:px-6">
                             <span

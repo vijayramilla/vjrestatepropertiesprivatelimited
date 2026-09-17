@@ -17,6 +17,8 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
 const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
 const ShortlistPage = lazy(() => import('./pages/ShortlistPage'));
+const QuickPickPage = lazy(() => import('./pages/QuickPickPage'));
+const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage'));
@@ -96,6 +98,8 @@ function AppRoutes() {
         <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
         <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
+        <Route path="/quick-pick" element={<LazyPage><QuickPickPage /></LazyPage>} />
+        <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />

@@ -238,20 +238,51 @@ export default function AdminPropertyForm() {
     agent_id: '',
     agent_name: '',
   });
-  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);  const [agents, setAgents] = useState<any[]>([]);
-  const [agentsLoading, setAgentsLoading] = useState(false);
+  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
+  const [agents, setAgents] = useState<any[]>([]);
+  const [agentsLoading, setAgentsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    leadSupabase.employees
-      .list({ status: 'Active' })
-      .then((res: any) => {
+    // Merge both agent sources so the dropdown is never empty: CRM agents
+    // (added via the Agents section) plus Channel Partner employees. Falls
+    // back to all active employees if the designation filter comes up empty.
+    const loadAgents = async () => {
+      try {
+        const [agRes, empRes] = await Promise.all([
+          leadSupabase.agents.list().catch(() => ({ data: [] as any[] })),
+          leadSupabase.employees.list({ status: 'Active' }).catch(() => ({ data: [] as any[] })),
+        ]);
         if (cancelled) return;
-        const channel = (res.data ?? []).filter((e: any) => e.designation === 'Channel Partner');
-        setAgents(channel);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setAgentsLoading(false); });
+        const crmAgents: any[] = (agRes.data ?? []).map((a: any) => ({
+          key: `agent:${a._id}`,
+          source: 'agent' as const,
+          id: a._id,
+          name: a.name,
+          email: a.email ?? '',
+          phone: a.phone ?? '',
+          active: a.active ?? true,
+        }));
+        const employees: any[] = (empRes.data ?? []).map((e: any) => ({
+          key: `employee:${e.id}`,
+          source: 'employee' as const,
+          id: e.employee_id ?? e.id,
+          name: e.name,
+          email: e.email ?? '',
+          phone: e.phone ?? '',
+          active: (e.status ?? 'Active') === 'Active',
+          designation: e.designation ?? '',
+        }));
+        const cpEmployees = employees.filter((e) => e.designation === 'Channel Partner');
+        const partnerList = cpEmployees.length > 0 ? cpEmployees : employees;
+        setAgents([...crmAgents.filter((a) => a.active), ...partnerList]);
+      } catch {
+        if (!cancelled) setAgents([]);
+      } finally {
+        if (!cancelled) setAgentsLoading(false);
+      }
+    };
+    void loadAgents();
     return () => { cancelled = true; };
   }, []);
 
@@ -1678,12 +1709,12 @@ export default function AdminPropertyForm() {
               {formData.listed_by === 'Agent' ? (
                 <div>
                   <label className="block font-sans text-xs text-gray-500 mb-2">
-                    Channel Partner Agent
+                    Select Agent
                   </label>
                   <select
                     value={formData.agent_id ?? ''}
                     onChange={(e) => {
-                      const agent = agents.find((a) => a.employee_id === e.target.value);
+                      const agent = agents.find((a) => String(a.id) === e.target.value);
                       updateFormData('agent_id', e.target.value);
                       updateFormData('agent_name', agent?.name ?? '');
                     }}
@@ -1691,13 +1722,19 @@ export default function AdminPropertyForm() {
                   >
                     <option value="">Select agent</option>
                     {agents.map((a) => (
-                      <option key={a.employee_id} value={a.employee_id}>
-                        {a.name} (CP ID: {a.employee_id})
+                      <option key={a.key} value={String(a.id)}>
+                        {a.name}
+                        {a.source === 'employee' && a.id ? ` (CP ID: ${a.id})` : ''}
                       </option>
                     ))}
                   </select>
                   {agentsLoading && (
                     <p className="mt-1 text-[11px] text-gray-400">Loading agents...</p>
+                  )}
+                  {!agentsLoading && agents.length === 0 && (
+                    <p className="mt-1 text-[11px] text-gray-400">
+                      No agents yet — add one in the CRM Agents section.
+                    </p>
                   )}
                 </div>
               ) : (

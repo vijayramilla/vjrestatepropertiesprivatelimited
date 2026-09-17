@@ -11,6 +11,7 @@ import type { AreaUnit } from '@/lib/plotLandForm';
 import { KARNATAKA_KATHA_GROUPS, KARNATAKA_KATHA_CUSTOM_VALUE, findKathaOption } from '@/data/karnatakaKathas';
 import { useAuth } from '@/context/AuthContext';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
+import { usePropertyAccess } from '@/lib/propertyAccess';
 import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
 import type { LandLocationValue } from '@/lib/mapGeocoding';
 import { enhanceDescription } from '@/utils/aiDescription';
@@ -59,6 +60,9 @@ export default function ListPropertyPage() {
   const [descError, setDescError] = useState('');
   const { user, loading: authLoading, signInWithGoogle } = useAuth();
   const { isLoaded: mapsLoaded, requestMaps } = useGoogleMapsLoader();
+  // Listing is permission-gated: only users granted Add Property access by
+  // an admin (plus admins themselves) can submit.
+  const { loading: accessLoading, canAdd: canAddProperty } = usePropertyAccess();
 
   // Maps SDK is deferred app-wide; this page hosts a genuine map surface,
   // so request it as soon as the page mounts.
@@ -176,6 +180,7 @@ export default function ListPropertyPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) { setShowSignIn(true); return; }
+    if (!canAddProperty) { setToast('Your account does not have Add Property access. Contact VJR Estate.'); return; }
     
     // Validation
     const errors: string[] = [];
@@ -364,6 +369,26 @@ export default function ListPropertyPage() {
             </div>
           )}
 
+          {!accessLoading && !canAddProperty ? (
+            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
+              <p className="text-sm font-semibold text-amber-900">Add Property access required</p>
+              <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-amber-800">
+                Listing properties on VJR Estate is invite-only. Ask the VJR Estate team to
+                enable Add Property for your account, then sign in with the same Google
+                account and reload this page.
+              </p>
+              {!user && (
+                <button
+                  type="button"
+                  onClick={async () => { try { await signInWithGoogle(); } catch (e) { console.warn('Sign-in cancelled or failed:', e); } }}
+                  disabled={authLoading}
+                  className="mt-5 inline-flex items-center gap-3 rounded-xl border-2 border-amber-200 bg-white px-6 py-3 text-sm font-semibold text-amber-900 shadow-sm transition-all hover:bg-amber-50 active:scale-[0.97] disabled:opacity-50"
+                >
+                  {authLoading ? 'Signing in...' : 'Sign in to check access'}
+                </button>
+              )}
+            </div>
+          ) : (
           <form onSubmit={handleSubmit} className="mt-10 space-y-5">
             <div className="rounded-2xl border border-gray-200/70 bg-white shadow-sm p-7 sm:p-8 space-y-7">
               <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
@@ -787,6 +812,7 @@ export default function ListPropertyPage() {
               </div>
             )}
           </form>
+          )}
           </>
           )}
         </div>

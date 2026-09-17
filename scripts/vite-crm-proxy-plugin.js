@@ -1537,6 +1537,11 @@ async function executeAction(action, params) {
       console.log('[property.create] auth:', JSON.stringify(params._auth));
       if (!params._auth?.authorized) throw new Error('Forbidden');
       if (!isAdmin(params._auth) && params.uid !== params._auth.uid) throw new Error('Forbidden');
+      // Invite-only listing: non-admins need the admin-granted flag.
+      if (!isAdmin(params._auth)) {
+        const { data: acc } = await supabaseFetch('GET', `users?uid=eq.${encodeURIComponent(params._auth.uid)}&select=can_add_property`);
+        if (acc?.[0]?.can_add_property !== true) throw new Error('Add Property access not granted for this account');
+      }
       const { uid: _uid, _auth: _a1, _ip: _ip1, _public: _pub1, ...raw } = params;
       const code = await nextPropertyCode();
       const finalCode = (params.property_code ?? '').trim() || code;
@@ -1692,6 +1697,19 @@ async function executeAction(action, params) {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       await supabaseFetch('PATCH', `users?uid=eq.${encodeURIComponent(params.uid)}`, { suspended: !!params.suspended });
       return { uid: params.uid, suspended: !!params.suspended };
+    }
+
+    // ── Add-Property access grant (admin) ────────────────────────────
+    case 'user.access': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('PATCH', `users?uid=eq.${encodeURIComponent(params.uid)}`, { can_add_property: !!params.canAddProperty });
+      return { uid: params.uid, canAddProperty: !!params.canAddProperty };
+    }
+
+    case 'user.accessStatus': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const { data: uacc } = await supabaseFetch('GET', `users?uid=eq.${encodeURIComponent(params._auth.uid)}&select=can_add_property`);
+      return { canAddProperty: isAdmin(params._auth) || uacc?.[0]?.can_add_property === true };
     }
 
     // ── Lead list (admin) ─────────────────────────────────────────────

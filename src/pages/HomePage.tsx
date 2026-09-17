@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { motion, useScroll, useSpring, useReducedMotion } from 'framer-motion';
 import HomeListingsSection from '../components/home/HomeListingsSection';
-import HomePropertyGrid from '../components/home/HomePropertyGrid';
+import HomePgCoverflow from '../components/home/HomePgCoverflow';
+import HarmonicWave from '../components/ui/harmonic-wave';
 import HomeSearchBar from '../components/home/HomeSearchBar';
 import HomeCategoryGrid from '../components/home/HomeCategoryGrid';
 import HomeHowItWorks from '../components/home/HomeHowItWorks';
@@ -105,7 +106,8 @@ export default function HomePage() {
 
       {/* ── Asset classes ────────────────────────────────────────────────── */}
       <HomeCategoryGrid />
-      <HomePropertyGrid />
+      <HarmonicWave />
+      <HomePgCoverflow />
       <HomeListingsSection />
       <HomeAboutVjr />
       <HomeHowItWorks />

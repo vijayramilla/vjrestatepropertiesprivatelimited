@@ -145,6 +145,12 @@ export default {
         'fade-rise': 'fade-rise 0.8s ease-out forwards',
         'fade-rise-delay': 'fade-rise 0.8s ease-out 0.2s forwards',
         'fade-rise-delay-2': 'fade-rise 0.8s ease-out 0.4s forwards',
+        'calendar-pop': 'calendar-pop 0.22s ease-out',
+      },
+      keyframes: {
+        'calendar-pop': {
+          '0%': { opacity: '0', transform: 'scale(0.96) translateY(4px)' },
+        },
       },
     },
   },

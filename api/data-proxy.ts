@@ -268,6 +268,15 @@ async function executeAction(action: string, params: any): Promise<any> {
       const isAdminCall = isAdmin(auth);
       const ownerUid = String(params.uid ?? '');
       if (!isAdminCall && ownerUid !== auth.uid) throw new Error('Forbidden');
+      // Invite-only listing: non-admins need the admin-granted flag.
+      if (!isAdminCall) {
+        const { data: acc } = await supabaseAdmin
+          .from('users')
+          .select('can_add_property')
+          .eq('uid', auth.uid)
+          .maybeSingle();
+        if (acc?.can_add_property !== true) throw new Error('Add Property access not granted for this account');
+      }
       // Persist ownership so the listing shows under the submitter's
       // account (My Listings) and in the admin Listings dashboard — this
       // mirrors the Firestore docs these rows replaced.
@@ -625,6 +634,8 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { data: data ?? [] };
     }
 
+    // ── User-facing agents for the List Property form (public reads) ──
+
     case 'user.checkSuspended': {
       if (!auth?.authorized) throw new Error('Forbidden');
       const { data, error } = await supabaseAdmin
@@ -642,6 +653,30 @@ async function executeAction(action: string, params: any): Promise<any> {
       const { error } = await supabaseAdmin.from('users').update({ suspended: !!suspended }).eq('uid', uid);
       if (error) throw new Error(error.message);
       return { uid, suspended: !!suspended };
+    }
+
+    // ── Add-Property access grant (admin) ─────────────────────────────
+    case 'user.access': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { uid, canAddProperty } = params;
+      const { error } = await supabaseAdmin
+        .from('users')
+        .update({ can_add_property: !!canAddProperty })
+        .eq('uid', uid);
+      if (error) throw new Error(error.message);
+      return { uid, canAddProperty: !!canAddProperty };
+    }
+
+    case 'user.accessStatus': {
+      if (!auth?.authorized) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('users')
+        .select('can_add_property')
+        .eq('uid', auth.uid)
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      // Super admins always have access.
+      return { canAddProperty: isAdmin(auth) || data?.can_add_property === true };
     }
 
     // ── Property leads (read: admin all, owner own) ────────────────────────

@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { isSupabaseDataEnabled, subscribeSupabaseProperties, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
+import { leadSupabase } from '@/services/leadSupabase';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -52,6 +53,8 @@ interface Property {
   uid?: string;
   userEmail?: string;
   userDisplayName?: string;
+  agent_id?: string;
+  agent_name?: string;
   createdAt?: { toDate?: () => Date };
 }
 
@@ -85,6 +88,8 @@ export default function AdminPropertiesList() {
   const [idSearch, setIdSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [agentFilter, setAgentFilter] = useState('All Agents');
+  const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
@@ -103,6 +108,17 @@ export default function AdminPropertiesList() {
   ];
 
   const supabaseMode = isSupabaseDataEnabled();
+
+  // Agent list for the filter dropdown — best-effort, filter stays usable
+  // (populated from listings themselves) if the CRM call fails.
+  useEffect(() => {
+    leadSupabase.agents
+      .list()
+      .then((res) => {
+        setAgents(res.data.map((a) => ({ id: a._id, name: a.name })));
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (supabaseMode) {
@@ -131,7 +147,12 @@ export default function AdminPropertiesList() {
         !idSearch || (p.propertyCode?.toLowerCase() ?? '').includes(idSearch.toLowerCase());
       const matchesType = typeFilter === 'All Types' || p.type === typeFilter;
       const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
-      return matchesSearch && matchesId && matchesType && matchesStatus && !p.uid;
+      const matchesAgent =
+        agentFilter === 'All Agents' ||
+        (agentFilter === 'No Agent'
+          ? !p.agent_id
+          : p.agent_id === agentFilter || (p.agent_name && p.agent_name === agentFilter));
+      return matchesSearch && matchesId && matchesType && matchesStatus && matchesAgent && !p.uid;
     })
     .sort((a, b) => {
       if (sortBy === 'Newest')
@@ -323,6 +344,17 @@ export default function AdminPropertiesList() {
               <option value="New Launch">New Launch</option>
             </select>
             <select
+              value={agentFilter}
+              onChange={(e) => setAgentFilter(e.target.value)}
+              className="admin-select sm:min-w-[140px] sm:flex-1"
+            >
+              <option value="All Agents">All Agents</option>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+              <option value="No Agent">No Agent</option>
+            </select>
+            <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="admin-select sm:min-w-[120px] sm:flex-1"
@@ -381,6 +413,11 @@ export default function AdminPropertiesList() {
                       {property.status}
                     </AdminBadge>
                   </div>
+                  {property.agent_name && (
+                    <p className="mt-2 text-xs text-[#96782A]">
+                      Agent: <span className="font-medium">{property.agent_name}</span>
+                    </p>
+                  )}
                   {property.userDisplayName && (
                     <p className="mt-2 text-xs text-gray-500">
                       Listed by <span className="font-medium text-gray-700">{property.userDisplayName}</span>
@@ -463,7 +500,9 @@ export default function AdminPropertiesList() {
                   <p className="truncate text-[11px] font-mono text-gray-500">{property.propertyCode}</p>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[#0A1628]">{property.title}</p>
-                    <p className="truncate text-[11px] text-gray-500">{property.userDisplayName || '—'}</p>
+                    <p className="truncate text-[11px] text-gray-500">
+                      {property.agent_name || property.userDisplayName || '—'}
+                    </p>
                   </div>
                   <p className="truncate text-xs text-gray-700">{property.type}</p>
                   <p className="truncate text-xs text-gray-700">{property.area}</p>

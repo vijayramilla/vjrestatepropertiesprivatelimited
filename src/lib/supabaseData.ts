@@ -509,6 +509,7 @@ function mapUserRow(r: any): any {
     displayName: r.display_name ?? '',
     photoURL: r.photo_url ?? '',
     loginCount: r.login_count ?? 0,
+    canAddProperty: r.can_add_property ?? false,
     lastLogin: r.last_login ?? undefined,
     lastSeen: r.last_seen ?? undefined,
     createdAt: r.created_at ?? undefined,
