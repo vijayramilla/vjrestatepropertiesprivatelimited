@@ -1719,6 +1719,26 @@ async function executeAction(action, params) {
       return { canAddProperty: isAdmin(params._auth) || uacc?.[0]?.can_add_property === true };
     }
 
+    // ── Agents for listing forms (any signed-in user) ─────────────────
+    case 'agents.publicList': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      const [agRes, empRes] = await Promise.all([
+        supabaseFetch('GET', 'agents?active=eq.true&select=id,name&order=name.asc'),
+        supabaseFetch('GET', `employees?designation=ilike.*agent*&status=eq.Active&select=employee_id,name&order=name.asc`),
+      ]);
+      const agentEntries = (agRes.data ?? []).map((a) => ({
+        id: a.id,
+        name: a.name,
+        source: 'agent',
+      }));
+      const empEntries = (empRes.data ?? []).map((e) => ({
+        id: e.employee_id,
+        name: e.name,
+        source: 'employee',
+      }));
+      return { data: [...agentEntries, ...empEntries] };
+    }
+
     // ── Lead list (admin) ─────────────────────────────────────────────
     case 'lead.list': {
       if (!params._auth?.authorized) throw new Error('Forbidden');

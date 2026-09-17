@@ -8,6 +8,7 @@ import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsCon
 import { PropertyAccessProvider } from './lib/propertyAccess';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
+import AnyAdminRoute from './components/AnyAdminRoute';
 import CrmRoute from './components/CrmRoute';
 import EmployeeRoute from './components/EmployeeRoute';
 import PageLoader from './components/PageLoader';
@@ -122,12 +123,14 @@ function AppRoutes() {
       <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
       <Route path="/employee-login" element={<LazyPage><EmployeeLogin /></LazyPage>} />
       <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
+      {/* Granted users (can_add_property) share these two routes with full
+          admins — each page picks its own chrome based on access level. */}
       <Route
         path="/admin/properties"
         element={
-          <AdminRoute>
+          <AnyAdminRoute>
             <LazyPage><AdminPropertiesList /></LazyPage>
-          </AdminRoute>
+          </AnyAdminRoute>
         }
       />
       <Route
@@ -173,9 +176,9 @@ function AppRoutes() {
       <Route
         path="/admin/properties/new"
         element={
-          <AdminRoute>
+          <AnyAdminRoute>
             <LazyPage><AdminPropertyForm /></LazyPage>
-          </AdminRoute>
+          </AnyAdminRoute>
         }
       />
       <Route

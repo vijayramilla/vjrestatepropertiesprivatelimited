@@ -9,9 +9,14 @@ import {
   query,
   orderBy,
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { isSupabaseDataEnabled, subscribeSupabaseProperties, callDataProxy, deletePropertyAcrossStores } from '@/lib/supabaseData';
 import { leadSupabase } from '@/services/leadSupabase';
+import { useAuth } from '@/context/AuthContext';
+import { usePropertyAccess } from '@/lib/propertyAccess';
+import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import GrantedUserAdminLayout from '@/components/GrantedUserAdminLayout';
 import AdminLayout from '@/components/admin/AdminLayout';
 import {
   AdminEmptyState,
@@ -82,6 +87,9 @@ function FeaturedToggle({
 
 export default function AdminPropertiesList() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { canAdd: canAddProperty } = usePropertyAccess();
+  const [isAdminView, setIsAdminView] = useState(true);
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -99,6 +107,14 @@ export default function AdminPropertiesList() {
   const [deleting, setDeleting] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Granted users see only their own listings with the minimal chrome; full
+  // admins see the whole portfolio with the standard admin layout.
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setIsAdminView(isAuthorizedAdmin(u)));
+    return () => unsub();
+  }, []);
+  const isGrantedUser = !isAdminView && canAddProperty;
 
   const types = [
     'All Types',
@@ -152,6 +168,11 @@ export default function AdminPropertiesList() {
         (agentFilter === 'No Agent'
           ? !p.agent_id
           : p.agent_id === agentFilter || (p.agent_name && p.agent_name === agentFilter));
+      // Granted users: only their own listings. Admins: only VJR-official
+      // listings (uid-less rows) as before.
+      if (isGrantedUser) {
+        return matchesSearch && matchesId && matchesType && matchesStatus && p.uid === user?.uid;
+      }
       return matchesSearch && matchesId && matchesType && matchesStatus && matchesAgent && !p.uid;
     })
     .sort((a, b) => {
@@ -283,8 +304,10 @@ export default function AdminPropertiesList() {
     { label: 'Commercial', value: adminProps.filter((p) => p.type === 'Commercial Properties').length },
   ];
 
+  const ListChrome = isGrantedUser ? GrantedUserAdminLayout : AdminLayout;
+
   return (
-    <AdminLayout title="Properties">
+    <ListChrome title={isGrantedUser ? 'My Listings' : 'Properties'}>
       <AdminPageShell>
         <AdminPageHeader
           eyebrow="Portfolio"
@@ -680,6 +703,6 @@ export default function AdminPropertiesList() {
           </motion.div>
         )}
       </AnimatePresence>
-    </AdminLayout>
+    </ListChrome>
   );
 }

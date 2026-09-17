@@ -12,6 +12,10 @@ import {
 } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { leadSupabase } from '@/services/leadSupabase';
+import { useAuth } from '@/context/AuthContext';
+import { usePropertyAccess } from '@/lib/propertyAccess';
+import { isAuthorizedAdmin as isAuthorizedAdminEmail } from '@/lib/adminAuth';
+import GrantedUserAdminLayout from '@/components/GrantedUserAdminLayout';
 import AdminLayout from '@/components/admin/AdminLayout';
 import SupabaseImage from '@/components/common/SupabaseImage';
 import { restructureDescription } from '@/utils/aiDescription';
@@ -180,7 +184,15 @@ export default function AdminPropertyForm() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const { canAdd: canAddProperty } = usePropertyAccess();
   const isEditMode = !!id;
+  // Granted users (can_add_property) get the same form but scoped: no
+  // featured flag, no agent selection, and every listing is stamped with
+  // their uid so it lands in the granted-user listings view.
+  const isGrantedUser = !!user?.email
+    && !isAuthorizedAdminEmail(user)
+    && canAddProperty;
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
@@ -232,7 +244,7 @@ export default function AdminPropertyForm() {
     map_lat: 0,
     map_lng: 0,
     maps_link: '',
-    listed_by: 'VJR Estate',
+    listed_by: isGrantedUser ? 'Owner' : 'VJR Estate',
     contact_name: '',
     contact_phone: '',
     agent_id: '',
@@ -244,6 +256,36 @@ export default function AdminPropertyForm() {
 
   useEffect(() => {
     let cancelled = false;
+    // Granted users can't call the CRM-gated endpoints (agents.list /
+    // employees.list are admin+employee only), so they use the publicList
+    // proxy action instead. It returns the same merged list: active CRM
+    // agents plus active agent-designation employees.
+    if (isGrantedUser) {
+      callDataProxy('agents.publicList', {}, { isPublic: false })
+        .then((res) => {
+          if (cancelled) return;
+          setAgents(
+            (res.data ?? []).map((a: any) => ({
+              key: `agent:${a.id}`,
+              source: a.source ?? 'agent',
+              id: a.id,
+              name: a.name,
+              email: '',
+              phone: '',
+              active: true,
+            })),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setAgents([]);
+        })
+        .finally(() => {
+          if (!cancelled) setAgentsLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     // Merge both agent sources so the dropdown is never empty: CRM agents
     // (added via the Agents section) plus Channel Partner employees. Falls
     // back to all active employees if the designation filter comes up empty.
@@ -284,7 +326,7 @@ export default function AdminPropertyForm() {
     };
     void loadAgents();
     return () => { cancelled = true; };
-  }, []);
+  }, [isGrantedUser]);
 
   useEffect(() => {
     const state = location.state as { defaultType?: string } | null;
@@ -505,6 +547,16 @@ export default function AdminPropertyForm() {
         area,
         location,
         area_sqft,
+        // Granted users always own their listings — the proxy's non-admin
+        // path requires params.uid === auth.uid, and property.update/delete
+        // scoping keys off this uid too.
+        uid: isGrantedUser ? user!.uid : undefined,
+        userEmail: isGrantedUser ? (user!.email ?? '') : undefined,
+        userDisplayName: isGrantedUser ? (user!.displayName || user!.email?.split('@')[0] || 'User') : undefined,
+        featured: isGrantedUser ? false : formData.featured,
+        listed_by: isGrantedUser && formData.listed_by !== 'Agent' && formData.listed_by !== 'Owner'
+          ? 'Owner'
+          : (formData.listed_by ?? (isGrantedUser ? 'Owner' : 'VJR Estate')),
         agent_id: formData.agent_id ?? '',
         agent_name: formData.agent_name ?? '',
         ...(isPlotOrLand
@@ -691,13 +743,15 @@ export default function AdminPropertyForm() {
     }
   };
 
+  const FormChrome = isGrantedUser ? GrantedUserAdminLayout : AdminLayout;
+
   if (loading) {
     return (
-      <AdminLayout title={isEditMode ? 'Edit Property' : 'Add Property'}>
+      <FormChrome title={isEditMode ? 'Edit Property' : 'Add Property'}>
         <div className="flex h-96 items-center justify-center">
           <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#0A1628] border-t-transparent" />
         </div>
-      </AdminLayout>
+      </FormChrome>
     );
   }
 
@@ -845,7 +899,7 @@ export default function AdminPropertyForm() {
   };
 
   return (
-    <AdminLayout title={isEditMode ? 'Edit Property' : 'Add Property'}>
+    <FormChrome title={isEditMode ? 'Edit Property' : 'Add Property'}>
       <div className="mx-auto max-w-4xl px-3 py-5 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-8 sm:pb-32">
         <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
           {isEditMode ? 'Edit' : 'Add new'} property
@@ -965,16 +1019,18 @@ export default function AdminPropertyForm() {
               </div>
               )}
 
-              {/* Featured */}
-              <label className="flex items-center gap-3 font-sans text-sm">
-                <input
-                  type="checkbox"
-                  checked={formData.featured}
-                  onChange={(e) => updateFormData('featured', e.target.checked)}
-                  className="w-4 h-4"
-                />
-                Show in Featured Properties on homepage
-              </label>
+              {/* Featured — admin-only flag */}
+              {!isGrantedUser && (
+                <label className="flex items-center gap-3 font-sans text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.featured}
+                    onChange={(e) => updateFormData('featured', e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  Show in Featured Properties on homepage
+                </label>
+              )}
             </div>
           </div>
 
@@ -1690,19 +1746,33 @@ export default function AdminPropertyForm() {
                   Listed By
                 </label>
                 <select
-                  value={formData.listed_by ?? 'VJR Estate'}
+                  value={isGrantedUser
+                    ? ((formData.listed_by === 'Agent' || formData.agent_id) ? 'Agent' : 'Owner')
+                    : (formData.listed_by ?? 'VJR Estate')}
                   onChange={(e) => {
                     const v = e.target.value;
                     updateFormData('listed_by', v);
                     if (v === 'Agent') {
                       updateFormData('agent_id', formData.agent_id ?? '');
+                    } else {
+                      updateFormData('agent_id', '');
+                      updateFormData('agent_name', '');
                     }
                   }}
                   className="admin-select"
                 >
-                  <option value="VJR Estate">VJR Estate</option>
-                  <option value="Agent">Agent</option>
-                  <option value="Owner">Owner</option>
+                  {isGrantedUser ? (
+                    <>
+                      <option value="Owner">Owner</option>
+                      <option value="Agent">Agent</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="VJR Estate">VJR Estate</option>
+                      <option value="Agent">Agent</option>
+                      <option value="Owner">Owner</option>
+                    </>
+                  )}
                 </select>
               </div>
 
@@ -1724,7 +1794,7 @@ export default function AdminPropertyForm() {
                     {agents.map((a) => (
                       <option key={a.key} value={String(a.id)}>
                         {a.name}
-                        {a.source === 'employee' && a.id ? ` (CP ID: ${a.id})` : ''}
+                        {a.source === 'employee' && a.id ? ` (${a.id})` : ''}
                       </option>
                     ))}
                   </select>
@@ -1733,7 +1803,7 @@ export default function AdminPropertyForm() {
                   )}
                   {!agentsLoading && agents.length === 0 && (
                     <p className="mt-1 text-[11px] text-gray-400">
-                      No agents yet — add one in the CRM Agents section.
+                      No agents available right now.
                     </p>
                   )}
                 </div>
@@ -1823,6 +1893,6 @@ export default function AdminPropertyForm() {
           </motion.div>
         )}
       </AnimatePresence>
-    </AdminLayout>
+    </FormChrome>
   );
 }

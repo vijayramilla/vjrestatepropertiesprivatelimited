@@ -4,7 +4,19 @@ import { motion } from 'framer-motion';
 import { onAuthStateChanged, signInWithPopup, signOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase';
 import { isAuthorizedAdmin, checkCrmAccess } from '@/lib/adminAuth';
+import { isSupabaseDataEnabled, callDataProxy } from '@/lib/supabaseData';
 import { ShieldCheck } from 'lucide-react';
+
+/** True when the signed-in user holds the admin-granted Add Property permission. */
+async function hasPropertyAccess(): Promise<boolean> {
+  try {
+    if (!isSupabaseDataEnabled()) return false;
+    const res = await callDataProxy('user.accessStatus');
+    return Boolean(res?.canAddProperty);
+  } catch {
+    return false;
+  }
+}
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -28,6 +40,8 @@ export default function AdminLogin() {
         navigate('/admin/properties');
       } else if (await checkCrmAccess(result.user)) {
         navigate('/crm');
+      } else if (await hasPropertyAccess()) {
+        navigate('/admin/properties/new');
       } else {
         await signOut(auth);
         setError('This Google account does not have access to the VJR Estate portal.');

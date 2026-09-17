@@ -634,6 +634,39 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { data: data ?? [] };
     }
 
+    // ── Agents for listing forms (any signed-in user: granted users pick
+    //    the agent they're listing for; admins see the same list) ─────────
+    case 'agents.publicList': {
+      if (!auth?.authorized) throw new Error('Forbidden');
+      const [agRes, empRes] = await Promise.all([
+        supabaseAdmin
+          .from('agents')
+          .select('id,name')
+          .eq('active', true)
+          .order('name', { ascending: true }),
+        supabaseAdmin
+          .from('employees')
+          .select('employee_id,name,designation,status')
+          .ilike('designation', '%agent%')
+          .eq('status', 'Active')
+          .order('name', { ascending: true }),
+      ]);
+      if (agRes.error) throw new Error(agRes.error.message);
+      const agentEntries = (agRes.data ?? []).map((a: { id: string; name: string }) => ({
+        id: a.id,
+        name: a.name,
+        source: 'agent' as const,
+      }));
+      const empEntries = empRes.error
+        ? []
+        : (empRes.data ?? []).map((e: { employee_id: string; name: string }) => ({
+            id: e.employee_id,
+            name: e.name,
+            source: 'employee' as const,
+          }));
+      return { data: [...agentEntries, ...empEntries] };
+    }
+
     // ── User-facing agents for the List Property form (public reads) ──
 
     case 'user.checkSuspended': {
