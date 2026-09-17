@@ -239,7 +239,8 @@ export default function AdminUsersList() {
       setUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, canAddProperty: !next } : u)),
       );
-      alert('Failed to update property access. Is the data proxy deployed?');
+      const detail = err instanceof Error ? err.message : String(err);
+      alert(`Failed to update property access: ${detail}`);
     }
   };
 

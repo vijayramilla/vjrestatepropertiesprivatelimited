@@ -209,7 +209,11 @@ async function verifyFirebaseToken(token) {
     if (empRow && empRow.status !== 'Terminated' && empRow.access_enabled === true) return { authorized: true, email: normalized, uid, role: 'employee', permissions: [] };
     const { data: admins } = await supabaseFetch('GET', `admin_users?email=eq.${encodeURIComponent(normalized)}&select=id,role,permissions`, null);
     if (admins?.length > 0) return { authorized: true, email: normalized, uid, role: admins[0].role, permissions: admins[0].permissions };
-    return { authorized: false, email, uid: '' };
+    // Any verified Firebase user is authenticated (role 'user') — same as the
+    // production api/data-proxy.ts. Normal users only reach data-proxy actions
+    // gated on their own identity (user.accessStatus, property.create with
+    // their uid); CRM actions stay blocked via the role check in hasPerm.
+    return { authorized: true, email: normalized, uid, role: 'user', permissions: null };
   } catch { return { authorized: false, email: '', uid: '' }; }
 }
 
@@ -261,6 +265,9 @@ function supabaseRpc(fn, args) {
 function hasPerm(auth, perm) {
   if (!auth?.authorized) return false;
   if (auth.role === 'super_admin') return true;
+  // Normal site users (role 'user') have zero CRM permissions — their
+  // permissions field is null, which used to mean "allow all" for admin rows.
+  if (auth.role === 'user') return false;
   if (auth.permissions === null || auth.permissions === undefined) return true;
   return auth.permissions.length === 0 || auth.permissions.includes(perm);
 }

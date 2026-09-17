@@ -369,7 +369,12 @@ export default function ListPropertyPage() {
             </div>
           )}
 
-          {!accessLoading && !canAddProperty ? (
+          {accessLoading ? (
+            <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
+              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+              <p className="mt-4 text-xs text-gray-400">Checking your access…</p>
+            </div>
+          ) : !canAddProperty ? (
             <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
               <p className="text-sm font-semibold text-amber-900">Add Property access required</p>
               <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-amber-800">

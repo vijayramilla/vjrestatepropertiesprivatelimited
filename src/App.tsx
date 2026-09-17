@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { GoogleMapsProvider } from './context/GoogleMapsContext';
 import { LocationPermissionProvider } from './hooks/useLocationPermission';
 import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsContext';
+import { PropertyAccessProvider } from './lib/propertyAccess';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import CrmRoute from './components/CrmRoute';
@@ -449,15 +450,17 @@ function AppRoutesWrapper() {
 function App() {
   return (
     <AuthProvider>
-      <LocationPermissionProvider>
-        <ShortlistProvider>
-          <GoogleMapsProvider>
-            <SiteSettingsProvider>
-              <AppRoutesWrapper />
-            </SiteSettingsProvider>
-          </GoogleMapsProvider>
-        </ShortlistProvider>
-      </LocationPermissionProvider>
+      <PropertyAccessProvider>
+        <LocationPermissionProvider>
+          <ShortlistProvider>
+            <GoogleMapsProvider>
+              <SiteSettingsProvider>
+                <AppRoutesWrapper />
+              </SiteSettingsProvider>
+            </GoogleMapsProvider>
+          </ShortlistProvider>
+        </LocationPermissionProvider>
+      </PropertyAccessProvider>
     </AuthProvider>
   );
 }
