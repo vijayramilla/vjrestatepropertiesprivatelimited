@@ -7,10 +7,10 @@ import {
   Check,
 } from '@phosphor-icons/react';
 import {
-  BANGALORE_AREAS,
   MAX_LOCALITY_SELECTIONS,
   filterLocalities,
 } from '@/data/properties';
+import { BANGALORE_AREA_NAMES } from '@/data/bangaloreAreas';
 import { resolveLocalityForSearch } from '@/lib/propertyFilters';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 
@@ -305,7 +305,7 @@ export default function HomeHero({
                         )
                       ) : (
                         <p className="py-2 text-center text-[11px] leading-relaxed text-[#999]" style={{ fontFamily: DM_SANS }}>
-                          Pick up to {MAX_LOCALITY_SELECTIONS} localities · {BANGALORE_AREAS.length} areas covered.
+                          Pick up to {MAX_LOCALITY_SELECTIONS} localities · {BANGALORE_AREA_NAMES.length} areas covered.
                           <br />
                           Property type &amp; budget filters are on the results page.
                         </p>

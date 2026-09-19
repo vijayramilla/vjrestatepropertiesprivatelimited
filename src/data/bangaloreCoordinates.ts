@@ -125,6 +125,7 @@ export const BANGALORE_COORDINATES: Record<string, { lat: number; lng: number }>
   Sadahalli: { lat: 13.195, lng: 77.68 },
   'Sahakara Nagar': { lat: 13.06, lng: 77.585 },
   'Sanjay Nagar': { lat: 13.02, lng: 77.591 },
+  'Srigandha Nagar': { lat: 13.0005, lng: 77.4905 },
   Sarjapur: { lat: 12.862, lng: 77.785 },
   'Sarjapur Road': { lat: 12.908, lng: 77.69 },
   Seshadripuram: { lat: 13.001, lng: 77.576 },
