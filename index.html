@@ -10,6 +10,10 @@
        Stale preconnects waste up to ~150ms of connection setup per origin. -->
   <link rel="preconnect" href="https://firestore.googleapis.com" />
   <link rel="preconnect" href="https://storage.googleapis.com" />
+  <!-- Property images live on Supabase Storage (Smart CDN) — warm the
+       connection before JS hydrates so the first card image skips DNS+TLS. -->
+  <link rel="preconnect" href="https://eimvaxrmiizdlgonhiov.supabase.co" crossorigin />
+  <link rel="dns-prefetch" href="https://eimvaxrmiizdlgonhiov.supabase.co" />
   <link rel="dns-prefetch" href="https://firebaseapp.com" />
   <link rel="dns-prefetch" href="https://maps.googleapis.com" />
 

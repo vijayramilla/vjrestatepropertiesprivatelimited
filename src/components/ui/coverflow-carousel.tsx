@@ -308,11 +308,12 @@ export function CoverflowCarousel({
                 )}
                 style={{ width: "var(--cf-card)" }}
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={slide.src}
                   alt={slide.alt}
                   draggable={false}
+                  loading={index === selected ? 'eager' : 'lazy'}
+                  decoding="async"
                   className="h-full w-full select-none object-cover"
                 />
                 {slide.savable && (

@@ -68,6 +68,7 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
   })();
 
   const [imgError, setImgError] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'shared' | 'whatsapp' | 'failed'>('idle');
   const [waLoading, setWaLoading] = useState(false);
@@ -170,13 +171,14 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
         }}
       >
           <div className={`relative w-full overflow-hidden bg-gray-100 ${compact ? 'aspect-[2/1]' : listing ? 'aspect-[16/9]' : 'aspect-[16/9]'}`}>
-          <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
+          {!imgLoaded && <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />}
           {coverImage && !imgError ? (
             <SupabaseImage
               src={coverImage}
               alt={saleTitle}
               priority={listing ? index < 2 : index === 0}
               fetchPriority={listing && index < 2 ? 'high' : undefined}
+              onLoad={() => setImgLoaded(true)}
               onError={() => setImgError(true)}
               className="absolute inset-0 h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
             />

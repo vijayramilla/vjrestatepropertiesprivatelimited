@@ -43,6 +43,7 @@ const columns = [
     title: 'Resources',
     links: [
       { label: 'EMI Calculator', to: '/emi-calculator' },
+      { label: 'Rental Yield Calculator', to: '/rental-yield-calculator' },
       { label: 'Browse Bangalore Areas', to: '/properties' },
       { label: 'Investment Guide', to: '/blog' },
     ],

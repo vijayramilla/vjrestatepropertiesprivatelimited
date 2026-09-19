@@ -89,6 +89,9 @@ export const IMAGE_PRESETS: Record<ImagePreset, Record<DeviceType, PresetSpec>> 
 /**
  * Extract `{ bucket, path, origin }` from a Supabase public storage URL:
  *   {origin}/storage/v1/object/public/{bucket}/{path...}
+ *
+ * Also accepts the /render/image/ transform endpoint, normalizing to the
+ * plain object URL so re-optimizing an already-transformed URL works.
  */
 export function parseSupabaseUrl(url: string): {
   bucket: string;
@@ -97,7 +100,7 @@ export function parseSupabaseUrl(url: string): {
 } | null {
   if (!url || typeof url !== 'string') return null;
   const match = url.match(
-    /^(https?:\/\/[^/]+)\/storage\/v1\/object\/public\/([^/?]+)\/([^?]+)/,
+    /^(https?:\/\/[^/]+)\/storage\/v1\/(?:object|render\/image)\/public\/([^/?]+)\/([^?]+)/,
   );
   if (!match) return null;
   try {
@@ -118,12 +121,17 @@ export function isSupabaseStorageUrl(url: string): boolean {
   return parsed.origin.includes('supabase.co') || parsed.origin.includes('supabase.in');
 }
 
-/** Full public URL for an object path on the configured Supabase project. */
-export function supabaseObjectUrl(bucket: string, path: string): string {
+/**
+ * Render (transform) endpoint for a public storage object. Image Transformations
+ * (resize, quality, auto WebP/AVIF via Accept-header negotiation) are only
+ * applied on /storage/v1/render/image — the plain /object/ endpoint serves the
+ * untouched original and silently ignores query params.
+ */
+function supabaseObjectUrl(bucket: string, path: string): string {
   const cleanPath = String(path).replace(/^\/+/, '');
   const origin = (supabaseDataUrl || '').replace(/\/+$/, '');
   if (!origin) return cleanPath; // data layer off — nothing to rewrite onto
-  return `${origin}/storage/v1/object/public/${bucket}/${cleanPath}`;
+  return `${origin}/storage/v1/render/image/public/${bucket}/${cleanPath}`;
 }
 
 /** Strip the transformation query params, returning the plain object URL. */
@@ -148,7 +156,8 @@ function buildTransformUrl(
   params.set('height', String(Math.round(height)));
   params.set('resize', resize);
   params.set('quality', String(Math.round(quality)));
-  // Supabase auto-serves WebP by default once the transformation add-on is on;
+  // Supabase auto-serves WebP/AVIF via Accept-header negotiation once the
+  // transformation add-on is on — no explicit format param needed.
   // 'origin' keeps the source format (best for pixel-art / transparent PNGs).
   if (format && format !== 'origin') params.set('format', format);
   return `${baseUrl}?${params.toString()}`;
@@ -239,6 +248,20 @@ const SRC_SET_WIDTHS: Record<ImagePreset, number[]> = {
 };
 
 /**
+ * Aspect ratio (h/w) each srcset width is cropped to. Matches the real
+ * containers: listing cards render 16:9, hero renders 4:3→16:9, documents
+ * are portrait, thumbs are cropped square-ish. Serving srcset candidates at
+ * the container's own ratio avoids downloading excess vertical pixels.
+ */
+const SRC_SET_RATIOS: Record<ImagePreset, number> = {
+  hero: 9 / 16,
+  card: 9 / 16,
+  thumb: 3 / 4,
+  admin: 2 / 3,
+  document: 566 / 400,
+};
+
+/**
  * Responsive srcset for a Supabase storage URL. Only emits candidates for the
  * URL's own origin; when a non-Supabase URL is passed, returns ''.
  */
@@ -260,9 +283,10 @@ export function getSupabaseSrcSet(
   const cached = getCachedOptimizedUrl(fullUrl, preset, device, suffix);
   if (cached) return cached;
 
-  const baseUrl = `${parsed.origin}/storage/v1/object/public/${parsed.bucket}/${parsed.path}`;
+  const baseUrl = `${parsed.origin}/storage/v1/render/image/public/${parsed.bucket}/${parsed.path}`;
+  const ratio = SRC_SET_RATIOS[presestSafe(preset)];
   const parts = widths.map((w) => {
-    const h = Math.round((w * parsedHeightRatio(preset)));
+    const h = Math.round(w * ratio);
     return `${buildTransformUrl(baseUrl, w, h, quality, resize)} ${w}w`;
   });
   const srcset = parts.join(', ');
@@ -270,39 +294,21 @@ export function getSupabaseSrcSet(
   return srcset;
 }
 
-function parsedHeightRatio(preset: ImagePreset): number {
-  const spec = IMAGE_PRESETS[presestSafe(preset)].desktop;
-  return spec.height / spec.width;
-}
-
 // ─── Blur placeholder ──────────────────────────────────────────────────────
 
 /**
- * Tiny transformed URL for blur-up placeholders. Callers decide whether to use
- * it — transformed requests are only cheap once the Image Transformations
- * add-on is enabled, otherwise Supabase returns the full-size original.
+ * Tiny transformed URL for blur-up placeholders (20px-wide, heavily compressed).
+ * Only meaningful once the Image Transformations add-on is enabled on the
+ * project; without it Supabase returns the full-size original.
  */
-export function getBlurPlaceholderUrl(
-  fullUrl: string,
-  bucketFallback = 'property-images',
-): string {
+export function getBlurPlaceholderUrl(fullUrl: string): string {
   if (!fullUrl) return '';
-  if (isSupabaseStorageUrl(fullUrl)) {
-    return optimizeSupabaseUrl(fullUrl, 'thumb', {
-      width: 20,
-      height: 15,
-      quality: 20,
-      resize: 'cover',
-    });
-  }
-  const parsed = parseSupabaseUrl(fullUrl);
-  if (parsed) return getOptimizedImageUrl(parsed.bucket || bucketFallback, parsed.path, 'thumb', {
+  return optimizeSupabaseUrl(fullUrl, 'thumb', {
     width: 20,
     height: 15,
     quality: 20,
     resize: 'cover',
   });
-  return fullUrl;
 }
 
 export type { TransformOptions };

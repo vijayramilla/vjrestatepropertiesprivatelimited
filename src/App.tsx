@@ -27,6 +27,7 @@ const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage')
 const RequirementsBoardPage = lazy(() => import('./pages/RequirementsBoardPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const EmiCalculatorPage = lazy(() => import('./pages/EmiCalculatorPage'));
+const RentalYieldCalculatorPage = lazy(() => import('./pages/RentalYieldCalculatorPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const EmployeeLogin = lazy(() => import('./pages/crm/EmployeeLogin'));
 const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
         <Route path="/requirements" element={<LazyPage><RequirementsBoardPage /></LazyPage>} />
         <Route path="/emi-calculator" element={<LazyPage><EmiCalculatorPage /></LazyPage>} />
+        <Route path="/rental-yield-calculator" element={<LazyPage><RentalYieldCalculatorPage /></LazyPage>} />
         <Route path="/privacy" element={<LazyPage><PrivacyPolicyPage /></LazyPage>} />
         <Route path="/disclaimer" element={<LazyPage><DisclaimerPage /></LazyPage>} />
         <Route path="/terms" element={<LazyPage><TermsPage /></LazyPage>} />

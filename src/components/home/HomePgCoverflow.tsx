@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/formatPrice';
 import { useShortlist } from '@/context/ShortlistContext';
 import { ArrowRight } from '@phosphor-icons/react';
 import { CoverflowCarousel, type CoverflowSlide } from '@/components/ui/coverflow-carousel';
+import { optimizeSupabaseUrl } from '@/utils/supabaseImageLoader';
 
 type HomeListingDoc = FirestorePropertyDoc & { id: string };
 
@@ -64,9 +65,16 @@ export default function HomePgCoverflow() {
         if (location) meta.push({ label: 'Location', value: location.split(',')[0] });
 
         return {
-          src:
-            property.images?.[0] ||
-            FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
+          // Rendered at ~280px square: request a 2x (560px) crop so retina
+          // screens stay sharp without downloading the 1600px original.
+          src: property.images?.[0]
+            ? optimizeSupabaseUrl(property.images[0], 'card', {
+                width: 560,
+                height: 560,
+                quality: 80,
+                resize: 'cover',
+              })
+            : FALLBACK_IMAGES[i % FALLBACK_IMAGES.length],
           alt: property.title || `PG building in ${property.location || 'Bangalore'}`,
           title: property.title || `Property in ${property.location || 'Bangalore'}`,
           subtitle: location || 'Bangalore, Karnataka',

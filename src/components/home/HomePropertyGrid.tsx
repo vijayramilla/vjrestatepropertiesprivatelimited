@@ -5,6 +5,7 @@ import { subscribeProperties } from '@/lib/firestoreHelpers';
 import type { FirestorePropertyDoc } from '@/lib/firestoreProperties';
 import { formatPrice } from '@/lib/formatPrice';
 import { CaretLeft, CaretRight, MapPin, Building } from '@phosphor-icons/react';
+import SupabaseImage from '@/components/common/SupabaseImage';
 
 type HomeListingDoc = FirestorePropertyDoc & { id: string };
 
@@ -131,11 +132,11 @@ export default function HomePropertyGrid() {
                 >
                   <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
                     {coverImage ? (
-                      <img
+                      <SupabaseImage
                         src={coverImage}
                         alt=""
+                        preset="card"
                         className="h-full w-full object-cover transition duration-500 group-hover:scale-110"
-                        loading="lazy"
                       />
                     ) : (
                       <div className="flex h-full items-center justify-center">
