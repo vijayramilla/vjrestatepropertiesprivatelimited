@@ -4,8 +4,9 @@ import { ShortlistProvider } from './context/ShortlistContext';
 import { AuthProvider } from './context/AuthContext';
 import { GoogleMapsProvider } from './context/GoogleMapsContext';
 import { LocationPermissionProvider } from './hooks/useLocationPermission';
-import { SiteSettingsProvider, useSiteSettings } from './context/SiteSettingsContext';
+import { SiteSettingsProvider } from './context/SiteSettingsContext';
 import { PropertyAccessProvider } from './lib/propertyAccess';
+import { PG_MANAGEMENT_ENABLED } from './lib/featureFlags';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import AnyAdminRoute from './components/AnyAdminRoute';
@@ -73,27 +74,17 @@ const AdminCareersPage = lazy(() => import('./pages/admin/AdminCareersPage'));
 const AdminTeamPage = lazy(() => import('./pages/admin/AdminTeamPage'));
 const AdminStorage = lazy(() => import('./pages/admin/AdminStorage'));
 const AdminPayrollPage = lazy(() => import('./pages/admin/AdminPayrollPage'));
+const AdminPgManagement = lazy(() => import('./pages/admin/AdminPgManagement'));
+const PgManagementPage = lazy(() => import('./pages/PgManagementPage'));
 
 function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<PageLoader />}>{children}</Suspense>;
 }
 
 function AppRoutes() {
-  const { loading } = useSiteSettings();
-
-  if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white">
-        <div className="text-center">
-          <div className="inline-block">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-black border-t-transparent" />
-          </div>
-          <p className="mt-4 font-sans text-sm text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Performance: render routes immediately. Site settings stream in async
+  // (SiteSettingsContext starts its subscription after first paint) — gating
+  // every route on that roundtrip used to delay FCP/LCP on all pages.
   return (
     <Routes>
       <Route element={<Layout />}>
@@ -113,6 +104,12 @@ function AppRoutes() {
         <Route path="/disclaimer" element={<LazyPage><DisclaimerPage /></LazyPage>} />
         <Route path="/terms" element={<LazyPage><TermsPage /></LazyPage>} />
         <Route path="/careers" element={<LazyPage><CareersPage /></LazyPage>} />
+        {/* PG Management is temporarily disabled — flip the flag in src/lib/featureFlags.ts to re-enable. */}
+        {PG_MANAGEMENT_ENABLED ? (
+          <Route path="/pg-management" element={<LazyPage><PgManagementPage /></LazyPage>} />
+        ) : (
+          <Route path="/pg-management" element={<Navigate to="/" replace />} />
+        )}
         <Route path="/team" element={<LazyPage><TeamPage /></LazyPage>} />
         <Route path="/bangalore-land-investment-guide" element={<Navigate to="/properties" replace />} />
         <Route path="/blog" element={<LazyPage><BlogPage /></LazyPage>} />
@@ -263,6 +260,18 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
+      {PG_MANAGEMENT_ENABLED ? (
+        <Route
+          path="/admin/pg-management"
+          element={
+            <AdminRoute>
+              <LazyPage><AdminPgManagement /></LazyPage>
+            </AdminRoute>
+          }
+        />
+      ) : (
+        <Route path="/admin/pg-management" element={<Navigate to="/admin/properties" replace />} />
+      )}
       <Route
         path="/crm"
         element={

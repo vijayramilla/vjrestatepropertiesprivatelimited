@@ -96,6 +96,25 @@ export const RENTAL_BUDGET_PRESETS: { label: string; range: [number, number] }[]
   { label: 'Any Rental', range: [0, UNLIMITED_FILTER_MAX] },
 ];
 
+/** Common locality abbreviations/misspellings the static directory can't fuzzy-match. */
+export const LOCALITY_ALIASES: Record<string, string> = {
+  ecity: 'Electronic City',
+  'e-city': 'Electronic City',
+  eccity: 'Electronic City',
+  electronicscity: 'Electronic City',
+  hsr: 'HSR Layout',
+  'hsr lyt': 'HSR Layout',
+  btm: 'BTM Layout',
+  bellundur: 'Bellandur',
+  marathhalli: 'Marathahalli',
+  marthahalli: 'Marathahalli',
+  koramangla: 'Koramangala',
+  yelhanka: 'Yelahanka',
+  jayanagr: 'Jayanagar',
+  indranagar: 'Indiranagar',
+  whitefields: 'Whitefield',
+};
+
 /** Match localities by name, word-start, or compact spelling (e.g. "hsr" → HSR Layout) */
 export function filterLocalities(query: string, limit = 20): string[] {
   const q = query.trim().toLowerCase();
@@ -130,6 +149,8 @@ export function resolveLocalityName(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   if ((BANGALORE_AREAS as readonly string[]).includes(trimmed)) return trimmed;
+  const alias = LOCALITY_ALIASES[trimmed.toLowerCase().replace(/[\s./-]+/g, '')];
+  if (alias) return alias;
   const matches = filterLocalities(trimmed, 1);
   return matches[0] ?? null;
 }

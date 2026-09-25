@@ -1724,7 +1724,7 @@ async function executeAction(action, params) {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const [agRes, empRes] = await Promise.all([
         supabaseFetch('GET', 'agents?active=eq.true&select=id,name&order=name.asc'),
-        supabaseFetch('GET', `employees?designation=ilike.*agent*&status=eq.Active&select=employee_id,name&order=name.asc`),
+        supabaseFetch('GET', `employees?or=(designation.ilike.*agent*,designation.ilike.*sales*,designation.ilike.*partner*)&status=eq.Active&select=employee_id,name&order=name.asc`),
       ]);
       const agentEntries = (agRes.data ?? []).map((a) => ({
         id: a.id,

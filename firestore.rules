@@ -164,5 +164,68 @@ service cloud.firestore {
       allow read: if true;
       allow create, update, delete: if isAdmin();
     }
+
+    // ── PG & Building Management module ──
+    // Owner leads are public-submittable (marketing form); everything else is
+    // admin-only at the API level, not just the UI.
+    match /pg_owner_leads/{leadId} {
+      allow create: if request.resource.data.keys().hasAll(['name', 'phone', 'locality', 'status', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 120
+        && request.resource.data.phone is string
+        && request.resource.data.phone.size() >= 10
+        && request.resource.data.phone.size() <= 15
+        && request.resource.data.locality is string
+        && request.resource.data.locality.size() <= 120
+        && request.resource.data.status == 'new';
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /pg_properties/{propertyId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_rooms/{roomId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_tenants/{tenantId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_invoices/{invoiceId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_payouts/{payoutId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_complaints/{complaintId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_visitors/{visitorId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_notices/{noticeId} {
+      allow read: if request.auth != null; // tenants read their notice board
+      allow write: if isAdmin();
+    }
+
+    match /pg_menu/{menuId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    match /pg_shifts/{shiftId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /pg_expenses/{expenseId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

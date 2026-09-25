@@ -69,7 +69,7 @@ export default function AdminListingsDashboard() {
       setLoading(false);
     });
     return unsub;
-  }, []);
+  }, [supabaseMode]);
 
   useEffect(() => {
     if (supabaseMode) {
@@ -88,7 +88,7 @@ export default function AdminListingsDashboard() {
       setUsers(map);
     });
     return unsub;
-  }, []);
+  }, [supabaseMode]);
 
   useEffect(() => {
     const unsub = subscribePropertyLeads((allLeads) => {

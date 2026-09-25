@@ -21,11 +21,36 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   settingsRef.current = settings;
 
   useEffect(() => {
-    const unsubscribe = subscribeToSettings((newSettings) => {
-      setSettings(newSettings);
-      setLoading(false);
-    });
-    return unsubscribe;
+    // Performance: start the settings subscription after the page is painted
+    // (idle callback) so Firestore init never competes with route rendering
+    // for the main thread during load. A cached local value is applied
+    // synchronously when the subscription starts, so the flag resolves fast.
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    const start = () => {
+      if (cancelled) return;
+      unsubscribe = subscribeToSettings((newSettings) => {
+        setSettings(newSettings);
+        setLoading(false);
+      });
+    };
+
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(start, { timeout: 2000 });
+      return () => {
+        cancelled = true;
+        window.cancelIdleCallback(id);
+        unsubscribe?.();
+      };
+    }
+
+    const timer = window.setTimeout(start, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+      unsubscribe?.();
+    };
   }, []);
 
   const toggleNexaEnabled = useCallback(async () => {

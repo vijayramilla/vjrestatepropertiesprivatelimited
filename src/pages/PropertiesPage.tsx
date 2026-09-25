@@ -20,6 +20,7 @@ import {
   getPropertyCategory,
   normalizeLocalityList,
   PROPERTY_CATEGORIES,
+  propertyMatchesLocality,
   resolveLocalityForSearch,
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
@@ -533,14 +534,28 @@ export default function PropertiesPage() {
   }, [searchOpen, searchQuery, googlePlaces]);
 
   const handleSearchSubmit = () => {
-    const resolved = resolveLocalityForSearch(searchQuery);
-    if (resolved) {
-      toggleLocation(resolved);
-      saveRecentSearch(resolved);
-    } else if (searchSuggestions[0]) {
-      // Any Bangalore area the static list or Google knows about.
-      toggleLocation(searchSuggestions[0]);
-      saveRecentSearch(searchSuggestions[0]);
+    const query = searchQuery.trim();
+    if (!query) {
+      setSearchOpen(false);
+      return;
+    }
+
+    const resolved = resolveLocalityForSearch(query);
+    // resolveLocalityForSearch always returns something (the raw input as a
+    // last resort), so a query it cannot map — e.g. the compact "ecity" —
+    // must not beat a live suggestion ("Electronic City") that actually has
+    // listings. Prefer the first candidate with at least one property match;
+    // fall back to the resolved name for areas that are simply empty yet.
+    const candidates = [resolved, ...searchSuggestions].filter(
+      (c): c is string => Boolean(c),
+    );
+    const withMatches = candidates.filter((c) =>
+      properties.some((p) => propertyMatchesLocality(p, c)),
+    );
+    const pick = withMatches[0] ?? resolved ?? searchSuggestions[0];
+    if (pick) {
+      toggleLocation(pick);
+      saveRecentSearch(pick);
     }
     setSearchQuery('');
     setSearchOpen(false);

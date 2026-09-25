@@ -195,6 +195,11 @@ export default function AdminPropertyForm() {
     && canAddProperty;
   const [loading, setLoading] = useState(isEditMode);
   const [saving, setSaving] = useState(false);
+  // Post pipeline feedback: which step the save is on, plus image progress
+  // (uploaded/total) so long uploads give visible progress instead of a dead
+  // 'Saving...' button.
+  const [postPhase, setPostPhase] = useState<'idle' | 'saving' | 'uploading' | 'done'>('idle');
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [toast, setToast] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [customHighlight, setCustomHighlight] = useState('');
@@ -293,7 +298,7 @@ export default function AdminPropertyForm() {
       try {
         const [agRes, empRes] = await Promise.all([
           leadSupabase.agents.list().catch(() => ({ data: [] as any[] })),
-          leadSupabase.employees.list({ status: 'Active' }).catch(() => ({ data: [] as any[] })),
+          leadSupabase.employees.list({ status: 'Active', limit: 500 }).catch(() => ({ data: [] as any[] })),
         ]);
         if (cancelled) return;
         const crmAgents: any[] = (agRes.data ?? []).map((a: any) => ({
@@ -315,9 +320,13 @@ export default function AdminPropertyForm() {
           active: (e.status ?? 'Active') === 'Active',
           designation: e.designation ?? '',
         }));
-        const cpEmployees = employees.filter((e) => e.designation === 'Channel Partner');
-        const partnerList = cpEmployees.length > 0 ? cpEmployees : employees;
-        setAgents([...crmAgents.filter((a) => a.active), ...partnerList]);
+        // Anyone with an agent-style designation can be attached to a
+        // listing: Telecaller Agent, Field Sales Executive, Channel Partner…
+        const partnerList = employees.filter((e) => /agent|sales|channel/i.test(e.designation));
+        setAgents([
+          ...crmAgents.filter((a) => a.active),
+          ...(partnerList.length > 0 ? partnerList : employees),
+        ]);
       } catch {
         if (!cancelled) setAgents([]);
       } finally {
@@ -493,6 +502,8 @@ export default function AdminPropertyForm() {
     if (!validateForm()) return;
 
     setSaving(true);
+    setPostPhase('saving');
+    setUploadProgress({ done: 0, total: 0 });
 
     try {
       const inferredArea =
@@ -508,11 +519,11 @@ export default function AdminPropertyForm() {
         formData.type as (typeof PLOT_LAND_TYPES)[number],
       );
 
+      let acres = formData.land_acres ?? 0;
+      let guntas = formData.land_guntas ?? 0;
       let area_sqft = formData.area_sqft;
 
       if (isPlotOrLand) {
-        let acres = formData.land_acres ?? 0;
-        let guntas = formData.land_guntas ?? 0;
         area_sqft = computePlotLandAreaSqft(
           formData.area_unit ?? 'sqft',
           formData.area_sqft,
@@ -528,17 +539,18 @@ export default function AdminPropertyForm() {
 
       const mergedExtraDetails = formData.extra_details;
 
-      /* eslint-disable @typescript-eslint/no-unused-vars -- keys are deliberately stripped from the persisted payload */
+      // Keys deliberately stripped from the persisted payload: plot/land
+      // inputs were already folded into area fields above, and propertyCode
+      // is assigned server-side / re-added below when present.
       const {
-        land_acres,
-        land_guntas,
+        land_acres: _land_acres,
+        land_guntas: _land_guntas,
         area_unit: _areaUnit,
         price_per_sqft: _pps,
         extra_details: _extra,
         propertyCode: _propertyCode,
         ...restForm
       } = formData;
-      /* eslint-enable @typescript-eslint/no-unused-vars */
 
       const payload = sanitizeForFirestore({
         ...restForm,
@@ -562,8 +574,8 @@ export default function AdminPropertyForm() {
         ...(isPlotOrLand
           ? {
               area_unit: 'sqft',
-              area_acres: land_acres ?? 0,
-              area_guntas: land_guntas ?? 0,
+              area_acres: acres,
+              area_guntas: guntas,
               price_per_sqft: 0,
               ...(formData.map_lat && formData.map_lng
                 ? {
@@ -588,7 +600,14 @@ export default function AdminPropertyForm() {
         let finalImages = [...imageUrls];
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
-          const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
+          setPostPhase('uploading');
+          setUploadProgress({ done: 0, total: pendingFiles.length });
+          const uploaded = await uploadPropertyImages(
+            pendingFiles,
+            propertyId,
+            auth.currentUser?.uid || 'admin',
+            (done, total) => setUploadProgress({ done, total }),
+          );
           finalImages = [...finalImages, ...uploaded];
         }
         if (isSupabaseDataEnabled()) {
@@ -633,7 +652,14 @@ export default function AdminPropertyForm() {
         }
         if (pendingFiles.length > 0) {
           setUploadingImages(true);
-          const uploaded = await uploadPropertyImages(pendingFiles, propertyId, auth.currentUser?.uid || 'admin');
+          setPostPhase('uploading');
+          setUploadProgress({ done: 0, total: pendingFiles.length });
+          const uploaded = await uploadPropertyImages(
+            pendingFiles,
+            propertyId,
+            auth.currentUser?.uid || 'admin',
+            (done, total) => setUploadProgress({ done, total }),
+          );
           if (isSupabaseDataEnabled()) {
             await callDataProxy('property.update', { id: propertyId, images: uploaded });
           } else {
@@ -665,11 +691,13 @@ export default function AdminPropertyForm() {
         deletePropertyImageByUrl(url).catch(() => {});
       });
       setRemovedImageUrls([]);
-      setToast('Property saved successfully');
+      setPostPhase('done');
+      setToast(isEditMode ? 'Changes saved successfully' : 'Property posted successfully');
       setTimeout(() => navigate('/admin/properties'), 1500);
     } catch (error) {
       console.error('Save error:', error);
-      setToast(`Error saving property: ${error instanceof Error ? error.message : String(error)}`);
+      setToast(`Error posting property: ${error instanceof Error ? error.message : String(error)}`);
+      setPostPhase('idle');
     } finally {
       setSaving(false);
       setUploadingImages(false);
@@ -1858,12 +1886,21 @@ export default function AdminPropertyForm() {
         {/* FOOTER BAR (Sticky) */}
         <div className="admin-footer-bar">
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="hidden text-[11px] text-gray-400 sm:block">* Required fields</p>
+            <p className="hidden text-[11px] text-gray-400 sm:block">
+              {postPhase === 'uploading'
+                ? `Uploading images ${uploadProgress.done}/${uploadProgress.total}…`
+                : postPhase === 'saving'
+                  ? 'Posting property…'
+                  : postPhase === 'done'
+                    ? 'Posted ✓'
+                    : '* Required fields'}
+            </p>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="admin-btn-secondary sm:px-5"
+                disabled={saving}
+                className="admin-btn-secondary sm:px-5 disabled:opacity-60"
               >
                 Cancel
               </button>
@@ -1873,7 +1910,21 @@ export default function AdminPropertyForm() {
                 disabled={saving || uploadingImages}
                 className="admin-btn-primary sm:px-6 disabled:opacity-60"
               >
-                {saving || uploadingImages ? 'Saving...' : 'Save Property'}
+                {postPhase === 'uploading' ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Uploading {uploadProgress.done}/{uploadProgress.total}…
+                  </span>
+                ) : saving ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    Posting…
+                  </span>
+                ) : isEditMode ? (
+                  'Save Changes'
+                ) : (
+                  'Post Property'
+                )}
               </button>
             </div>
           </div>
@@ -1887,8 +1938,15 @@ export default function AdminPropertyForm() {
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 100, opacity: 0 }}
-            className="fixed bottom-[calc(7.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl bg-black px-5 py-3.5 text-sm text-white shadow-lg shadow-black/30 sm:bottom-auto sm:right-6 sm:top-6 sm:max-w-none sm:translate-x-0"
+            className="fixed bottom-[calc(7.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2.5 rounded-xl bg-black px-5 py-3.5 text-sm text-white shadow-lg shadow-black/30 sm:bottom-auto sm:right-6 sm:top-6 sm:max-w-none sm:translate-x-0"
           >
+            {postPhase === 'done' && (
+              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500">
+                <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 6.5l2.5 2.5 4.5-5" />
+                </svg>
+              </span>
+            )}
             {toast}
           </motion.div>
         )}

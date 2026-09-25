@@ -19,8 +19,10 @@ import {
   HardDrive,
   GearSix,
   UsersThree,
+  Buildings,
 } from '@phosphor-icons/react';
 import { auth } from '@/lib/firebase';
+import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
 import { useOpenRequirementsCount } from '@/hooks/useOpenRequirementsCount';
 import { useUnreviewedApplicationsCount } from '@/hooks/useUnreviewedApplicationsCount';
 import VJRAIButton from '@/components/ai/VJRAIButton';
@@ -50,6 +52,7 @@ const primaryNavItems: NavItem[] = [
 
 /** Full directory lives in the sidebar; the mobile bar keeps the top five. */
 const secondaryNavItems: NavItem[] = [
+  { icon: Buildings, label: 'PG Management', path: '/admin/pg-management', match: '/admin/pg-management' },
   { icon: Scroll, label: 'Listings Dashboard', path: '/admin/listings', match: '/admin/listings' },
   { icon: NotePencil, label: 'Post Requirement', path: '/admin/requirements/new', match: '/admin/requirements/new' },
   { icon: Plus, label: 'Add Property', path: '/admin/properties/new', match: '/admin/properties/new' },
@@ -60,6 +63,11 @@ const secondaryNavItems: NavItem[] = [
   { icon: HardDrive, label: 'Storage', path: '/admin/storage', match: '/admin/storage' },
   { icon: GearSix, label: 'Settings', path: '/admin/settings', match: '/admin/settings' },
 ];
+
+// PG Management is temporarily disabled — flip the flag in src/lib/featureFlags.ts to re-enable.
+const visibleSecondaryNavItems = PG_MANAGEMENT_ENABLED
+  ? secondaryNavItems
+  : secondaryNavItems.filter((item) => item.path !== '/admin/pg-management');
 
 export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutProps) {
   const navigate = useNavigate();
@@ -157,7 +165,7 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
       <nav className="admin-nav-scroll mt-4 flex-1 overflow-y-auto px-3">
         {primaryNavItems.map((item) => renderNavItem(item))}
         <p className="admin-nav-group-label">Manage</p>
-        {secondaryNavItems.map((item) => renderNavItem(item))}
+        {visibleSecondaryNavItems.map((item) => renderNavItem(item))}
       </nav>
 
       <div className="space-y-0.5 border-t border-white/[0.06] px-3 py-4">

@@ -20,8 +20,17 @@ import VJRAIButton from '../components/ai/VJRAIButton';
  */
 const SERIF = "'Instrument Serif', Georgia, serif";
 
-const HERO_IMAGE =
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=2200&auto=format&fit=crop&q=80';
+// Hero photo — also preloaded from index.html on the home route so the LCP
+// fetch starts while the JS bundle is still downloading. Keep the URLs in
+// sync with the preload script there.
+const HERO_BASE = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00';
+const HERO_SRC = `${HERO_BASE}?w=1600&auto=format&fit=crop&q=75`;
+const HERO_SRCSET = [
+  `${HERO_BASE}?w=640&auto=format&fit=crop&q=70 640w`,
+  `${HERO_BASE}?w=1080&auto=format&fit=crop&q=70 1080w`,
+  `${HERO_BASE}?w=1600&auto=format&fit=crop&q=75 1600w`,
+  `${HERO_BASE}?w=2200&auto=format&fit=crop&q=75 2200w`,
+].join(', ');
 
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -56,10 +65,14 @@ export default function HomePage() {
           {/* Slow cinematic settle on load (Ken Burns) — skipped for
               reduced-motion users. */}
           <motion.img
-            src={HERO_IMAGE}
+            src={HERO_SRC}
+            srcSet={HERO_SRCSET}
+            sizes="100vw"
             alt="Rental income property in Bengaluru"
             className="h-full w-full object-cover object-center"
             decoding="async"
+            loading="eager"
+            {...({ fetchpriority: 'high' } as object)}
             initial={reduceMotion ? false : { scale: 1.14 }}
             animate={reduceMotion ? undefined : { scale: 1 }}
             transition={{ duration: 9, ease: [0.22, 1, 0.36, 1] }}

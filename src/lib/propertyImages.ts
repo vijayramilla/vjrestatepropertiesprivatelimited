@@ -1,5 +1,5 @@
 import {
-  supabaseUploadImages,
+  supabaseUploadImagesWithProgress,
   supabaseDeleteImage,
 } from '@/lib/supabaseData';
 import { compressImageFile } from '@/utils/supabaseUploader';
@@ -39,9 +39,10 @@ export async function uploadPropertyImages(
   files: File[],
   propertyId: string,
   _uid: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<string[]> {
   const optimized = await optimizeEach(files);
-  return supabaseUploadImages('property-images', propertyId, optimized);
+  return supabaseUploadImagesWithProgress('property-images', propertyId, optimized, onProgress);
 }
 
 export async function deletePropertyImageByUrl(url: string): Promise<void> {

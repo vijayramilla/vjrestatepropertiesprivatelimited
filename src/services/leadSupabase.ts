@@ -214,7 +214,7 @@ export const leadSupabase = {
   },
 
   employees: {
-    async list(params?: { search?: string; department?: string; status?: string; designation?: string; sortBy?: string; sortOrder?: string }): Promise<{ data: any[]; stats: { total: number; active: number; onLeave: number; newThisMonth: number } }> {
+    async list(params?: { search?: string; department?: string; status?: string; designation?: string; sortBy?: string; sortOrder?: string; page?: number; limit?: number }): Promise<{ data: any[]; stats: { total: number; active: number; onLeave: number; newThisMonth: number } }> {
       return callProxy('employees.list', params);
     },
     async get(id: string): Promise<{ data: any; history: any[]; attendance: any[]; leaves: any[]; payroll: any[] }> {

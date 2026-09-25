@@ -20,6 +20,7 @@ import {
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
 import { usePropertyAccess } from '@/lib/propertyAccess';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
@@ -30,6 +31,9 @@ const DM_SANS = "'DM Sans', system-ui, sans-serif";
 const profileLinks = [
   { label: 'Quick Pick', path: '/quick-pick', Icon: HandSwipeRight },
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
+  ...(PG_MANAGEMENT_ENABLED
+    ? [{ label: 'PG Management', path: '/pg-management', Icon: Buildings }]
+    : []),
 
   { label: 'About Us', path: '/about', Icon: Info },
   { label: 'Our Team', path: '/team', Icon: Users },

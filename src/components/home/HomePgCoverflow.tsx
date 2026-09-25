@@ -87,7 +87,18 @@ export default function HomePgCoverflow() {
     [pool],
   );
 
-  if (properties.length === 0) return null;
+  // Reserve the section's height while Firestore connects so the carousel
+  // doesn't pop in and shove the rest of the page down (CLS). Only shown
+  // while loading — an empty catalog still collapses to nothing.
+  if (properties.length === 0) {
+    return (
+      <section aria-hidden className="overflow-hidden bg-gradient-to-b from-[#0A1628] via-[#0d1c33] to-[#0A1628] py-14 md:py-20">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="min-h-[660px] md:min-h-[800px]" />
+        </div>
+      </section>
+    );
+  }
 
   const openSelected = () => {
     const property = pool[selectedRef.current];

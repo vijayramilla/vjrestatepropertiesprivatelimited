@@ -377,7 +377,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     case 'agents.create': {
       if (!hasPerm(params._auth, 'agents.edit')) throw new Error('Forbidden');
       const { name, email, phone } = params;
-      const { data, error } = await supabaseAdmin.from('agents').insert({ name, email: email ?? '', phone: phone ?? '' }).select().single();
+      const { data, error } = await supabaseAdmin.from('agents').insert({ name, email: email ?? '', phone: phone ?? '', active: true }).select().single();
       if (error) throw new Error(error.message);
       return { data };
     }

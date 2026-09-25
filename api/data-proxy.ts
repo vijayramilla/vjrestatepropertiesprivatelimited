@@ -647,7 +647,7 @@ async function executeAction(action: string, params: any): Promise<any> {
         supabaseAdmin
           .from('employees')
           .select('employee_id,name,designation,status')
-          .ilike('designation', '%agent%')
+          .or('designation.ilike.%agent%,designation.ilike.%sales%,designation.ilike.%partner%')
           .eq('status', 'Active')
           .order('name', { ascending: true }),
       ]);

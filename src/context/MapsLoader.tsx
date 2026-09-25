@@ -1,5 +1,6 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useJsApiLoader, type Libraries } from '@react-google-maps/api';
+import { GoogleMapsContext } from './GoogleMapsContext';
 import { GOOGLE_MAPS_API_KEY } from '@/data/mapConfig';
 
 const GOOGLE_MAPS_LOADER_ID = 'vjr-google-maps-loader';
@@ -9,7 +10,7 @@ const GOOGLE_MAPS_LIBRARIES: Libraries = ['places'];
 
 interface MapsLoaderProps {
   requestMaps: () => void;
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 /**
@@ -17,8 +18,13 @@ interface MapsLoaderProps {
  * @react-google-maps/api wrapper — and the vendor chunk it pulls in — stays
  * out of the initial payload entirely. This module is only fetched after
  * requestMaps() flips the provider's state.
+ *
+ * It renders a stateless SIBLING that re-provides GoogleMapsContext with the
+ * real isLoaded state, so consumers of useGoogleMapsLoader() see the SDK
+ * arrive without the app subtree being remounted (wrapping children in the
+ * loader used to remount the whole app when loading finished).
  */
-export default function MapsLoader({ requestMaps, children }: MapsLoaderProps) {
+export default function MapsLoader({ requestMaps }: MapsLoaderProps) {
   const { isLoaded, loadError } = useJsApiLoader({
     id: GOOGLE_MAPS_LOADER_ID,
     googleMapsApiKey: GOOGLE_MAPS_API_KEY,
@@ -26,24 +32,10 @@ export default function MapsLoader({ requestMaps, children }: MapsLoaderProps) {
   });
 
   return (
-    <MapsRuntimeContext.Provider value={{ isLoaded, loadError, requestMaps }}>
-      {children}
-    </MapsRuntimeContext.Provider>
+    <GoogleMapsContext.Provider
+      value={{ isLoaded, loadError: loadError as Error | undefined, requestMaps }}
+    >
+      {null}
+    </GoogleMapsContext.Provider>
   );
-}
-
-export interface MapsRuntimeValue {
-  isLoaded: boolean;
-  loadError: Error | undefined;
-  requestMaps: () => void;
-}
-
-export const MapsRuntimeContext = createContext<MapsRuntimeValue>({
-  isLoaded: false,
-  loadError: undefined,
-  requestMaps: () => {},
-});
-
-export function useMapsRuntime() {
-  return useContext(MapsRuntimeContext);
 }

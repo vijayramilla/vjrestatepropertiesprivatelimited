@@ -25,10 +25,11 @@ export default function VJRAIButton({
   const [isOpen, setIsOpen] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const reduceMotion = useReducedMotion();
-  const { nexaEnabled } = useSiteSettings();
+  const { nexaEnabled, loading: settingsLoading } = useSiteSettings();
 
   // Site-wide toggle: admin can hide the Nexa bot entirely from Settings.
-  if (!nexaEnabled) return null;
+  // Hidden while settings load so a disabled bot never flashes on screen.
+  if (!nexaEnabled || settingsLoading) return null;
 
   return (
     <>

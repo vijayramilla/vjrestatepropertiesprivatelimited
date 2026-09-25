@@ -55,6 +55,7 @@ interface Property {
   monthly_rental_label: string;
   featured: boolean;
   status: string;
+  listed_by?: string;
   uid?: string;
   userEmail?: string;
   userDisplayName?: string;
@@ -96,6 +97,7 @@ export default function AdminPropertiesList() {
   const [idSearch, setIdSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [listedByFilter, setListedByFilter] = useState('All');
   const [agentFilter, setAgentFilter] = useState('All Agents');
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [sortBy, setSortBy] = useState('Newest');
@@ -125,15 +127,27 @@ export default function AdminPropertiesList() {
 
   const supabaseMode = isSupabaseDataEnabled();
 
-  // Agent list for the filter dropdown — best-effort, filter stays usable
-  // (populated from listings themselves) if the CRM call fails.
+  // Agent list for the filter dropdown — merges CRM agents and active team
+  // members with agent designations (Telecaller Agent, Channel Partner, …) so
+  // everyone who can be attached to a listing shows up. Best-effort: the
+  // filter stays usable (populated from listings themselves) if calls fail.
   useEffect(() => {
-    leadSupabase.agents
-      .list()
-      .then((res) => {
-        setAgents(res.data.map((a) => ({ id: a._id, name: a.name })));
-      })
-      .catch(() => {});
+    Promise.all([
+      leadSupabase.agents.list().catch(() => ({ data: [] })),
+      leadSupabase.employees
+        .list({ status: 'Active', limit: 500 })
+        .catch(() => ({ data: [] })),
+    ]).then(([agRes, empRes]) => {
+      const crmAgents = (agRes.data ?? []).map((a) => ({ id: a._id, name: a.name }));
+      const teamAgents = (empRes.data ?? [])
+        .filter((e: { designation?: string }) => /agent|sales|channel/i.test(e.designation ?? ''))
+        .map((e: { employee_id?: string; id?: string; name: string }) => ({
+          id: e.employee_id ?? e.id ?? '',
+          name: e.name,
+        }))
+        .filter((a: { id: string }) => a.id);
+      setAgents([...crmAgents, ...teamAgents]);
+    });
   }, []);
 
   useEffect(() => {
@@ -152,7 +166,7 @@ export default function AdminPropertiesList() {
     });
 
     return () => unsub();
-  }, []);
+  }, [supabaseMode]);
 
   const filteredProperties = properties
     .filter((p) => {
@@ -163,6 +177,11 @@ export default function AdminPropertiesList() {
         !idSearch || (p.propertyCode?.toLowerCase() ?? '').includes(idSearch.toLowerCase());
       const matchesType = typeFilter === 'All Types' || p.type === typeFilter;
       const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
+      const matchesListedBy =
+        listedByFilter === 'All' ||
+        (listedByFilter === 'VJR Estate'
+          ? !p.listed_by || p.listed_by === 'VJR Estate'
+          : p.listed_by === listedByFilter);
       const matchesAgent =
         agentFilter === 'All Agents' ||
         (agentFilter === 'No Agent'
@@ -171,9 +190,9 @@ export default function AdminPropertiesList() {
       // Granted users: only their own listings. Admins: only VJR-official
       // listings (uid-less rows) as before.
       if (isGrantedUser) {
-        return matchesSearch && matchesId && matchesType && matchesStatus && p.uid === user?.uid;
+        return matchesSearch && matchesId && matchesType && matchesStatus && matchesListedBy && p.uid === user?.uid;
       }
-      return matchesSearch && matchesId && matchesType && matchesStatus && matchesAgent && !p.uid;
+      return matchesSearch && matchesId && matchesType && matchesStatus && matchesListedBy && matchesAgent && !p.uid;
     })
     .sort((a, b) => {
       if (sortBy === 'Newest')
@@ -365,6 +384,16 @@ export default function AdminPropertiesList() {
               <option value="All">All Status</option>
               <option value="Ready">Ready</option>
               <option value="New Launch">New Launch</option>
+            </select>
+            <select
+              value={listedByFilter}
+              onChange={(e) => setListedByFilter(e.target.value)}
+              className="admin-select sm:min-w-[140px] sm:flex-1"
+            >
+              <option value="All">All Listings</option>
+              <option value="VJR Estate">VJR Estate</option>
+              <option value="Agent">Agent</option>
+              <option value="Owner">Owner</option>
             </select>
             <select
               value={agentFilter}

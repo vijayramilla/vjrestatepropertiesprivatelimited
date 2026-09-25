@@ -11,6 +11,7 @@ import {
   Youtube,
 } from 'lucide-react';
 import { siteContact } from '@/data/siteContact';
+import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
 
 const SERIF = "'Instrument Serif', Georgia, serif";
 
@@ -31,6 +32,9 @@ const columns = [
   {
     title: 'Company',
     links: [
+      ...(PG_MANAGEMENT_ENABLED
+        ? [{ label: 'PG & Building Management', to: '/pg-management' }]
+        : []),
       { label: 'About VJR Estate', to: '/about' },
       { label: 'Submit Requirement', to: '/submit-requirement' },
       { label: 'Active Requirements', to: '/requirements' },

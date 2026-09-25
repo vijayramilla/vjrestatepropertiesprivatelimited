@@ -758,6 +758,25 @@ export async function supabaseUploadImages(
   return Promise.all(files.map((f) => supabaseUploadImage(bucket, entityId, f)));
 }
 
+/**
+ * Sequential variant with per-file progress callback — lets callers show
+ * "Uploading images (3/5)" instead of an opaque blocking spinner.
+ */
+export async function supabaseUploadImagesWithProgress(
+  bucket: 'property-images' | 'team-photos',
+  entityId: string,
+  files: File[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<string[]> {
+  const urls: string[] = [];
+  for (let i = 0; i < files.length; i++) {
+    onProgress?.(i, files.length);
+    urls.push(await supabaseUploadImage(bucket, entityId, files[i]));
+    onProgress?.(i + 1, files.length);
+  }
+  return urls;
+}
+
 export async function supabaseUploadResume(jobId: string, file: File): Promise<{ url: string; fileName: string }> {
   const dataBase64 = await readFileAsDataUrl(file);
   const res = await callDataProxy('resume.upload', {

@@ -34,9 +34,22 @@ function statusBreakdown(leads: Lead[]): { label: string; count: number }[] {
     .map(([label, count]) => ({ label, count }));
 }
 
+// Team members (employees) whose role lets them act as a listing agent —
+// Telecaller Agent, Field Sales Executive, Channel Partner, etc.
+interface TeamAgent {
+  id: string;
+  name: string;
+  designation: string;
+  email: string;
+  phone: string;
+}
+
+const isAgentDesignation = (designation: string) => /agent|sales|channel/i.test(designation);
+
 export default function AdminAgents() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [teamAgents, setTeamAgents] = useState<TeamAgent[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -58,12 +71,24 @@ export default function AdminAgents() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [agRes, ldRes] = await Promise.all([
+      const [agRes, ldRes, empRes] = await Promise.all([
         leadSupabase.agents.list(),
         leadSupabase.list({ limit: 9999 }),
+        leadSupabase.employees.list({ status: 'Active', limit: 500 }).catch(() => ({ data: [] as any[] })),
       ]);
       setAgents(agRes.data);
       setLeads(ldRes.data);
+      const rows: any[] = empRes.data ?? [];
+      const agentRows = rows.filter((e) => isAgentDesignation(e.designation ?? ''));
+      setTeamAgents(
+        (agentRows.length > 0 ? agentRows : []).map((e) => ({
+          id: e.employee_id ?? e.id,
+          name: e.name ?? '',
+          designation: e.designation ?? '',
+          email: e.email ?? '',
+          phone: e.phone ?? '',
+        })),
+      );
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -89,7 +114,7 @@ export default function AdminAgents() {
     return leads.filter(l => !l.assignedAgent?._id);
   }, [leads]);
 
-  const filtered = useMemo(() => {
+  const filteredAgents = useMemo(() => {
     if (!search) return agents;
     const q = search.toLowerCase();
     return agents.filter(a =>
@@ -98,6 +123,17 @@ export default function AdminAgents() {
       a.phone.includes(q)
     );
   }, [agents, search]);
+
+  const filteredTeamAgents = useMemo(() => {
+    if (!search) return teamAgents;
+    const q = search.toLowerCase();
+    return teamAgents.filter(a =>
+      a.name.toLowerCase().includes(q) ||
+      a.designation.toLowerCase().includes(q) ||
+      a.email.toLowerCase().includes(q) ||
+      a.phone.includes(q)
+    );
+  }, [teamAgents, search]);
 
   function toggleExpanded(id: string) {
     setExpanded(prev => {
@@ -149,7 +185,10 @@ export default function AdminAgents() {
       await leadSupabase.agents.update(agent._id, { active: !agent.active });
       await fetchData();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Failed to toggle agent:', err);
+      setFormError(msg || 'Could not change the agent status. Please try again.');
+      setTimeout(() => setFormError(''), 4000);
     }
   }
 
@@ -160,7 +199,10 @@ export default function AdminAgents() {
       await leadSupabase.agents.delete(agent._id);
       await fetchData();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error('Failed to delete agent:', err);
+      setFormError(msg || 'Could not delete the agent. Please try again.');
+      setTimeout(() => setFormError(''), 4000);
     } finally {
       setDeleting(null);
     }
@@ -176,7 +218,7 @@ export default function AdminAgents() {
         <CrmPageHeader
           eyebrow="Team"
           title="Agents"
-          description={`${agents.length} agents · ${totalAssigned} assigned requirements · ${unassignedLeads.length} unassigned`}
+          description={`${agents.length} agents · ${teamAgents.length} team members · ${totalAssigned} assigned requirements · ${unassignedLeads.length} unassigned`}
           actions={
             <>
               <CrmBtn variant="ghost" onClick={fetchData}><RefreshCw className="h-3.5 w-3.5" /> Refresh</CrmBtn>
@@ -197,13 +239,24 @@ export default function AdminAgents() {
           </div>
         </div>
 
+        {formError && !modalOpen && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] text-red-700">
+            {formError}
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-20 text-muted-foreground text-sm">Loading agents...</div>
-        ) : filtered.length === 0 ? (
+        ) : filteredAgents.length === 0 && filteredTeamAgents.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground text-sm">No agents found</div>
         ) : (
           <div className="space-y-4">
-            {filtered.map((agent) => {
+            {filteredAgents.length > 0 && (
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                Agents ({filteredAgents.length})
+              </p>
+            )}
+            {filteredAgents.map((agent) => {
               const agentLeads = leadsByAgent[agent._id] ?? [];
               const breakdown = statusBreakdown(agentLeads);
               const isExpanded = expanded.has(agent._id);
@@ -315,6 +368,42 @@ export default function AdminAgents() {
                 </div>
               );
             })}
+
+            {filteredTeamAgents.length > 0 && (
+              <p className="pt-3 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                Team Members — Agent Roles ({filteredTeamAgents.length})
+              </p>
+            )}
+            {filteredTeamAgents.map((member) => (
+              <div key={member.id} className="bg-card border border-border/60 rounded-xl">
+                <div className="flex items-center gap-4 px-5 py-4">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-400 to-blue-500 flex items-center justify-center text-sm font-bold text-white shrink-0">
+                    {initials(member.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-foreground text-sm truncate">{member.name}</span>
+                      <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400">
+                        {member.designation || 'Team Member'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+                      <span className="flex items-center gap-1"><Mail className="w-3 h-3" />{member.email || '—'}</span>
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{member.phone || '—'}</span>
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    Active
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {filteredTeamAgents.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Need another agent? Use <span className="font-semibold">Add Agent</span> above — new agents appear in property forms and assignment lists.
+              </p>
+            )}
 
             {unassignedLeads.length > 0 && (
               <div className="bg-card border border-dashed border-border/60 rounded-xl px-5 py-4">

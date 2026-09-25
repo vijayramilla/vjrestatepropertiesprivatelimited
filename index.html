@@ -10,6 +10,8 @@
        Stale preconnects waste up to ~150ms of connection setup per origin. -->
   <link rel="preconnect" href="https://firestore.googleapis.com" />
   <link rel="preconnect" href="https://storage.googleapis.com" />
+  <link rel="preconnect" href="https://images.unsplash.com" />
+  <link rel="dns-prefetch" href="https://images.unsplash.com" />
   <!-- Property images live on Supabase Storage (Smart CDN) — warm the
        connection before JS hydrates so the first card image skips DNS+TLS. -->
   <link rel="preconnect" href="https://eimvaxrmiizdlgonhiov.supabase.co" crossorigin />
@@ -55,6 +57,23 @@
   <link rel="manifest" href="/site.webmanifest" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="apple-touch-icon" href="/favicon.png" />
+
+  <script>
+    /* Homepage hero (LCP) — start the image fetch while the JS bundle is
+       still downloading instead of waiting for React to mount. Only on the
+       home route so other pages don't waste the bandwidth.
+       Keep in sync with HERO_* constants in src/pages/HomePage.tsx. */
+    if (location.pathname === '/') {
+      var l = document.createElement('link');
+      l.rel = 'preload';
+      l.as = 'image';
+      l.href = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1080&auto=format&fit=crop&q=70';
+      l.imagesrcset = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=640&auto=format&fit=crop&q=70 640w, https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1080&auto=format&fit=crop&q=70 1080w, https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=1600&auto=format&fit=crop&q=75 1600w, https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=2200&auto=format&fit=crop&q=75 2200w';
+      l.imagesizes = '100vw';
+      l.setAttribute('fetchpriority', 'high');
+      document.head.appendChild(l);
+    }
+  </script>
 </head>
 <body>
   <div id="root"></div>
