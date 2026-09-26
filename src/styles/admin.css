@@ -244,11 +244,17 @@
 
 /* ── Footer bar (form save bar) ───────────────────────────────── */
 .admin-footer-bar {
-  @apply fixed left-0 right-0 z-20 border-t bg-white/95 px-3 py-3 backdrop-blur-md md:left-[248px] md:px-8 md:py-4;
+  @apply fixed left-0 right-0 z-30 border-t bg-white/95 px-3 py-3 backdrop-blur-md md:left-[248px] md:px-8 md:py-4;
   border-top-color: rgba(201, 168, 76, 0.25);
   bottom: calc(3.25rem + env(safe-area-inset-bottom));
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   box-shadow: 0 -8px 30px rgba(10, 22, 40, 0.07);
+}
+
+/* The mobile bottom nav (z-30) sits below; lift the publish overlay's
+   stacking context so the footer never covers the success state. */
+.admin-footer-bar[hidden] {
+  display: none;
 }
 
 @media (min-width: 768px) {

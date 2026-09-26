@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   addDoc,
@@ -36,7 +36,19 @@ import {
   callDataProxy,
 } from '@/lib/supabaseData';
 import { AnimatePresence, motion } from 'framer-motion';
-import { XCircle } from '@phosphor-icons/react';
+import {
+  Buildings,
+  HouseLine,
+  Storefront,
+  XCircle,
+  CheckCircle,
+  CaretLeft,
+  CaretRight,
+  ImageIcon,
+  MapPin,
+  CurrencyInr,
+  RocketLaunch,
+} from '@phosphor-icons/react';
 import {
   KARNATAKA_KATHA_GROUPS,
   KARNATAKA_KATHA_CUSTOM_VALUE,
@@ -109,12 +121,6 @@ const OWNER_API_URL = import.meta.env.VITE_OWNER_API_URL ?? 'http://localhost:50
 const BUILDING_TYPES = ['PG Buildings', 'Residential Rental Income', 'Commercial Properties'];
 const PLOT_TYPES: string[] = [];
 
-const PROPERTY_TYPES = [
-  'PG Buildings',
-  'Residential Rental Income',
-  'Commercial Properties',
-];
-
 const COMMERCIAL_SUBTYPES = [
   'Office Space',
   'Mall / Retail',
@@ -147,6 +153,21 @@ const AGES = [
   '3-5 Years',
   '5-10 Years',
   '10+ Years',
+];
+
+/** Housing.com-style guided flow: one decision per screen. */
+const FORM_STEPS = [
+  { label: 'Basics', hint: 'What are you listing?', icon: Buildings },
+  { label: 'Location', hint: 'Where is it?', icon: MapPin },
+  { label: 'Pricing', hint: 'Rate & size', icon: CurrencyInr },
+  { label: 'Media', hint: 'Photos, story & perks', icon: ImageIcon },
+  { label: 'Publish', hint: 'Review & post', icon: RocketLaunch },
+] as const;
+
+const TYPE_CARDS: { value: string; icon: typeof Buildings; blurb: string }[] = [
+  { value: 'PG Buildings', icon: Buildings, blurb: 'Co-living & paying guest assets' },
+  { value: 'Residential Rental Income', icon: HouseLine, blurb: 'Houses & buildings with rent' },
+  { value: 'Commercial Properties', icon: Storefront, blurb: 'Offices, retail & warehouses' },
 ];
 
 const HIGHLIGHTS = [
@@ -249,7 +270,7 @@ export default function AdminPropertyForm() {
     map_lat: 0,
     map_lng: 0,
     maps_link: '',
-    listed_by: isGrantedUser ? 'Owner' : 'VJR Estate',
+    listed_by: isGrantedUser ? 'Owner' : 'Agent',
     contact_name: '',
     contact_phone: '',
     agent_id: '',
@@ -258,6 +279,21 @@ export default function AdminPropertyForm() {
   const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
   const [agents, setAgents] = useState<any[]>([]);
   const [agentsLoading, setAgentsLoading] = useState(true);
+  // Wizard position + slide direction for the step transitions.
+  const [step, setStep] = useState(0);
+  const [stepDir, setStepDir] = useState(1);
+  // Timestamp for when the Publish step became visible. The footer's
+  // Continue button swaps in place for the Post Property button — without
+  // this arm-delay, a double-click on Continue lands on Post Property and
+  // posts the listing before the user has seen the review screen.
+  const publishArmedAt = useRef(0);
+  // Devendra is a fixed listing agent — always available in the agent picker
+  // even if he's not in the CRM agents table.
+  const DEVENDRA_AGENT = { key: 'agent:devendra', source: 'agent' as const, id: 'devendra', name: 'Devendra', email: '', phone: '', active: true };
+  const agentsWithDevendra = useMemo(
+    () => (agents.some((a) => String(a.id) === 'devendra') ? agents : [DEVENDRA_AGENT, ...agents]),
+    [agents],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -499,6 +535,19 @@ export default function AdminPropertyForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Double-guard: only the final Publish step may post. Earlier submits
+    // (Enter key, browser autofill quirks) get routed to the wizard's
+    // Continue flow instead of creating a listing.
+    if (step < FORM_STEPS.length - 1) {
+      handleContinue();
+      return;
+    }
+    // Stray-click guard: Post Property replaces Continue in the same footer
+    // slot, so a fast double-click on Continue lands here. Ignore submits
+    // within a moment of the Publish step appearing — a real publish needs
+    // the review screen to have been on screen.
+    if (Date.now() - publishArmedAt.current < 600) return;
+
     if (!validateForm()) return;
 
     setSaving(true);
@@ -566,9 +615,7 @@ export default function AdminPropertyForm() {
         userEmail: isGrantedUser ? (user!.email ?? '') : undefined,
         userDisplayName: isGrantedUser ? (user!.displayName || user!.email?.split('@')[0] || 'User') : undefined,
         featured: isGrantedUser ? false : formData.featured,
-        listed_by: isGrantedUser && formData.listed_by !== 'Agent' && formData.listed_by !== 'Owner'
-          ? 'Owner'
-          : (formData.listed_by ?? (isGrantedUser ? 'Owner' : 'VJR Estate')),
+        listed_by: formData.listed_by ?? (isGrantedUser ? 'Owner' : 'Agent'),
         agent_id: formData.agent_id ?? '',
         agent_name: formData.agent_name ?? '',
         ...(isPlotOrLand
@@ -771,6 +818,68 @@ export default function AdminPropertyForm() {
     }
   };
 
+  // ── Wizard navigation ────────────────────────────────────────────
+  // Per-step validation so Continue blocks on just the fields on screen;
+  // the full validateForm still guards the final Post.
+  const stepErrors = (s: number): Record<string, string> => {
+    const e: Record<string, string> = {};
+    const plotOrLand = PLOT_LAND_TYPES.includes(
+      formData.type as (typeof PLOT_LAND_TYPES)[number],
+    );
+    if (s === 0 && !formData.title.trim()) e.title = 'Title is required';
+    if (s === 1) {
+      const resolvedArea =
+        formData.area.trim() ||
+        extractLocalityFromText(formData.location) ||
+        extractLocalityFromText(formData.title);
+      if (!resolvedArea) e.area = 'Area is required';
+      else if (plotOrLand && (!formData.map_lat || !formData.map_lng)) {
+        e.area = 'Select area via Google Search or paste a Maps link to set the pin';
+      }
+    }
+    if (s === 2 && !formData.price) e.price = 'Price is required';
+    return e;
+  };
+
+  const handleContinue = () => {
+    const e = stepErrors(step);
+    if (Object.keys(e).length > 0) {
+      setErrors((prev) => ({ ...prev, ...e }));
+      return;
+    }
+    setErrors({});
+    setStepDir(1);
+    const next = Math.min(step + 1, FORM_STEPS.length - 1);
+    if (next === FORM_STEPS.length - 1) publishArmedAt.current = Date.now();
+    setStep(next);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBack = () => {
+    setStepDir(-1);
+    setStep((s) => Math.max(0, s - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const goToStep = (target: number) => {
+    if (target === step) return;
+    // Forward jumps re-validate every intermediate step.
+    if (target > step) {
+      for (let s = step; s < target; s++) {
+        if (Object.keys(stepErrors(s)).length > 0) {
+          setErrors(stepErrors(s));
+          setStepDir(1);
+          setStep(s);
+          return;
+        }
+      }
+    }
+    setStepDir(target > step ? 1 : -1);
+    if (target === FORM_STEPS.length - 1) publishArmedAt.current = Date.now();
+    setStep(target);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const FormChrome = isGrantedUser ? GrantedUserAdminLayout : AdminLayout;
 
   if (loading) {
@@ -928,16 +1037,113 @@ export default function AdminPropertyForm() {
 
   return (
     <FormChrome title={isEditMode ? 'Edit Property' : 'Add Property'}>
-      <div className="mx-auto max-w-4xl px-3 py-5 pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-8 sm:pb-32">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
-          {isEditMode ? 'Edit' : 'Add new'} property
-        </p>
-        <h1 className="admin-heading mt-1 text-2xl font-medium leading-tight text-black sm:text-4xl">
-          Property Details
-        </h1>
+      <div className="mx-auto max-w-4xl px-3 py-4 pb-[calc(9.5rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-8 sm:pb-32">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 sm:text-xs">
+              {isEditMode ? 'Edit' : 'Add new'} property
+            </p>
+            <h1 className="admin-heading mt-1 text-2xl font-medium leading-tight text-black sm:text-4xl">
+              {FORM_STEPS[step].label === 'Publish' ? 'Review & Publish' : `Step ${step + 1} · ${FORM_STEPS[step].label}`}
+            </h1>
+            <p className="mt-1 text-xs text-gray-500 sm:text-sm">
+              {FORM_STEPS[step].hint}
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-[#0A1628] px-3.5 py-1.5 text-[11px] font-bold text-[#C9A84C] tabular-nums">
+            {step + 1} / {FORM_STEPS.length}
+          </span>
+        </div>      {/* Wizard progress rail — numbered stepper with chevron connectors.
+          Mobile: compact dot rail (active step number + label only) so five
+          steps never squeeze or truncate on a 360px screen. */}
+      <div className="admin-section !p-3 sm:!p-4">
+        {/* Desktop/tablet rail */}
+        <ol className="hidden items-center gap-2 sm:flex">
+          {FORM_STEPS.map((s, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <li key={s.label} className="flex min-w-0 flex-1 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => goToStep(i)}
+                  className={`flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-3 py-2 transition-colors duration-200 ${
+                    active
+                      ? 'bg-[#0A1628] text-white shadow-[0_6px_18px_-8px_rgba(10,22,40,0.55)]'
+                      : done
+                        ? 'text-[#0A1628] hover:bg-[#FBF7EC]'
+                        : 'text-gray-400 hover:bg-gray-50'
+                  }`}
+                  aria-current={active ? 'step' : undefined}
+                >
+                  <span
+                    className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                      active
+                        ? 'bg-[#C9A84C] text-[#0A1628]'
+                        : done
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-400'
+                    }`}
+                  >
+                    {done ? <CheckCircle size={14} weight="bold" /> : i + 1}
+                  </span>
+                  <span className="min-w-0 text-left">
+                    <span className="block truncate text-xs font-semibold uppercase tracking-[0.08em]">
+                      {s.label}
+                    </span>
+                    <span className={`hidden truncate text-[10px] lg:block ${active ? 'text-white/60' : 'text-gray-400'}`}>
+                      {s.hint}
+                    </span>
+                  </span>
+                </button>
+                {i < FORM_STEPS.length - 1 && (
+                  <span className={`h-px w-4 shrink-0 ${done ? 'bg-[#C9A84C]' : 'bg-gray-200'}`} />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        {/* Mobile dot rail — active step number + label, dots for the rest */}
+        <div className="flex items-center justify-between sm:hidden">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#C9A84C] text-xs font-bold text-[#0A1628]">
+              {step + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-[13px] font-semibold text-[#0A1628]">
+                {FORM_STEPS[step].label}
+              </span>
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {FORM_STEPS.map((s, i) => (
+              <span
+                key={s.label}
+                className={`rounded-full transition-all duration-200 ${
+                  i === step
+                    ? 'h-2 w-5 bg-[#C9A84C]'
+                    : i < step
+                      ? 'h-2 w-2 bg-emerald-400'
+                      : 'h-2 w-2 bg-gray-200'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
 
         {/* FORM */}
-        <form id="admin-property-form" onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <form id="admin-property-form" onSubmit={handleSubmit} className="mt-6 space-y-4">
+          <AnimatePresence mode="wait" initial={false}>
+          {step === 0 && (
+          <motion.div
+            key="step-0"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION 1: BASIC INFO */}
           <div className="admin-section">
             <h2 className="admin-section-title">Basic Information</h2>
@@ -962,20 +1168,39 @@ export default function AdminPropertyForm() {
                 )}
               </div>
 
-              {/* Property Type */}
+              {/* Property Type — visual selection cards */}
               <div>
                 <label className="admin-label">Property Type *</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => updateFormData('type', e.target.value)}
-                  className="admin-select"
-                >
-                  {PROPERTY_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  {TYPE_CARDS.map(({ value, icon: TypeIcon, blurb }) => {
+                    const activeType = formData.type === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => updateFormData('type', value)}
+                        className={`cursor-pointer rounded-2xl border p-4 text-left transition-all duration-200 ${
+                          activeType
+                            ? 'border-[#0A1628] bg-[#0A1628] text-white shadow-[0_10px_28px_-12px_rgba(10,22,40,0.6)]'
+                            : 'border-[#e7e4dc] bg-white text-[#10192b] hover:border-[#C9A84C] hover:bg-[#FBF7EC]'
+                        }`}
+                        aria-pressed={activeType}
+                      >
+                        <span
+                          className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                            activeType ? 'bg-[#C9A84C] text-[#0A1628]' : 'bg-gray-100 text-[#0A1628]'
+                          }`}
+                        >
+                          <TypeIcon size={20} weight={activeType ? 'fill' : 'regular'} />
+                        </span>
+                        <span className="mt-3 block text-sm font-semibold">{value}</span>
+                        <span className={`mt-0.5 block text-[11px] leading-snug ${activeType ? 'text-white/60' : 'text-gray-500'}`}>
+                          {blurb}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Commercial Sub-type */}
@@ -1061,7 +1286,18 @@ export default function AdminPropertyForm() {
               )}
             </div>
           </div>
+          </motion.div>
+          )}
 
+          {step === 1 && (
+          <motion.div
+            key="step-1"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION 2: LOCATION */}
           <div className="admin-section">
             <h2 className="admin-section-title">Location</h2>
@@ -1180,7 +1416,18 @@ export default function AdminPropertyForm() {
               )}
             </div>
           </div>
+          </motion.div>
+          )}
 
+          {step === 2 && (
+          <motion.div
+            key="step-2"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION 3: PRICING */}
           <div className="admin-section-muted">
             <h2 className="admin-section-title mb-2">Pricing</h2>
@@ -1600,7 +1847,18 @@ export default function AdminPropertyForm() {
             </div>
           </div>
           )}
+          </motion.div>
+          )}
 
+          {step === 3 && (
+          <motion.div
+            key="step-3"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION 6: HIGHLIGHTS */}
           <div className="admin-section">
             <h2 className="admin-section-title">Highlights</h2>
@@ -1763,6 +2021,30 @@ export default function AdminPropertyForm() {
               )}
             </div>
           </div>
+          </motion.div>
+          )}
+
+          {step === 4 && (
+          <motion.div
+            key="step-4"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
+            {/* Review strip */}
+            <div className="rounded-2xl bg-gradient-to-br from-[#0A1628] to-[#12294a] p-5 text-white shadow-[0_10px_30px_-12px_rgba(10,22,40,0.55)] sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C9A84C]">
+                Ready to publish
+              </p>
+              <p className="mt-1 truncate text-lg font-semibold">
+                {formData.title || 'Untitled property'}
+              </p>
+              <p className="mt-0.5 text-xs text-white/60">
+                {formData.type} · {formData.area || '—'} · {formData.price > 0 ? formData.price_label : 'Price pending'} · {imageUrls.length + pendingFiles.length} photo{imageUrls.length + pendingFiles.length === 1 ? '' : 's'}
+              </p>
+            </div>
 
           {/* SECTION 9: LISTING DETAILS */}
           <div className="admin-section">
@@ -1776,13 +2058,14 @@ export default function AdminPropertyForm() {
                 <select
                   value={isGrantedUser
                     ? ((formData.listed_by === 'Agent' || formData.agent_id) ? 'Agent' : 'Owner')
-                    : (formData.listed_by ?? 'VJR Estate')}
+                    : (formData.listed_by === 'Owner' ? 'Owner' : 'Agent')}
                   onChange={(e) => {
                     const v = e.target.value;
-                    updateFormData('listed_by', v);
                     if (v === 'Agent') {
+                      updateFormData('listed_by', 'Agent');
                       updateFormData('agent_id', formData.agent_id ?? '');
                     } else {
+                      updateFormData('listed_by', 'Owner');
                       updateFormData('agent_id', '');
                       updateFormData('agent_name', '');
                     }
@@ -1796,7 +2079,6 @@ export default function AdminPropertyForm() {
                     </>
                   ) : (
                     <>
-                      <option value="VJR Estate">VJR Estate</option>
                       <option value="Agent">Agent</option>
                       <option value="Owner">Owner</option>
                     </>
@@ -1812,14 +2094,14 @@ export default function AdminPropertyForm() {
                   <select
                     value={formData.agent_id ?? ''}
                     onChange={(e) => {
-                      const agent = agents.find((a) => String(a.id) === e.target.value);
+                      const agent = agentsWithDevendra.find((a: { id: string | number }) => String(a.id) === e.target.value);
                       updateFormData('agent_id', e.target.value);
                       updateFormData('agent_name', agent?.name ?? '');
                     }}
                     className="admin-select"
                   >
                     <option value="">Select agent</option>
-                    {agents.map((a) => (
+                    {agentsWithDevendra.map((a: { key: string; id: string | number; name: string; source: string }) => (
                       <option key={a.key} value={String(a.id)}>
                         {a.name}
                         {a.source === 'employee' && a.id ? ` (${a.id})` : ''}
@@ -1829,7 +2111,7 @@ export default function AdminPropertyForm() {
                   {agentsLoading && (
                     <p className="mt-1 text-[11px] text-gray-400">Loading agents...</p>
                   )}
-                  {!agentsLoading && agents.length === 0 && (
+                  {!agentsLoading && agentsWithDevendra.length === 0 && (
                     <p className="mt-1 text-[11px] text-gray-400">
                       No agents available right now.
                     </p>
@@ -1881,34 +2163,54 @@ export default function AdminPropertyForm() {
               </div>
             </div>
           </div>
+          </motion.div>
+          )}
+          </AnimatePresence>
         </form>
 
-        {/* FOOTER BAR (Sticky) */}
+        {/* FOOTER BAR (Sticky) — mobile: one row, Back is a compact icon
+            button and the primary action fills the remaining width. */}
         <div className="admin-footer-bar">
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="hidden text-[11px] text-gray-400 sm:block">
-              {postPhase === 'uploading'
-                ? `Uploading images ${uploadProgress.done}/${uploadProgress.total}…`
-                : postPhase === 'saving'
-                  ? 'Posting property…'
-                  : postPhase === 'done'
-                    ? 'Posted ✓'
-                    : '* Required fields'}
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
+          <div className="flex items-center gap-2">
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={handleBack}
+                disabled={saving}
+                aria-label="Go back to previous step"
+                className="admin-btn-secondary min-h-[48px] shrink-0 !px-4 disabled:opacity-60 sm:!px-5"
+              >
+                <CaretLeft size={16} weight="bold" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={() => navigate(-1)}
                 disabled={saving}
-                className="admin-btn-secondary sm:px-5 disabled:opacity-60"
+                aria-label="Cancel and go back"
+                className="admin-btn-secondary min-h-[48px] shrink-0 !px-4 disabled:opacity-60 sm:!px-5"
               >
-                Cancel
+                <span className="hidden sm:inline">Cancel</span>
+                <span className="sm:hidden">✕</span>
               </button>
+            )}
+            {step < FORM_STEPS.length - 1 ? (
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={saving}
+                className="admin-btn-primary min-h-[48px] flex-1 gap-1.5 disabled:opacity-60 sm:flex-none sm:px-8"
+              >
+                Next
+                <CaretRight size={14} weight="bold" />
+              </button>
+            ) : (
               <button
                 type="submit"
                 form="admin-property-form"
                 disabled={saving || uploadingImages}
-                className="admin-btn-primary sm:px-6 disabled:opacity-60"
+                className="admin-btn-primary min-h-[48px] flex-1 disabled:opacity-60 sm:flex-none sm:px-8"
               >
                 {postPhase === 'uploading' ? (
                   <span className="inline-flex items-center gap-2">
@@ -1918,35 +2220,150 @@ export default function AdminPropertyForm() {
                 ) : saving ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Posting…
+                    Publishing…
                   </span>
-                ) : isEditMode ? (
-                  'Save Changes'
                 ) : (
-                  'Post Property'
+                  'Publish'
                 )}
               </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* TOAST */}
+      {/* Publish overlay — premium full-screen submission moment */}
       <AnimatePresence>
-        {toast && (
+        {postPhase === 'saving' || postPhase === 'uploading' || postPhase === 'done' ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-[#0A1628]/80 backdrop-blur-md"
+            role="status"
+            aria-live="polite"
+          >
+            <motion.div
+              initial={{ scale: 0.92, y: 16 }}
+              animate={{ scale: 1, y: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 24 }}
+              className="mx-4 flex w-full max-w-sm flex-col items-center rounded-3xl bg-white px-8 py-10 text-center shadow-[0_32px_80px_rgba(10,22,40,0.45)]"
+            >
+              {postPhase === 'done' ? (
+                <>
+                  {/* Success burst */}
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: 'spring', stiffness: 320, damping: 16 }}
+                    className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-[0_12px_32px_rgba(16,185,129,0.45)]"
+                  >
+                    <motion.svg
+                      viewBox="0 0 24 24"
+                      className="h-9 w-9 text-white"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={3}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      initial="hidden"
+                      animate="visible"
+                    >
+                      <motion.path
+                        d="M4 12.5l5 5L20 6.5"
+                        variants={{ hidden: { pathLength: 0 }, visible: { pathLength: 1 } }}
+                        transition={{ duration: 0.45, delay: 0.15, ease: 'easeOut' }}
+                      />
+                    </motion.svg>
+                    {/* Gold ring pulse */}
+                    <motion.span
+                      className="absolute inset-0 rounded-full border-2 border-[#C9A84C]"
+                      initial={{ scale: 1, opacity: 0.9 }}
+                      animate={{ scale: 1.7, opacity: 0 }}
+                      transition={{ duration: 1, ease: 'easeOut', repeat: Infinity, repeatDelay: 0.3 }}
+                    />
+                  </motion.span>
+                  <motion.p
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                    className="mt-6 text-xl font-semibold text-[#0A1628]"
+                  >
+                    {isEditMode ? 'Changes Saved' : 'Property Published!'}
+                  </motion.p>
+                  <motion.p
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.42 }}
+                    className="mt-1.5 text-sm text-gray-500"
+                  >
+                    {formData.propertyCode
+                      ? `${isEditMode ? 'Updated' : 'Listing'} ${formData.propertyCode} is live`
+                      : 'Your listing is now live'}
+                  </motion.p>
+                  <motion.span
+                    initial={{ width: 0 }}
+                    animate={{ width: '100%' }}
+                    transition={{ duration: 1.1, delay: 0.4, ease: 'easeInOut' }}
+                    className="mt-6 h-1 overflow-hidden rounded-full bg-gray-100"
+                  >
+                    <span className="block h-full rounded-full bg-gradient-to-r from-[#C9A84C] to-[#E9CE7C]" />
+                  </motion.span>
+                </>
+              ) : (
+                <>
+                  {/* In-progress: gold spinner with orbiting comet */}
+                  <span className="relative flex h-20 w-20 items-center justify-center">
+                    <motion.span
+                      className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#C9A84C] border-r-[#C9A84C]/40"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 0.9, ease: 'linear', repeat: Infinity }}
+                    />
+                    <motion.span
+                      className="absolute inset-2 rounded-full border-2 border-[#0A1628]/10"
+                      animate={{ rotate: -360 }}
+                      transition={{ duration: 1.6, ease: 'linear', repeat: Infinity }}
+                    />
+                    {postPhase === 'uploading' ? (
+                      <ImageIcon size={24} className="text-[#C9A84C]" weight="duotone" />
+                    ) : (
+                      <RocketLaunch size={24} className="text-[#C9A84C]" weight="duotone" />
+                    )}
+                  </span>
+                  <p className="mt-6 text-lg font-semibold text-[#0A1628]">
+                    {postPhase === 'uploading' ? 'Uploading photos' : 'Publishing your property'}
+                  </p>
+                  <p className="mt-1.5 text-sm text-gray-500">
+                    {postPhase === 'uploading'
+                      ? `${uploadProgress.done} of ${uploadProgress.total} photo${uploadProgress.total === 1 ? '' : 's'} uploaded`
+                      : 'Saving your listing to VJR Estate'}
+                  </p>
+                  {postPhase === 'uploading' && uploadProgress.total > 0 && (
+                    <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+                      <motion.div
+                        className="h-full rounded-full bg-gradient-to-r from-[#0A1628] to-[#1E3852]"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.round((uploadProgress.done / uploadProgress.total) * 100)}%` }}
+                        transition={{ duration: 0.35, ease: 'easeOut' }}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      {/* TOAST (errors only — success now has the overlay) */}
+      <AnimatePresence>
+        {toast && postPhase !== 'done' && (
           <motion.div
             initial={{ x: 100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: 100, opacity: 0 }}
             className="fixed bottom-[calc(7.75rem+env(safe-area-inset-bottom))] left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center gap-2.5 rounded-xl bg-black px-5 py-3.5 text-sm text-white shadow-lg shadow-black/30 sm:bottom-auto sm:right-6 sm:top-6 sm:max-w-none sm:translate-x-0"
           >
-            {postPhase === 'done' && (
-              <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500">
-                <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-white" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 6.5l2.5 2.5 4.5-5" />
-                </svg>
-              </span>
-            )}
             {toast}
           </motion.div>
         )}

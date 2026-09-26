@@ -179,8 +179,8 @@ export default function AdminPropertiesList() {
       const matchesStatus = statusFilter === 'All' || p.status === statusFilter;
       const matchesListedBy =
         listedByFilter === 'All' ||
-        (listedByFilter === 'VJR Estate'
-          ? !p.listed_by || p.listed_by === 'VJR Estate'
+        (listedByFilter === 'Other'
+          ? p.listed_by !== 'Devendra' && p.listed_by !== 'Agent' && p.listed_by !== 'Owner'
           : p.listed_by === listedByFilter);
       const matchesAgent =
         agentFilter === 'All Agents' ||
@@ -391,9 +391,10 @@ export default function AdminPropertiesList() {
               className="admin-select sm:min-w-[140px] sm:flex-1"
             >
               <option value="All">All Listings</option>
-              <option value="VJR Estate">VJR Estate</option>
+              <option value="Devendra">Devendra</option>
               <option value="Agent">Agent</option>
               <option value="Owner">Owner</option>
+              <option value="Other">Other</option>
             </select>
             <select
               value={agentFilter}

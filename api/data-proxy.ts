@@ -414,7 +414,12 @@ async function executeAction(action: string, params: any): Promise<any> {
         .upload(path, buffer, { contentType, upsert: false });
       if (error) throw new Error(error.message);
       const { data: publicUrl } = supabaseAdmin.storage.from(bucket).getPublicUrl(path);
-      return { url: publicUrl, path };
+      // getPublicUrl returns { publicUrl } — unwrap so callers always receive
+      // a plain URL string. The object shape used to be persisted into the
+      // properties.images array, which broke every listing's photo gallery.
+      const url = typeof publicUrl === 'string' ? publicUrl : publicUrl?.publicUrl ?? '';
+      if (!url) throw new Error('Upload succeeded but no public URL was generated');
+      return { url, path };
     }
 
     case 'image.delete': {
@@ -447,7 +452,8 @@ async function executeAction(action: string, params: any): Promise<any> {
         .upload(path, buffer, { contentType, upsert: false });
       if (error) throw new Error(error.message);
       const { data: publicUrl } = supabaseAdmin.storage.from('resumes').getPublicUrl(path);
-      return { url: publicUrl, path, fileName: name };
+      const url = typeof publicUrl === 'string' ? publicUrl : publicUrl?.publicUrl ?? '';
+      return { url, path, fileName: name };
     }
 
     // ── Requirements ────────────────────────────────────────────────────
