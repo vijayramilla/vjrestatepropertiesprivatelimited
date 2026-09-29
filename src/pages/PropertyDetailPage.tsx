@@ -750,7 +750,7 @@ export default function PropertyDetailPage() {
         className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e8e8e8] bg-white/95 shadow-[0_-8px_32px_rgba(0,0,0,0.08)] backdrop-blur-md lg:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto] items-stretch gap-1.5 px-3 py-2.5 lg:px-12 xl:px-16">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_auto_auto_auto_auto] items-stretch gap-1.5 px-3 py-2.5 lg:px-12 xl:px-16">
           <div className="flex min-h-[48px] min-w-0 flex-col justify-center pr-1">
             <p
               className="truncate text-[20px] font-medium leading-none tracking-tight text-[#0A1628] sm:text-[22px]"
@@ -780,6 +780,22 @@ export default function PropertyDetailPage() {
             />
             <span className="text-[9px] font-semibold uppercase tracking-wide text-[#888]" style={fontUI}>
               {saved ? 'Saved' : 'Save'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Share this property"
+            className="flex min-h-[48px] min-w-[44px] touch-manipulation flex-col items-center justify-center rounded-xl border border-[#e0e2e5] bg-white active:scale-[0.98]"
+          >
+            <ShareNetwork
+              size={18}
+              weight="duotone"
+              color="#0A1628"
+            />
+            <span className="text-[9px] font-semibold uppercase tracking-wide text-[#888]" style={fontUI}>
+              Share
             </span>
           </button>
 

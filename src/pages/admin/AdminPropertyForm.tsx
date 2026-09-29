@@ -47,6 +47,8 @@ import {
   ImageIcon,
   MapPin,
   CurrencyInr,
+  Ruler,
+  ArrowsOut,
   RocketLaunch,
 } from '@phosphor-icons/react';
 import {
@@ -159,15 +161,16 @@ const AGES = [
 const FORM_STEPS = [
   { label: 'Basics', hint: 'What are you listing?', icon: Buildings },
   { label: 'Location', hint: 'Where is it?', icon: MapPin },
-  { label: 'Pricing', hint: 'Rate & size', icon: CurrencyInr },
+  { label: 'Pricing & Rental Income', hint: 'Set the right price', icon: CurrencyInr },
+  { label: 'Details', hint: 'Size & specifications', icon: Ruler },
   { label: 'Media', hint: 'Photos, story & perks', icon: ImageIcon },
   { label: 'Publish', hint: 'Review & post', icon: RocketLaunch },
 ] as const;
 
-const TYPE_CARDS: { value: string; icon: typeof Buildings; blurb: string }[] = [
-  { value: 'PG Buildings', icon: Buildings, blurb: 'Co-living & paying guest assets' },
-  { value: 'Residential Rental Income', icon: HouseLine, blurb: 'Houses & buildings with rent' },
-  { value: 'Commercial Properties', icon: Storefront, blurb: 'Offices, retail & warehouses' },
+const TYPE_CARDS: { value: string; icon: typeof Buildings }[] = [
+  { value: 'PG Buildings', icon: Buildings },
+  { value: 'Residential Rental Income', icon: HouseLine },
+  { value: 'Commercial Properties', icon: Storefront },
 ];
 
 const HIGHLIGHTS = [
@@ -840,6 +843,8 @@ export default function AdminPropertyForm() {
     if (s === 2 && !formData.price) e.price = 'Price is required';
     return e;
   };
+  // Steps 3 (Details) onwards have no hard-required fields — the full
+  // validateForm still guards the final Post.
 
   const handleContinue = () => {
     const e = stepErrors(step);
@@ -1046,9 +1051,6 @@ export default function AdminPropertyForm() {
             <h1 className="admin-heading mt-1 text-2xl font-medium leading-tight text-black sm:text-4xl">
               {FORM_STEPS[step].label === 'Publish' ? 'Review & Publish' : `Step ${step + 1} · ${FORM_STEPS[step].label}`}
             </h1>
-            <p className="mt-1 text-xs text-gray-500 sm:text-sm">
-              {FORM_STEPS[step].hint}
-            </p>
           </div>
           <span className="shrink-0 rounded-full bg-[#0A1628] px-3.5 py-1.5 text-[11px] font-bold text-[#C9A84C] tabular-nums">
             {step + 1} / {FORM_STEPS.length}
@@ -1090,9 +1092,6 @@ export default function AdminPropertyForm() {
                   <span className="min-w-0 text-left">
                     <span className="block truncate text-xs font-semibold uppercase tracking-[0.08em]">
                       {s.label}
-                    </span>
-                    <span className={`hidden truncate text-[10px] lg:block ${active ? 'text-white/60' : 'text-gray-400'}`}>
-                      {s.hint}
                     </span>
                   </span>
                 </button>
@@ -1155,16 +1154,25 @@ export default function AdminPropertyForm() {
                   type="text"
                   placeholder="Property Title"
                   value={formData.title}
-                  onChange={(e) => updateFormData('title', e.target.value)}
-                  className="admin-input-ghost"
+                  onChange={(e) => {
+                    updateFormData('title', e.target.value);
+                    if (errors.title) {
+                      setErrors((prev) => {
+                        const nextErrors = { ...prev };
+                        delete nextErrors.title;
+                        return nextErrors;
+                      });
+                    }
+                  }}
+                  className={`admin-input-ghost ${errors.title ? 'border-red-300 focus:border-red-400' : ''}`}
                 />
+                {errors.title && (
+                  <p className="mt-2 text-xs text-red-600">{errors.title}</p>
+                )}
                 {formData.propertyCode && (
                   <p className="mt-1 text-[11px] text-gray-500">
                     Property ID: <span className="font-mono font-semibold text-black">{formData.propertyCode}</span>
                   </p>
-                )}
-                {errors.title && (
-                  <p className="mt-2 text-xs text-gray-500">{errors.title}</p>
                 )}
               </div>
 
@@ -1172,7 +1180,7 @@ export default function AdminPropertyForm() {
               <div>
                 <label className="admin-label">Property Type *</label>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  {TYPE_CARDS.map(({ value, icon: TypeIcon, blurb }) => {
+                  {TYPE_CARDS.map(({ value, icon: TypeIcon }) => {
                     const activeType = formData.type === value;
                     return (
                       <button
@@ -1194,9 +1202,6 @@ export default function AdminPropertyForm() {
                           <TypeIcon size={20} weight={activeType ? 'fill' : 'regular'} />
                         </span>
                         <span className="mt-3 block text-sm font-semibold">{value}</span>
-                        <span className={`mt-0.5 block text-[11px] leading-snug ${activeType ? 'text-white/60' : 'text-gray-500'}`}>
-                          {blurb}
-                        </span>
                       </button>
                     );
                   })}
@@ -1292,6 +1297,7 @@ export default function AdminPropertyForm() {
           {step === 1 && (
           <motion.div
             key="step-1"
+            data-step="location"
             initial={{ opacity: 0, x: 28 * stepDir }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -28 * stepDir }}
@@ -1377,43 +1383,6 @@ export default function AdminPropertyForm() {
                 />
               </div>
 
-              {/* Facing */}
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Facing
-                </label>
-                <select
-                  value={formData.facing}
-                  onChange={(e) => updateFormData('facing', e.target.value)}
-                  className="admin-select"
-                >
-                  {FACINGS.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Age — buildings only */}
-              {!isPlotOrLand && (
-              <div>
-                <label className="block font-sans text-xs text-gray-500 mb-2">
-                  Age
-                </label>
-                <select
-                  value={formData.age}
-                  onChange={(e) => updateFormData('age', e.target.value)}
-                  className="admin-select"
-                >
-                  {AGES.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              )}
             </div>
           </div>
           </motion.div>
@@ -1422,6 +1391,7 @@ export default function AdminPropertyForm() {
           {step === 2 && (
           <motion.div
             key="step-2"
+            data-step="pricing"
             initial={{ opacity: 0, x: 28 * stepDir }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -28 * stepDir }}
@@ -1430,7 +1400,7 @@ export default function AdminPropertyForm() {
           >
           {/* SECTION 3: PRICING */}
           <div className="admin-section-muted">
-            <h2 className="admin-section-title mb-2">Pricing</h2>
+            <h2 className="admin-section-title mb-2">Pricing &amp; Rental Income</h2>
             <p className="text-[11px] text-gray-500">
               These are the two most important fields
             </p>
@@ -1562,12 +1532,67 @@ export default function AdminPropertyForm() {
               )}
             </div>
           </div>
+          </motion.div>
+          )}
 
+          {step === 3 && (
+          <motion.div
+            key="step-3"
+            data-step="details"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION 4: PROPERTY DETAILS */}
           <div className="admin-section">
             <h2 className="admin-section-title">Property Details</h2>
+            <p className="text-[11px] text-gray-500">
+              Area, floors, units &amp; document type — builds buyer trust
+            </p>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+              {/* Facing — properties face a direction, plots/land don't */}
+              {!isPlotOrLand && (
+                <div>
+                  <label className="block font-sans text-xs text-gray-500 mb-2">
+                    Facing
+                  </label>
+                  <select
+                    value={formData.facing}
+                    onChange={(e) => updateFormData('facing', e.target.value)}
+                    className="admin-select"
+                  >
+                    {FACINGS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Age — buildings only */}
+              {isBuildingType && (
+                <div>
+                  <label className="block font-sans text-xs text-gray-500 mb-2">
+                    Age
+                  </label>
+                  <select
+                    value={formData.age}
+                    onChange={(e) => updateFormData('age', e.target.value)}
+                    className="admin-select"
+                  >
+                    {AGES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Area — building types */}
               {isBuildingType && (
                 <>
@@ -1830,7 +1855,10 @@ export default function AdminPropertyForm() {
           {/* SECTION 5: BBMP & LEGAL */}
           {(isBuildingType || isPlotTypeOnly) && (
           <div className="admin-section">
-            <h2 className="admin-section-title">Legal</h2>
+            <h2 className="admin-section-title flex items-center gap-2">
+              <ArrowsOut size={16} weight="bold" className="text-[#C9A84C]" />
+              Legal &amp; Loan
+            </h2>
 
             <div className="space-y-4">
               <label className="flex items-center gap-3 font-sans text-sm">
@@ -1847,18 +1875,7 @@ export default function AdminPropertyForm() {
             </div>
           </div>
           )}
-          </motion.div>
-          )}
 
-          {step === 3 && (
-          <motion.div
-            key="step-3"
-            initial={{ opacity: 0, x: 28 * stepDir }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -28 * stepDir }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="space-y-4"
-          >
           {/* SECTION 6: HIGHLIGHTS */}
           <div className="admin-section">
             <h2 className="admin-section-title">Highlights</h2>
@@ -1940,6 +1957,52 @@ export default function AdminPropertyForm() {
           </div>
           )}
 
+          {/* SECTION 8: DESCRIPTION */}
+          <div className="admin-section">
+            <div className="flex items-center justify-between">
+              <h2 className="admin-section-title">Description</h2>
+              <button
+                type="button"
+                onClick={handleAIDescription}
+                disabled={aiDescLoading || !formData.description.trim()}
+                className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+              >
+                {aiDescLoading ? 'Restructuring…' : 'AI · Format'}
+              </button>
+            </div>
+
+            <div className="relative">
+              <textarea
+                placeholder="Paste raw property details, then click AI · Format to restructure them automatically..."
+                value={formData.description}
+                onChange={(e) =>
+                  updateFormData('description', e.target.value.slice(0, 1200))
+                }
+                className="admin-textarea"
+              />
+              <p
+                className="mt-2 text-right text-[11px] text-gray-400"
+              >
+                {formData.description.length} / 1200 characters
+              </p>
+              {aiDescError && (
+                <p className="mt-2 text-xs text-red-600">{aiDescError}</p>
+              )}
+            </div>
+          </div>
+          </motion.div>
+          )}
+
+          {step === 4 && (
+          <motion.div
+            key="step-4"
+            data-step="media"
+            initial={{ opacity: 0, x: 28 * stepDir }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -28 * stepDir }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="space-y-4"
+          >
           {/* SECTION: PROPERTY PHOTOS */}
           <div className="admin-section">
             <h2 className="admin-section-title mb-2">Property Photos</h2>
@@ -1988,45 +2051,13 @@ export default function AdminPropertyForm() {
             </div>
           </div>
 
-          {/* SECTION 8: DESCRIPTION */}
-          <div className="admin-section">
-            <div className="flex items-center justify-between">
-              <h2 className="admin-section-title">Description</h2>
-              <button
-                type="button"
-                onClick={handleAIDescription}
-                disabled={aiDescLoading || !formData.description.trim()}
-                className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
-              >
-                {aiDescLoading ? 'Restructuring…' : 'AI · Format'}
-              </button>
-            </div>
-
-            <div className="relative">
-              <textarea
-                placeholder="Paste raw property details, then click AI · Format to restructure them automatically..."
-                value={formData.description}
-                onChange={(e) =>
-                  updateFormData('description', e.target.value.slice(0, 1200))
-                }
-                className="admin-textarea"
-              />
-              <p
-                className="mt-2 text-right text-[11px] text-gray-400"
-              >
-                {formData.description.length} / 1200 characters
-              </p>
-              {aiDescError && (
-                <p className="mt-2 text-xs text-red-600">{aiDescError}</p>
-              )}
-            </div>
-          </div>
           </motion.div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
           <motion.div
-            key="step-4"
+            key="step-5"
+            data-step="publish"
             initial={{ opacity: 0, x: 28 * stepDir }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -28 * stepDir }}
