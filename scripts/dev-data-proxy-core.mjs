@@ -200,6 +200,30 @@ function dbDate(v) {
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
+/** Mirror of the history row mapping in api/data-proxy.ts. */
+function historyRowFromLead(row, deletedAt) {
+  return {
+    id: row.id,
+    property_id: row.property_id ?? '',
+    property_title: row.property_title ?? '',
+    property_type: row.property_type ?? '',
+    property_area: row.property_area ?? '',
+    property_price: row.property_price ?? '',
+    visit_date: row.visit_date ?? null,
+    visit_time: row.visit_time ?? null,
+    buyer_name: row.buyer_name ?? null,
+    buyer_phone: row.buyer_phone ?? null,
+    lead_type: row.lead_type ?? 'book_visit',
+    source: row.source ?? null,
+    listed_by: row.listed_by ?? null,
+    status: row.status ?? 'new',
+    message: row.message ?? '',
+    ip_address: row.ip_address ?? null,
+    original_created_at: row.created_at ?? null,
+    deleted_at: deletedAt,
+  };
+}
+
 async function nextPropertyCode() {
   const { data } = await supabaseAdmin
     .from('properties')
@@ -514,20 +538,55 @@ async function executeAction(action, params) {
       return { id };
     }
 
-    // ── Lead delete (admin) — mirrors api/data-proxy.ts ──────────────
+    // ── Lead delete → move to history (admin, mirrors api/data-proxy.ts) ──
     case 'lead.remove': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id } = params;
       if (!id) throw new Error('Booking id is required');
       const { data: row, error: fetchErr } = await supabaseAdmin
         .from('property_leads')
-        .select('id')
+        .select('*')
         .eq('id', id)
         .maybeSingle();
       if (fetchErr) throw new Error(fetchErr.message);
       if (!row) throw new Error('Booking not found');
+
+      // History is best-effort — never block the delete.
+      let historyError = null;
+      try {
+        await supabaseAdmin
+          .from('deleted_bookings')
+          .upsert(historyRowFromLead(row, new Date().toISOString()), { onConflict: 'id' });
+      } catch (e) {
+        historyError = e.message;
+      }
+
       const { error } = await supabaseAdmin
         .from('property_leads')
+        .delete()
+        .eq('id', id);
+      if (error) throw new Error(error.message);
+      return { id, archived: !historyError };
+    }
+
+    // ── Deleted-booking history (admin): read + permanent delete ──────
+    case 'lead.history': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('deleted_bookings')
+        .select('*')
+        .order('deleted_at', { ascending: false })
+        .limit(500);
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+
+    case 'lead.purge': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id } = params;
+      if (!id) throw new Error('Booking id is required');
+      const { error } = await supabaseAdmin
+        .from('deleted_bookings')
         .delete()
         .eq('id', id);
       if (error) throw new Error(error.message);

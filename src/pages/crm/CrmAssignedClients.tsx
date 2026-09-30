@@ -202,7 +202,7 @@ export default function CrmAssignedClients() {
   const clearFilters = () => { setSearch(''); setEmpFilter(''); setStatusFilter(''); setLeadTypeFilter(''); };
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] font-['Inter',sans-serif] text-[#0A1628] antialiased flex">
+    <div className="h-screen overflow-hidden bg-[#f4f5f7] font-['Inter',sans-serif] text-[#0A1628] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <CrmPageBody>

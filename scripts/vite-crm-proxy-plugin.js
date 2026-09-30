@@ -226,17 +226,19 @@ function readBody(req) {
   });
 }
 
-function supabaseFetch(method, path, body, baseUrl, apiKey) {
+function supabaseFetch(method, path, body, baseUrl, apiKey, opts = {}) {
   const e = getEnv();
   const url = baseUrl || e.REQ_URL;
   const key = apiKey || e.REQ_KEY;
-  const opts = { method, headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'apikey': key } };
-  if (body) opts.body = JSON.stringify(body);
-  return fetch(`${url}/rest/v1/${path}`, opts).then(async res => {
+  const headers = { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'apikey': key };
+  if (opts.prefer) headers.Prefer = opts.prefer;
+  const init = { method, headers };
+  if (body) init.body = JSON.stringify(body);
+  return fetch(`${url}/rest/v1/${path}`, init).then(async res => {
     const text = await res.text();
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch { data = null; } }
-    if (!res.ok) throw new Error(data?.message || `Supabase error: ${res.status}`);
+    if (!res.ok) throw new Error(data?.message || data?.error || `Supabase error: ${res.status}`);
     const count = res.headers.get('content-range')?.match(/\/(\d+)$/)?.[1];
     return { data, count: count ? parseInt(count) : null };
   });
@@ -355,7 +357,64 @@ async function nextReqId() {
   return `VJR-REQ-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
 }
 
-// ── Main action handler ────────────────────────────────────────────────────
+// ── Deleted-booking history (mirrors api/data-proxy.ts) ───────────────────
+
+const DELETED_BOOKINGS_DDL = `
+CREATE TABLE IF NOT EXISTS public.deleted_bookings (
+  id                  TEXT PRIMARY KEY,
+  property_id         TEXT NOT NULL DEFAULT '',
+  property_title      TEXT NOT NULL DEFAULT '',
+  property_type       TEXT NOT NULL DEFAULT '',
+  property_area       TEXT NOT NULL DEFAULT '',
+  property_price      TEXT NOT NULL DEFAULT '',
+  visit_date          TEXT,
+  visit_time          TEXT,
+  buyer_name          TEXT,
+  buyer_phone         TEXT,
+  lead_type           TEXT NOT NULL DEFAULT 'book_visit',
+  source              TEXT,
+  listed_by           TEXT,
+  status              TEXT NOT NULL DEFAULT 'new',
+  message             TEXT NOT NULL DEFAULT '',
+  ip_address          TEXT,
+  original_created_at TIMESTAMPTZ,
+  deleted_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_bookings_deleted_at ON public.deleted_bookings (deleted_at DESC);
+`;
+
+function isMissingRelation(message) {
+  return /does not exist|Could not find the table|schema cache/i.test(message ?? '');
+}
+
+async function ensureDeletedBookingsTable() {
+  await supabaseRpc('exec_sql', { q: DELETED_BOOKINGS_DDL }).catch(() => {});
+}
+
+function historyRowFromLead(row, deletedAt) {
+  return {
+    id: row.id,
+    property_id: row.property_id ?? '',
+    property_title: row.property_title ?? '',
+    property_type: row.property_type ?? '',
+    property_area: row.property_area ?? '',
+    property_price: row.property_price ?? '',
+    visit_date: row.visit_date ?? null,
+    visit_time: row.visit_time ?? null,
+    buyer_name: row.buyer_name ?? null,
+    buyer_phone: row.buyer_phone ?? null,
+    lead_type: row.lead_type ?? 'book_visit',
+    source: row.source ?? null,
+    listed_by: row.listed_by ?? null,
+    status: row.status ?? 'new',
+    message: row.message ?? '',
+    ip_address: row.ip_address ?? null,
+    original_created_at: row.created_at ?? null,
+    deleted_at: deletedAt,
+  };
+}
+
+// ── Main action handler ──────────────────────────────────────────────────\\r
 
 async function executeAction(action, params) {
   switch (action) {
@@ -1756,6 +1815,67 @@ async function executeAction(action, params) {
       const { data: existing } = await supabaseFetch('GET', `property_leads?id=eq.${encodeURIComponent(params.id)}&select=id`);
       if (!existing?.length) throw new Error('Booking not found');
       await supabaseFetch('PATCH', `property_leads?id=eq.${encodeURIComponent(params.id)}`, { status: params.status });
+      return { id: params.id };
+    }
+
+    // ── Lead delete → move to history (admin, mirrors api/data-proxy.ts) ──
+    case 'lead.remove': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      if (!params.id) throw new Error('Booking id is required');
+      const { data: rows } = await supabaseFetch('GET', `property_leads?id=eq.${encodeURIComponent(params.id)}&select=*`);
+      const row = rows?.[0];
+      if (!row) throw new Error('Booking not found');
+
+      // History is best-effort — never block the delete (see api/data-proxy.ts).
+      let historyError = null;
+      try {
+        await supabaseFetch('POST', 'deleted_bookings', historyRowFromLead(row, new Date().toISOString()), null, null, { prefer: 'resolution=merge-duplicates' });
+      } catch (e) {
+        if (isMissingRelation(e.message)) {
+          await ensureDeletedBookingsTable();
+          try {
+            await supabaseFetch('POST', 'deleted_bookings', historyRowFromLead(row, new Date().toISOString()), null, null, { prefer: 'resolution=merge-duplicates' });
+          } catch (e2) {
+            historyError = e2.message;
+          }
+        } else {
+          historyError = e.message;
+        }
+      }
+
+      await supabaseFetch('DELETE', `property_leads?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: params.id, archived: !historyError };
+    }
+
+    // ── Deleted-booking history (admin): read + permanent delete ──────
+    case 'lead.history': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      try {
+        const { data } = await supabaseFetch('GET', 'deleted_bookings?order=deleted_at.desc&limit=500');
+        return { data: data ?? [] };
+      } catch (e) {
+        if (isMissingRelation(e.message)) {
+          await ensureDeletedBookingsTable();
+          const { data } = await supabaseFetch('GET', 'deleted_bookings?order=deleted_at.desc&limit=500');
+          return { data: data ?? [] };
+        }
+        throw e;
+      }
+    }
+
+    case 'lead.purge': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      if (!params.id) throw new Error('Booking id is required');
+      try {
+        await supabaseFetch('DELETE', `deleted_bookings?id=eq.${encodeURIComponent(params.id)}`);
+      } catch (e) {
+        if (isMissingRelation(e.message)) {
+          await ensureDeletedBookingsTable();
+          await supabaseFetch('DELETE', `deleted_bookings?id=eq.${encodeURIComponent(params.id)}`);
+        } else {
+          throw e;
+        }
+      }
       return { id: params.id };
     }
 

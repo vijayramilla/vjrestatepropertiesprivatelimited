@@ -440,7 +440,7 @@ export default function CrmEmployeeDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f4f5f7] font-['Inter',sans-serif] antialiased flex">
+      <div className="h-screen overflow-hidden bg-[#f4f5f7] font-['Inter',sans-serif] antialiased flex">
         <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <main className="flex-1 min-w-0 overflow-y-auto p-8"><div className="h-56 animate-pulse rounded-2xl border border-black/[0.05] bg-white" /></main>
       </div>
@@ -449,7 +449,7 @@ export default function CrmEmployeeDetail() {
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-[#f4f5f7] font-['Inter',sans-serif] antialiased flex">
+      <div className="h-screen overflow-hidden bg-[#f4f5f7] font-['Inter',sans-serif] antialiased flex">
         <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
         <main className="flex-1 min-w-0 overflow-y-auto p-8 text-center text-sm text-[#6b7280]">Employee not found.</main>
       </div>
@@ -475,7 +475,7 @@ export default function CrmEmployeeDetail() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
+    <div className="h-screen overflow-hidden bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <main className="flex-1 min-w-0 overflow-y-auto">
         <CrmPageBody>

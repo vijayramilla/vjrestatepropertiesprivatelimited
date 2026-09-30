@@ -276,7 +276,9 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
       <div className={`fixed left-0 top-0 z-50 h-full transition-transform duration-300 ease-out lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         {sidebar}
       </div>
-      {/* Desktop rail */}
+      {/* Desktop rail — sits inside the page's h-screen overflow-hidden shell,
+          so it always fills the viewport height and never scrolls with the
+          page; only the <main> beside it scrolls. */}
       <div className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[68px]' : 'w-[248px]'}`}>
         {sidebar}
       </div>

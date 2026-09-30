@@ -227,11 +227,11 @@ export default function PropertyDetailPage() {
   }, [property]);
 
   useEffect(() => {
-    document.body.style.overflow = viewerIndex !== null ? 'hidden' : '';
+    document.body.style.overflow = viewerIndex !== null || showBooking ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
-  }, [viewerIndex]);
+  }, [viewerIndex, showBooking]);
 
   useEffect(() => {
     if (viewerIndex === null || !property) return;
@@ -354,8 +354,7 @@ export default function PropertyDetailPage() {
     area: property.area,
     price_label: formatPrice(property.price),
     monthly_rental_label: property.monthly_rental,
-    contact_phone: property.contact_phone,
-    contact_name: property.contact_name,
+    listed_by: property.listed_by,
   };
 
   return (
@@ -838,7 +837,9 @@ export default function PropertyDetailPage() {
         </div>
       )}
 
-      {/* Mobile booking calendar sheet */}
+      {/* Mobile booking sheet — bottom sheet with drag handle, full-height
+          (dvh) and momentum scroll; background page is scroll-locked so the
+          sheet behaves like a native app sheet. */}
       <AnimatePresence>
         {showBooking && (
           <motion.div
@@ -858,17 +859,26 @@ export default function PropertyDetailPage() {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="absolute inset-x-0 overflow-y-auto overscroll-contain bg-[#fff] border-t border-[#e8e8e8]"
+              className="absolute inset-x-0 bottom-0 flex flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_-12px_48px_rgba(0,0,0,0.25)]"
               style={{
-                bottom: 'calc(4.5rem + env(safe-area-inset-bottom, 0px))',
-                maxHeight: 'calc(100dvh - 4.5rem - env(safe-area-inset-bottom, 0px))',
+                height: 'calc(100dvh - 3.25rem)',
+                paddingBottom: 'env(safe-area-inset-bottom, 0px)',
               }}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Book a free site visit"
             >
-              <BookVisitCalendar
-                property={bookProperty}
-                source="detail"
-                onClose={() => setShowBooking(false)}
-              />
+              {/* Drag handle */}
+              <div className="flex shrink-0 justify-center pt-2.5 pb-1" aria-hidden="true">
+                <span className="h-1.5 w-12 rounded-full bg-[#d9dce1]" />
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+                <BookVisitCalendar
+                  property={bookProperty}
+                  source="detail"
+                  onClose={() => setShowBooking(false)}
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}

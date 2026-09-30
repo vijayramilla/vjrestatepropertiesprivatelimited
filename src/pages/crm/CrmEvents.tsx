@@ -102,7 +102,7 @@ export default function CrmEvents() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
+    <div className="h-screen overflow-hidden bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <main className="flex-1 min-w-0 overflow-y-auto">
         <CrmPageBody>

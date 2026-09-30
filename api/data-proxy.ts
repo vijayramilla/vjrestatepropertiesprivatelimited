@@ -144,6 +144,97 @@ function clientIp(req: any): string {
   );
 }
 
+/**
+ * Rows whose id appears in deleted_bookings were already moved to history by
+ * a successful delete — hide them from the live pipeline (belt-and-braces:
+ * lead.remove deletes the row, this guards rows that somehow remain).
+ */
+async function filterOutSoftDeleted(rows: any[]): Promise<any[]> {
+  if (!rows.length) return rows;
+  try {
+    const { data } = await supabaseAdmin
+      .from('deleted_bookings')
+      .select('id')
+      .in('id', rows.map((r) => r.id));
+    const gone = new Set((data ?? []).map((r: any) => r.id));
+    return gone.size ? rows.filter((r) => !gone.has(r.id)) : rows;
+  } catch {
+    return rows;
+  }
+}
+
+/* ── Deleted-booking history (auto-migrated) ─────────────────────────────── */
+
+const DELETED_BOOKINGS_DDL = `
+CREATE TABLE IF NOT EXISTS public.deleted_bookings (
+  id                  TEXT PRIMARY KEY,
+  property_id         TEXT NOT NULL DEFAULT '',
+  property_title      TEXT NOT NULL DEFAULT '',
+  property_type       TEXT NOT NULL DEFAULT '',
+  property_area       TEXT NOT NULL DEFAULT '',
+  property_price      TEXT NOT NULL DEFAULT '',
+  visit_date          TEXT,
+  visit_time          TEXT,
+  buyer_name          TEXT,
+  buyer_phone         TEXT,
+  lead_type           TEXT NOT NULL DEFAULT 'book_visit',
+  source              TEXT,
+  listed_by           TEXT,
+  status              TEXT NOT NULL DEFAULT 'new',
+  message             TEXT NOT NULL DEFAULT '',
+  ip_address          TEXT,
+  original_created_at TIMESTAMPTZ,
+  deleted_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_bookings_deleted_at ON public.deleted_bookings (deleted_at DESC);
+`;
+
+/**
+ * Create the history table on demand via the exec_sql RPC (same pattern as
+ * crm-proxy's ensureColumns). Lets deletes work without a manual migration.
+ */
+async function ensureDeletedBookingsTable(): Promise<void> {
+  const base = (process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '');
+  if (!base || !SUPABASE_SERVICE_KEY) return;
+  try {
+    await fetch(`${base}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY },
+      body: JSON.stringify({ q: DELETED_BOOKINGS_DDL }),
+    });
+  } catch {
+    /* RPC may not exist — callers degrade gracefully */
+  }
+}
+
+/** Postgres error for a missing table (PostgREST hides the schema behind a cache message). */
+function isMissingRelation(message: string): boolean {
+  return /does not exist|Could not find the table|schema cache|relation .* does not exist/i.test(message ?? '');
+}
+
+function historyRowFromLead(row: any, deletedAt: string): Record<string, unknown> {
+  return {
+    id: row.id,
+    property_id: row.property_id ?? '',
+    property_title: row.property_title ?? '',
+    property_type: row.property_type ?? '',
+    property_area: row.property_area ?? '',
+    property_price: row.property_price ?? '',
+    visit_date: row.visit_date ?? null,
+    visit_time: row.visit_time ?? null,
+    buyer_name: row.buyer_name ?? null,
+    buyer_phone: row.buyer_phone ?? null,
+    lead_type: row.lead_type ?? 'book_visit',
+    source: row.source ?? null,
+    listed_by: row.listed_by ?? null,
+    status: row.status ?? 'new',
+    message: row.message ?? '',
+    ip_address: row.ip_address ?? null,
+    original_created_at: row.created_at ?? null,
+    deleted_at: deletedAt,
+  };
+}
+
 /** Tiny per-instance rate limiter for anonymous actions. */
 const rateBuckets = new Map<string, { count: number; reset: number }>();
 function rateLimited(key: string, max = 20, windowMs = 60_000): boolean {
@@ -537,6 +628,9 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     // ── Property leads (public) ─────────────────────────────────────────
+    // Site-visit bookings are anonymous (no login): the booking form posts
+    // name, mobile, visit date & time and they are stored in Supabase.
+    // Message text is derived server-side so callers can't spoof content.
     case 'lead.create': {
       if (!params._public) throw new Error('Forbidden');
       if (rateLimited(`lead:${ip}`, 10, 60_000)) throw new Error('Too many requests');
@@ -544,7 +638,6 @@ async function executeAction(action: string, params: any): Promise<any> {
         propertyId,
         propertyTitle,
         leadType,
-        message,
         propertyType,
         propertyArea,
         propertyPrice,
@@ -554,35 +647,41 @@ async function executeAction(action: string, params: any): Promise<any> {
         visitTime,
         buyerName,
         buyerPhone,
-        buyerLat,
-        buyerLng,
-        source,
-        ownerUid,
         listedBy,
+        source,
       } = params;
-      if (!propertyId || !propertyTitle || !message || !leadType) {
+      if (!propertyId || !propertyTitle || !leadType) {
         throw new Error('Invalid lead');
       }
+      if (!buyerName || !buyerPhone) {
+        throw new Error('Name and mobile number are required');
+      }
+      if (leadType === 'book_visit' && !visitDate) {
+        throw new Error('Visit date is required');
+      }
+      const cleanName = String(buyerName).trim().slice(0, 80);
+      const cleanPhone = String(buyerPhone).replace(/\D/g, '').slice(0, 10);
+      if (cleanPhone.length !== 10) {
+        throw new Error('A valid 10-digit mobile number is required');
+      }
+      const message = `Site visit booking — ${propertyTitle}${visitDate ? ` on ${visitDate}` : ''}${visitTime ? ` at ${visitTime}` : ''}`;
       const { data, error } = await supabaseAdmin
         .from('property_leads')
         .insert({
-          property_id: propertyId,
-          property_title: propertyTitle,
+          property_id: String(propertyId),
+          property_title: String(propertyTitle).slice(0, 200),
           property_type: propertyType ?? '',
           property_area: propertyArea ?? '',
           property_price: propertyPrice ?? '',
           property_monthly_rental: propertyMonthlyRental ?? null,
           property_url: propertyUrl ?? '',
-          lead_type: leadType,
+          lead_type: leadType === 'book_visit' ? 'book_visit' : 'whatsapp',
           visit_date: visitDate ?? null,
           visit_time: visitTime ?? null,
-          buyer_name: buyerName ?? null,
-          buyer_phone: buyerPhone ?? null,
-          buyer_lat: buyerLat ?? null,
-          buyer_lng: buyerLng ?? null,
+          buyer_name: cleanName,
+          buyer_phone: cleanPhone,
           message,
           source: source ?? 'card',
-          owner_uid: ownerUid ?? null,
           listed_by: listedBy ?? null,
           ip_address: ip,
           status: 'new',
@@ -718,7 +817,9 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { canAddProperty: isAdmin(auth) || data?.can_add_property === true };
     }
 
-    // ── Property leads (read: admin all, owner own) ────────────────────────
+    // ── Property leads (read: admin all, owner own) ────────────────────
+    // Soft-deleted bookings (moved to deleted_bookings history) are excluded
+    // from the live pipeline; the CRM reads history via lead.history.
     case 'lead.list': {
       if (!auth?.authorized) throw new Error('Forbidden');
       let query = supabaseAdmin
@@ -729,7 +830,8 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!isAdmin(auth)) query = query.eq('owner_uid', auth.uid);
       const { data, error } = await query;
       if (error) throw new Error(error.message);
-      return { data: data ?? [] };
+      const rows = await filterOutSoftDeleted(data ?? []);
+      return { data: rows };
     }
 
     // ── Property leads: booking status management (admin) ──────────────────
@@ -755,23 +857,79 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { id };
     }
 
-    // ── Property leads: delete a booking (admin, guarded) ──────────────────
+    // ── Property leads: delete a booking (admin) — moves it into the
+    //    deleted_bookings history so the CRM can show it under History.
+    //    Permanent removal from history is a separate action (lead.purge).
     case 'lead.remove': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id } = params;
       if (!id) throw new Error('Booking id is required');
       const { data: row, error: fetchErr } = await supabaseAdmin
         .from('property_leads')
-        .select('id')
+        .select('*')
         .eq('id', id)
         .maybeSingle();
       if (fetchErr) throw new Error(fetchErr.message);
       if (!row) throw new Error('Booking not found');
+
+      // Archive to history first, but NEVER let history problems block the
+      // delete: if the table is missing it is auto-created and the booking
+      // is still removed from the live pipeline either way.
+      let historyError: string | null = null;
+      let histRes = await supabaseAdmin
+        .from('deleted_bookings')
+        .upsert(historyRowFromLead(row, new Date().toISOString()), { onConflict: 'id' });
+      if (histRes.error && isMissingRelation(histRes.error.message)) {
+        await ensureDeletedBookingsTable();
+        histRes = await supabaseAdmin
+          .from('deleted_bookings')
+          .upsert(historyRowFromLead(row, new Date().toISOString()), { onConflict: 'id' });      }
+      if (histRes.error) historyError = histRes.error.message;
+
       const { error } = await supabaseAdmin
         .from('property_leads')
         .delete()
         .eq('id', id);
       if (error) throw new Error(error.message);
+      return { id, archived: !historyError };
+    }
+
+    // ── Deleted-booking history (admin): read + permanent delete ────────
+    case 'lead.history': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      let res = await supabaseAdmin
+        .from('deleted_bookings')
+        .select('*')
+        .order('deleted_at', { ascending: false })
+        .limit(500);
+      if (res.error && isMissingRelation(res.error.message)) {
+        await ensureDeletedBookingsTable();
+        res = await supabaseAdmin
+          .from('deleted_bookings')
+          .select('*')
+          .order('deleted_at', { ascending: false })
+          .limit(500);
+      }
+      if (res.error) throw new Error(res.error.message);
+      return { data: res.data ?? [] };
+    }
+
+    case 'lead.purge': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id } = params;
+      if (!id) throw new Error('Booking id is required');
+      let res = await supabaseAdmin
+        .from('deleted_bookings')
+        .delete()
+        .eq('id', id);
+      if (res.error && isMissingRelation(res.error.message)) {
+        await ensureDeletedBookingsTable();
+        res = await supabaseAdmin
+          .from('deleted_bookings')
+          .delete()
+          .eq('id', id);
+      }
+      if (res.error) throw new Error(res.error.message);
       return { id };
     }
 
