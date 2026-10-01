@@ -46,11 +46,11 @@ const fmtINR = (n: number) => (n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} 
 const fmtDate = (iso: string) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const entityLabel = (v: string) => ENTITY_TYPES.find((e) => e.value === v)?.label ?? v;
 
-type Tab = 'dashboard' | 'calendar' | 'cases' | 'audit' | 'profile';
+type Tab = 'compliances' | 'dashboard' | 'calendar' | 'cases' | 'audit' | 'profile';
 
 export default function CrmLedgers() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [tab, setTab] = useState<Tab>('dashboard');
+  const [tab, setTab] = useState<Tab>('compliances');
   const [profile, setProfile] = useState<LedgerCompanyProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [items, setItems] = useState<LedgerComplianceItem[]>([]);
@@ -111,7 +111,9 @@ export default function CrmLedgers() {
       const existingKeys = new Set(items.map((i) => `${i.form}|${i.period}`));
       const fresh = generated.filter((g) => !existingKeys.has(`${g.form}|${g.period}`));
       for (const g of fresh) {
-        await upsertLedgerItem({ ...g, status: 'pending' } as unknown as LedgerComplianceItem);
+        // Keep the generated status (past due dates arrive as 'filed' —
+        // compliance cleared till today) instead of forcing 'pending'.
+        await upsertLedgerItem({ ...g } as unknown as LedgerComplianceItem);
       }
       await loadItems();
       setSeededCount(fresh.length);
@@ -265,7 +267,7 @@ export default function CrmLedgers() {
 
                 {/* Tabs */}
                 <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-white p-1 [scrollbar-width:none]">
-                  {([['dashboard', 'Priority Queue'], ['calendar', 'Full Calendar'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
+                  {([['compliances', 'Legal Compliances'], ['dashboard', 'Priority Queue'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setTab(key)}
@@ -279,6 +281,7 @@ export default function CrmLedgers() {
 
                 <AnimatePresence mode="wait">
                   <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    {tab === 'compliances' && <LegalCompliancesTable items={items} loading={loading} onChanged={loadItems} />}
                     {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} loading={loading} onChanged={loadItems} />}
                     {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={loadItems} />}
                     {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={loadItems} />}
@@ -1092,6 +1095,132 @@ function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; l
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ═══════════════ LEGAL COMPLIANCES TABLE ═══════════════ */
+
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Upcoming',
+  in_progress: 'In progress',
+  filed: 'Filed',
+  na: 'N/A',
+};
+
+function LegalCompliancesTable({ items, loading, onChanged }: { items: LedgerComplianceItem[]; loading: boolean; onChanged: () => void }) {
+  const [statusFilter, setStatusFilter] = useState<'upcoming' | 'filed' | 'all'>('upcoming');
+  const [search, setSearch] = useState('');
+
+  const rows = useMemo(() => {
+    return items
+      .filter((i) => {
+        if (statusFilter === 'upcoming' && (i.status === 'filed' || i.status === 'na')) return false;
+        if (statusFilter === 'filed' && i.status !== 'filed' && i.status !== 'na') return false;
+        if (search && !`${i.form} ${i.title} ${i.period}`.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      })
+      .sort((a, b) => a.due_date.localeCompare(b.due_date));
+  }, [items, statusFilter, search]);
+
+  const upcoming = items.filter((i) => i.status !== 'filed' && i.status !== 'na');
+  const next = upcoming[0];
+
+  return (
+    <div>
+      {/* Next-up banner — the single most important date */}
+      {next && (
+        <CrmCard className="mb-4 overflow-hidden border border-[#C9A84C]/40 p-0">
+          <div className="flex flex-wrap items-center gap-3 bg-gradient-to-r from-[#0A1628] to-[#1E3852] px-4 py-3.5 sm:px-5">
+            <span className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-xl bg-[#C9A84C] text-[#0A1628] shadow-[0_3px_12px_rgba(201,168,76,0.45)]">
+              <span className="text-[15px] font-extrabold leading-none">{next.due_date.slice(8, 10)}</span>
+              <span className="text-[8px] font-bold uppercase tracking-wider">{new Date(next.due_date + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short' })}</span>
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-[#C9A84C]">Next legal compliance due</p>
+              <p className="truncate text-[14px] font-bold text-white">{next.form} · {next.title}</p>
+              <p className="text-[11px] text-white/60">{next.period} · by {fmtDate(next.due_date)} · {daysUntil(next.due_date)} days left</p>
+            </div>
+            {next.assignee && <span className="hidden shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold text-white sm:inline-block">{next.assignee}</span>}
+          </div>
+        </CrmCard>
+      )}
+
+      {/* Controls */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ca3af]" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-full rounded-xl border border-black/10 bg-white pl-8 pr-3 text-[12px] outline-none focus:border-[#C9A84C]/60" placeholder="Search form, title or period…" />
+        </div>
+        <div className="flex gap-1.5">
+          {(['upcoming', 'filed', 'all'] as const).map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)} className={`cursor-pointer rounded-full px-3.5 py-1.5 text-[11px] font-bold capitalize transition-colors ${statusFilter === s ? 'bg-[#0A1628] text-[#D6B85D]' : 'bg-white text-[#6b7280] hover:bg-black/[0.04]'}`}>
+              {s === 'upcoming' ? `Upcoming (${upcoming.length})` : s === 'filed' ? `Filed (${items.length - upcoming.length})` : `All (${items.length})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Structured register — every date always visible, no clicking needed */}
+      {loading ? (
+        <div className="h-64 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />
+      ) : rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-black/10 bg-white p-14 text-center">
+          <ClipboardList className="mx-auto h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
+          <p className="mt-3 text-sm font-semibold">{items.length === 0 ? 'No compliances yet' : 'Nothing in this view'}</p>
+          <p className="mt-1 text-xs text-[#9ca3af]">{items.length === 0 ? 'Hit “Generate Calendar” in the top bar — your FY obligations appear here with due dates and status.' : 'Try the other filter or clear the search.'}</p>
+        </div>
+      ) : (
+        <CrmCard className="overflow-hidden p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left">
+              <thead>
+                <tr className="border-b border-black/[0.06] bg-[#fafafa]">
+                  {['Compliance', 'Period', 'Due date', 'Days left', 'Last filed', 'Status'].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#6b7280] sm:px-4">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-black/[0.04]">
+                {rows.map((it) => {
+                  const band = riskBand(it);
+                  const d = daysUntil(it.due_date);
+                  return (
+                    <tr key={it.id} className="group transition-colors hover:bg-[#C9A84C]/[0.04]">
+                      <td className="max-w-[260px] px-3 py-3 sm:px-4">
+                        <p className="truncate text-[12.5px] font-bold text-[#0A1628]">
+                          <span className={`mr-1.5 inline-block h-2 w-2 rounded-full align-middle ${LAW_STYLES[it.law]?.dot ?? 'bg-gray-400'}`} />
+                          {it.form}
+                        </p>
+                        <p className="truncate pl-3.5 text-[10.5px] text-[#9ca3af]">{it.title}</p>
+                      </td>
+                      <td className="px-3 py-3 text-[11.5px] font-semibold text-[#374151] sm:px-4">{it.period}</td>
+                      <td className="px-3 py-3 text-[11.5px] font-bold text-[#0A1628] sm:px-4">{fmtDate(it.due_date)}</td>
+                      <td className="px-3 py-3 sm:px-4">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${RISK_STYLES[band].chip}`}>
+                          {it.status === 'filed' || it.status === 'na' ? '—' : d < 0 ? `${Math.abs(d)}d late` : `${d}d`}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-[11.5px] text-[#374151] sm:px-4">
+                        {it.filed_date ? fmtDate(it.filed_date) : <span className="text-[#c9c9c9]">Not yet</span>}
+                      </td>
+                      <td className="px-3 py-3 sm:px-4">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                          it.status === 'filed' ? 'bg-emerald-50 text-emerald-700' : it.status === 'in_progress' ? 'bg-blue-50 text-blue-700' : it.status === 'na' ? 'bg-gray-100 text-gray-500' : band === 'overdue' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                        }`}>
+                          {it.status === 'filed' && <CheckCircle2 className="h-2.5 w-2.5" />}
+                          {STATUS_LABEL[it.status] ?? it.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CrmCard>
+      )}
+      <p className="mt-2 text-[10.5px] text-[#9ca3af]">Tip: click a row's details in Priority Queue to mark filed / edit ARN & assignee. This table is the full register — every date visible at a glance.</p>
     </div>
   );
 }
