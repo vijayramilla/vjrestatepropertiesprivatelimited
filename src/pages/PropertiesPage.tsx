@@ -25,6 +25,7 @@ import {
   type PropertyFilterInput,
 } from '@/lib/propertyFilters';
 import { formatPrice } from '@/lib/formatPrice';
+import VJRAIButton from '../components/ai/VJRAIButton';
 import { matchesMinArea } from '@/lib/smartSearch';
 import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { setPageMeta } from '@/lib/siteMeta';
@@ -1077,6 +1078,8 @@ export default function PropertiesPage() {
       </div>
 
       {/* Inline locality search dropdown — anchored to the toolbar like housing.com */}
+
+      <VJRAIButton userRole="public" />
     </div>
   );
 }

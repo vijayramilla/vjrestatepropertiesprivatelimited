@@ -11,6 +11,7 @@ import HomeAboutVjr from '../components/home/HomeAboutVjr';
 import HomeWhyVjr from '../components/home/HomeWhyVjr';
 import HomeTestimonials from '../components/home/HomeTestimonials';
 import HomeInsights from '../components/home/HomeInsights';
+import VJRAIButton from '../components/ai/VJRAIButton';
 import HomeContactCta from '../components/home/HomeContactCta';
 
 /**
@@ -130,6 +131,8 @@ export default function HomePage() {
       <HomeTestimonials />
       <HomeInsights />
       <HomeContactCta />
+
+      <VJRAIButton userRole="public" />
     </div>
   );
 }
