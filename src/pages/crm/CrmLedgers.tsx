@@ -103,6 +103,10 @@ export default function CrmLedgers() {
         registrations: profile.registrations ?? [],
         incorporatedOn: profile.incorporated_on,
         gstScheme: (profile.gst_scheme as 'monthly' | 'qrmp') ?? 'monthly',
+        // Compliance cleared till today: past-due obligations in this FY are
+        // seeded as 'filed' (with the due date as filed date) so the queue
+        // opens with only upcoming work. Flip any of them manually if missed.
+        markPastFiled: true,
       });
       const existingKeys = new Set(items.map((i) => `${i.form}|${i.period}`));
       const fresh = generated.filter((g) => !existingKeys.has(`${g.form}|${g.period}`));
@@ -817,7 +821,7 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
           <p className="truncate text-[10.5px] text-[#9ca3af]">{item.period} · due {fmtDate(item.due_date)}</p>
         </div>
         <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold tracking-wide sm:px-2.5 ${RISK_STYLES[band].chip}`}>
-          {band === 'overdue' ? `${Math.abs(daysUntil(item.due_date))}d LATE` : band === 'done' ? 'FILED' : `${daysUntil(item.due_date)}d`}
+          {band === 'overdue' ? `${Math.abs(daysUntil(item.due_date))}d LATE` : band === 'done' ? (item.filed_date ? `FILED ${fmtDate(item.filed_date)}` : 'FILED') : `${daysUntil(item.due_date)}d`}
         </span>
         {saving && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#96782A]" />}
       </button>

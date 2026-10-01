@@ -263,6 +263,7 @@ export interface GeneratedInstance {
   fy: string;
   due_date: string;
   status: string;
+  filed_date?: string | null;
   penalty_exposure: number;
   source_url: string;
   notes: string;
@@ -274,6 +275,11 @@ const quarterOf = (m: number) => (m === 6 ? 'Q1' : m === 9 ? 'Q2' : m === 12 ? '
 /**
  * Generate the compliance calendar for one FY, filtered by entity type and
  * registrations, clamped to the incorporation date.
+ *
+ * `markPastFiled`: obligations with a due date already in the past (relative
+ * to today) get status 'filed' with a synthetic filed date, so a fresh
+ * generation reflects "cleared till today" instead of a wall of overdue
+ * red. Flip any of them in the UI if something was actually missed.
  */
 export function generateComplianceCalendar(opts: {
   fyStartYear: number;
@@ -281,11 +287,13 @@ export function generateComplianceCalendar(opts: {
   registrations: string[];
   incorporatedOn?: string | null;
   gstScheme?: 'monthly' | 'qrmp';
+  markPastFiled?: boolean;
 }): GeneratedInstance[] {
-  const { fyStartYear, entityType, registrations, incorporatedOn } = opts;
+  const { fyStartYear, entityType, registrations, incorporatedOn, markPastFiled = true } = opts;
   const fy = `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`;
   const incDate = incorporatedOn ? new Date(incorporatedOn + 'T00:00:00') : null;
   const incYm = incDate ? `${incDate.getFullYear()}-${pad(incDate.getMonth() + 1)}` : null;
+  const todayIso = new Date().toISOString().slice(0, 10);
   const items: GeneratedInstance[] = [];
 
   for (const rule of rulesForProfile(entityType, registrations)) {
@@ -328,7 +336,9 @@ export function generateComplianceCalendar(opts: {
       items.push({
         law: rule.law, form: rule.form, title: rule.title, period, fy,
         due_date: iso(due.y, due.m, due.d),
-        status: 'pending', penalty_exposure: rule.penaltyExposure, source_url: rule.source,
+        status: markPastFiled && iso(due.y, due.m, due.d) < todayIso ? 'filed' : 'pending',
+        filed_date: markPastFiled && iso(due.y, due.m, due.d) < todayIso ? iso(due.y, due.m, due.d) : null,
+        penalty_exposure: rule.penaltyExposure, source_url: rule.source,
         notes: rule.dueRuleLabel + (rule.note ? ` · ${rule.note}` : ''),
         recurrence: rule.freq,
       });
