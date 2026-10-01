@@ -1716,6 +1716,68 @@ async function executeAction(action, params) {
       return { visitSlots: limit, bookedToday: booked, remaining };
     }
 
+    // ── LEDGERS: compliance calendar + legal cases ── mirrors api/data-proxy.ts ──
+    case 'ledger.items.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      let path = 'ledger_compliance_items?order=due_date.asc&limit=500';
+      if (params.fy) path += `&fy=eq.${encodeURIComponent(params.fy)}`;
+      try {
+        const { data } = await supabaseFetch('GET', path);
+        return { data: data ?? [] };
+      } catch (e) {
+        if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
+        return { data: [] };
+      }
+    }
+    case 'ledger.item.upsert': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id, ...fields } = params;
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url'];
+      const clean = {};
+      for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (id) {
+        clean.updated_at = new Date().toISOString();
+        await supabaseFetch('PATCH', `ledger_compliance_items?id=eq.${encodeURIComponent(id)}`, clean);
+        return { id: String(id) };
+      }
+      const { data } = await supabaseFetch('POST', 'ledger_compliance_items', clean, null, null, { prefer: 'return=representation' });
+      return { id: data?.[0]?.id ?? null };
+    }
+    case 'ledger.item.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `ledger_compliance_items?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: String(params.id) };
+    }
+    case 'ledger.cases.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      try {
+        const { data } = await supabaseFetch('GET', 'ledger_legal_cases?order=updated_at.desc&limit=200');
+        return { data: data ?? [] };
+      } catch (e) {
+        if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
+        return { data: [] };
+      }
+    }
+    case 'ledger.case.upsert': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const { id, ...fields } = params;
+      const allowed = ['case_no', 'title', 'authority', 'case_type', 'status', 'filed_on', 'next_hearing_on', 'reply_due_on', 'advocate', 'advocate_phone', 'description', 'outcome_notes', 'documents_url'];
+      const clean = {};
+      for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (id) {
+        clean.updated_at = new Date().toISOString();
+        await supabaseFetch('PATCH', `ledger_legal_cases?id=eq.${encodeURIComponent(id)}`, clean);
+        return { id: String(id) };
+      }
+      const { data } = await supabaseFetch('POST', 'ledger_legal_cases', clean, null, null, { prefer: 'return=representation' });
+      return { id: data?.[0]?.id ?? null };
+    }
+    case 'ledger.case.delete': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await supabaseFetch('DELETE', `ledger_legal_cases?id=eq.${encodeURIComponent(params.id)}`);
+      return { id: String(params.id) };
+    }
+
     // ── Requirements ──────────────────────────────────────────────────
     case 'requirement.create': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');

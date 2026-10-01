@@ -58,6 +58,7 @@ const CrmMyClients = lazy(() => import('./pages/crm/CrmMyClients'));
 const CrmLeads = lazy(() => import('./pages/crm/CrmLeads'));
 const CrmAssignedClients = lazy(() => import('./pages/crm/CrmAssignedClients'));
 const CrmBookings = lazy(() => import('./pages/crm/CrmBookings'));
+const CrmLedgers = lazy(() => import('./pages/crm/CrmLedgers'));
 const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
 const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
 const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
@@ -301,6 +302,14 @@ function AppRoutes() {
         element={
           <CrmRoute>
             <LazyPage><CrmBookings /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/ledgers"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmLedgers /></LazyPage>
           </CrmRoute>
         }
       />

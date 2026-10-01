@@ -309,6 +309,58 @@ export async function fetchSlotAvailability(propertyId: string): Promise<{
   return callDataProxy('slots.availability', { propertyId }, { isPublic: true });
 }
 
+/* ── LEDGERS: compliance calendar + legal cases ───────────────────────── */
+
+export interface LedgerComplianceItem {
+  id?: string;
+  law: string;
+  form: string;
+  title: string;
+  period: string;
+  fy: string;
+  due_date: string;
+  status: string;
+  owner?: string;
+  filed_date?: string | null;
+  arn?: string;
+  penalty_exposure?: number;
+  notes?: string;
+  proof_url?: string;
+  source_url?: string;
+}
+
+export interface LedgerLegalCase {
+  id?: string;
+  case_no?: string;
+  title: string;
+  authority?: string;
+  case_type?: string;
+  status?: string;
+  filed_on?: string | null;
+  next_hearing_on?: string | null;
+  reply_due_on?: string | null;
+  advocate?: string;
+  advocate_phone?: string;
+  description?: string;
+  outcome_notes?: string;
+  documents_url?: string;
+}
+
+export const fetchLedgerItems = (fy?: string) =>
+  callDataProxy('ledger.items.list', fy ? { fy } : {});
+
+export const upsertLedgerItem = (item: Partial<LedgerComplianceItem> & { id?: string }) =>
+  callDataProxy('ledger.item.upsert', item);
+
+export const deleteLedgerItem = (id: string) => callDataProxy('ledger.item.delete', { id });
+
+export const fetchLedgerCases = () => callDataProxy('ledger.cases.list', {});
+
+export const upsertLedgerCase = (c: Partial<LedgerLegalCase> & { id?: string }) =>
+  callDataProxy('ledger.case.upsert', c);
+
+export const deleteLedgerCase = (id: string) => callDataProxy('ledger.case.delete', { id });
+
 export function subscribeSupabaseProperties(
   onData: (docs: { id: string; data: Record<string, unknown> }[]) => void,
   options?: { uid?: string },

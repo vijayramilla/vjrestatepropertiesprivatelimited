@@ -1023,6 +1023,80 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { visitSlots: limit, bookedToday: booked, remaining };
     }
 
+    // ── LEDGERS: compliance calendar + legal cases ──────────────────────
+    case 'ledger.items.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const fy = params.fy ? String(params.fy) : null;
+      let q = supabaseAdmin
+        .from('ledger_compliance_items')
+        .select('*')
+        .order('due_date', { ascending: true })
+        .limit(500);
+      if (fy) q = q.eq('fy', fy);
+      const { data, error } = await q;
+      if (error && !isMissingRelation(error.message)) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+
+    case 'ledger.item.upsert': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id, ...fields } = params;
+      const clean: Record<string, unknown> = {};
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url'];
+      for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (id) {
+        clean.updated_at = new Date().toISOString();
+        const { error } = await supabaseAdmin.from('ledger_compliance_items').update(clean).eq('id', String(id));
+        if (error) throw new Error(error.message);
+        return { id: String(id) };
+      }
+      const { data, error } = await supabaseAdmin.from('ledger_compliance_items').insert(clean).select('id').single();
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+
+    case 'ledger.item.delete': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { error } = await supabaseAdmin.from('ledger_compliance_items').delete().eq('id', String(params.id));
+      if (error) throw new Error(error.message);
+      return { id: String(params.id) };
+    }
+
+    case 'ledger.cases.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('ledger_legal_cases')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(200);
+      if (error && !isMissingRelation(error.message)) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+
+    case 'ledger.case.upsert': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { id, ...fields } = params;
+      const clean: Record<string, unknown> = {};
+      const allowed = ['case_no', 'title', 'authority', 'case_type', 'status', 'filed_on', 'next_hearing_on', 'reply_due_on', 'advocate', 'advocate_phone', 'description', 'outcome_notes', 'documents_url'];
+      for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (id) {
+        clean.updated_at = new Date().toISOString();
+        const { error } = await supabaseAdmin.from('ledger_legal_cases').update(clean).eq('id', String(id));
+        if (error) throw new Error(error.message);
+        return { id: String(id) };
+      }
+      const { data, error } = await supabaseAdmin.from('ledger_legal_cases').insert(clean).select('id').single();
+      if (error) throw new Error(error.message);
+      return { id: data.id };
+    }
+
+    case 'ledger.case.delete': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { error } = await supabaseAdmin.from('ledger_legal_cases').delete().eq('id', String(params.id));
+      if (error) throw new Error(error.message);
+      return { id: String(params.id) };
+    }
+
     // ── Site settings ───────────────────────────────────────────────────
     case 'settings.update': {
       if (!isAdmin(auth)) throw new Error('Forbidden');

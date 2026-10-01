@@ -21,6 +21,7 @@ import {
   MapPin,
   CalendarDays,
   Users,
+  BookLock,
 } from 'lucide-react';
 import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
 import { useEmployeeSession } from '@/hooks/useEmployeeSession';
@@ -52,6 +53,7 @@ const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
       { id: 'bookings', title: 'Bookings', icon: CalendarDays, path: '/crm/bookings', perm: 'clients.view' },
       { id: 'requirements', title: 'Requirements', icon: ClipboardList, path: '/crm/requirements', perm: 'requirements.view' },
       { id: 'agents', title: 'Agents', icon: UserCog, path: '/crm/agents', perm: 'agents.view' },
+      { id: 'ledgers', title: 'Ledgers', icon: BookLock, path: '/crm/ledgers', perm: null },
     ],
   },
   {
