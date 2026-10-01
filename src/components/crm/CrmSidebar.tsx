@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
 import { useEmployeeSession } from '@/hooks/useEmployeeSession';
+import VJRAIButton from '@/components/ai/VJRAIButton';
 
 type NavItem = {
   id: string;
@@ -280,6 +281,8 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
 
   return (
     <>
+      {/* Nexa AI assistant — available to the whole CRM team */}
+      <VJRAIButton userRole="admin" />
       {/* Mobile menu button */}
       <button
         onClick={() => setMobileOpen(true)}

@@ -29,7 +29,6 @@ import { matchesMinArea } from '@/lib/smartSearch';
 import { usePropertiesFeed } from '@/hooks/usePropertiesFeed';
 import { setPageMeta } from '@/lib/siteMeta';
 import { Button } from '@/components/ui/liquid-glass-button';
-import VJRAIButton from '../components/ai/VJRAIButton';
 import SearchBarDropdown from '@/components/properties/SearchBarDropdown';
 import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
 import {
@@ -1078,8 +1077,6 @@ export default function PropertiesPage() {
       </div>
 
       {/* Inline locality search dropdown — anchored to the toolbar like housing.com */}
-
-      <VJRAIButton userRole="public" />
     </div>
   );
 }

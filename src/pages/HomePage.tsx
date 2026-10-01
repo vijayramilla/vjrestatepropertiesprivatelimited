@@ -12,7 +12,6 @@ import HomeWhyVjr from '../components/home/HomeWhyVjr';
 import HomeTestimonials from '../components/home/HomeTestimonials';
 import HomeInsights from '../components/home/HomeInsights';
 import HomeContactCta from '../components/home/HomeContactCta';
-import VJRAIButton from '../components/ai/VJRAIButton';
 
 /**
  * Editorial display font (loaded in index.html) — used for the refined
@@ -131,8 +130,6 @@ export default function HomePage() {
       <HomeTestimonials />
       <HomeInsights />
       <HomeContactCta />
-
-      <VJRAIButton userRole="public" />
     </div>
   );
 }
