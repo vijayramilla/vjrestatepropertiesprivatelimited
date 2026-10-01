@@ -327,6 +327,9 @@ export interface LedgerComplianceItem {
   notes?: string;
   proof_url?: string;
   source_url?: string;
+  assignee?: string;
+  priority?: string;
+  challan_url?: string;
 }
 
 export interface LedgerLegalCase {
@@ -379,12 +382,36 @@ export interface LedgerCompanyProfile {
   employee_count?: number;
   ca_name?: string;
   cs_name?: string;
+  logo_url?: string;
 }
 
 export const fetchLedgerProfile = () => callDataProxy('ledger.profile.get', {});
 
 export const saveLedgerProfile = (p: Partial<LedgerCompanyProfile>) =>
   callDataProxy('ledger.profile.set', p);
+
+export const fetchLedgerActivity = () => callDataProxy('ledger.log.list', {});
+
+/**
+ * Upload the company logo to the ledger-assets bucket (public read).
+ * Uses the CLI-project anon client; the bucket is created by the migration.
+ */
+export async function uploadLedgerLogo(file: File): Promise<string> {
+  const url = import.meta.env.VITE_SUPABASE_CLI_URL;
+  const key = import.meta.env.VITE_SUPABASE_CLI_ANON_KEY;
+  if (!url || !key) throw new Error('Storage is not configured on this deployment');
+  const client = createClient(url, key);
+  const ext = (file.name.split('.').pop() ?? 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
+  const path = `company-logo-${Date.now()}.${ext}`;
+  const { error } = await client.storage.from('ledger-assets').upload(path, file, {
+    cacheControl: '3600',
+    upsert: false,
+    contentType: file.type || 'image/png',
+  });
+  if (error) throw new Error(error.message);
+  const { data } = client.storage.from('ledger-assets').getPublicUrl(path);
+  return data.publicUrl;
+}
 
 export function subscribeSupabaseProperties(
   onData: (docs: { id: string; data: Record<string, unknown> }[]) => void,

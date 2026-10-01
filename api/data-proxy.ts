@@ -1042,8 +1042,16 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id, ...fields } = params;
       const clean: Record<string, unknown> = {};
-      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url'];
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url'];
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      // Audit trail (best-effort)
+      try {
+        await supabaseAdmin.from('ledger_activity_log').insert({
+          entity_type: 'item', entity_id: String(id ?? ''), action: id ? 'updated' : 'created',
+          summary: `${clean.form ?? fields.form ?? 'Item'} (${clean.period ?? fields.period ?? ''}) ${clean.status !== undefined ? `→ ${clean.status}` : ''}`.trim(),
+          actor: auth?.email ?? '',
+        });
+      } catch { /* log table may not exist yet */ }
       if (id) {
         clean.updated_at = new Date().toISOString();
         const { error } = await supabaseAdmin.from('ledger_compliance_items').update(clean).eq('id', String(id));
@@ -1059,7 +1067,21 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { error } = await supabaseAdmin.from('ledger_compliance_items').delete().eq('id', String(params.id));
       if (error) throw new Error(error.message);
+      try {
+        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'item', entity_id: String(params.id), action: 'deleted', summary: 'Obligation removed', actor: auth?.email ?? '' });
+      } catch { /* best-effort */ }
       return { id: String(params.id) };
+    }
+
+    case 'ledger.log.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('ledger_activity_log')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (error && !isMissingRelation(error.message)) throw new Error(error.message);
+      return { data: data ?? [] };
     }
 
     case 'ledger.cases.list': {
@@ -1114,6 +1136,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
       const clean: Record<string, unknown> = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      if (params.logo_url !== undefined) clean.logo_url = params.logo_url;
       const { error } = await supabaseAdmin
         .from('ledger_company_profile')
         .upsert(clean, { onConflict: 'id' });

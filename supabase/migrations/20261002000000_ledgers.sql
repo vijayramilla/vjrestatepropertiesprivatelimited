@@ -74,3 +74,25 @@ ALTER TABLE public.ledger_company_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS authority TEXT DEFAULT '';
 ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS recurrence TEXT DEFAULT 'monthly';
 ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS reminders_sent JSONB NOT NULL DEFAULT '[]';
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS assignee TEXT DEFAULT '';
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'normal'; -- low | normal | high
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS challan_url TEXT DEFAULT '';
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS acknowledgement TEXT DEFAULT ''; -- ARN/SRN ack number alias
+
+-- Immutable-ish audit trail: every create/update/status change on ledger data.
+CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL,               -- item | case | profile
+  entity_id TEXT DEFAULT '',
+  action TEXT NOT NULL,                    -- created | updated | status_changed | filed | deleted
+  summary TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT '',          -- admin email
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_log_created ON public.ledger_activity_log (created_at DESC);
+ALTER TABLE public.ledger_activity_log ENABLE ROW LEVEL SECURITY;
+
+-- Company logo bucket (public read; writes only via service role).
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('ledger-assets', 'ledger-assets', TRUE)
+ON CONFLICT (id) DO NOTHING;

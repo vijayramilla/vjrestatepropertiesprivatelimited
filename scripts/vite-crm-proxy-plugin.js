@@ -1732,9 +1732,16 @@ async function executeAction(action, params) {
     case 'ledger.item.upsert': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       const { id, ...fields } = params;
-      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url'];
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url'];
       const clean = {};
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      try {
+        await supabaseFetch('POST', 'ledger_activity_log', {
+          entity_type: 'item', entity_id: String(id ?? ''), action: id ? 'updated' : 'created',
+          summary: `${clean.form ?? fields.form ?? 'Item'} (${clean.period ?? fields.period ?? ''}) ${clean.status !== undefined ? `→ ${clean.status}` : ''}`.trim(),
+          actor: params._auth?.email ?? '',
+        });
+      } catch { /* log table may not exist yet */ }
       if (id) {
         clean.updated_at = new Date().toISOString();
         await supabaseFetch('PATCH', `ledger_compliance_items?id=eq.${encodeURIComponent(id)}`, clean);
@@ -1746,7 +1753,20 @@ async function executeAction(action, params) {
     case 'ledger.item.delete': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       await supabaseFetch('DELETE', `ledger_compliance_items?id=eq.${encodeURIComponent(params.id)}`);
+      try {
+        await supabaseFetch('POST', 'ledger_activity_log', { entity_type: 'item', entity_id: String(params.id), action: 'deleted', summary: 'Obligation removed', actor: params._auth?.email ?? '' });
+      } catch { /* best-effort */ }
       return { id: String(params.id) };
+    }
+    case 'ledger.log.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      try {
+        const { data } = await supabaseFetch('GET', 'ledger_activity_log?order=created_at.desc&limit=200');
+        return { data: data ?? [] };
+      } catch (e) {
+        if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
+        return { data: [] };
+      }
     }
     case 'ledger.cases.list': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
@@ -1794,6 +1814,7 @@ async function executeAction(action, params) {
       const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
       const clean = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      if (params.logo_url !== undefined) clean.logo_url = params.logo_url;
       await supabaseFetch('POST', 'ledger_company_profile?on_conflict=id', clean, null, null, { prefer: 'resolution=merge-duplicates' });
       return { ok: true };
     }

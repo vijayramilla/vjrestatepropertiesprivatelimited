@@ -2,15 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertTriangle, ArrowLeft, ArrowRight, BellRing, Building2, CalendarDays, CalendarPlus,
-  Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Download, FileText, Gavel, Landmark,
-  Loader2, Pencil, Plus, RefreshCw, Scale, Search, Settings2, ShieldCheck, Sparkles, Trash2, X,
+  Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Clock, Download, FileText,
+  Gavel, History, Landmark, Loader2, Pencil, Plus, RefreshCw, Scale, Search, Settings2,
+  ShieldCheck, Sparkles, Trash2, Upload, X,
 } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
 import {
   fetchLedgerItems, upsertLedgerItem, deleteLedgerItem,
   fetchLedgerCases, upsertLedgerCase, deleteLedgerCase,
-  fetchLedgerProfile, saveLedgerProfile,
+  fetchLedgerProfile, saveLedgerProfile, fetchLedgerActivity, uploadLedgerLogo,
   type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile,
 } from '@/lib/supabaseData';
 import {
@@ -45,7 +46,7 @@ const fmtINR = (n: number) => (n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} 
 const fmtDate = (iso: string) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const entityLabel = (v: string) => ENTITY_TYPES.find((e) => e.value === v)?.label ?? v;
 
-type Tab = 'dashboard' | 'calendar' | 'cases' | 'profile';
+type Tab = 'dashboard' | 'calendar' | 'cases' | 'audit' | 'profile';
 
 export default function CrmLedgers() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -142,6 +143,21 @@ export default function CrmLedgers() {
     URL.revokeObjectURL(url);
   };
 
+  const exportCsv = () => {
+    const rows = [
+      ['Law', 'Form', 'Title', 'Period', 'FY', 'Due date', 'Status', 'Filed on', 'ARN/SRN', 'Assignee', 'Priority', 'Penalty exposure', 'Rule / source'],
+      ...items.map((i) => [i.law, i.form, i.title, i.period, i.fy, i.due_date, i.status, i.filed_date ?? '', i.arn ?? '', i.assignee ?? '', i.priority ?? 'normal', String(i.penalty_exposure ?? 0), i.source_url ?? '']),
+    ];
+    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `compliance-${selectedFy.replace(/\s/g, '')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const showOnboarding = profileLoaded && !profile?.name;
 
   return (
@@ -166,6 +182,9 @@ export default function CrmLedgers() {
                   <CrmBtn variant="ghost" onClick={exportIcs} disabled={items.length === 0}>
                     <CalendarPlus className="h-3.5 w-3.5" /> .ics
                   </CrmBtn>
+                  <CrmBtn variant="ghost" onClick={exportCsv} disabled={items.length === 0}>
+                    <Download className="h-3.5 w-3.5" /> CSV
+                  </CrmBtn>
                   <CrmBtn variant="ghost" onClick={() => void loadItems()} disabled={loading}>
                     <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
                   </CrmBtn>
@@ -185,6 +204,13 @@ export default function CrmLedgers() {
               <motion.div key="main" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
                 {/* FY selector + summary */}
                 <div className="mb-5 flex flex-wrap items-center gap-3">
+                  {profile?.logo_url ? (
+                    <img src={profile.logo_url} alt="Company logo" className="h-11 w-11 rounded-xl border border-black/[0.08] bg-white object-contain p-1 shadow-sm" />
+                  ) : (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0A1628] text-[14px] font-extrabold text-[#D6B85D] shadow-sm">
+                      {(profile?.name || 'V').slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
                   <div className="flex items-center gap-1.5 rounded-xl border border-black/[0.08] bg-white px-3 py-1.5">
                     <CalendarDays className="h-3.5 w-3.5 text-[#96782A]" />
                     <select
@@ -235,7 +261,7 @@ export default function CrmLedgers() {
 
                 {/* Tabs */}
                 <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-white p-1 [scrollbar-width:none]">
-                  {([['dashboard', 'Priority Queue'], ['calendar', 'Full Calendar'], ['cases', 'Legal Cases'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
+                  {([['dashboard', 'Priority Queue'], ['calendar', 'Full Calendar'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setTab(key)}
@@ -252,6 +278,7 @@ export default function CrmLedgers() {
                     {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} loading={loading} onChanged={loadItems} />}
                     {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={loadItems} />}
                     {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={loadItems} />}
+                    {tab === 'audit' && <AuditTrail />}
                     {tab === 'profile' && <ProfileEditor profile={profile!} onSave={saveProfile} onChanged={loadItems} />}
                   </motion.div>
                 </AnimatePresence>
@@ -275,6 +302,7 @@ export default function CrmLedgers() {
 function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => void }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>({
     entity_type: 'pvtltd',
     fy_start_month: 4,
@@ -282,6 +310,18 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
     gst_scheme: 'monthly',
     employee_count: 0,
   });
+
+  const pickLogo = async (file: File | undefined) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const url = await uploadLedgerLogo(file);
+      setF((x) => ({ ...x, logo_url: url }));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Logo upload failed — you can add it later in Company Profile.');
+    }
+    setLogoUploading(false);
+  };
 
   const steps = ['Company', 'Entity', 'Registrations', 'Advisors'];
   const entity = ENTITY_TYPES.find((e) => e.value === f.entity_type);
@@ -331,6 +371,24 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
             <motion.div key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.2 }}>
               {step === 0 && (
                 <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <label className="group relative shrink-0 cursor-pointer">
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} />
+                      {f.logo_url ? (
+                        <img src={f.logo_url} alt="Company logo" className="h-16 w-16 rounded-2xl border border-black/10 bg-white object-contain p-1.5 shadow-sm" />
+                      ) : (
+                        <span className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-dashed border-black/15 bg-[#fafafa] text-[#9ca3af] transition-colors group-hover:border-[#C9A84C]/60 group-hover:text-[#96782A]">
+                          {logoUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" strokeWidth={1.8} />}
+                        </span>
+                      )}
+                      <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#0A1628] text-white shadow">
+                        <Upload className="h-3 w-3" strokeWidth={2.2} />
+                      </span>
+                    </label>
+                    <div>
+                      <WizardQ title="Company logo" hint="Optional — PNG or JPG. Shown on the Ledgers dashboard." />
+                    </div>
+                  </div>
                   <WizardQ title="What is your company called?" />
                   <input autoFocus value={f.name ?? ''} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} className={inputCls} placeholder="e.g. VJR Estate Properties Private Limited" />
                   <WizardQ title="When was it incorporated / started?" hint="Your entire compliance calendar anchors to this date — first filings, first AGM, first GST period." />
@@ -493,8 +551,22 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>(profile);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   useEffect(() => setF(profile), [profile]);
+
+  const pickLogo = async (file: File | undefined) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const url = await uploadLedgerLogo(file);
+      setF((x) => ({ ...x, logo_url: url }));
+      await onSave({ logo_url: url }); // persist immediately
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Logo upload failed');
+    }
+    setLogoUploading(false);
+  };
 
   const save = async () => {
     setSaving(true);
@@ -512,6 +584,25 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
     <div className="mx-auto max-w-3xl space-y-4">
       <CrmCard className="p-4 sm:p-6">
         <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Building2 className="h-3.5 w-3.5" /> Company identity</p>
+        <div className="mb-4 flex items-center gap-4">
+          <label className="group relative shrink-0 cursor-pointer">
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} />
+            {f.logo_url ? (
+              <img src={f.logo_url} alt="Company logo" className="h-16 w-16 rounded-2xl border border-black/10 bg-white object-contain p-1.5 shadow-sm" />
+            ) : (
+              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-dashed border-black/15 bg-[#fafafa] text-[#9ca3af] transition-colors group-hover:border-[#C9A84C]/60 group-hover:text-[#96782A]">
+                {logoUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" strokeWidth={1.8} />}
+              </span>
+            )}
+            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#0A1628] text-white shadow">
+              <Upload className="h-3 w-3" strokeWidth={2.2} />
+            </span>
+          </label>
+          <div>
+            <p className="text-[13px] font-bold">Company logo</p>
+            <p className="text-[11px] text-[#6b7280]">Click the tile to upload — saves instantly.</p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <div className="sm:col-span-2"><Label>Company name</Label><input value={f.name ?? ''} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} className={inputCls} /></div>
           <div>
@@ -670,6 +761,8 @@ function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record
 function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '' });
+  const [dirty, setDirty] = useState(false);
   const band = riskBand(item);
   const law = LAW_STYLES[item.law] ?? LAW_STYLES.Other;
 
@@ -679,6 +772,14 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
       await upsertLedgerItem({ id: item.id, status, filed_date: status === 'filed' ? new Date().toISOString().slice(0, 10) : item.filed_date ?? null } as Partial<LedgerComplianceItem>);
       onChanged();
     } finally { setSaving(false); setOpen(false); }
+  };
+  const saveDetails = async () => {
+    setSaving(true);
+    try {
+      await upsertLedgerItem({ id: item.id, ...edit } as Partial<LedgerComplianceItem>);
+      setDirty(false);
+      onChanged();
+    } finally { setSaving(false); }
   };
   const remove = async () => {
     if (!window.confirm(`Remove ${item.form} (${item.period}) from the calendar?`)) return;
@@ -693,6 +794,9 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
         <span className={`hidden shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold sm:inline-flex ${law.chip}`}>
           <law.icon className="h-3 w-3" /> {item.law}
         </span>
+        {item.assignee && !open && (
+          <span className="hidden shrink-0 rounded-full bg-[#0A1628]/[0.05] px-2 py-0.5 text-[9.5px] font-bold text-[#0A1628] md:inline-flex">{item.assignee}</span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[12.5px] font-bold sm:text-[13px]">
             {item.form} <span className="font-semibold text-[#6b7280]">· {item.title}</span>
@@ -711,12 +815,29 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
               <Detail label="Due date" value={fmtDate(item.due_date)} />
               <Detail label="Period" value={item.period} />
               <Detail label="Filed on" value={item.filed_date ? fmtDate(item.filed_date) : '—'} />
-              <Detail label="ARN / SRN" value={item.arn || '—'} />
+              <Detail label="Penalty if missed" value={fmtINR(item.penalty_exposure ?? 0)} />
               <div className="col-span-2 sm:col-span-4"><Detail label="Rule & source" value={item.source_url || '—'} /></div>
+
+              {/* Filing details — ARN, assignee, challan, notes */}
+              <div className="col-span-2 grid grid-cols-1 gap-3 sm:col-span-4 sm:grid-cols-2">
+                <div><Label>ARN / SRN / acknowledgement</Label><input value={edit.arn} onChange={(e) => { setEdit((x) => ({ ...x, arn: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="e.g. AAABCS1234567890" /></div>
+                <div><Label>Assignee</Label><input value={edit.assignee} onChange={(e) => { setEdit((x) => ({ ...x, assignee: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Who owns this filing?" /></div>
+                <div><Label>Challan / proof link</Label><input value={edit.challan_url} onChange={(e) => { setEdit((x) => ({ ...x, challan_url: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Drive link to challan or receipt" /></div>
+                <div><Label>Notes</Label><input value={edit.notes} onChange={(e) => { setEdit((x) => ({ ...x, notes: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Anything notable" /></div>
+              </div>
+
               <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-4">
                 <CrmBtn variant="gold" onClick={() => void setStatus('filed')} disabled={saving}><CheckCircle2 className="h-3.5 w-3.5" /> Mark filed</CrmBtn>
                 <CrmBtn variant="ghost" onClick={() => void setStatus('in_progress')} disabled={saving}>In progress</CrmBtn>
                 <CrmBtn variant="ghost" onClick={() => void setStatus('na')} disabled={saving}>N/A</CrmBtn>
+                {dirty && (
+                  <CrmBtn onClick={() => void saveDetails()} disabled={saving}><Check className="h-3.5 w-3.5" /> Save details</CrmBtn>
+                )}
+                {edit.challan_url && !dirty && (
+                  <a href={edit.challan_url} target="_blank" rel="noopener noreferrer" className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2.5 py-2 text-[11.5px] font-bold text-[#96782A] hover:bg-[#C9A84C]/[0.1]">
+                    <FileText className="h-3.5 w-3.5" /> Open challan
+                  </a>
+                )}
                 <button type="button" onClick={() => void remove()} className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-red-500 transition-colors hover:bg-red-50">
                   <Trash2 className="h-3 w-3" /> Remove
                 </button>
@@ -955,6 +1076,64 @@ function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; l
         </div>
       )}
     </div>
+  );
+}
+
+/* ═══════════════ AUDIT TRAIL ═══════════════ */
+
+interface LogRow { id: string; entity_type: string; entity_id: string; action: string; summary: string; actor: string; created_at: string }
+
+function AuditTrail() {
+  const [rows, setRows] = useState<LogRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetchLedgerActivity();
+        setRows((res.data ?? []) as LogRow[]);
+      } catch { /* table may not exist yet */ }
+      setLoading(false);
+    })();
+  }, []);
+
+  const actionStyle: Record<string, string> = {
+    created: 'bg-blue-50 text-blue-700',
+    updated: 'bg-amber-50 text-amber-700',
+    filed: 'bg-emerald-50 text-emerald-700',
+    deleted: 'bg-red-50 text-red-600',
+  };
+
+  if (loading) return <div className="h-48 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />;
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-black/10 bg-white p-14 text-center">
+        <History className="mx-auto h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
+        <p className="mt-3 text-sm font-semibold">No activity yet</p>
+        <p className="mt-1 max-w-sm text-xs text-[#9ca3af]">Every change — generating the calendar, editing a filing, marking one filed — is recorded here with who did it and when. Auditors love this tab.</p>
+      </div>
+    );
+  }
+
+  return (
+    <CrmCard className="p-0">
+      <div className="flex items-center justify-between border-b border-black/[0.05] px-4 py-3">
+        <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]"><ClipboardList className="h-3.5 w-3.5 text-[#96782A]" /> Change log</p>
+        <span className="text-[10.5px] text-[#9ca3af]">Newest first · last {rows.length} events</span>
+      </div>
+      <div className="max-h-[540px] divide-y divide-black/[0.04] overflow-y-auto">
+        {rows.map((r) => (
+          <div key={r.id} className="flex flex-wrap items-center gap-2.5 px-4 py-3">
+            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase ${actionStyle[r.action] ?? 'bg-gray-100 text-gray-600'}`}>{r.action.replace('_', ' ')}</span>
+            <p className="min-w-0 flex-1 truncate text-[12px] font-semibold">{r.summary}</p>
+            <span className="shrink-0 text-[10.5px] text-[#9ca3af]">{r.actor || '—'}</span>
+            <span className="shrink-0 text-[10.5px] text-[#9ca3af]">
+              {new Date(r.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          </div>
+        ))}
+      </div>
+    </CrmCard>
   );
 }
 
