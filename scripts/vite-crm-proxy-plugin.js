@@ -1799,6 +1799,32 @@ async function executeAction(action, params) {
     }
 
     // ── LEDGERS: company profile (single row, id='company') ── mirrors api/data-proxy.ts ──
+    case 'ledger.logo.upload': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const ct = String(params.contentType ?? 'image/png');
+      const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+      if (!ALLOWED.includes(ct)) throw new Error('Only PNG, JPG, WebP or SVG logos are allowed');
+      const buf = Buffer.from(String(params.dataBase64 ?? ''), 'base64');
+      if (!buf.length) throw new Error('Empty file');
+      if (buf.length > 2 * 1024 * 1024) throw new Error('Logo must be under 2 MB');
+      const ext = ct === 'image/svg+xml' ? 'svg' : ct === 'image/jpeg' ? 'jpg' : ct === 'image/webp' ? 'webp' : 'png';
+      const path = `logos/company-logo-${Date.now()}.${ext}`;
+      const env2 = getEnv();
+      const up = await fetch(`${env2.REQ_URL}/storage/v1/object/ledger-assets/${encodeURIComponent(path)}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${env2.REQ_KEY}`, apikey: env2.REQ_KEY, 'Content-Type': ct, 'x-upsert': 'false', 'Cache-Control': '3600' },
+        body: buf,
+      }).then(async (res) => {
+        const text = await res.text();
+        let body2 = null;
+        if (text) { try { body2 = JSON.parse(text); } catch { body2 = null; } }
+        if (!res.ok) throw new Error(body2?.message || `Storage upload failed: ${res.status}`);
+        return body2;
+      });
+      void up;
+      return { url: `${env2.REQ_URL}/storage/v1/object/public/ledger-assets/${path}` };
+    }
+
     case 'ledger.profile.get': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       try {

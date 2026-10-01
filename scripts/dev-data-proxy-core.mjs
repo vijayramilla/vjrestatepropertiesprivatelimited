@@ -819,6 +819,32 @@ async function executeAction(action, params) {
     }
 
     // ── LEDGERS: company profile (single row, id='company') ─────────────
+    case 'ledger.logo.upload': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const ct = String(params.contentType ?? 'image/png');
+      const ALLOWED = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+      if (!ALLOWED.includes(ct)) throw new Error('Only PNG, JPG, WebP or SVG logos are allowed');
+      const buf = Buffer.from(String(params.dataBase64 ?? ''), 'base64');
+      if (!buf.length) throw new Error('Empty file');
+      if (buf.length > 2 * 1024 * 1024) throw new Error('Logo must be under 2 MB');
+      const ext = ct === 'image/svg+xml' ? 'svg' : ct === 'image/jpeg' ? 'jpg' : ct === 'image/webp' ? 'webp' : 'png';
+      const path = `logos/company-logo-${Date.now()}.${ext}`;
+      let up = await supabaseAdmin.storage.from('ledger-assets').upload(path, buf, { contentType: ct, upsert: false, cacheControl: '3600' });
+      if (up.error && /bucket/i.test(up.error.message)) {
+        try {
+          await fetch(`${(process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '')}/rest/v1/rpc/exec_sql`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY },
+            body: JSON.stringify({ q: "INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-assets','ledger-assets',TRUE) ON CONFLICT (id) DO NOTHING;" }),
+          });
+          up = await supabaseAdmin.storage.from('ledger-assets').upload(path, buf, { contentType: ct, upsert: false, cacheControl: '3600' });
+        } catch { /* fall through */ }
+      }
+      if (up.error) throw new Error(up.error.message);
+      const pub = supabaseAdmin.storage.from('ledger-assets').getPublicUrl(path);
+      return { url: pub.data.publicUrl };
+    }
+
     case 'ledger.profile.get': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { data, error } = await supabaseAdmin

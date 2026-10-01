@@ -393,24 +393,21 @@ export const saveLedgerProfile = (p: Partial<LedgerCompanyProfile>) =>
 export const fetchLedgerActivity = () => callDataProxy('ledger.log.list', {});
 
 /**
- * Upload the company logo to the ledger-assets bucket (public read).
- * Uses the CLI-project anon client; the bucket is created by the migration.
+ * Upload the company logo via the data-proxy (service-role write, so the
+ * publishable key never needs storage INSERT rights). Validates type & size
+ * server-side; the bucket is auto-created by the migration or on first upload.
  */
 export async function uploadLedgerLogo(file: File): Promise<string> {
-  const url = import.meta.env.VITE_SUPABASE_CLI_URL;
-  const key = import.meta.env.VITE_SUPABASE_CLI_ANON_KEY;
-  if (!url || !key) throw new Error('Storage is not configured on this deployment');
-  const client = createClient(url, key);
-  const ext = (file.name.split('.').pop() ?? 'png').toLowerCase().replace(/[^a-z0-9]/g, '') || 'png';
-  const path = `company-logo-${Date.now()}.${ext}`;
-  const { error } = await client.storage.from('ledger-assets').upload(path, file, {
-    cacheControl: '3600',
-    upsert: false,
-    contentType: file.type || 'image/png',
+  if (!file.type.startsWith('image/')) throw new Error('Please choose an image file (PNG, JPG, WebP or SVG)');
+  if (file.size > 2 * 1024 * 1024) throw new Error('Logo must be under 2 MB');
+  const dataBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    reader.readAsDataURL(file);
   });
-  if (error) throw new Error(error.message);
-  const { data } = client.storage.from('ledger-assets').getPublicUrl(path);
-  return data.publicUrl;
+  const res = await callDataProxy('ledger.logo.upload', { dataBase64, contentType: file.type || 'image/png' });
+  return res.url as string;
 }
 
 export function subscribeSupabaseProperties(
