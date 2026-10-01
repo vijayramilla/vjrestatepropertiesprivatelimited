@@ -242,6 +242,7 @@ CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
   assignee TEXT DEFAULT '',
   priority TEXT DEFAULT 'normal',
   challan_url TEXT DEFAULT '',
+  amount_paid NUMERIC DEFAULT 0,
   authority TEXT DEFAULT '',
   recurrence TEXT DEFAULT 'monthly',
   reminders_sent JSONB NOT NULL DEFAULT '[]',
@@ -1023,7 +1024,8 @@ async function executeAction(action: string, params: any): Promise<any> {
         await ensureDeletedBookingsTable();
         histRes = await supabaseAdmin
           .from('deleted_bookings')
-          .upsert(historyRowFromLead(row, new Date().toISOString()), { onConflict: 'id' });      }
+          .upsert(historyRowFromLead(row, new Date().toISOString()), { onConflict: 'id' });
+      }
       if (histRes.error) historyError = histRes.error.message;
 
       const { error } = await supabaseAdmin
@@ -1153,7 +1155,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id, ...fields } = params;
       const clean: Record<string, unknown> = {};
-      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url'];
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url', 'amount_paid'];
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
       const logIt = async () => {
         try {

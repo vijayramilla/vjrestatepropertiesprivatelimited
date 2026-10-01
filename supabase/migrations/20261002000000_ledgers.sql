@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
   assignee TEXT DEFAULT '',
   priority TEXT DEFAULT 'normal',           -- low | normal | high
   challan_url TEXT DEFAULT '',
+  amount_paid NUMERIC DEFAULT 0,
   authority TEXT DEFAULT '',
   recurrence TEXT DEFAULT 'monthly',
   reminders_sent JSONB NOT NULL DEFAULT '[]',

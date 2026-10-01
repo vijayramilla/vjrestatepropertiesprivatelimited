@@ -58,6 +58,7 @@ export default function CrmLedgers() {
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seededCount, setSeededCount] = useState<number | null>(null);
+  const [genError, setGenError] = useState('');
   const [selectedFy, setSelectedFy] = useState('');
 
   /* ── Load profile first — drives everything else ── */
@@ -73,6 +74,12 @@ export default function CrmLedgers() {
 
   const fy = profile?.fy_start_month ? currentFyLabel(profile.fy_start_month) : currentFyLabel(4);
   useEffect(() => { if (!selectedFy && profile) setSelectedFy(fy); }, [profile, fy, selectedFy]);
+
+  // Reload items once the profile arrives from the DB — the wizard's optimistic
+  // setProfile alone never triggers a fetch, which is why the queue stayed at 0
+  // after setup until a manual refresh.
+  const profileKey = profile?.name ? 'loaded' : 'none';
+  useEffect(() => { if (profileKey === 'loaded' && selectedFy) void loadItems(); }, [profileKey]);
 
   const loadItems = async () => {
     setLoading(true);
@@ -95,8 +102,14 @@ export default function CrmLedgers() {
   const seedCalendar = async () => {
     if (!profile) return;
     setSeeding(true);
+    setGenError('');
     try {
       const fyStartYear = Number(selectedFy.split(' ')[1]);
+      if (!Number.isFinite(fyStartYear)) {
+        setGenError('No financial year selected — pick an FY in the dropdown and try again.');
+        setSeeding(false);
+        return;
+      }
       const generated = generateComplianceCalendar({
         fyStartYear,
         entityType: (profile.entity_type as EntityType) ?? 'pvtltd',
@@ -108,18 +121,40 @@ export default function CrmLedgers() {
         // opens with only upcoming work. Flip any of them manually if missed.
         markPastFiled: true,
       });
+      if (generated.length === 0) {
+        const why: string[] = [];
+        if (!profile.entity_type) why.push('entity type is missing');
+        if (!profile.registrations?.length) why.push('no registrations are ticked');
+        why.push(`no rules match a ${(profile.entity_type ?? '—')} with those registrations — tick GST/TDS/PF etc. in Company Profile`);
+        setGenError(`Generated 0 obligations: ${why.join('; ')}.`);
+        setSeeding(false);
+        return;
+      }
       const existingKeys = new Set(items.map((i) => `${i.form}|${i.period}`));
       const fresh = generated.filter((g) => !existingKeys.has(`${g.form}|${g.period}`));
+      let saved = 0;
+      const failures: string[] = [];
       for (const g of fresh) {
         // Keep the generated status (past due dates arrive as 'filed' —
         // compliance cleared till today) instead of forcing 'pending'.
-        await upsertLedgerItem({ ...g } as unknown as LedgerComplianceItem);
+        try {
+          await upsertLedgerItem({ ...g } as unknown as LedgerComplianceItem);
+          saved++;
+        } catch (err) {
+          failures.push(`${g.form}: ${err instanceof Error ? err.message : 'save failed'}`);
+          if (failures.length >= 3) break; // enough to diagnose
+        }
       }
       await loadItems();
-      setSeededCount(fresh.length);
-      setTimeout(() => setSeededCount(null), 5000);
+      if (saved === 0 && failures.length > 0) {
+        setGenError(`Could not save obligations — ${failures[0]}${failures.length > 1 ? ` (+${failures.length - 1} more)` : ''}.`);
+      } else {
+        setSeededCount(saved);
+        if (failures.length > 0) setGenError(`${saved} saved, ${failures.length}+ failed — ${failures[0]}`);
+        setTimeout(() => setSeededCount(null), 5000);
+      }
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Could not generate calendar');
+      setGenError(e instanceof Error ? e.message : 'Could not generate calendar');
     }
     setSeeding(false);
   };
@@ -205,7 +240,7 @@ export default function CrmLedgers() {
 
           <AnimatePresence mode="wait">
             {showOnboarding ? (
-              <OnboardingWizard key="onboard" onDone={(p) => { setProfile(p); setSelectedFy(currentFyLabel(p.fy_start_month)); setTab('dashboard'); }} />
+              <OnboardingWizard key="onboard" onDone={(p) => { setProfile(p); setSelectedFy(currentFyLabel(p.fy_start_month)); setTab('compliances'); }} />
             ) : (
               <motion.div key="main" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
                 {/* FY selector + summary */}
@@ -253,6 +288,11 @@ export default function CrmLedgers() {
                       <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
                         <CheckCircle2 className="h-3.5 w-3.5" /> {seededCount} obligations added
                       </motion.span>
+                    )}
+                    {genError && (
+                      <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} role="alert" className="w-full rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] font-semibold text-red-700">
+                        {genError}
+                      </motion.p>
                     )}
                   </div>
                   <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
@@ -781,7 +821,7 @@ function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record
 function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '' });
+  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '', amount_paid: (item as Record<string, unknown>).amount_paid != null ? String((item as Record<string, unknown>).amount_paid) : '', proof_url: item.proof_url ?? '' });
   const [dirty, setDirty] = useState(false);
   const band = riskBand(item);
   const law = LAW_STYLES[item.law] ?? LAW_STYLES.Other;
@@ -796,7 +836,7 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
   const saveDetails = async () => {
     setSaving(true);
     try {
-      await upsertLedgerItem({ id: item.id, ...edit } as Partial<LedgerComplianceItem>);
+      await upsertLedgerItem({ id: item.id, ...edit, amount_paid: edit.amount_paid ? Number(edit.amount_paid) : undefined } as unknown as Partial<LedgerComplianceItem>);
       setDirty(false);
       onChanged();
     } finally { setSaving(false); }
@@ -842,12 +882,14 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
               <div className="col-span-2 grid grid-cols-1 gap-3 sm:col-span-4 sm:grid-cols-2">
                 <div><Label>ARN / SRN / acknowledgement</Label><input value={edit.arn} onChange={(e) => { setEdit((x) => ({ ...x, arn: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="e.g. AAABCS1234567890" /></div>
                 <div><Label>Assignee</Label><input value={edit.assignee} onChange={(e) => { setEdit((x) => ({ ...x, assignee: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Who owns this filing?" /></div>
-                <div><Label>Challan / proof link</Label><input value={edit.challan_url} onChange={(e) => { setEdit((x) => ({ ...x, challan_url: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Drive link to challan or receipt" /></div>
-                <div><Label>Notes</Label><input value={edit.notes} onChange={(e) => { setEdit((x) => ({ ...x, notes: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Anything notable" /></div>
+                <div><Label>Challan link</Label><input value={edit.challan_url} onChange={(e) => { setEdit((x) => ({ ...x, challan_url: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Challan / receipt URL" /></div>
+                <div><Label>Amount paid (₹)</Label><input inputMode="decimal" value={edit.amount_paid} onChange={(e) => { setEdit((x) => ({ ...x, amount_paid: e.target.value.replace(/[^0-9.]/g, '') })); setDirty(true); }} className={CRM_INPUT} placeholder="e.g. 2500" /></div>
+                <div className="sm:col-span-2"><Label>Proof URL (upload to Drive, paste link)</Label><input value={edit.proof_url} onChange={(e) => { setEdit((x) => ({ ...x, proof_url: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder=" acknowledgement PDF / receipt link" /></div>
+                <div className="sm:col-span-2"><Label>Notes</Label><input value={edit.notes} onChange={(e) => { setEdit((x) => ({ ...x, notes: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Anything notable" /></div>
               </div>
 
               <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-4">
-                <CrmBtn variant="gold" onClick={() => void setStatus('filed')} disabled={saving}><CheckCircle2 className="h-3.5 w-3.5" /> Mark filed</CrmBtn>
+                <CrmBtn variant="gold" onClick={() => void setStatus('filed')} disabled={saving}><CheckCircle2 className="h-3.5 w-3.5" /> Mark as Completed</CrmBtn>
                 <CrmBtn variant="ghost" onClick={() => void setStatus('in_progress')} disabled={saving}>In progress</CrmBtn>
                 <CrmBtn variant="ghost" onClick={() => void setStatus('na')} disabled={saving}>N/A</CrmBtn>
                 {dirty && (

@@ -330,6 +330,7 @@ export interface LedgerComplianceItem {
   assignee?: string;
   priority?: string;
   challan_url?: string;
+  amount_paid?: number;
 }
 
 export interface LedgerLegalCase {
