@@ -30,7 +30,8 @@ export const REGISTRATION_OPTIONS: { value: string; label: string }[] = [
   { value: 'tds', label: 'TAN / TDS deductor' },
   { value: 'pf', label: 'EPF (20+ employees)' },
   { value: 'esi', label: 'ESIC (10+ employees)' },
-  { value: 'pt', label: 'Karnataka Professional Tax' },
+  { value: 'ptec', label: 'PTEC — company PT ₹2,500/yr (Karnataka)' },
+  { value: 'pt', label: 'PTRC — employee PT deduction (Karnataka, 20th monthly)' },
   { value: 'lwf', label: 'Karnataka Labour Welfare Fund' },
   { value: 'shops', label: 'Shops & Establishment (Karnataka)' },
   { value: 'trade_licence', label: 'BBMP Trade Licence' },
@@ -104,8 +105,11 @@ export const COMPLIANCE_RULES: ComplianceRule[] = [
   /* ── Labour ── */
   { law: 'Labour', form: 'PF ECR', title: 'EPF contribution + ECR', freq: 'monthly', months: FY_MONTHS, rule: 'pf', dueRuleLabel: '15th of next month', penalty: '14B damages 5%–25% p.a. + 12% interest', penaltyExposure: 5000, source: 'epfindia.gov.in — Para 38, Sec 14B', requires: ['pf'] },
   { law: 'Labour', form: 'ESI Contribution', title: 'ESIC payment', freq: 'monthly', months: FY_MONTHS, rule: 'esi', dueRuleLabel: '15th of next month', penalty: '85B damages 5%–25% p.a.', penaltyExposure: 5000, source: 'esic.gov.in — Reg 31, Sec 85B', requires: ['esi'] },
-  { law: 'Labour', form: 'PT-5 (Karnataka)', title: 'Professional tax remittance + return', freq: 'monthly', months: FY_MONTHS, rule: 'pt', dueRuleLabel: '20th of next month', penalty: '1.25%–2% p.m. interest + ₹200–₹2,000 fine', penaltyExposure: 2000, source: 'karnataka CTD — KPT Act 1976 Rule 24', requires: ['pt'] },
-  { law: 'Labour', form: 'LWF (Karnataka)', title: 'Labour Welfare Fund (Dec deduction)', freq: 'annual', months: [12], rule: 'lwf', dueRuleLabel: 'By 15 January', penalty: '₹500–₹5,000 + interest', penaltyExposure: 5000, source: 'klwb.karnataka.gov.in — KLWF Act 1965', requires: ['lwf'] },
+  { law: 'Labour', form: 'PTEC ₹2,500 (company)', title: 'Professional tax on company — PTEC annual payment', freq: 'annual', months: [6], rule: 'ptec', dueRuleLabel: '₹2,500/year, payable by 30 June for the FY (Karnataka)', penalty: 'Interest + penalty per KPT Act; PT clearance needed for licences/renewals', penaltyExposure: 5000, source: 'ptax.karnataka.gov.in — KPT Act 1976 Sec 4/6 (PTEC enrolment)', requires: ['ptec'] },
+  { law: 'Labour', form: 'PTRC (employees)', title: 'Professional tax deducted from employee salaries', freq: 'monthly', months: FY_MONTHS, rule: 'pt', dueRuleLabel: '20th of next month (Karnataka registered employers)', penalty: 'Penalty + 1.25%–2% p.m. interest; ₹200–₹2,000 fine', penaltyExposure: 2000, source: 'karnataka CTD — KPT Act 1976 Rule 24', requires: ['pt'] },
+  { law: 'GST', form: 'GST Registration Watch', title: 'Turnover watch — register for GST when aggregate turnover crosses ₹20 lakh', freq: 'annual', months: [4, 10], rule: 'gstWatch', dueRuleLabel: 'Services threshold: ₹20L aggregate turnover (Karnataka); registration within 30 days of crossing', penalty: 'Tax + interest + penalty on unregistered supplies past threshold', penaltyExposure: 50000, source: 'gst.gov.in — Sec 22 CGST Act; Notif. 10/2017-CTR', requires: [], note: 'Below ₹20L: NO GST registration or returns needed — this item only tracks the threshold' },
+
+  /* ── Karnataka real-estate industry (VJR Estate profile) ── */
   { law: 'Labour', form: 'POSH Annual Report', title: 'Annual report to District Officer', freq: 'annual', months: [1], rule: 'posh', dueRuleLabel: 'By 31 January', penalty: '₹50,000 (Sec 21/22)', penaltyExposure: 50000, source: 'wcd.gov.in — POSH Act 2013', requires: [], note: 'Applies at 10+ employees — uncheck if smaller' },
   { law: 'Labour', form: 'Gratuity / Bonus review', title: 'Payment of Gratuity & Bonus Act checks', freq: 'annual', months: [3], rule: 'gratuity', dueRuleLabel: 'FY-end review by 31 March', penalty: 'Interest + imprisonment provisions', penaltyExposure: 10000, source: 'labour.gov.in — PG Act 1972 Sec 7', requires: ['pf'] },
   { law: 'Labour', form: 'Half-yearly Return (S&E)', title: 'Karnataka S&E half-yearly return', freq: 'half-yearly', months: [1, 7], rule: 'seReturn', dueRuleLabel: 'End of Jan (Jul–Dec) / Jul (Jan–Jun)', penalty: '₹5,000–₹50,000', penaltyExposure: 10000, source: 'labour.karnataka.gov.in — S&E Act 1961 Rule 9', requires: ['shops'] },
@@ -236,6 +240,8 @@ function dueDateFor(rule: ComplianceRule, fyStartY: number, month: number): { y:
     case 'iecUpdate': return { y: fyStartY + 1, m: 6, d: 30 };
     case 'tmRenewal': return { y: fyStartY, m: 4, d: 30 };
     case 'insurance': return { y: fyStartY, m: 4, d: 30 };
+    case 'ptec': return { y: fyStartY + 1, m: 6, d: 30 }; // 30 June of the FY's closing year
+    case 'gstWatch': return month === 4 ? { y: fyStartY, m: 4, d: 15 } : { y: fyStartY, m: 10, d: 15 };
 
     // Karnataka real-estate industry
     case 'reraRenewal': return { y: fyStartY, m: 4, d: 30 };
@@ -289,14 +295,14 @@ export function generateComplianceCalendar(opts: {
       // Period label: the month the obligation relates to.
       const isQ = rule.freq === 'quarterly' || rule.freq === 'half-yearly';
       const period =
-        rule.rule === 'gst9' || ['itr', 'itr5', 'itrProp', 'taxAudit', 'aoc4', 'mgt7', 'dir3', 'dpt3', 'adt1', 'agm', 'llp8', 'llp11', 'boardReport', 'lwf', 'posh', 'gratuity', 'tradeLicence', 'shopsRenewal', 'fssai', 'fla', 'inc20a', 'mbp1', 'statRegisters', 'tmRenewal', 'insurance', 'einvoice', 'fcgpr', 'reraRenewal', 'dpdp'].includes(rule.rule)
+        rule.rule === 'gst9' || ['itr', 'itr5', 'itrProp', 'taxAudit', 'aoc4', 'mgt7', 'dir3', 'dpt3', 'adt1', 'agm', 'llp8', 'llp11', 'boardReport', 'lwf', 'posh', 'gratuity', 'tradeLicence', 'shopsRenewal', 'fssai', 'fla', 'inc20a', 'mbp1', 'statRegisters', 'tmRenewal', 'insurance', 'einvoice', 'fcgpr', 'reraRenewal', 'dpdp', 'ptec', 'gstWatch'].includes(rule.rule)
           ? 'Annual'
           : isQ
             ? `${quarterOf(m)} ${fy}`
             : `${pad(m)}-${m >= 4 ? fyStartYear : fyStartYear + 1}`;
 
       // Skip obligations whose PERIOD month predates incorporation.
-      const periodYm = ['reraRenewal', 'dpdp', 'einvoice', 'inc20a', 'mbp1', 'statRegisters', 'fcgpr', 'tmRenewal', 'insurance'].includes(rule.rule)
+      const periodYm = ['reraRenewal', 'dpdp', 'einvoice', 'inc20a', 'mbp1', 'statRegisters', 'fcgpr', 'tmRenewal', 'insurance', 'ptec', 'gstWatch'].includes(rule.rule)
         ? '9999' // annual-check rules are never period-clamped
         : `${m >= 4 ? fyStartYear : fyStartYear + 1}-${pad(m)}`;
       if (incYm && periodYm < incYm) continue;

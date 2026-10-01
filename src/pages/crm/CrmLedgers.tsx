@@ -306,11 +306,12 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>({
     entity_type: 'pvtltd',
     fy_start_month: 4,
-    // Karnataka pvtltd real-estate brokerage defaults — RERA agent, S&E, BBMP
-    // licence, PT + LWF + TDS are the baseline for a Bengaluru firm.
-    registrations: ['rera_agent', 'shops', 'trade_licence', 'pt', 'lwf', 'tds', 'gst'],
+    // Karnataka pvtltd real-estate brokerage, turnover below ₹20L: no GST yet.
+    // PTEC (₹2,500/yr company PT) is the baseline; PTRC only when employees.
+    registrations: ['rera_agent', 'shops', 'trade_licence', 'ptec', 'tds'],
     gst_scheme: 'monthly',
     employee_count: 0,
+    turnover_band: 'lt_2cr',
     registered_office: '',
   });
 
@@ -458,6 +459,11 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
                       );
                     })}
                   </div>
+                  {!(f.registrations ?? []).includes('gst') && !(f.registrations ?? []).includes('gst_composition') && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-3.5 text-[11.5px] leading-relaxed text-blue-800">
+                      <strong>GST not selected — correct if your turnover is under ₹20 lakh.</strong> As a Karnataka service provider you need GST registration only when aggregate turnover crosses ₹20 lakh in a FY. When that happens, tick “GST (regular)” here (or in Company Profile) and hit Sync New — GSTR-1/3B, the ₹20L threshold watch and brokerage-GST items appear automatically.
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <div><Label>PAN</Label><input value={f.pan ?? ''} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className={inputCls} placeholder="ABCDE1234F" maxLength={10} /></div>
                     <div><Label>TAN</Label><input value={f.tan ?? ''} onChange={(e) => setF((x) => ({ ...x, tan: e.target.value.toUpperCase() }))} className={inputCls} placeholder="BLRA12345A" maxLength={10} /></div>
@@ -472,7 +478,9 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
                       <Label>Annual turnover band</Label>
                       <select value={f.turnover_band ?? ''} onChange={(e) => setF((x) => ({ ...x, turnover_band: e.target.value }))} className={inputCls}>
                         <option value="">Select…</option>
-                        <option value="lt_2cr">Under ₹2 crore</option>
+                        <option value="lt_20l">Under ₹20 lakh (no GST needed)</option>
+                        <option value="20l_1cr">₹20 lakh – 1 crore</option>
+                        <option value="1_2cr">₹1 – 2 crore</option>
                         <option value="2_10cr">₹2 – 10 crore</option>
                         <option value="10_50cr">₹10 – 50 crore</option>
                         <option value="gt_50cr">Above ₹50 crore</option>
@@ -654,7 +662,9 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
             <Label>Turnover band</Label>
             <select value={f.turnover_band ?? ''} onChange={(e) => setF((x) => ({ ...x, turnover_band: e.target.value }))} className={inputCls}>
               <option value="">Select…</option>
-              <option value="lt_2cr">Under ₹2 crore</option>
+              <option value="lt_20l">Under ₹20 lakh (no GST needed)</option>
+              <option value="20l_1cr">₹20 lakh – 1 crore</option>
+              <option value="1_2cr">₹1 – 2 crore</option>
               <option value="2_10cr">₹2 – 10 crore</option>
               <option value="10_50cr">₹10 – 50 crore</option>
               <option value="gt_50cr">Above ₹50 crore</option>
