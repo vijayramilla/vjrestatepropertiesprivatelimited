@@ -24,6 +24,7 @@ export const ENTITY_TYPES: { value: EntityType; label: string; blurb: string; ro
 ];
 
 export const REGISTRATION_OPTIONS: { value: string; label: string }[] = [
+  { value: 'rera_agent', label: 'RERA agent (Karnataka Form ABC)' },
   { value: 'gst', label: 'GST (regular)' },
   { value: 'gst_composition', label: 'GST (composition)' },
   { value: 'tds', label: 'TAN / TDS deductor' },
@@ -31,7 +32,7 @@ export const REGISTRATION_OPTIONS: { value: string; label: string }[] = [
   { value: 'esi', label: 'ESIC (10+ employees)' },
   { value: 'pt', label: 'Karnataka Professional Tax' },
   { value: 'lwf', label: 'Karnataka Labour Welfare Fund' },
-  { value: 'shops', label: 'Shops & Establishment' },
+  { value: 'shops', label: 'Shops & Establishment (Karnataka)' },
   { value: 'trade_licence', label: 'BBMP Trade Licence' },
   { value: 'ie_code', label: 'IEC (import/export)' },
   { value: 'fssai', label: 'FSSAI licence' },
@@ -119,6 +120,14 @@ export const COMPLIANCE_RULES: ComplianceRule[] = [
   { law: 'Licences', form: 'IEC Update', title: 'IEC annual update (Apr–Jun)', freq: 'annual', months: [6], rule: 'iecUpdate', dueRuleLabel: 'Apr–Jun window', penalty: 'IEC deactivated if not updated', penaltyExposure: 10000, source: 'dgft.gov.in — FTP para 2.07', requires: ['ie_code'] },
   { law: 'Licences', form: 'Trademark Renewal', title: 'TM renewal (every 10 yrs) / renewal notice check', freq: 'annual', months: [4], rule: 'tmRenewal', dueRuleLabel: 'Verify each April', penalty: 'Mark removed from register', penaltyExposure: 25000, source: 'ipindia.gov.in — TM Act 1999 Sec 25', requires: ['trademark'] },
   { law: 'Other', form: 'Insurance Renewals', title: 'Fire/office/vehicle/D&O policy renewals', freq: 'annual', months: [4], rule: 'insurance', dueRuleLabel: 'Verify every April', penalty: 'Uninsured exposure', penaltyExposure: 0, source: 'Policy schedules' },
+
+  /* ── Karnataka real-estate industry (VJR Estate profile) ── */
+  { law: 'Licences', form: 'RERA Agent Renewal (Form ABC)', title: 'Karnataka RERA agent registration renewal', freq: 'annual', months: [4], rule: 'reraRenewal', dueRuleLabel: 'Certificate valid 5 years — renew ≥ 60–90 days before expiry; verify each April', penalty: 'Unregistered brokerage is an offence — penalties + barred from RERA projects', penaltyExposure: 100000, source: 'rera.karnataka.gov.in — Sec 9/62 RERA Act 2016, KRERA Form ABC', requires: ['rera_agent'], note: 'Set the true expiry date on the generated item' },
+  { law: 'Corporate', form: 'TDS 194I (office rent)', title: 'TDS on office/shop rent @10%', freq: 'monthly', months: FY_MONTHS, rule: 'tdsRent', dueRuleLabel: 'Deduct monthly if rent > ₹50,000 p.m.; deposit by 7th (30 Apr for Mar)', penalty: '1.5%/month interest + disallowance of rent expense', penaltyExposure: 10000, source: 'incometaxindia.gov.in — Sec 194I', requires: ['tds'], note: 'Applies if paying rent for office premises' },
+  { law: 'Corporate', form: 'TDS 194H (channel commissions)', title: 'TDS on commission/brokerage paid @2%', freq: 'monthly', months: FY_MONTHS, rule: 'tdsCommission', dueRuleLabel: 'Deduct on paying commission > ₹20,000/yr per payee; deposit by 7th', penalty: '1.5%/month interest + Sec 271C penalty', penaltyExposure: 10000, source: 'incometaxindia.gov.in — Sec 194H', requires: ['tds'], note: 'Applies to channel partners / freelance brokers on the books' },
+  { law: 'Corporate', form: 'GST on brokerage (SAC 9971)', title: 'GST output on commission income (18%)', freq: 'monthly', months: FY_MONTHS, rule: 'gstBrokerage', dueRuleLabel: 'Charge 18% GST on brokerage invoices; include in GSTR-1/3B', penalty: 'Interest 18% p.a. + late fees as per GSTR-3B', penaltyExposure: 20000, source: 'gst.gov.in — Notification 11/2017-CTR (R), SAC 9971', requires: ['gst'], note: 'Real-estate agency service — always 18%, no composition benefit for services > threshold' },
+  { law: 'Labour', form: 'S&E Registration Renewal', title: 'Karnataka S&E establishment registration renewal', freq: 'annual', months: [1], rule: 'seRegistration', dueRuleLabel: 'Renew by end of Jan (5-year validity per 1961 Act + Rules)', penalty: '₹5,000–₹50,000 + closure risk on continued default', penaltyExposure: 25000, source: 'labour.karnataka.gov.in — Karnataka S&E Act 1961 & Rules 1962', requires: ['shops'], note: 'Separate from the half-yearly return — this is the certificate renewal' },
+  { law: 'Corporate', form: 'DPDP data hygiene', title: 'DPDP Act 2023 — buyer/lead data handling review', freq: 'annual', months: [4], rule: 'dpdp', dueRuleLabel: 'Annual review each April (rules phased in)', penalty: 'Up to ₹250 crore for security-safeguard failures', penaltyExposure: 50000, source: 'meity.gov.in — Digital Personal Data Protection Act 2023', note: 'You hold buyer KYC/phone data — consent notices on forms recommended' },
 ];
 
 /* ── FY helpers ─────────────────────────────────────────────────────────── */
@@ -228,6 +237,14 @@ function dueDateFor(rule: ComplianceRule, fyStartY: number, month: number): { y:
     case 'tmRenewal': return { y: fyStartY, m: 4, d: 30 };
     case 'insurance': return { y: fyStartY, m: 4, d: 30 };
 
+    // Karnataka real-estate industry
+    case 'reraRenewal': return { y: fyStartY, m: 4, d: 30 };
+    case 'tdsRent': return month === 3 ? { y: fyStartY + 1, m: 4, d: 30 } : { y: nextMonthY, m: nextMonth, d: 7 };
+    case 'tdsCommission': return month === 3 ? { y: fyStartY + 1, m: 4, d: 30 } : { y: nextMonthY, m: nextMonth, d: 7 };
+    case 'gstBrokerage': return { y: nextMonthY, m: nextMonth, d: 20 };
+    case 'seRegistration': return { y: fyStartY + 1, m: 1, d: 31 };
+    case 'dpdp': return { y: fyStartY, m: 4, d: 30 };
+
     default: return { y: nextMonthY, m: nextMonth, d: 15 };
   }
 }
@@ -272,14 +289,16 @@ export function generateComplianceCalendar(opts: {
       // Period label: the month the obligation relates to.
       const isQ = rule.freq === 'quarterly' || rule.freq === 'half-yearly';
       const period =
-        rule.rule === 'gst9' || ['itr', 'itr5', 'itrProp', 'taxAudit', 'aoc4', 'mgt7', 'dir3', 'dpt3', 'adt1', 'agm', 'llp8', 'llp11', 'boardReport', 'lwf', 'posh', 'gratuity', 'tradeLicence', 'shopsRenewal', 'fssai', 'fla', 'inc20a', 'mbp1', 'statRegisters', 'tmRenewal', 'insurance', 'einvoice', 'fcgpr'].includes(rule.rule)
+        rule.rule === 'gst9' || ['itr', 'itr5', 'itrProp', 'taxAudit', 'aoc4', 'mgt7', 'dir3', 'dpt3', 'adt1', 'agm', 'llp8', 'llp11', 'boardReport', 'lwf', 'posh', 'gratuity', 'tradeLicence', 'shopsRenewal', 'fssai', 'fla', 'inc20a', 'mbp1', 'statRegisters', 'tmRenewal', 'insurance', 'einvoice', 'fcgpr', 'reraRenewal', 'dpdp'].includes(rule.rule)
           ? 'Annual'
           : isQ
             ? `${quarterOf(m)} ${fy}`
             : `${pad(m)}-${m >= 4 ? fyStartYear : fyStartYear + 1}`;
 
       // Skip obligations whose PERIOD month predates incorporation.
-      const periodYm = `${m >= 4 ? fyStartYear : fyStartYear + 1}-${pad(m)}`;
+      const periodYm = ['reraRenewal', 'dpdp', 'einvoice', 'inc20a', 'mbp1', 'statRegisters', 'fcgpr', 'tmRenewal', 'insurance'].includes(rule.rule)
+        ? '9999' // annual-check rules are never period-clamped
+        : `${m >= 4 ? fyStartYear : fyStartYear + 1}-${pad(m)}`;
       if (incYm && periodYm < incYm) continue;
       // Skip if the due date itself predates incorporation (nothing can be due before you exist).
       if (incDate && new Date(due.y, due.m - 1, due.d) < incDate) {

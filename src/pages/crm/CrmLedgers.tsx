@@ -306,9 +306,12 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>({
     entity_type: 'pvtltd',
     fy_start_month: 4,
-    registrations: ['tds'],
+    // Karnataka pvtltd real-estate brokerage defaults — RERA agent, S&E, BBMP
+    // licence, PT + LWF + TDS are the baseline for a Bengaluru firm.
+    registrations: ['rera_agent', 'shops', 'trade_licence', 'pt', 'lwf', 'tds', 'gst'],
     gst_scheme: 'monthly',
     employee_count: 0,
+    registered_office: '',
   });
 
   const pickLogo = async (file: File | undefined) => {
@@ -436,7 +439,7 @@ function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => voi
 
               {step === 2 && (
                 <div className="space-y-4">
-                  <WizardQ title="Which registrations does the company hold?" hint="Only obligations for held registrations are generated — no noise." />
+                  <WizardQ title="Which registrations does the company hold?" hint="Prefilled for a Karnataka real-estate brokerage — untick anything you don't hold. Only obligations for held registrations are generated." />
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {REGISTRATION_OPTIONS.map((r) => {
                       const on = (f.registrations ?? []).includes(r.value);
