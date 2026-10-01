@@ -12,6 +12,7 @@ import { shareProperty } from '@/utils/shareProperty';
 import { setPropertyShareMeta, setDefaultSiteMeta } from '@/lib/siteMeta';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import BookVisitCalendar from '../components/BookVisitCalendar';
+import { useIsDesktop } from '@/components/crm/CrmUi';
 import VJRAIButton from '../components/ai/VJRAIButton';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
 import PropertyDetailsPanel, { PropertyAtAGlance } from '../components/PropertyDetailsPanel';
@@ -167,6 +168,7 @@ export default function PropertyDetailPage() {
   const [carouselApi, setCarouselApi] = useState<CarouselApi>();
   const [descExpanded, setDescExpanded] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const isDesktop = useIsDesktop();
 
   useEffect(() => {
     if (!id) return;
@@ -226,12 +228,17 @@ export default function PropertyDetailPage() {
     return () => setDefaultSiteMeta();
   }, [property]);
 
+  // Scroll-lock only while an overlay actually covers the screen: the image
+  // viewer (all sizes) and the MOBILE booking sheet. On desktop the booking
+  // form expands inline inside the contact card, so the page must stay
+  // scrollable to reach the expanded form.
   useEffect(() => {
-    document.body.style.overflow = viewerIndex !== null || showBooking ? 'hidden' : '';
+    const overlayOpen = viewerIndex !== null || (showBooking && !isDesktop);
+    document.body.style.overflow = overlayOpen ? 'hidden' : '';
     return () => {
       document.body.style.overflow = '';
     };
-  }, [viewerIndex, showBooking]);
+  }, [viewerIndex, showBooking, isDesktop]);
 
   useEffect(() => {
     if (viewerIndex === null || !property) return;
@@ -627,7 +634,7 @@ export default function PropertyDetailPage() {
 
           {/* Right column — sticky contact card (desktop) */}
           <aside className="hidden lg:block">
-            <div className="sticky top-[72px] overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)]">
+            <div className={`overflow-hidden rounded-2xl border border-[#e8e8ea] bg-white shadow-[0_4px_24px_rgba(0,0,0,0.06)] ${showBooking ? '' : 'sticky top-[72px]'}`}>
               {/* Price */}
               <div className="border-b border-[#eef0f2] px-6 py-6">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a8f98]" style={fontUI}>

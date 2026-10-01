@@ -391,6 +391,25 @@ async function ensureDeletedBookingsTable() {
   await supabaseRpc('exec_sql', { q: DELETED_BOOKINGS_DDL }).catch(() => {});
 }
 
+// Daily site-visit slot capacity per property (null = no limit).
+const VISIT_SLOTS_DDL = `
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='properties' AND column_name='visit_slots'
+  ) THEN
+    ALTER TABLE public.properties ADD COLUMN visit_slots INT NULL;
+  END IF;
+END $$;
+`;
+
+const _visitSlotsOnce = { done: false };
+async function ensureVisitSlotsColumn() {
+  if (_visitSlotsOnce.done) return;
+  _visitSlotsOnce.done = true;
+  await supabaseRpc('exec_sql', { q: VISIT_SLOTS_DDL }).catch(() => {});
+}
+
 function historyRowFromLead(row, deletedAt) {
   return {
     id: row.id,
@@ -1658,6 +1677,43 @@ async function executeAction(action, params) {
         await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(r.id)}`, { property_code: code });
       }
       return { count: (toBackfill ?? []).length };
+    }
+
+    // ── Site-visit slot capacity ─────────────────────────────────────────
+    case 'slots.set': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const value = params.slots === null || params.slots === undefined || params.slots === '' ? null : Number(params.slots);
+      if (value !== null && (!Number.isFinite(value) || value < 0 || value > 50)) {
+        throw new Error('Slots must be between 0 and 50 (or empty for no limit)');
+      }
+      const body = { visit_slots: value, updated_at: new Date().toISOString() };
+      try {
+        await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(String(params.propertyId))}`, body);
+      } catch (e) {
+        if (isMissingRelation(e.message)) {
+          await ensureVisitSlotsColumn();
+          await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(String(params.propertyId))}`, body);
+        } else {
+          throw e;
+        }
+      }
+      return { propertyId: String(params.propertyId), visitSlots: value };
+    }
+
+    case 'slots.availability': {
+      if (!params._public) throw new Error('Forbidden');
+      const propertyId = String(params.propertyId ?? '');
+      if (!propertyId) throw new Error('Property id is required');
+      const todayIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      const [propRes, leadsRes] = await Promise.all([
+        supabaseFetch('GET', `properties?select=visit_slots&id=eq.${encodeURIComponent(propertyId)}`),
+        supabaseFetch('GET', `property_leads?select=id&property_id=eq.${encodeURIComponent(propertyId)}&visit_date=eq.${todayIso}&status=neq.cancelled`),
+      ]);
+      // supabaseFetch resolves to { data: [...], count } — unwrap .data.
+      const limit = propRes?.data?.[0]?.visit_slots ?? null;
+      const booked = Array.isArray(leadsRes?.data) ? leadsRes.data.length : 0;
+      const remaining = limit === null ? null : Math.max(0, limit - booked);
+      return { visitSlots: limit, bookedToday: booked, remaining };
     }
 
     // ── Requirements ──────────────────────────────────────────────────

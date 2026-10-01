@@ -21,6 +21,8 @@ export interface Property {
   area_guntas?: number;
   price_per_sqft?: number;
   floors: number;
+  /** Daily site-visit slot cap set by admin (null/undefined = no limit). */
+  visit_slots?: number | null;
   tenants: number;
   occupancyPercent: number;
   description: string;

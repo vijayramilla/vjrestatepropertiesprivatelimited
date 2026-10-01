@@ -14,6 +14,7 @@ import {
   Phone,
 } from 'lucide-react';
 import { savePropertyLead } from '@/lib/propertyLeads';
+import { fetchSlotAvailability } from '@/lib/supabaseData';
 import { getPropertyShareUrl } from '@/lib/siteUrl';
 
 export interface BookVisitProperty {
@@ -123,6 +124,44 @@ function firstAvailableSlot(propertyId: string, date: Date): string {
   return '10:00 AM'; // fallback — validated server-side anyway
 }
 
+export interface SlotAvailability {
+  /** Daily cap set by admin — null means no limit configured. */
+  visitSlots: number | null;
+  bookedToday: number;
+  remaining: number | null;
+}
+
+/**
+ * Blinking red availability dot + "Only X slots left today". Real admin
+ * data (daily cap) wins; with no cap configured the count falls back to
+ * the simulated calendar, so the counter is always visible.
+ */
+export function SlotsLeftIndicator({ availability }: { availability: SlotAvailability | null }) {
+  if (!availability || availability.remaining === null) return null;
+  const { remaining, bookedToday } = availability;
+  if (remaining <= 0) {
+    return (
+      <div className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3.5 py-2 font-sans text-[12.5px] font-extrabold text-red-600">
+        <span className="relative flex h-2.5 w-2.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+          <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+        </span>
+        No slots left today
+      </div>
+    );
+  }
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full bg-red-50 px-3.5 py-2 font-sans text-[12.5px] font-extrabold text-red-600">
+      <span className="relative flex h-2.5 w-2.5">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+      </span>
+      {remaining} {remaining === 1 ? 'slot' : 'slots'} left today
+      {bookedToday > 0 && <span className="font-bold opacity-70">· {bookedToday} booked</span>}
+    </div>
+  );
+}
+
 /**
  * Site-visit booking form — "Book a Free Visit", anonymous (no login).
  *
@@ -156,6 +195,42 @@ export default function BookVisitCalendar({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [booked, setBooked] = useState<{ date: Date; time: string } | null>(null);
+
+  // Live daily-cap availability (blinking red dot). Fails silently — the
+  // form works exactly as before when no cap is configured or the endpoint
+  // is unreachable.
+  const [availability, setAvailability] = useState<SlotAvailability | null>(null);
+  useEffect(() => {
+    if (!property?.id) return;
+    let alive = true;
+    const load = () => {
+      fetchSlotAvailability(String(property.id))
+        .then((a) => { if (alive) setAvailability(a); })
+        .catch(() => { if (alive) setAvailability(null); });
+    };
+    load();
+    const t = setInterval(load, 30_000);
+    return () => { alive = false; clearInterval(t); };
+  }, [property?.id]);
+
+  // Effective counter data: real admin availability wins; when no daily cap
+  // is configured (or the endpoint is unreachable) derive today's open slots
+  // from the simulated calendar so the counter always shows above the CTA.
+  const effectiveAvailability = useMemo<SlotAvailability | null>(() => {
+    if (availability && availability.remaining !== null) return availability;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    let remaining = 0;
+    let bookedToday = 0;
+    for (const t of TIME_SLOTS) {
+      if (isSlotFilled(String(property.id), today, t)) {
+        bookedToday += 1;
+      } else if (slotMinutes(t) > nowMinutes + 60) {
+        remaining += 1;
+      }
+    }
+    return { visitSlots: null, bookedToday, remaining };
+  }, [availability, property.id, today]);
 
   // Re-pick a valid default slot whenever the chosen day changes (keeps the
   // selection consistent when today's slots run out or the day flips).
@@ -574,6 +649,11 @@ export default function BookVisitCalendar({
                 {error}
               </p>
             )}
+
+            {/* Live slots-left counter — blinking red dot, right-aligned above the CTA */}
+            <div className="mt-3 flex justify-end">
+              <SlotsLeftIndicator availability={effectiveAvailability} />
+            </div>
 
             <p className="mt-3 flex items-center gap-1.5 font-sans text-[11.5px] text-[#6b7280]">
               <Phone className="h-3.5 w-3.5 shrink-0 text-emerald-600" strokeWidth={1.8} />

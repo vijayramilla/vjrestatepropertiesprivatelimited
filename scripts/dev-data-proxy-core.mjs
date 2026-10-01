@@ -245,6 +245,34 @@ async function nextReqId() {
   return `VJR-REQ-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`;
 }
 
+// Daily site-visit slot capacity per property (null = no limit).
+const VISIT_SLOTS_DDL = `
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='properties' AND column_name='visit_slots'
+  ) THEN
+    ALTER TABLE public.properties ADD COLUMN visit_slots INT NULL;
+  END IF;
+END $$;
+`;
+
+const _visitSlotsOnce = { done: false };
+async function ensureVisitSlotsColumn() {
+  if (_visitSlotsOnce.done) return;
+  _visitSlotsOnce.done = true;
+  try {
+    const base = (process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '');
+    const key = process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY ?? '';
+    if (!base || !key) return;
+    await fetch(`${base}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, apikey: key },
+      body: JSON.stringify({ q: VISIT_SLOTS_DDL }),
+    });
+  } catch { /* exec_sql RPC may not exist — degrade gracefully */ }
+}
+
 async function getPropertyRow(id) {
   const { data, error } = await supabaseAdmin
     .from('properties')
@@ -591,6 +619,48 @@ async function executeAction(action, params) {
         .eq('id', id);
       if (error) throw new Error(error.message);
       return { id };
+    }
+
+    // ── Site-visit slot capacity ────────────────────────────────────────
+    case 'slots.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const value = params.slots === null || params.slots === undefined || params.slots === '' ? null : Number(params.slots);
+      if (value !== null && (!Number.isFinite(value) || value < 0 || value > 50)) {
+        throw new Error('Slots must be between 0 and 50 (or empty for no limit)');
+      }
+      let res = await supabaseAdmin
+        .from('properties')
+        .update({ visit_slots: value, updated_at: new Date().toISOString() })
+        .eq('id', String(params.propertyId));
+      if (res.error && /does not exist|Could not find the table|schema cache/i.test(res.error.message)) {
+        await ensureVisitSlotsColumn();
+        res = await supabaseAdmin
+          .from('properties')
+          .update({ visit_slots: value, updated_at: new Date().toISOString() })
+          .eq('id', String(params.propertyId));
+      }
+      if (res.error) throw new Error(res.error.message);
+      return { propertyId: String(params.propertyId), visitSlots: value };
+    }
+
+    case 'slots.availability': {
+      if (!params._public) throw new Error('Forbidden');
+      const propertyId = String(params.propertyId ?? '');
+      if (!propertyId) throw new Error('Property id is required');
+      const todayIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      const [propRes, leadsRes] = await Promise.all([
+        supabaseAdmin.from('properties').select('visit_slots').eq('id', propertyId).maybeSingle(),
+        supabaseAdmin
+          .from('property_leads')
+          .select('id')
+          .eq('property_id', propertyId)
+          .eq('visit_date', todayIso)
+          .neq('status', 'cancelled'),
+      ]);
+      const limit = propRes.data?.visit_slots ?? null;
+      const booked = (leadsRes.data ?? []).length;
+      const remaining = limit === null ? null : Math.max(0, limit - booked);
+      return { visitSlots: limit, bookedToday: booked, remaining };
     }
 
     case 'user.track': {

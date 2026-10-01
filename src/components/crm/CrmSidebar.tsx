@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type WheelEvent } from 'react';
 import { auth } from '@/lib/firebase';
 import { leadSupabase } from '@/services/leadSupabase';
 import {
@@ -141,6 +141,26 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
 
   const isActive = (path: string) => (path === '/crm' ? location.pathname === '/crm' : location.pathname === path);
 
+  // The desktop rail sits outside the page's scrollable column (root is
+  // overflow-hidden), so the wheel is dead with the cursor over the sidebar.
+  // Forward deltas to the adjacent scroll column — unless the sidebar's own
+  // nav is still consuming them — so scrolling over the sidebar moves the
+  // page content, like the old whole-page scroll did.
+  const railRef = useRef<HTMLDivElement>(null);
+  const forwardWheelToContent = (e: WheelEvent) => {
+    if (e.deltaY === 0) return;
+    const scroller = railRef.current?.nextElementSibling as HTMLElement | null;
+    if (!scroller) return;
+    const nav = (e.target as HTMLElement).closest?.('nav');
+    if (nav && nav.scrollHeight > nav.clientHeight) {
+      const canUp = nav.scrollTop > 0;
+      const canDown = nav.scrollTop + nav.clientHeight < nav.scrollHeight - 1;
+      if ((e.deltaY < 0 && canUp) || (e.deltaY > 0 && canDown)) return;
+    }
+    const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY; // line-mode wheels (Firefox)
+    scroller.scrollBy({ top: dy });
+  };
+
   const NavRow = ({ item }: { item: NavItem }) => {
     const active = isActive(item.path);
     const Icon = item.icon;
@@ -279,7 +299,11 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
       {/* Desktop rail — sits inside the page's h-screen overflow-hidden shell,
           so it always fills the viewport height and never scrolls with the
           page; only the <main> beside it scrolls. */}
-      <div className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[68px]' : 'w-[248px]'}`}>
+      <div
+        ref={railRef}
+        onWheel={forwardWheelToContent}
+        className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[68px]' : 'w-[248px]'}`}
+      >
         {sidebar}
       </div>
     </>

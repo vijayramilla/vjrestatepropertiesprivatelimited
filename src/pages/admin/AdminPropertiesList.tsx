@@ -31,6 +31,29 @@ import {
 } from '@/components/admin/AdminUi';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Trash, NotePencil, Plus } from '@phosphor-icons/react';
+import { CalendarX } from '@phosphor-icons/react';
+import { X } from 'lucide-react';
+
+interface SlotsModalState {
+  id: string;
+  title: string;
+  current: number | null;
+}
+
+/** Small "Slots" button shown on every property row (desktop + mobile). */
+function SlotsButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="admin-btn-secondary min-h-[44px] justify-center text-[11px] md:!min-h-[34px] md:!px-3 md:!text-[10px]"
+      title="Set daily site-visit slot limit"
+    >
+      <CalendarX size={12} />
+      Slots
+    </button>
+  );
+}
 
 const container = {
   animate: { transition: { staggerChildren: 0.05 } },
@@ -61,7 +84,95 @@ interface Property {
   userDisplayName?: string;
   agent_id?: string;
   agent_name?: string;
+  visit_slots?: number | null;
   createdAt?: { toDate?: () => Date };
+}
+
+/**
+ * Set how many site visits per day this property accepts. Stored on the
+ * property row (`visit_slots`); availability shown to visitors is always
+ * computed from live bookings, so deleting a booking frees a slot.
+ */
+function SlotsModal({
+  target,
+  onClose,
+}: {
+  target: SlotsModalState;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState<string>(target.current === null || target.current === undefined ? '' : String(target.current));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const save = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await callDataProxy('slots.set', {
+        propertyId: target.id,
+        slots: value.trim() === '' ? null : Number(value),
+      });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save — please try again.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-end justify-center bg-black/50 p-4 backdrop-blur-sm sm:items-center"
+      onClick={() => !saving && onClose()}
+    >
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 24, opacity: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="admin-heading text-lg font-medium text-black">Daily visit slots</h3>
+            <p className="mt-1 truncate text-xs text-gray-500">{target.title}</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-black" aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="mt-4 text-xs leading-relaxed text-gray-600">
+          Visitors see a live "slots left today" counter. Leave empty for no limit.
+        </p>
+        <input
+          type="number"
+          min={0}
+          max={50}
+          inputMode="numeric"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/\D/g, '').slice(0, 2))}
+          placeholder="No limit"
+          className="mt-3 h-12 w-full rounded-xl border border-gray-300 px-4 text-base font-semibold text-black outline-none transition-colors focus:border-[#C9A84C]"
+        />
+        {error && (
+          <p role="alert" className="mt-2 rounded-xl bg-red-50 px-4 py-2.5 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className="admin-btn-secondary flex-1">
+            Cancel
+          </button>
+          <button type="button" onClick={save} disabled={saving} className="admin-btn-primary flex-1">
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
 
 function FeaturedToggle({
@@ -102,6 +213,7 @@ export default function AdminPropertiesList() {
   const [agents, setAgents] = useState<{ id: string; name: string }[]>([]);
   const [sortBy, setSortBy] = useState('Newest');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [slotsTarget, setSlotsTarget] = useState<SlotsModalState | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -493,7 +605,7 @@ export default function AdminPropertiesList() {
                     </label>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="mt-4 grid grid-cols-3 gap-2">
                     <button
                       type="button"
                       onClick={() => navigate(`/admin/properties/${property.id}/edit`)}
@@ -502,10 +614,11 @@ export default function AdminPropertiesList() {
                       <NotePencil size={14} />
                       Edit
                     </button>
+                    <SlotsButton onClick={() => setSlotsTarget({ id: property.id, title: property.title, current: property.visit_slots ?? null })} />
                     <button
                       type="button"
                       onClick={() => openDelete(property.id)}
-                      className="admin-btn-ghost-danger"
+                      className="admin-btn-ghost-danger min-h-[44px] text-[11px]"
                     >
                       <Trash size={14} />
                       Delete
@@ -516,7 +629,7 @@ export default function AdminPropertiesList() {
             </motion.div>
 
               <motion.div variants={container} initial="initial" animate="animate" className="admin-card hidden overflow-hidden md:block">
-              <div className="grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_130px] items-center gap-4 border-b border-gray-200 bg-[#FBF9F3] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
+              <div className="grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_220px] items-center gap-4 border-b border-gray-200 bg-[#FBF9F3] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -540,7 +653,7 @@ export default function AdminPropertiesList() {
                 <motion.div
                   key={property.id}
                   variants={fadeUp}
-                  className={`grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_130px] items-center gap-4 border-b border-gray-100 px-5 py-3.5 transition-colors last:border-0 hover:bg-[#FBF7EC]/50 ${selectedIds.has(property.id) ? 'bg-[#C9A84C]/[0.08]' : ''}`}
+                  className={`grid grid-cols-[28px_minmax(70px,0.6fr)_minmax(0,2.2fr)_1fr_1fr_repeat(3,minmax(80px,0.9fr))_80px_220px] items-center gap-4 border-b border-gray-100 px-5 py-3.5 transition-colors last:border-0 hover:bg-[#FBF7EC]/50 ${selectedIds.has(property.id) ? 'bg-[#C9A84C]/[0.08]' : ''}`}
                 >
                   <div className="flex items-center">
                     <input
@@ -573,6 +686,7 @@ export default function AdminPropertiesList() {
                     />
                   </div>
                   <div className="flex justify-end gap-2">
+                    <SlotsButton onClick={() => setSlotsTarget({ id: property.id, title: property.title, current: property.visit_slots ?? null })} />
                     <button
                       type="button"
                       onClick={() => navigate(`/admin/properties/${property.id}/edit`)}
@@ -644,6 +758,13 @@ export default function AdminPropertiesList() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Daily visit slots modal */}
+      <AnimatePresence>
+        {slotsTarget && (
+          <SlotsModal target={slotsTarget} onClose={() => setSlotsTarget(null)} />
         )}
       </AnimatePresence>
 

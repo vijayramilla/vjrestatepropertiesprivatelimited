@@ -139,6 +139,7 @@ export interface SupabasePropertyRow {
   floor_count?: number | null;
   total_units?: number | null;
   available_units?: number | null;
+  visit_slots?: number | null;
   occupancy_percent?: number | null;
   facing?: string | null;
   age?: string | null;
@@ -232,6 +233,7 @@ export function propertyRowToDoc(row: SupabasePropertyRow): Record<string, unkno
     floor_count: row.floor_count ?? 0,
     total_units: row.total_units ?? 0,
     available_units: row.available_units ?? 0,
+    visit_slots: row.visit_slots ?? null,
     occupancy_percent: row.occupancy_percent ?? 0,
     facing: row.facing ?? '—',
     age: row.age ?? '—',
@@ -295,6 +297,18 @@ export async function supabaseGetProperty(id: string): Promise<Record<string, un
 }
 
 /** Admin-side fetch (no uid filter) or owner-scoped fetch. */
+/**
+ * Live site-visit slot availability for TODAY (public — no auth).
+ * `remaining` is null when the property has no cap configured.
+ */
+export async function fetchSlotAvailability(propertyId: string): Promise<{
+  visitSlots: number | null;
+  bookedToday: number;
+  remaining: number | null;
+}> {
+  return callDataProxy('slots.availability', { propertyId }, { isPublic: true });
+}
+
 export function subscribeSupabaseProperties(
   onData: (docs: { id: string; data: Record<string, unknown> }[]) => void,
   options?: { uid?: string },

@@ -189,6 +189,39 @@ CREATE TABLE IF NOT EXISTS public.deleted_bookings (
 CREATE INDEX IF NOT EXISTS idx_deleted_bookings_deleted_at ON public.deleted_bookings (deleted_at DESC);
 `;
 
+/** Daily site-visit slot capacity per property (null = no limit). */
+const VISIT_SLOTS_DDL = `
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema='public' AND table_name='properties' AND column_name='visit_slots'
+  ) THEN
+    ALTER TABLE public.properties ADD COLUMN visit_slots INT NULL;
+  END IF;
+END $$;
+`;
+
+async function ensureVisitSlotsColumn(): Promise<void> {
+  const base = (process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '');
+  oncePerProcess(ensureVisitSlotsColumn.name);
+  try {
+    await fetch(`${base}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'apikey': SUPABASE_SERVICE_KEY },
+      body: JSON.stringify({ q: VISIT_SLOTS_DDL }),
+    });
+  } catch {
+    /* exec_sql RPC may not exist — slots actions degrade gracefully */
+  }
+}
+
+/** Run a slow idempotent setup at most once per server instance. */
+const onceKeys = new Set<string>();
+function oncePerProcess(key: string): void {
+  if (onceKeys.has(key)) return;
+  onceKeys.add(key);
+}
+
 /**
  * Create the history table on demand via the exec_sql RPC (same pattern as
  * crm-proxy's ensureColumns). Lets deletes work without a manual migration.
@@ -931,6 +964,63 @@ async function executeAction(action: string, params: any): Promise<any> {
       }
       if (res.error) throw new Error(res.error.message);
       return { id };
+    }
+
+    // ── Site-visit slot capacity (admin) ────────────────────────────────
+    // Admin sets how many visits per day a property accepts. Stored on the
+    // property row; availability is always derived from live bookings.
+    case 'slots.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { propertyId, slots } = params;
+      if (!propertyId) throw new Error('Property id is required');
+      const value = slots === null || slots === undefined || slots === '' ? null : Number(slots);
+      if (value !== null && (!Number.isFinite(value) || value < 0 || value > 50)) {
+        throw new Error('Slots must be between 0 and 50 (or empty for no limit)');
+      }
+      let res = await supabaseAdmin
+        .from('properties')
+        .update({ visit_slots: value, updated_at: new Date().toISOString() })
+        .eq('id', String(propertyId));
+      if (res.error && isMissingRelation(res.error.message)) {
+        await ensureVisitSlotsColumn();
+        res = await supabaseAdmin
+          .from('properties')
+          .update({ visit_slots: value, updated_at: new Date().toISOString() })
+          .eq('id', String(propertyId));
+      }
+      if (res.error) throw new Error(res.error.message);
+      return { propertyId: String(propertyId), visitSlots: value };
+    }
+
+    case 'slots.availability': {
+      if (!params._public) throw new Error('Forbidden');
+      const propertyId = String(params.propertyId ?? '');
+      if (!propertyId) throw new Error('Property id is required');
+      // Today in IST (site operates in India regardless of server timezone).
+      const todayIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      let propRes = await supabaseAdmin
+        .from('properties')
+        .select('visit_slots')
+        .eq('id', propertyId)
+        .maybeSingle();
+      if (propRes.error && isMissingRelation(propRes.error.message)) {
+        await ensureVisitSlotsColumn();
+        propRes = await supabaseAdmin
+          .from('properties')
+          .select('visit_slots')
+          .eq('id', propertyId)
+          .maybeSingle();
+      }
+      const leadsRes = await supabaseAdmin
+        .from('property_leads')
+        .select('id')
+        .eq('property_id', propertyId)
+        .eq('visit_date', todayIso)
+        .neq('status', 'cancelled');
+      const limit = propRes.data?.visit_slots ?? null;
+      const booked = (leadsRes.data ?? []).length;
+      const remaining = limit === null ? null : Math.max(0, limit - booked);
+      return { visitSlots: limit, bookedToday: booked, remaining };
     }
 
     // ── Site settings ───────────────────────────────────────────────────

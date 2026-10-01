@@ -221,7 +221,7 @@ export default function ContactPage() {
                   to="/submit-requirement"
                   className="inline-flex min-h-[46px] flex-1 items-center justify-center rounded-xl border border-white/20 px-6 text-sm font-bold text-white transition-all hover:border-[#C9A84C] hover:text-[#C9A84C]"
                 >
-                  Post a Requirement
+                  Submit Requirement
                 </Link>
               </div>
             </motion.div>
