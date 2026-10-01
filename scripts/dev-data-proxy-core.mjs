@@ -258,6 +258,116 @@ END $$;
 `;
 
 const _visitSlotsOnce = { done: false };
+// LEDGERS schema DDL — run once via exec_sql when a ledger table is missing.
+const LEDGER_DDL = `
+CREATE TABLE IF NOT EXISTS public.ledger_company_profile (
+  id TEXT PRIMARY KEY DEFAULT 'company' CHECK (id = 'company'),
+  name TEXT NOT NULL DEFAULT '',
+  entity_type TEXT NOT NULL DEFAULT 'pvtltd',
+  incorporated_on DATE,
+  fy_start_month INT NOT NULL DEFAULT 4,
+  pan TEXT DEFAULT '',
+  tan TEXT DEFAULT '',
+  gstin TEXT DEFAULT '',
+  gst_scheme TEXT NOT NULL DEFAULT 'monthly',
+  registered_office TEXT DEFAULT '',
+  cin TEXT DEFAULT '',
+  registrations TEXT[] NOT NULL DEFAULT '{}',
+  turnover_band TEXT DEFAULT '',
+  employee_count INT DEFAULT 0,
+  ca_name TEXT DEFAULT '',
+  cs_name TEXT DEFAULT '',
+  logo_url TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  law TEXT NOT NULL,
+  form TEXT NOT NULL,
+  title TEXT NOT NULL,
+  period TEXT NOT NULL,
+  fy TEXT NOT NULL,
+  due_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  owner TEXT DEFAULT '',
+  filed_date DATE,
+  arn TEXT DEFAULT '',
+  penalty_exposure NUMERIC NOT NULL DEFAULT 0,
+  notes TEXT DEFAULT '',
+  proof_url TEXT DEFAULT '',
+  source_url TEXT DEFAULT '',
+  assignee TEXT DEFAULT '',
+  priority TEXT DEFAULT 'normal',
+  challan_url TEXT DEFAULT '',
+  authority TEXT DEFAULT '',
+  recurrence TEXT DEFAULT 'monthly',
+  reminders_sent JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_items_due ON public.ledger_compliance_items (due_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_items_fy ON public.ledger_compliance_items (fy);
+CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  case_no TEXT DEFAULT '',
+  title TEXT NOT NULL,
+  authority TEXT DEFAULT '',
+  case_type TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  filed_on DATE,
+  next_hearing_on DATE,
+  reply_due_on DATE,
+  advocate TEXT DEFAULT '',
+  advocate_phone TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  outcome_notes TEXT DEFAULT '',
+  documents_url TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_cases_hearing ON public.ledger_legal_cases (next_hearing_on);
+CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL,
+  entity_id TEXT DEFAULT '',
+  action TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_log_created ON public.ledger_activity_log (created_at DESC);
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_legal_cases','ledger_company_profile','ledger_activity_log'] LOOP
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated;', t);
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
+  END LOOP;
+END $$;
+INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-assets','ledger-assets',TRUE) ON CONFLICT (id) DO NOTHING;
+`;
+
+const _ledgerSchemaOnce = { done: false };
+async function ensureLedgerSchema() {
+  if (_ledgerSchemaOnce.done) return;
+  _ledgerSchemaOnce.done = true;
+  try {
+    const base = (process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '');
+    const key = process.env.SUPABASE_SERVICE_KEY ?? process.env.VITE_SUPABASE_SERVICE_KEY ?? '';
+    if (!base || !key) return;
+    await fetch(`${base}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}`, apikey: key },
+      body: JSON.stringify({ q: LEDGER_DDL }),
+    });
+    // PostgREST caches the schema — wait briefly so the retry sees new tables.
+    await new Promise((r) => setTimeout(r, 1200));
+  } catch { /* exec_sql RPC may not exist — user must run the migration manually */ }
+}
+
+function isMissingRelationMsg(message) {
+  return /does not exist|Could not find the table|schema cache|relation .* does not exist/i.test(message ?? '');
+}
+
 async function ensureVisitSlotsColumn() {
   if (_visitSlotsOnce.done) return;
   _visitSlotsOnce.done = true;
@@ -727,15 +837,19 @@ async function executeAction(action, params) {
     // ── LEDGERS: compliance calendar + legal cases ──────────────────────
     case 'ledger.items.list': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      let q = supabaseAdmin
-        .from('ledger_compliance_items')
-        .select('*')
-        .order('due_date', { ascending: true })
-        .limit(500);
-      if (params.fy) q = q.eq('fy', String(params.fy));
-      const { data, error } = await q;
-      if (error && !/does not exist|Could not find the table|schema cache/i.test(error.message)) throw new Error(error.message);
-      return { data: data ?? [] };
+      const runQ = () => {
+        let q = supabaseAdmin
+          .from('ledger_compliance_items')
+          .select('*')
+          .order('due_date', { ascending: true })
+          .limit(500);
+        if (params.fy) q = q.eq('fy', String(params.fy));
+        return q;
+      };
+      let r = await runQ();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await runQ(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
     }
 
     case 'ledger.item.upsert': {
@@ -744,22 +858,28 @@ async function executeAction(action, params) {
       const clean = {};
       const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url'];
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
-      try {
-        await supabaseAdmin.from('ledger_activity_log').insert({
-          entity_type: 'item', entity_id: String(id ?? ''), action: id ? 'updated' : 'created',
-          summary: `${clean.form ?? fields.form ?? 'Item'} (${clean.period ?? fields.period ?? ''}) ${clean.status !== undefined ? `→ ${clean.status}` : ''}`.trim(),
-          actor: auth?.email ?? '',
-        });
-      } catch { /* log table may not exist yet */ }
+      const logIt = async () => {
+        try {
+          await supabaseAdmin.from('ledger_activity_log').insert({
+            entity_type: 'item', entity_id: String(id ?? ''), action: id ? 'updated' : 'created',
+            summary: `${clean.form ?? fields.form ?? 'Item'} (${clean.period ?? fields.period ?? ''}) ${clean.status !== undefined ? `→ ${clean.status}` : ''}`.trim(),
+            actor: auth?.email ?? '',
+          });
+        } catch { /* log table may not exist yet */ }
+      };
       if (id) {
         clean.updated_at = new Date().toISOString();
-        const { error } = await supabaseAdmin.from('ledger_compliance_items').update(clean).eq('id', String(id));
-        if (error) throw new Error(error.message);
+        let r = await supabaseAdmin.from('ledger_compliance_items').update(clean).eq('id', String(id));
+        if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('ledger_compliance_items').update(clean).eq('id', String(id)); }
+        if (r.error) throw new Error(r.error.message);
+        await logIt();
         return { id: String(id) };
       }
-      const { data, error } = await supabaseAdmin.from('ledger_compliance_items').insert(clean).select('id').single();
-      if (error) throw new Error(error.message);
-      return { id: data.id };
+      let r = await supabaseAdmin.from('ledger_compliance_items').insert(clean).select('id').single();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('ledger_compliance_items').insert(clean).select('id').single(); }
+      if (r.error) throw new Error(r.error.message);
+      await logIt();
+      return { id: r.data.id };
     }
 
     case 'ledger.item.delete': {
@@ -774,24 +894,23 @@ async function executeAction(action, params) {
 
     case 'ledger.log.list': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { data, error } = await supabaseAdmin
-        .from('ledger_activity_log')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(200);
-      if (error && !/does not exist|Could not find the table|schema cache/i.test(error.message)) throw new Error(error.message);
-      return { data: data ?? [] };
+      const runQ = () => supabaseAdmin.from('ledger_activity_log').select('*').order('created_at', { ascending: false }).limit(200);
+      let r = await runQ();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await runQ(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
     }
 
     case 'ledger.cases.list': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { data, error } = await supabaseAdmin
+      let r = await supabaseAdmin
         .from('ledger_legal_cases')
         .select('*')
         .order('updated_at', { ascending: false })
         .limit(200);
-      if (error && !/does not exist|Could not find the table|schema cache/i.test(error.message)) throw new Error(error.message);
-      return { data: data ?? [] };
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('ledger_legal_cases').select('*').order('updated_at', { ascending: false }).limit(200); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
     }
 
     case 'ledger.case.upsert': {
@@ -802,13 +921,15 @@ async function executeAction(action, params) {
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
       if (id) {
         clean.updated_at = new Date().toISOString();
-        const { error } = await supabaseAdmin.from('ledger_legal_cases').update(clean).eq('id', String(id));
-        if (error) throw new Error(error.message);
+        let r = await supabaseAdmin.from('ledger_legal_cases').update(clean).eq('id', String(id));
+        if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('ledger_legal_cases').update(clean).eq('id', String(id)); }
+        if (r.error) throw new Error(r.error.message);
         return { id: String(id) };
       }
-      const { data, error } = await supabaseAdmin.from('ledger_legal_cases').insert(clean).select('id').single();
-      if (error) throw new Error(error.message);
-      return { id: data.id };
+      let r = await supabaseAdmin.from('ledger_legal_cases').insert(clean).select('id').single();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('ledger_legal_cases').insert(clean).select('id').single(); }
+      if (r.error) throw new Error(r.error.message);
+      return { id: r.data.id };
     }
 
     case 'ledger.case.delete': {
@@ -847,25 +968,29 @@ async function executeAction(action, params) {
 
     case 'ledger.profile.get': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { data, error } = await supabaseAdmin
-        .from('ledger_company_profile')
-        .select('*')
-        .eq('id', 'company')
-        .maybeSingle();
-      if (error && !/does not exist|Could not find the table|schema cache/i.test(error.message)) throw new Error(error.message);
-      return { data: data ?? null };
+      const runQ = () => supabaseAdmin.from('ledger_company_profile').select('*').eq('id', 'company').maybeSingle();
+      let r = await runQ();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await runQ(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? null };
     }
 
     case 'ledger.profile.set': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url'];
       const clean = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
-      if (params.logo_url !== undefined) clean.logo_url = params.logo_url;
-      const { error } = await supabaseAdmin
-        .from('ledger_company_profile')
-        .upsert(clean, { onConflict: 'id' });
-      if (error) throw new Error(error.message);
+      let err = null;
+      try {
+        const r = await supabaseAdmin.from('ledger_company_profile').upsert(clean, { onConflict: 'id' });
+        err = r.error;
+        if (err && isMissingRelation(err.message)) {
+          await ensureLedgerSchema();
+          const r2 = await supabaseAdmin.from('ledger_company_profile').upsert(clean, { onConflict: 'id' });
+          err = r2.error;
+        }
+      } catch (e) { err = e; }
+      if (err) throw new Error(err.message ?? String(err));
       return { ok: true };
     }
 

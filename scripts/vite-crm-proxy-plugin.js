@@ -98,6 +98,110 @@ const COLUMN_DEFAULTS = {
     source: "TEXT DEFAULT 'auto'",
   },
 };
+// LEDGERS schema DDL — run once via exec_sql when a ledger table is missing.
+const LEDGER_DDL = `
+CREATE TABLE IF NOT EXISTS public.ledger_company_profile (
+  id TEXT PRIMARY KEY DEFAULT 'company' CHECK (id = 'company'),
+  name TEXT NOT NULL DEFAULT '',
+  entity_type TEXT NOT NULL DEFAULT 'pvtltd',
+  incorporated_on DATE,
+  fy_start_month INT NOT NULL DEFAULT 4,
+  pan TEXT DEFAULT '',
+  tan TEXT DEFAULT '',
+  gstin TEXT DEFAULT '',
+  gst_scheme TEXT NOT NULL DEFAULT 'monthly',
+  registered_office TEXT DEFAULT '',
+  cin TEXT DEFAULT '',
+  registrations TEXT[] NOT NULL DEFAULT '{}',
+  turnover_band TEXT DEFAULT '',
+  employee_count INT DEFAULT 0,
+  ca_name TEXT DEFAULT '',
+  cs_name TEXT DEFAULT '',
+  logo_url TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  law TEXT NOT NULL,
+  form TEXT NOT NULL,
+  title TEXT NOT NULL,
+  period TEXT NOT NULL,
+  fy TEXT NOT NULL,
+  due_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  owner TEXT DEFAULT '',
+  filed_date DATE,
+  arn TEXT DEFAULT '',
+  penalty_exposure NUMERIC NOT NULL DEFAULT 0,
+  notes TEXT DEFAULT '',
+  proof_url TEXT DEFAULT '',
+  source_url TEXT DEFAULT '',
+  assignee TEXT DEFAULT '',
+  priority TEXT DEFAULT 'normal',
+  challan_url TEXT DEFAULT '',
+  authority TEXT DEFAULT '',
+  recurrence TEXT DEFAULT 'monthly',
+  reminders_sent JSONB NOT NULL DEFAULT '[]',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_items_due ON public.ledger_compliance_items (due_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_items_fy ON public.ledger_compliance_items (fy);
+CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  case_no TEXT DEFAULT '',
+  title TEXT NOT NULL,
+  authority TEXT DEFAULT '',
+  case_type TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  filed_on DATE,
+  next_hearing_on DATE,
+  reply_due_on DATE,
+  advocate TEXT DEFAULT '',
+  advocate_phone TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  outcome_notes TEXT DEFAULT '',
+  documents_url TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_cases_hearing ON public.ledger_legal_cases (next_hearing_on);
+CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL,
+  entity_id TEXT DEFAULT '',
+  action TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  actor TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_log_created ON public.ledger_activity_log (created_at DESC);
+DO $$ DECLARE t text; BEGIN
+  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_legal_cases','ledger_company_profile','ledger_activity_log'] LOOP
+    EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated;', t);
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
+  END LOOP;
+END $$;
+INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-assets','ledger-assets',TRUE) ON CONFLICT (id) DO NOTHING;
+`;
+
+let _ledgerSchemaDone = false;
+async function ensureLedgerSchema() {
+  if (_ledgerSchemaDone) return;
+  _ledgerSchemaDone = true;
+  try {
+    const e = getEnv();
+    if (!e.REQ_URL || !e.REQ_KEY) return;
+    await fetch(`${e.REQ_URL}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${e.REQ_KEY}`, apikey: e.REQ_KEY },
+      body: JSON.stringify({ q: LEDGER_DDL }),
+    });
+    await new Promise((r) => setTimeout(r, 1200)); // PostgREST schema cache reload
+  } catch { /* exec_sql RPC may not exist */ }
+}
+
 async function ensureColumns(table, cols) {
   const defs = COLUMN_DEFAULTS[table];
   if (!defs) return;
@@ -1719,14 +1823,18 @@ async function executeAction(action, params) {
     // ── LEDGERS: compliance calendar + legal cases ── mirrors api/data-proxy.ts ──
     case 'ledger.items.list': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      let path = 'ledger_compliance_items?order=due_date.asc&limit=500';
-      if (params.fy) path += `&fy=eq.${encodeURIComponent(params.fy)}`;
+      const runQ = () => {
+        let path = 'ledger_compliance_items?order=due_date.asc&limit=500';
+        if (params.fy) path += `&fy=eq.${encodeURIComponent(params.fy)}`;
+        return supabaseFetch('GET', path);
+      };
       try {
-        const { data } = await supabaseFetch('GET', path);
+        const { data } = await runQ();
         return { data: data ?? [] };
       } catch (e) {
         if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
-        return { data: [] };
+        await ensureLedgerSchema();
+        try { const { data } = await runQ(); return { data: data ?? [] }; } catch { return { data: [] }; }
       }
     }
     case 'ledger.item.upsert': {
@@ -1775,7 +1883,8 @@ async function executeAction(action, params) {
         return { data: data ?? [] };
       } catch (e) {
         if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
-        return { data: [] };
+        await ensureLedgerSchema();
+        try { const { data } = await supabaseFetch('GET', 'ledger_legal_cases?order=updated_at.desc&limit=200'); return { data: data ?? [] }; } catch { return { data: [] }; }
       }
     }
     case 'ledger.case.upsert': {
@@ -1832,16 +1941,22 @@ async function executeAction(action, params) {
         return { data: data?.[0] ?? null };
       } catch (e) {
         if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
-        return { data: null };
+        await ensureLedgerSchema();
+        try { const { data } = await supabaseFetch('GET', "ledger_company_profile?select=*&id=eq.company"); return { data: data?.[0] ?? null }; } catch { return { data: null }; }
       }
     }
     case 'ledger.profile.set': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url'];
       const clean = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
-      if (params.logo_url !== undefined) clean.logo_url = params.logo_url;
-      await supabaseFetch('POST', 'ledger_company_profile?on_conflict=id', clean, null, null, { prefer: 'resolution=merge-duplicates' });
+      try {
+        await supabaseFetch('POST', 'ledger_company_profile?on_conflict=id', clean, null, null, { prefer: 'resolution=merge-duplicates' });
+      } catch (e) {
+        if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
+        await ensureLedgerSchema();
+        await supabaseFetch('POST', 'ledger_company_profile?on_conflict=id', clean, null, null, { prefer: 'resolution=merge-duplicates' });
+      }
       return { ok: true };
     }
 
