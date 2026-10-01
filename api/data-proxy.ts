@@ -1097,6 +1097,30 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { id: String(params.id) };
     }
 
+    // ── LEDGERS: company profile (single row, id='company') ─────────────
+    case 'ledger.profile.get': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin
+        .from('ledger_company_profile')
+        .select('*')
+        .eq('id', 'company')
+        .maybeSingle();
+      if (error && !isMissingRelation(error.message)) throw new Error(error.message);
+      return { data: data ?? null };
+    }
+
+    case 'ledger.profile.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
+      const clean: Record<string, unknown> = { id: 'company', updated_at: new Date().toISOString() };
+      for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      const { error } = await supabaseAdmin
+        .from('ledger_company_profile')
+        .upsert(clean, { onConflict: 'id' });
+      if (error) throw new Error(error.message);
+      return { ok: true };
+    }
+
     // ── Site settings ───────────────────────────────────────────────────
     case 'settings.update': {
       if (!isAdmin(auth)) throw new Error('Forbidden');

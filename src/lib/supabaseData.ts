@@ -361,6 +361,31 @@ export const upsertLedgerCase = (c: Partial<LedgerLegalCase> & { id?: string }) 
 
 export const deleteLedgerCase = (id: string) => callDataProxy('ledger.case.delete', { id });
 
+/* ── LEDGERS: company profile ─────────────────────────────────────────── */
+
+export interface LedgerCompanyProfile {
+  name: string;
+  entity_type: string; // pvtltd | opc | llp | partnership | proprietorship
+  incorporated_on: string | null;
+  fy_start_month: number;
+  pan?: string;
+  tan?: string;
+  gstin?: string;
+  gst_scheme?: string; // monthly | qrmp
+  registered_office?: string;
+  cin?: string;
+  registrations: string[];
+  turnover_band?: string;
+  employee_count?: number;
+  ca_name?: string;
+  cs_name?: string;
+}
+
+export const fetchLedgerProfile = () => callDataProxy('ledger.profile.get', {});
+
+export const saveLedgerProfile = (p: Partial<LedgerCompanyProfile>) =>
+  callDataProxy('ledger.profile.set', p);
+
 export function subscribeSupabaseProperties(
   onData: (docs: { id: string; data: Record<string, unknown> }[]) => void,
   options?: { uid?: string },

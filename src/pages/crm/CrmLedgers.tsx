@@ -1,88 +1,127 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  AlertTriangle, BellRing, CalendarDays, CalendarPlus, CheckCircle2, ChevronDown, ChevronRight,
-  Clock, Download, FileText, Gavel, Landmark, Loader2, Plus, RefreshCw, Scale, ShieldCheck,
-  Trash2, X, Sparkles,
+  AlertTriangle, ArrowLeft, ArrowRight, BellRing, Building2, CalendarDays, CalendarPlus,
+  Check, CheckCircle2, ChevronDown, ChevronRight, Clock, Download, FileText, Gavel, Landmark,
+  Loader2, Pencil, Plus, RefreshCw, Scale, Search, Settings2, ShieldCheck, Sparkles, Trash2, X,
 } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
 import {
   fetchLedgerItems, upsertLedgerItem, deleteLedgerItem,
   fetchLedgerCases, upsertLedgerCase, deleteLedgerCase,
-  type LedgerComplianceItem, type LedgerLegalCase,
+  fetchLedgerProfile, saveLedgerProfile,
+  type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile,
 } from '@/lib/supabaseData';
 import {
   generateComplianceCalendar, riskBand, daysUntil, complianceToIcs,
-  CURRENT_FY, CURRENT_FY_START_YEAR, type RiskBand,
+  ENTITY_TYPES, REGISTRATION_OPTIONS, currentFyLabel, availableFyLabels,
+  rulesForProfile, type RiskBand, type EntityType,
 } from '@/data/ledgerComplianceRules';
+
+/* ── Palette / shared styles ── */
+const NAVY = '#0A1628';
 
 const LAW_STYLES: Record<string, { chip: string; dot: string; icon: typeof Landmark }> = {
   ROC: { chip: 'bg-[#0A1628]/[0.06] text-[#0A1628]', dot: 'bg-[#0A1628]', icon: Landmark },
+  LLP: { chip: 'bg-indigo-50 text-indigo-700', dot: 'bg-indigo-500', icon: FileText },
   GST: { chip: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500', icon: FileText },
   'Income Tax': { chip: 'bg-violet-50 text-violet-700', dot: 'bg-violet-500', icon: Scale },
   Labour: { chip: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500', icon: ShieldCheck },
   Corporate: { chip: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500', icon: Gavel },
+  Licences: { chip: 'bg-cyan-50 text-cyan-700', dot: 'bg-cyan-500', icon: Building2 },
   Other: { chip: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400', icon: FileText },
 };
 
-const RISK_STYLES: Record<RiskBand, { chip: string; label: string; ring: string }> = {
-  overdue: { chip: 'bg-red-50 text-red-700 ring-1 ring-red-200', label: 'OVERDUE', ring: 'border-l-red-500' },
-  critical: { chip: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200', label: 'DUE ≤ 7 DAYS', ring: 'border-l-orange-500' },
-  warning: { chip: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', label: 'DUE ≤ 30 DAYS', ring: 'border-l-amber-400' },
-  upcoming: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', label: 'ON TRACK', ring: 'border-l-emerald-400' },
-  done: { chip: 'bg-gray-100 text-gray-500 ring-1 ring-gray-200', label: 'FILED', ring: 'border-l-gray-300' },
+const RISK_STYLES: Record<RiskBand, { chip: string; ring: string }> = {
+  overdue: { chip: 'bg-red-50 text-red-700 ring-1 ring-red-200', ring: 'border-l-red-500' },
+  critical: { chip: 'bg-orange-50 text-orange-700 ring-1 ring-orange-200', ring: 'border-l-orange-500' },
+  warning: { chip: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', ring: 'border-l-amber-400' },
+  upcoming: { chip: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', ring: 'border-l-emerald-400' },
+  done: { chip: 'bg-gray-100 text-gray-500 ring-1 ring-gray-200', ring: 'border-l-gray-300' },
 };
 
 const fmtINR = (n: number) => (n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`);
 const fmtDate = (iso: string) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+const entityLabel = (v: string) => ENTITY_TYPES.find((e) => e.value === v)?.label ?? v;
 
-type Tab = 'dashboard' | 'calendar' | 'cases';
+type Tab = 'dashboard' | 'calendar' | 'cases' | 'profile';
 
 export default function CrmLedgers() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [tab, setTab] = useState<Tab>('dashboard');
+  const [profile, setProfile] = useState<LedgerCompanyProfile | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [items, setItems] = useState<LedgerComplianceItem[]>([]);
   const [cases, setCases] = useState<LedgerLegalCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
-  const [seeded, setSeeded] = useState(false);
+  const [seededCount, setSeededCount] = useState<number | null>(null);
+  const [selectedFy, setSelectedFy] = useState('');
 
-  const load = async () => {
+  /* ── Load profile first — drives everything else ── */
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetchLedgerProfile();
+        if (res.data) setProfile(res.data as LedgerCompanyProfile);
+      } catch { /* first run — profile simply doesn't exist yet */ }
+      setProfileLoaded(true);
+    })();
+  }, []);
+
+  const fy = profile?.fy_start_month ? currentFyLabel(profile.fy_start_month) : currentFyLabel(4);
+  useEffect(() => { if (!selectedFy && profile) setSelectedFy(fy); }, [profile, fy, selectedFy]);
+
+  const loadItems = async () => {
     setLoading(true);
     try {
-      const [i, c] = await Promise.all([fetchLedgerItems(CURRENT_FY), fetchLedgerCases()]);
+      const [i, c] = await Promise.all([fetchLedgerItems(selectedFy || undefined), fetchLedgerCases()]);
       setItems((i.data ?? []) as LedgerComplianceItem[]);
       setCases((c.data ?? []) as LedgerLegalCase[]);
-    } catch { /* first-run: tables may not exist yet — generator still works client-side */ }
+    } catch { /* tables may not exist yet */ }
     setLoading(false);
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { if (selectedFy) void loadItems(); }, [selectedFy]);
 
-  /* ── Generate the full FY calendar from the rules master and sync to DB ── */
+  const saveProfile = async (p: Partial<LedgerCompanyProfile>) => {
+    const merged = { ...profile, ...p } as LedgerCompanyProfile;
+    setProfile(merged); // optimistic
+    await saveLedgerProfile(merged);
+  };
+
+  /* ── Generate calendar from profile + rules engine ── */
   const seedCalendar = async () => {
+    if (!profile) return;
     setSeeding(true);
     try {
-      const generated = generateComplianceCalendar(CURRENT_FY_START_YEAR);
+      const fyStartYear = Number(selectedFy.split(' ')[1]);
+      const generated = generateComplianceCalendar({
+        fyStartYear,
+        entityType: (profile.entity_type as EntityType) ?? 'pvtltd',
+        registrations: profile.registrations ?? [],
+        incorporatedOn: profile.incorporated_on,
+        gstScheme: (profile.gst_scheme as 'monthly' | 'qrmp') ?? 'monthly',
+      });
       const existingKeys = new Set(items.map((i) => `${i.form}|${i.period}`));
       const fresh = generated.filter((g) => !existingKeys.has(`${g.form}|${g.period}`));
       for (const g of fresh) {
-        await upsertLedgerItem({ ...g, status: 'pending' } as LedgerComplianceItem);
+        await upsertLedgerItem({ ...g, status: 'pending' } as unknown as LedgerComplianceItem);
       }
-      await load();
-      setSeeded(fresh.length);
-      setTimeout(() => setSeeded(false), 4000);
+      await loadItems();
+      setSeededCount(fresh.length);
+      setTimeout(() => setSeededCount(null), 5000);
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Could not generate calendar');
     }
     setSeeding(false);
   };
 
-  /* ── Derived dashboard data ── */
+  /* ── Derived ── */
   const buckets = useMemo(() => {
     const b: Record<RiskBand, LedgerComplianceItem[]> = { overdue: [], critical: [], warning: [], upcoming: [], done: [] };
     for (const it of items) b[riskBand(it)].push(it);
-    b.overdue.sort((a, z) => a.due_date.localeCompare(z.due_date));
+    for (const k of Object.keys(b) as RiskBand[]) b[k].sort((a, z) => a.due_date.localeCompare(z.due_date));
     return b;
   }, [items]);
 
@@ -91,229 +130,543 @@ export default function CrmLedgers() {
     [buckets],
   );
   const complianceScore = items.length === 0 ? 100 : Math.round(((items.length - buckets.overdue.length) / items.length) * 100);
-  const next5 = useMemo(
-    () => items.filter((i) => i.status === 'pending' || i.status === 'in_progress').slice(0, 5),
-    [items],
-  );
+  const openCases = cases.filter((c) => c.status !== 'closed').length;
 
-  /* ── ICS export ── */
   const exportIcs = () => {
-    const blob = new Blob([complianceToIcs(items as never)], { type: 'text/calendar;charset=utf-8' });
+    const blob = new Blob([complianceToIcs(items, profile?.name || 'VJR Estate')], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `vjr-compliance-${CURRENT_FY.replace(/\s/g, '')}.ics`;
+    a.download = `compliance-${selectedFy.replace(/\s/g, '')}.ics`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
+  const showOnboarding = profileLoaded && !profile?.name;
+
   return (
     <div className="h-screen overflow-hidden bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <CrmPageBody>
           <CrmPageHeader
             eyebrow="Finance & Legal"
             title="Ledgers"
-            description="Statutory compliance calendar, legal case register and penalty exposure — FY 2026-27, Karnataka. Rule dates verified Oct 2026; always confirm with your CA/CS."
+            description={
+              profile?.name
+                ? `${profile.name} · ${entityLabel(profile.entity_type)}${profile.incorporated_on ? ` · incorporated ${fmtDate(profile.incorporated_on)}` : ''} · ${selectedFy}`
+                : 'Company compliance calendar, legal register and penalty exposure.'
+            }
             actions={
-              <div className="flex flex-wrap gap-2">
-                <CrmBtn variant="ghost" onClick={exportIcs} disabled={items.length === 0}>
-                  <CalendarPlus className="h-3.5 w-3.5" /> Export .ics
-                </CrmBtn>
-                <CrmBtn variant="ghost" onClick={() => void load()} disabled={loading}>
-                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-                </CrmBtn>
-                <CrmBtn variant="gold" onClick={() => void seedCalendar()} disabled={seeding}>
-                  {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-                  {items.length === 0 ? 'Generate FY 2026-27 Calendar' : 'Sync New Rules'}
-                </CrmBtn>
-              </div>
+              !showOnboarding && (
+                <div className="flex flex-wrap gap-2">
+                  <CrmBtn variant="ghost" onClick={() => setTab('profile')}>
+                    <Settings2 className="h-3.5 w-3.5" /> Company
+                  </CrmBtn>
+                  <CrmBtn variant="ghost" onClick={exportIcs} disabled={items.length === 0}>
+                    <CalendarPlus className="h-3.5 w-3.5" /> .ics
+                  </CrmBtn>
+                  <CrmBtn variant="ghost" onClick={() => void loadItems()} disabled={loading}>
+                    <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+                  </CrmBtn>
+                  <CrmBtn variant="gold" onClick={() => void seedCalendar()} disabled={seeding}>
+                    {seeding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                    <span className="hidden sm:inline">{items.length === 0 ? 'Generate Calendar' : 'Sync New'}</span>
+                  </CrmBtn>
+                </div>
+              )
             }
           />
 
-          {/* ── Executive summary strip ── */}
-          <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatCard icon={AlertTriangle} tone="red" label="Overdue" value={String(buckets.overdue.length)} sub="file immediately" delay={0} />
-            <StatCard icon={Clock} tone="orange" label="Due in 7 days" value={String(buckets.critical.length)} sub="this week" delay={0.05} />
-            <StatCard icon={BellRing} tone="amber" label="Due in 30 days" value={String(buckets.warning.length)} sub="plan ahead" delay={0.1} />
-            <StatCard icon={Scale} tone="navy" label="Penalty exposure" value={fmtINR(penaltyExposure)} sub="if pending items slip" delay={0.15} />
-          </div>
-
-          {/* ── Health score bar ── */}
-          <CrmCard className="mb-6 p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-[15px] font-extrabold ${complianceScore >= 90 ? 'bg-emerald-50 text-emerald-600' : complianceScore >= 70 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                  {complianceScore}
-                </div>
-                <div>
-                  <p className="text-[13px] font-bold text-[#0A1628]">Compliance health score</p>
-                  <p className="text-[11px] text-[#6b7280]">
-                    {items.length} tracked obligations · {buckets.overdue.length} overdue · {cases.filter((c) => c.status !== 'closed').length} open legal matters
-                  </p>
-                </div>
-              </div>
-              {seeded && (
-                <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> {seeded} new obligations added
-                </motion.span>
-              )}
-              <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-[#9ca3af]">{CURRENT_FY} · April–March</p>
-            </div>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
-              <motion.div
-                initial={{ width: 0 }}
-                animate={{ width: `${complianceScore}%` }}
-                transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
-                className={`h-full rounded-full ${complianceScore >= 90 ? 'bg-emerald-500' : complianceScore >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
-              />
-            </div>
-          </CrmCard>
-
-          {/* ── Tabs ── */}
-          <div className="mb-4 flex gap-1.5 overflow-x-auto rounded-xl border border-black/[0.06] bg-white p-1">
-            {([['dashboard', 'Priority Queue'], ['calendar', 'Full Calendar'], ['cases', 'Legal Cases']] as [Tab, string][]).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setTab(key)}
-                className={`relative whitespace-nowrap rounded-lg px-4 py-2 text-[12.5px] font-bold transition-colors ${tab === key ? 'text-white' : 'text-[#6b7280] hover:text-[#0A1628]'}`}
-              >
-                {tab === key && (
-                  <motion.span layoutId="ledger-tab" className="absolute inset-0 rounded-lg bg-[#0A1628]" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />
-                )}
-                <span className="relative z-10">{label}</span>
-              </button>
-            ))}
-          </div>
-
           <AnimatePresence mode="wait">
-            <motion.div
-              key={tab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {tab === 'dashboard' && <PriorityQueue buckets={buckets} next5={next5} cases={cases} loading={loading} onChanged={load} />}
-              {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={load} />}
-              {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={load} />}
-            </motion.div>
-          </AnimatePresence>
+            {showOnboarding ? (
+              <OnboardingWizard key="onboard" onDone={(p) => { setProfile(p); setSelectedFy(currentFyLabel(p.fy_start_month)); setTab('dashboard'); }} />
+            ) : (
+              <motion.div key="main" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
+                {/* FY selector + summary */}
+                <div className="mb-5 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-1.5 rounded-xl border border-black/[0.08] bg-white px-3 py-1.5">
+                    <CalendarDays className="h-3.5 w-3.5 text-[#96782A]" />
+                    <select
+                      value={selectedFy}
+                      onChange={(e) => setSelectedFy(e.target.value)}
+                      className="cursor-pointer bg-transparent text-[12px] font-bold text-[#0A1628] outline-none"
+                    >
+                      {availableFyLabels(profile?.incorporated_on, profile?.fy_start_month ?? 4).map((l) => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <span className="text-[11px] text-[#9ca3af]">{items.length} obligations tracked · {openCases} open legal matters</span>
+                </div>
 
-          <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11.5px] leading-relaxed text-amber-800">
-            <strong>Disclaimer:</strong> Ledgers supports — but does not replace — professional advice. Due dates follow
-            central + Karnataka rules as verified in Oct 2026; authorities extend deadlines by circular from time to time.
-            Confirm every filing with your CA/CS before relying on this calendar.
-          </p>
+                <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  <StatCard icon={AlertTriangle} tone="red" label="Overdue" value={String(buckets.overdue.length)} sub="act immediately" delay={0} />
+                  <StatCard icon={Clock} tone="orange" label="Due in 7 days" value={String(buckets.critical.length)} sub="this week" delay={0.05} />
+                  <StatCard icon={BellRing} tone="amber" label="Due in 30 days" value={String(buckets.warning.length)} sub="plan ahead" delay={0.1} />
+                  <StatCard icon={Scale} tone="navy" label="Penalty exposure" value={fmtINR(penaltyExposure)} sub="if pending items slip" delay={0.15} />
+                </div>
+
+                {/* Health score */}
+                <CrmCard className="mb-6 p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[15px] font-extrabold ${complianceScore >= 90 ? 'bg-emerald-50 text-emerald-600' : complianceScore >= 70 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                        {complianceScore}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-bold">Compliance health score</p>
+                        <p className="text-[11px] text-[#6b7280]">{items.length} tracked obligations · {buckets.overdue.length} overdue · {openCases} legal matters</p>
+                      </div>
+                    </div>
+                    {seededCount !== null && (
+                      <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {seededCount} obligations added
+                      </motion.span>
+                    )}
+                  </div>
+                  <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${complianceScore}%` }}
+                      transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
+                      className={`h-full rounded-full ${complianceScore >= 90 ? 'bg-emerald-500' : complianceScore >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
+                    />
+                  </div>
+                </CrmCard>
+
+                {/* Tabs */}
+                <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-white p-1 [scrollbar-width:none]">
+                  {([['dashboard', 'Priority Queue'], ['calendar', 'Full Calendar'], ['cases', 'Legal Cases'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
+                    <button
+                      key={key}
+                      onClick={() => setTab(key)}
+                      className={`relative whitespace-nowrap rounded-lg px-3.5 py-2 text-[12.5px] font-bold transition-colors sm:px-4 ${tab === key ? 'text-white' : 'text-[#6b7280] hover:text-[#0A1628]'}`}
+                    >
+                      {tab === key && <motion.span layoutId="ledger-tab" className="absolute inset-0 rounded-lg bg-[#0A1628]" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}
+                      <span className="relative z-10">{label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <AnimatePresence mode="wait">
+                  <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+                    {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} loading={loading} onChanged={loadItems} />}
+                    {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={loadItems} />}
+                    {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={loadItems} />}
+                    {tab === 'profile' && <ProfileEditor profile={profile!} onSave={saveProfile} onChanged={loadItems} />}
+                  </motion.div>
+                </AnimatePresence>
+
+                <p className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11.5px] leading-relaxed text-amber-800">
+                  <strong>Disclaimer:</strong> Ledgers supports — but does not replace — professional advice. Dates follow
+                  central + Karnataka rules verified Oct 2026; authorities extend deadlines by circular. Confirm every filing
+                  with your CA/CS.
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </CrmPageBody>
       </main>
     </div>
   );
 }
 
-/* ── Stat card ── */
-function StatCard({ icon: Icon, tone, label, value, sub, delay }: { icon: typeof AlertTriangle; tone: 'red' | 'orange' | 'amber' | 'navy'; label: string; value: string; sub: string; delay: number }) {
-  const tones = {
-    red: 'bg-red-50 text-red-600',
-    orange: 'bg-orange-50 text-orange-600',
-    amber: 'bg-amber-50 text-amber-600',
-    navy: 'bg-[#0A1628] text-[#D6B85D]',
+/* ═══════════════ ONBOARDING WIZARD ═══════════════ */
+
+function OnboardingWizard({ onDone }: { onDone: (p: LedgerCompanyProfile) => void }) {
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [f, setF] = useState<Partial<LedgerCompanyProfile>>({
+    entity_type: 'pvtltd',
+    fy_start_month: 4,
+    registrations: ['tds'],
+    gst_scheme: 'monthly',
+    employee_count: 0,
+  });
+
+  const steps = ['Company', 'Entity', 'Registrations', 'Advisors'];
+  const entity = ENTITY_TYPES.find((e) => e.value === f.entity_type);
+
+  const finish = async () => {
+    setSaving(true);
+    const p = { ...f, name: f.name ?? '' } as LedgerCompanyProfile;
+    try {
+      await saveLedgerProfile(p);
+      onDone(p);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not save company profile');
+    }
+    setSaving(false);
   };
+
+  const inputCls = 'h-11 w-full rounded-xl border border-black/10 bg-white px-3.5 text-[14px] outline-none transition-colors focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/20';
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+      <CrmCard className="mx-auto max-w-2xl overflow-hidden p-0">
+        {/* Wizard header */}
+        <div className="relative overflow-hidden bg-[#0A1628] px-6 py-6 sm:px-8">
+          <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-[#C9A84C]/15 blur-3xl" />
+          <div className="relative flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#C9A84C] to-[#E8C76A] shadow-[0_4px_16px_rgba(201,168,76,0.4)]">
+              <Building2 className="h-5 w-5 text-[#0A1628]" strokeWidth={1.8} />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#C9A84C]">Ledgers · Setup</p>
+              <p className="text-[16px] font-bold text-white sm:text-[18px]">Set up your company's compliance</p>
+            </div>
+          </div>
+          {/* Steps */}
+          <div className="relative mt-5 flex items-center gap-1.5">
+            {steps.map((s, i) => (
+              <div key={s} className="flex flex-1 flex-col gap-1.5">
+                <div className={`h-1 rounded-full transition-colors duration-300 ${i <= step ? 'bg-[#C9A84C]' : 'bg-white/15'}`} />
+                <p className={`text-[9.5px] font-bold uppercase tracking-wider ${i <= step ? 'text-[#E8D48B]' : 'text-white/35'}`}>{s}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5 sm:p-7">
+          <AnimatePresence mode="wait">
+            <motion.div key={step} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.2 }}>
+              {step === 0 && (
+                <div className="space-y-4">
+                  <WizardQ title="What is your company called?" />
+                  <input autoFocus value={f.name ?? ''} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} className={inputCls} placeholder="e.g. VJR Estate Properties Private Limited" />
+                  <WizardQ title="When was it incorporated / started?" hint="Your entire compliance calendar anchors to this date — first filings, first AGM, first GST period." />
+                  <input type="date" value={f.incorporated_on ?? ''} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setF((x) => ({ ...x, incorporated_on: e.target.value || null }))} className={inputCls} />
+                  <WizardQ title="Registered office" hint="Optional" />
+                  <input value={f.registered_office ?? ''} onChange={(e) => setF((x) => ({ ...x, registered_office: e.target.value }))} className={inputCls} placeholder="e.g. HSR Layout, Bengaluru, Karnataka" />
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-3">
+                  <WizardQ title="What type of entity is it?" hint="This decides which laws apply — companies file ROC forms, proprietorships don't." />
+                  {ENTITY_TYPES.map((e) => (
+                    <button
+                      key={e.value}
+                      type="button"
+                      onClick={() => setF((x) => ({ ...x, entity_type: e.value }))}
+                      className={`flex w-full cursor-pointer items-center gap-3.5 rounded-xl border p-3.5 text-left transition-all duration-200 ${f.entity_type === e.value ? 'border-[#C9A84C] bg-[#C9A84C]/[0.08] ring-2 ring-[#C9A84C]/25' : 'border-black/10 bg-white hover:border-[#C9A84C]/50'}`}
+                    >
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${f.entity_type === e.value ? 'border-[#C9A84C] bg-[#C9A84C]' : 'border-black/20'}`}>
+                        {f.entity_type === e.value && <Check className="h-3 w-3 text-white" strokeWidth={3.5} />}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-[13.5px] font-bold text-[#0A1628]">{e.label}</span>
+                        <span className="block text-[11px] text-[#6b7280]">{e.blurb}</span>
+                      </span>
+                      {e.roc && <span className="ml-auto shrink-0 rounded-full bg-[#0A1628]/[0.07] px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#0A1628]">MCA</span>}
+                    </button>
+                  ))}
+
+                  {(f.entity_type === 'pvtltd' || f.entity_type === 'opc') && (
+                    <div className="grid grid-cols-1 gap-3 rounded-xl border border-black/[0.08] bg-[#fafafa] p-3.5 sm:grid-cols-2">
+                      <div><Label>CIN (optional)</Label><input value={f.cin ?? ''} onChange={(e) => setF((x) => ({ ...x, cin: e.target.value }))} className={inputCls} placeholder="U12345KA2026PTC000000" /></div>
+                      <div>
+                        <Label>GST filing scheme</Label>
+                        <select value={f.gst_scheme ?? 'monthly'} onChange={(e) => setF((x) => ({ ...x, gst_scheme: e.target.value }))} className={inputCls}>
+                          <option value="monthly">Monthly (turnover &gt; ₹1.5cr)</option>
+                          <option value="qrmp">QRMP quarterly (≤ ₹5cr)</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-4">
+                  <WizardQ title="Which registrations does the company hold?" hint="Only obligations for held registrations are generated — no noise." />
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {REGISTRATION_OPTIONS.map((r) => {
+                      const on = (f.registrations ?? []).includes(r.value);
+                      return (
+                        <button
+                          key={r.value}
+                          type="button"
+                          onClick={() => setF((x) => ({ ...x, registrations: on ? (x.registrations ?? []).filter((v) => v !== r.value) : [...(x.registrations ?? []), r.value] }))}
+                          className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ${on ? 'border-[#0A1628] bg-[#0A1628] text-white' : 'border-black/10 bg-white text-[#374151] hover:border-[#C9A84C]/60'}`}
+                        >
+                          <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 ${on ? 'border-[#D6B85D] bg-[#C9A84C]' : 'border-black/20'}`}>
+                            {on && <Check className="h-2.5 w-2.5 text-[#0A1628]" strokeWidth={4} />}
+                          </span>
+                          <span className="min-w-0 truncate text-[12px] font-semibold">{r.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div><Label>PAN</Label><input value={f.pan ?? ''} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className={inputCls} placeholder="ABCDE1234F" maxLength={10} /></div>
+                    <div><Label>TAN</Label><input value={f.tan ?? ''} onChange={(e) => setF((x) => ({ ...x, tan: e.target.value.toUpperCase() }))} className={inputCls} placeholder="BLRA12345A" maxLength={10} /></div>
+                    <div><Label>GSTIN</Label><input value={f.gstin ?? ''} onChange={(e) => setF((x) => ({ ...x, gstin: e.target.value.toUpperCase() }))} className={inputCls} maxLength={15} /></div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>Approx. employees</Label>
+                      <input inputMode="numeric" value={f.employee_count ?? ''} onChange={(e) => setF((x) => ({ ...x, employee_count: Number(e.target.value.replace(/\D/g, '')) || 0 }))} className={inputCls} placeholder="e.g. 12" />
+                    </div>
+                    <div>
+                      <Label>Annual turnover band</Label>
+                      <select value={f.turnover_band ?? ''} onChange={(e) => setF((x) => ({ ...x, turnover_band: e.target.value }))} className={inputCls}>
+                        <option value="">Select…</option>
+                        <option value="lt_2cr">Under ₹2 crore</option>
+                        <option value="2_10cr">₹2 – 10 crore</option>
+                        <option value="10_50cr">₹10 – 50 crore</option>
+                        <option value="gt_50cr">Above ₹50 crore</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-4">
+                  <WizardQ title="Who are your advisors?" hint="Optional — shown on the dashboard so the team knows who to call." />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div><Label>Chartered Accountant</Label><input value={f.ca_name ?? ''} onChange={(e) => setF((x) => ({ ...x, ca_name: e.target.value }))} className={inputCls} placeholder="CA name / firm" /></div>
+                    <div><Label>Company Secretary</Label><input value={f.cs_name ?? ''} onChange={(e) => setF((x) => ({ ...x, cs_name: e.target.value }))} className={inputCls} placeholder="CS name / firm" /></div>
+                  </div>
+                  <div className="rounded-xl border border-[#C9A84C]/40 bg-[#C9A84C]/[0.07] p-4">
+                    <p className="flex items-center gap-2 text-[12px] font-bold text-[#0A1628]"><Sparkles className="h-3.5 w-3.5 text-[#96782A]" /> Ready to generate</p>
+                    <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#6b7280]">
+                      Based on your answers, Ledgers will build a calendar with only the filings that apply to a{' '}
+                      <strong className="text-[#0A1628]">{entity?.label}</strong>
+                      {(f.incorporated_on) && <> incorporated <strong className="text-[#0A1628]">{fmtDate(f.incorporated_on)}</strong> (first-year dates anchored to that date)</>}
+                      . You can adjust everything later in Company Profile.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+
+          {/* Nav */}
+          <div className="mt-6 flex items-center justify-between border-t border-black/[0.06] pt-4">
+            <button type="button" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0} className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl px-3 py-2 text-[12.5px] font-bold text-[#6b7280] transition-colors hover:text-[#0A1628] disabled:opacity-30">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back
+            </button>
+            {step < 3 ? (
+              <button
+                type="button"
+                onClick={() => setStep((s) => s + 1)}
+                disabled={step === 0 && !f.name?.trim()}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#0A1628] px-5 py-2.5 text-[12.5px] font-bold text-white shadow-[0_4px_14px_rgba(10,22,40,0.25)] transition-all hover:bg-[#1E3852] disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Continue <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void finish()}
+                disabled={saving || !f.name?.trim()}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-[#C9A84C] px-5 py-2.5 text-[12.5px] font-extrabold text-[#0A1628] shadow-[0_4px_14px_rgba(201,168,76,0.4)] transition-all hover:bg-[#E8C76A] disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {saving ? 'Saving…' : 'Save & Open Ledgers'}
+              </button>
+            )}
+          </div>
+        </div>
+      </CrmCard>
+    </motion.div>
+  );
+}
+
+function WizardQ({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div>
+      <p className="text-[14px] font-bold text-[#0A1628]">{title}</p>
+      {hint && <p className="mt-0.5 text-[11.5px] text-[#6b7280]">{hint}</p>}
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#6b7280]">{children}</label>;
+}
+
+/* ═══════════════ PROFILE EDITOR ═══════════════ */
+
+function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyProfile; onSave: (p: Partial<LedgerCompanyProfile>) => Promise<void>; onChanged: () => void }) {
+  const [f, setF] = useState<Partial<LedgerCompanyProfile>>(profile);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => setF(profile), [profile]);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await onSave(f);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+      onChanged();
+    } finally { setSaving(false); }
+  };
+
+  const inputCls = 'h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-[13px] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20';
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      <CrmCard className="p-4 sm:p-6">
+        <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Building2 className="h-3.5 w-3.5" /> Company identity</p>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div className="sm:col-span-2"><Label>Company name</Label><input value={f.name ?? ''} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} className={inputCls} /></div>
+          <div>
+            <Label>Entity type</Label>
+            <select value={f.entity_type} onChange={(e) => setF((x) => ({ ...x, entity_type: e.target.value }))} className={inputCls}>
+              {ENTITY_TYPES.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
+            </select>
+          </div>
+          <div><Label>Incorporated on</Label><input type="date" value={f.incorporated_on ?? ''} onChange={(e) => setF((x) => ({ ...x, incorporated_on: e.target.value || null }))} className={inputCls} /></div>
+          <div className="sm:col-span-2"><Label>Registered office</Label><input value={f.registered_office ?? ''} onChange={(e) => setF((x) => ({ ...x, registered_office: e.target.value }))} className={inputCls} /></div>
+          <div><Label>CIN / LLPIN</Label><input value={f.cin ?? ''} onChange={(e) => setF((x) => ({ ...x, cin: e.target.value.toUpperCase() }))} className={inputCls} /></div>
+          <div><Label>PAN</Label><input value={f.pan ?? ''} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className={inputCls} maxLength={10} /></div>
+          <div><Label>TAN</Label><input value={f.tan ?? ''} onChange={(e) => setF((x) => ({ ...x, tan: e.target.value.toUpperCase() }))} className={inputCls} maxLength={10} /></div>
+          <div><Label>GSTIN</Label><input value={f.gstin ?? ''} onChange={(e) => setF((x) => ({ ...x, gstin: e.target.value.toUpperCase() }))} className={inputCls} maxLength={15} /></div>
+        </div>
+      </CrmCard>
+
+      <CrmCard className="p-4 sm:p-6">
+        <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><ShieldCheck className="h-3.5 w-3.5" /> Registrations held</p>
+        <div className="flex flex-wrap gap-2">
+          {REGISTRATION_OPTIONS.map((r) => {
+            const on = (f.registrations ?? []).includes(r.value);
+            return (
+              <button
+                key={r.value}
+                type="button"
+                onClick={() => setF((x) => ({ ...x, registrations: on ? (x.registrations ?? []).filter((v) => v !== r.value) : [...(x.registrations ?? []), r.value] }))}
+                className={`cursor-pointer rounded-full px-3.5 py-2 text-[11.5px] font-bold transition-all duration-200 ${on ? 'bg-[#0A1628] text-[#D6B85D] shadow-[0_2px_8px_rgba(10,22,40,0.2)]' : 'bg-black/[0.05] text-[#6b7280] hover:bg-black/[0.09]'}`}
+              >
+                {on && <Check className="mr-1 inline h-3 w-3" strokeWidth={3} />}{r.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[11px] text-[#9ca3af]">Changing registrations or entity type changes which obligations the generator creates — hit “Sync New” on the header afterwards.</p>
+      </CrmCard>
+
+      <CrmCard className="p-4 sm:p-6">
+        <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Scale & advisors</p>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div>
+            <Label>Approx. employees</Label>
+            <input inputMode="numeric" value={f.employee_count ?? ''} onChange={(e) => setF((x) => ({ ...x, employee_count: Number(e.target.value.replace(/\D/g, '')) || 0 }))} className={inputCls} />
+          </div>
+          <div>
+            <Label>Turnover band</Label>
+            <select value={f.turnover_band ?? ''} onChange={(e) => setF((x) => ({ ...x, turnover_band: e.target.value }))} className={inputCls}>
+              <option value="">Select…</option>
+              <option value="lt_2cr">Under ₹2 crore</option>
+              <option value="2_10cr">₹2 – 10 crore</option>
+              <option value="10_50cr">₹10 – 50 crore</option>
+              <option value="gt_50cr">Above ₹50 crore</option>
+            </select>
+          </div>
+          <div><Label>CA</Label><input value={f.ca_name ?? ''} onChange={(e) => setF((x) => ({ ...x, ca_name: e.target.value }))} className={inputCls} /></div>
+          <div><Label>CS</Label><input value={f.cs_name ?? ''} onChange={(e) => setF((x) => ({ ...x, cs_name: e.target.value }))} className={inputCls} /></div>
+        </div>
+      </CrmCard>
+
+      <div className="flex items-center gap-3">
+        <CrmBtn variant="gold" onClick={() => void save()} disabled={saving}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save profile
+        </CrmBtn>
+        {saved && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[12px] font-bold text-emerald-600">Profile saved</motion.span>}
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════ DASHBOARD ═══════════════ */
+
+function StatCard({ icon: Icon, tone, label, value, sub, delay }: { icon: typeof AlertTriangle; tone: 'red' | 'orange' | 'amber' | 'navy'; label: string; value: string; sub: string; delay: number }) {
+  const tones = { red: 'bg-red-50 text-red-600', orange: 'bg-orange-50 text-orange-600', amber: 'bg-amber-50 text-amber-600', navy: 'bg-[#0A1628] text-[#D6B85D]' };
   return (
     <CrmCard className="p-4 sm:p-5">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay, duration: 0.3 }}>
         <div className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
           <Icon className="h-4 w-4" strokeWidth={1.8} />
         </div>
-        <p className="mt-2.5 text-[22px] font-extrabold leading-none tracking-tight text-[#0A1628]">{value}</p>
-        <p className="mt-1.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[#0A1628]">{label}</p>
+        <p className="mt-2.5 text-[20px] font-extrabold leading-none tracking-tight sm:text-[22px]">{value}</p>
+        <p className="mt-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] sm:text-[11px]">{label}</p>
         <p className="text-[10.5px] text-[#9ca3af]">{sub}</p>
       </motion.div>
     </CrmCard>
   );
 }
 
-/* ── Priority queue (dashboard tab) ── */
-function PriorityQueue({ buckets, next5, cases, loading, onChanged }: {
-  buckets: Record<RiskBand, LedgerComplianceItem[]>;
-  next5: LedgerComplianceItem[];
-  cases: LedgerLegalCase[];
-  loading: boolean;
-  onChanged: () => void;
-}) {
+function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record<RiskBand, LedgerComplianceItem[]>; cases: LedgerLegalCase[]; loading: boolean; onChanged: () => void }) {
   const hearingSoon = cases
-    .filter((c) => c.next_hearing_on && c.status !== 'closed')
-    .sort((a, z) => (a.next_hearing_on ?? '').localeCompare(z.next_hearing_on ?? ''))
-    .slice(0, 4);
+    .filter((c) => (c.next_hearing_on || c.reply_due_on) && c.status !== 'closed')
+    .sort((a, z) => (a.next_hearing_on ?? a.reply_due_on ?? '').localeCompare(z.next_hearing_on ?? z.reply_due_on ?? ''))
+    .slice(0, 5);
 
   if (loading) return <div className="h-64 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />;
+  if (buckets.overdue.length + buckets.critical.length + buckets.warning.length + buckets.upcoming.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-black/10 bg-white p-14 text-center">
+        <Sparkles className="mx-auto h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
+        <p className="mt-3 text-sm font-semibold">No obligations yet</p>
+        <p className="mt-1 text-xs text-[#9ca3af]">Hit “Generate Calendar” in the top bar — the engine builds every filing that applies to your entity.</p>
+      </div>
+    );
+  }
 
-  const sections: [RiskBand, string][] = [['overdue', 'Overdue — act now'], ['critical', 'Due within 7 days'], ['warning', 'Due within 30 days']];
+  const sections: [RiskBand, string][] = [['overdue', 'Overdue — act now'], ['critical', 'Due within 7 days'], ['warning', 'Due within 30 days'], ['upcoming', 'Later this year']];
 
   return (
     <div className="space-y-5">
       {sections.map(([band, label]) => (
         <div key={band}>
-          <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0A1628]">
-            <span className={`h-2 w-2 rounded-full ${band === 'overdue' ? 'animate-pulse bg-red-500' : band === 'critical' ? 'bg-orange-500' : 'bg-amber-400'}`} />
+          <p className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em]">
+            <span className={`h-2 w-2 rounded-full ${band === 'overdue' ? 'animate-pulse bg-red-500' : band === 'critical' ? 'bg-orange-500' : band === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'}`} />
             {label} <span className="text-[#9ca3af]">({buckets[band].length})</span>
           </p>
           {buckets[band].length === 0 ? (
-            <p className="rounded-xl border border-dashed border-black/10 bg-white px-4 py-3 text-[12px] text-[#9ca3af]">Nothing here — good.</p>
+            band !== 'upcoming' && <p className="rounded-xl border border-dashed border-black/10 bg-white px-4 py-3 text-[12px] text-[#9ca3af]">Nothing here — good.</p>
           ) : (
             <div className="space-y-2">
-              {buckets[band].map((it) => <ItemRow key={it.id} item={it} onChanged={onChanged} />)}
+              {buckets[band].slice(0, band === 'upcoming' ? 8 : 50).map((it) => <ItemRow key={it.id} item={it} onChanged={onChanged} />)}
             </div>
           )}
         </div>
       ))}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      {hearingSoon.length > 0 && (
         <div>
-          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0A1628]">Next up</p>
-          <CrmCard className="divide-y divide-black/[0.05] p-0">
-            {next5.length === 0 && <p className="px-4 py-4 text-[12px] text-[#9ca3af]">Generate the FY calendar to populate this queue.</p>}
-            {next5.map((it) => (
-              <div key={it.id} className="flex items-center gap-3 px-4 py-3">
-                <span className={`h-2 w-2 shrink-0 rounded-full ${LAW_STYLES[it.law]?.dot ?? 'bg-gray-400'}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] font-bold text-[#0A1628]">{it.form} · {it.title}</p>
-                  <p className="text-[10.5px] text-[#9ca3af]">{it.period} · {fmtDate(it.due_date)}</p>
-                </div>
-                <span className="shrink-0 text-[11px] font-bold text-[#96782A]">{daysUntil(it.due_date)}d</span>
-              </div>
-            ))}
-          </CrmCard>
-        </div>
-        <div>
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#0A1628]">
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em]">
             <Gavel className="h-3.5 w-3.5 text-[#C9A84C]" /> Hearings & notice replies
           </p>
-          <CrmCard className="divide-y divide-black/[0.05] p-0">
-            {hearingSoon.length === 0 && <p className="px-4 py-4 text-[12px] text-[#9ca3af]">No upcoming hearings. Add them in Legal Cases.</p>}
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
             {hearingSoon.map((c) => {
-              const d = daysUntil(c.next_hearing_on!);
+              const target = c.next_hearing_on ?? c.reply_due_on!;
+              const d = daysUntil(target);
               return (
-                <div key={c.id} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-extrabold ${d < 0 ? 'bg-red-50 text-red-600' : d <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-[#0A1628]/[0.06] text-[#0A1628]'}`}>
-                    {d < 0 ? '⚠' : `${d}d`}
+                <CrmCard key={c.id} className="flex items-center gap-3 p-3.5">
+                  <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-extrabold ${d < 0 ? 'bg-red-50 text-red-600' : d <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-[#0A1628]/[0.06]'}`}>
+                    {d < 0 ? `${Math.abs(d)}d↑` : `${d}d`}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-bold text-[#0A1628]">{c.title}</p>
-                    <p className="text-[10.5px] text-[#9ca3af]">{c.authority || 'Authority'} · hearing {fmtDate(c.next_hearing_on!)}</p>
+                    <p className="truncate text-[12.5px] font-bold">{c.title}</p>
+                    <p className="text-[10.5px] text-[#9ca3af]">{c.authority || 'Authority'} · {fmtDate(target)}</p>
                   </div>
-                </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-[#c9c9c9]" />
+                </CrmCard>
               );
             })}
-          </CrmCard>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
-/* ── Single compliance row with status controls ── */
+/* ═══════════════ ITEM ROW ═══════════════ */
+
 function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -323,7 +676,7 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
   const setStatus = async (status: string) => {
     setSaving(true);
     try {
-      await upsertLedgerItem({ id: item.id, status, filed_date: status === 'filed' ? new Date().toISOString().slice(0, 10) : item.filed_date ?? null });
+      await upsertLedgerItem({ id: item.id, status, filed_date: status === 'filed' ? new Date().toISOString().slice(0, 10) : item.filed_date ?? null } as Partial<LedgerComplianceItem>);
       onChanged();
     } finally { setSaving(false); setOpen(false); }
   };
@@ -335,18 +688,18 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
 
   return (
     <div className={`overflow-hidden rounded-2xl border border-l-4 border-black/[0.06] bg-white shadow-[0_1px_2px_rgba(10,22,40,0.05)] transition-shadow hover:shadow-[0_4px_16px_rgba(10,22,40,0.08)] ${RISK_STYLES[band].ring}`}>
-      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3 text-left">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-3 text-left sm:gap-3 sm:px-4">
         <ChevronRight className={`h-4 w-4 shrink-0 text-[#9ca3af] transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
-        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${law.chip}`}>
+        <span className={`hidden shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold sm:inline-flex ${law.chip}`}>
           <law.icon className="h-3 w-3" /> {item.law}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-bold text-[#0A1628]">
+          <p className="truncate text-[12.5px] font-bold sm:text-[13px]">
             {item.form} <span className="font-semibold text-[#6b7280]">· {item.title}</span>
           </p>
-          <p className="truncate text-[11px] text-[#9ca3af]">{item.period} · due {fmtDate(item.due_date)} · {item.notes}</p>
+          <p className="truncate text-[10.5px] text-[#9ca3af]">{item.period} · due {fmtDate(item.due_date)}</p>
         </div>
-        <span className={`hidden shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold tracking-wide sm:inline-block ${RISK_STYLES[band].chip}`}>
+        <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-extrabold tracking-wide sm:px-2.5 ${RISK_STYLES[band].chip}`}>
           {band === 'overdue' ? `${Math.abs(daysUntil(item.due_date))}d LATE` : band === 'done' ? 'FILED' : `${daysUntil(item.due_date)}d`}
         </span>
         {saving && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#96782A]" />}
@@ -359,15 +712,11 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
               <Detail label="Period" value={item.period} />
               <Detail label="Filed on" value={item.filed_date ? fmtDate(item.filed_date) : '—'} />
               <Detail label="ARN / SRN" value={item.arn || '—'} />
-              <div className="col-span-2 sm:col-span-4">
-                <Detail label="Penalty rule" value={item.source_url ? `${item.source_url}` : '—'} />
-              </div>
+              <div className="col-span-2 sm:col-span-4"><Detail label="Rule & source" value={item.source_url || '—'} /></div>
               <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-4">
-                <CrmBtn variant="gold" onClick={() => void setStatus('filed')} disabled={saving}>
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Mark filed
-                </CrmBtn>
+                <CrmBtn variant="gold" onClick={() => void setStatus('filed')} disabled={saving}><CheckCircle2 className="h-3.5 w-3.5" /> Mark filed</CrmBtn>
                 <CrmBtn variant="ghost" onClick={() => void setStatus('in_progress')} disabled={saving}>In progress</CrmBtn>
-                <CrmBtn variant="ghost" onClick={() => void setStatus('na')} disabled={saving}>Not applicable</CrmBtn>
+                <CrmBtn variant="ghost" onClick={() => void setStatus('na')} disabled={saving}>N/A</CrmBtn>
                 <button type="button" onClick={() => void remove()} className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold text-red-500 transition-colors hover:bg-red-50">
                   <Trash2 className="h-3 w-3" /> Remove
                 </button>
@@ -384,47 +733,64 @@ function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{label}</p>
-      <p className="mt-0.5 text-[12px] font-semibold text-[#0A1628]">{value}</p>
+      <p className="mt-0.5 break-words text-[12px] font-semibold">{value}</p>
     </div>
   );
 }
 
-/* ── Full calendar tab ── */
+/* ═══════════════ FULL CALENDAR ═══════════════ */
+
 function FullCalendar({ items, loading, onChanged }: { items: LedgerComplianceItem[]; loading: boolean; onChanged: () => void }) {
   const [lawFilter, setLawFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('pending');
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+
+  const laws = useMemo(() => ['All', ...new Set(items.map((i) => i.law))], [items]);
 
   const byMonth = useMemo(() => {
     const map = new Map<string, LedgerComplianceItem[]>();
     for (const it of items) {
       if (lawFilter !== 'All' && it.law !== lawFilter) continue;
+      if (statusFilter === 'pending' && (it.status === 'filed' || it.status === 'na')) continue;
+      if (statusFilter === 'filed' && it.status !== 'filed' && it.status !== 'na') continue;
+      if (search && !`${it.form} ${it.title}`.toLowerCase().includes(search.toLowerCase())) continue;
       const key = it.due_date.slice(0, 7);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(it);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [items, lawFilter]);
+  }, [items, lawFilter, statusFilter, search]);
 
   if (loading) return <div className="h-64 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />;
   if (items.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-black/10 bg-white p-14 text-center">
         <CalendarDays className="mx-auto h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
-        <p className="mt-3 text-sm font-semibold text-[#0A1628]">No calendar yet</p>
-        <p className="mt-1 text-xs text-[#9ca3af]">Hit "Generate FY 2026-27 Calendar" above — the engine builds every GST, TDS, ROC, PF/ESI and Karnataka obligation for the year.</p>
+        <p className="mt-3 text-sm font-semibold">No calendar yet</p>
+        <p className="mt-1 text-xs text-[#9ca3af]">Hit “Generate Calendar” — the engine builds every applicable filing for the year.</p>
       </div>
     );
   }
 
   return (
     <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ca3af]" />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-full rounded-xl border border-black/10 bg-white pl-8 pr-3 text-[12px] outline-none focus:border-[#C9A84C]/60" placeholder="Search form or title…" />
+        </div>
+        <div className="flex gap-1.5">
+          {['pending', 'all', 'filed'].map((s) => (
+            <button key={s} onClick={() => setStatusFilter(s)} className={`cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-bold capitalize transition-colors ${statusFilter === s ? 'bg-[#0A1628] text-[#D6B85D]' : 'bg-white text-[#6b7280] hover:bg-black/[0.04]'}`}>
+              {s === 'pending' ? 'Open' : s}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="mb-3 flex flex-wrap gap-1.5">
-        {['All', 'GST', 'Income Tax', 'ROC', 'Labour', 'Corporate', 'Other'].map((l) => (
-          <button
-            key={l}
-            onClick={() => setLawFilter(l)}
-            className={`cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${lawFilter === l ? 'bg-[#0A1628] text-[#D6B85D]' : 'bg-white text-[#6b7280] hover:bg-black/[0.04]'}`}
-          >
+        {laws.map((l) => (
+          <button key={l} onClick={() => setLawFilter(l)} className={`cursor-pointer rounded-full px-3 py-1.5 text-[11px] font-bold transition-colors ${lawFilter === l ? 'bg-[#0A1628] text-[#D6B85D]' : 'bg-white text-[#6b7280] hover:bg-black/[0.04]'}`}>
             {l}
           </button>
         ))}
@@ -436,9 +802,9 @@ function FullCalendar({ items, loading, onChanged }: { items: LedgerComplianceIt
           const isOpen = expandedMonth === month || (expandedMonth === null && overdue > 0);
           return (
             <CrmCard key={month} className="overflow-hidden p-0">
-              <button type="button" onClick={() => setExpandedMonth(isOpen && expandedMonth === month ? null : month)} className="flex w-full cursor-pointer items-center gap-3 px-4 py-3.5 text-left">
-                <ChevronDown className={`h-4 w-4 text-[#9ca3af] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-                <span className="text-[13.5px] font-extrabold text-[#0A1628]">{monthLabel}</span>
+              <button type="button" onClick={() => setExpandedMonth(isOpen && expandedMonth === month ? null : month)} className="flex w-full cursor-pointer flex-wrap items-center gap-2.5 px-4 py-3.5 text-left">
+                <ChevronDown className={`h-4 w-4 shrink-0 text-[#9ca3af] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                <span className="text-[13.5px] font-extrabold">{monthLabel}</span>
                 <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] font-bold text-[#6b7280]">{list.length} filings</span>
                 {overdue > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-extrabold text-red-600">
@@ -463,7 +829,8 @@ function FullCalendar({ items, loading, onChanged }: { items: LedgerComplianceIt
   );
 }
 
-/* ── Legal cases tab ── */
+/* ═══════════════ LEGAL CASES ═══════════════ */
+
 const CASE_STATUSES = ['open', 'reply_filed', 'hearing', 'closed'];
 
 function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; loading: boolean; onChanged: () => void }) {
@@ -501,48 +868,54 @@ function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; l
         <CrmBtn variant="gold" onClick={openNew}><Plus className="h-3.5 w-3.5" /> New case / notice</CrmBtn>
       </div>
 
-      {showForm && (
-        <CrmCard className="mb-5 p-4 sm:p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">{editing ? 'Edit case' : 'New case / notice'}</p>
-            <button onClick={() => setShowForm(false)} className="cursor-pointer rounded-lg p-1 text-[#9ca3af] hover:bg-black/[0.04]"><X className="h-4 w-4" /></button>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Title *" className="sm:col-span-2"><input value={form.title ?? ''} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} className={CRM_INPUT} placeholder="e.g. GST notice — ITC mismatch FY 24-25" /></Field>
-            <Field label="Authority"><input value={form.authority ?? ''} onChange={(e) => setForm((f) => ({ ...f, authority: e.target.value }))} className={CRM_INPUT} placeholder="GST Dept / IT Dept / NCLT…" /></Field>
-            <Field label="Type">
-              <select value={form.case_type ?? ''} onChange={(e) => setForm((f) => ({ ...f, case_type: e.target.value }))} className={CRM_INPUT}>
-                {['Notice', 'Appeal', 'Hearing', 'Inquiry', 'Civil', 'Other'].map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </Field>
-            <Field label="Case / notice no."><input value={form.case_no ?? ''} onChange={(e) => setForm((f) => ({ ...f, case_no: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Status">
-              <select value={form.status ?? 'open'} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} className={CRM_INPUT}>
-                {CASE_STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-              </select>
-            </Field>
-            <Field label="Notice received / filed on"><input type="date" value={form.filed_on ?? ''} onChange={(e) => setForm((f) => ({ ...f, filed_on: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Reply due by"><input type="date" value={form.reply_due_on ?? ''} onChange={(e) => setForm((f) => ({ ...f, reply_due_on: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Next hearing"><input type="date" value={form.next_hearing_on ?? ''} onChange={(e) => setForm((f) => ({ ...f, next_hearing_on: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Advocate"><input value={form.advocate ?? ''} onChange={(e) => setForm((f) => ({ ...f, advocate: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Advocate phone"><input value={form.advocate_phone ?? ''} onChange={(e) => setForm((f) => ({ ...f, advocate_phone: e.target.value }))} className={CRM_INPUT} /></Field>
-            <Field label="Documents link" className="sm:col-span-2"><input value={form.documents_url ?? ''} onChange={(e) => setForm((f) => ({ ...f, documents_url: e.target.value }))} className={CRM_INPUT} placeholder="Drive / vault URL" /></Field>
-            <Field label="Description" className="sm:col-span-2 lg:col-span-4"><textarea rows={2} value={form.description ?? ''} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} className={`${CRM_INPUT} min-h-[64px]`} placeholder="What is the matter about? Next steps…" /></Field>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <CrmBtn onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add case'}</CrmBtn>
-            <CrmBtn variant="ghost" onClick={() => setShowForm(false)}>Cancel</CrmBtn>
-          </div>
-        </CrmCard>
-      )}
+      <AnimatePresence>
+        {showForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+            <CrmCard className="mb-5 p-4 sm:p-5">
+              <div className="mb-4 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Pencil className="h-3 w-3" /> {editing ? 'Edit case' : 'New case / notice'}</p>
+                <button onClick={() => setShowForm(false)} className="cursor-pointer rounded-lg p-1 text-[#9ca3af] hover:bg-black/[0.04]"><X className="h-4 w-4" /></button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="sm:col-span-2"><Label>Title *</Label><input value={form.title ?? ''} onChange={(e) => setForm((x) => ({ ...x, title: e.target.value }))} className={CRM_INPUT} placeholder="e.g. GST notice — ITC mismatch FY 24-25" /></div>
+                <div><Label>Authority</Label><input value={form.authority ?? ''} onChange={(e) => setForm((x) => ({ ...x, authority: e.target.value }))} className={CRM_INPUT} placeholder="GST Dept / IT / NCLT…" /></div>
+                <div>
+                  <Label>Type</Label>
+                  <select value={form.case_type ?? ''} onChange={(e) => setForm((x) => ({ ...x, case_type: e.target.value }))} className={CRM_INPUT}>
+                    {['Notice', 'Appeal', 'Hearing', 'Inquiry', 'Civil', 'Other'].map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div><Label>Case / notice no.</Label><input value={form.case_no ?? ''} onChange={(e) => setForm((x) => ({ ...x, case_no: e.target.value }))} className={CRM_INPUT} /></div>
+                <div>
+                  <Label>Status</Label>
+                  <select value={form.status ?? 'open'} onChange={(e) => setForm((x) => ({ ...x, status: e.target.value }))} className={CRM_INPUT}>
+                    {CASE_STATUSES.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+                  </select>
+                </div>
+                <div><Label>Notice / filed on</Label><input type="date" value={form.filed_on ?? ''} onChange={(e) => setForm((x) => ({ ...x, filed_on: e.target.value }))} className={CRM_INPUT} /></div>
+                <div><Label>Reply due by</Label><input type="date" value={form.reply_due_on ?? ''} onChange={(e) => setForm((x) => ({ ...x, reply_due_on: e.target.value }))} className={CRM_INPUT} /></div>
+                <div><Label>Next hearing</Label><input type="date" value={form.next_hearing_on ?? ''} onChange={(e) => setForm((x) => ({ ...x, next_hearing_on: e.target.value }))} className={CRM_INPUT} /></div>
+                <div><Label>Advocate</Label><input value={form.advocate ?? ''} onChange={(e) => setForm((x) => ({ ...x, advocate: e.target.value }))} className={CRM_INPUT} /></div>
+                <div><Label>Advocate phone</Label><input value={form.advocate_phone ?? ''} onChange={(e) => setForm((x) => ({ ...x, advocate_phone: e.target.value }))} className={CRM_INPUT} /></div>
+                <div className="sm:col-span-2"><Label>Documents link</Label><input value={form.documents_url ?? ''} onChange={(e) => setForm((x) => ({ ...x, documents_url: e.target.value }))} className={CRM_INPUT} placeholder="Drive / vault URL" /></div>
+                <div className="sm:col-span-2 lg:col-span-4"><Label>Description</Label><textarea rows={2} value={form.description ?? ''} onChange={(e) => setForm((x) => ({ ...x, description: e.target.value }))} className={`${CRM_INPUT} min-h-[64px]`} placeholder="What is the matter about? Next steps…" /></div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <CrmBtn onClick={() => void save()} disabled={saving}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Add case'}</CrmBtn>
+                <CrmBtn variant="ghost" onClick={() => setShowForm(false)}>Cancel</CrmBtn>
+              </div>
+            </CrmCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="h-48 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />
       ) : cases.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-black/10 bg-white p-14 text-center">
           <Gavel className="mx-auto h-8 w-8 text-[#C9A84C]" strokeWidth={1.4} />
-          <p className="mt-3 text-sm font-semibold text-[#0A1628]">No legal matters tracked</p>
-          <p className="mt-1 text-xs text-[#9ca3af]">Add GST/IT/ROC/labour notices, court matters and their deadlines — hearings surface on the dashboard automatically.</p>
+          <p className="mt-3 text-sm font-semibold">No legal matters tracked</p>
+          <p className="mt-1 text-xs text-[#9ca3af]">Add GST/IT/ROC/labour notices and court matters — hearings surface on the dashboard automatically.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -553,7 +926,7 @@ function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; l
               <CrmCard key={c.id} className="p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-[14px] font-bold text-[#0A1628]">{c.title}</p>
+                    <p className="truncate text-[14px] font-bold">{c.title}</p>
                     <p className="mt-0.5 text-[11px] text-[#6b7280]">{[c.case_no, c.authority, c.case_type].filter(Boolean).join(' · ') || '—'}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${statusStyle[c.status ?? 'open'] ?? statusStyle.open}`}>{(c.status ?? 'open').replace('_', ' ')}</span>
@@ -561,8 +934,8 @@ function LegalCases({ cases, loading, onChanged }: { cases: LedgerLegalCase[]; l
                 {c.description && <p className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed text-[#6b7280]">{c.description}</p>}
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   <MiniDeadline label="Reply due" date={c.reply_due_on} days={replyD} />
-                  <MiniDeadline label="Next hearing" date={c.next_hearing_on} days={hearingD} />
-                  <MiniDeadline label="Filed on" date={c.filed_on} days={null} />
+                  <MiniDeadline label="Hearing" date={c.next_hearing_on} days={hearingD} />
+                  <MiniDeadline label="Filed" date={c.filed_on} days={null} />
                 </div>
                 <div className="mt-3 flex items-center gap-2 border-t border-black/[0.05] pt-3">
                   <p className="min-w-0 flex-1 truncate text-[11px] text-[#6b7280]">
@@ -592,15 +965,6 @@ function MiniDeadline({ label, date, days }: { label: string; date?: string | nu
       <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#9ca3af]">{label}</p>
       <p className={`mt-0.5 text-[11.5px] font-bold ${tone}`}>{date ? fmtDate(date) : '—'}</p>
       {days !== null && date && <p className="text-[10px] font-semibold text-[#9ca3af]">{days < 0 ? `${Math.abs(days)}d overdue` : `in ${days}d`}</p>}
-    </div>
-  );
-}
-
-function Field({ label, children, className = '' }: { label: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={className}>
-      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-[#6b7280]">{label}</label>
-      {children}
     </div>
   );
 }

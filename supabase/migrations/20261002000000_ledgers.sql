@@ -43,3 +43,34 @@ CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_cases_hearing ON public.ledger_legal_cases (next_hearing_on);
 ALTER TABLE public.ledger_legal_cases ENABLE ROW LEVEL SECURITY;
+
+-- Company profile — one row (id='company'). Entity type drives which
+-- compliance rules apply (Pvt Ltd → ROC annual set, LLP → Form 11/8,
+-- Proprietorship → no ROC at all, etc.). Registrations is a text array of
+-- held registrations (gst, pf, esi, pt, ...).
+CREATE TABLE IF NOT EXISTS public.ledger_company_profile (
+  id TEXT PRIMARY KEY DEFAULT 'company' CHECK (id = 'company'),
+  name TEXT NOT NULL DEFAULT '',
+  entity_type TEXT NOT NULL DEFAULT 'pvtltd',  -- pvtltd | opc | llp | partnership | proprietorship
+  incorporated_on DATE,
+  fy_start_month INT NOT NULL DEFAULT 4,       -- April (India default)
+  pan TEXT DEFAULT '',
+  tan TEXT DEFAULT '',
+  gstin TEXT DEFAULT '',
+  gst_scheme TEXT NOT NULL DEFAULT 'monthly',  -- monthly | qrmp
+  registered_office TEXT DEFAULT '',
+  cin TEXT DEFAULT '',
+  registrations TEXT[] NOT NULL DEFAULT '{}',
+  turnover_band TEXT DEFAULT '',
+  employee_count INT DEFAULT 0,
+  ca_name TEXT DEFAULT '',
+  cs_name TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.ledger_company_profile ENABLE ROW LEVEL SECURITY;
+
+-- Extended fields on items (set by later rules; safe additive columns).
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS authority TEXT DEFAULT '';
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS recurrence TEXT DEFAULT 'monthly';
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS reminders_sent JSONB NOT NULL DEFAULT '[]';

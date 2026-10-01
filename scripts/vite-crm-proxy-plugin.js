@@ -1778,6 +1778,26 @@ async function executeAction(action, params) {
       return { id: String(params.id) };
     }
 
+    // ── LEDGERS: company profile (single row, id='company') ── mirrors api/data-proxy.ts ──
+    case 'ledger.profile.get': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      try {
+        const { data } = await supabaseFetch('GET', "ledger_company_profile?select=*&id=eq.company");
+        return { data: data?.[0] ?? null };
+      } catch (e) {
+        if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
+        return { data: null };
+      }
+    }
+    case 'ledger.profile.set': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name'];
+      const clean = { id: 'company', updated_at: new Date().toISOString() };
+      for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      await supabaseFetch('POST', 'ledger_company_profile?on_conflict=id', clean, null, null, { prefer: 'resolution=merge-duplicates' });
+      return { ok: true };
+    }
+
     // ── Requirements ──────────────────────────────────────────────────
     case 'requirement.create': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
