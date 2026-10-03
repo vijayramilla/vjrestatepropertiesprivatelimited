@@ -4,14 +4,19 @@ import { leadSupabase } from '@/services/leadSupabase';
 import { getCrmClients, parseBudget, type SheetClient } from '@/data/crmClientsData';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Pencil, Phone, MessageSquare, Search, X, Check, IndianRupee, Plus, ExternalLink, ToggleLeft, ToggleRight, LayoutDashboard, Briefcase, UserPlus, UserX, History, Loader2 } from 'lucide-react';
+import {
+  Pencil, Phone, MessageSquare, Search, X, Check, IndianRupee, Plus, ExternalLink,
+  ToggleLeft, ToggleRight, LayoutDashboard, Briefcase, UserPlus, UserX, History,
+  Loader2, Users, TrendingUp, Trophy, UserRound, Mail, MapPin, StickyNote, Landmark,
+} from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
-import { CrmPageBody, CrmPageHeader, CrmChip, CrmBtn, CrmCard } from '@/components/crm/CrmUi';
+import { CrmPageBody, CrmPageHeader, CrmChip, CrmBtn, CrmCard, CrmStatCard, CrmStatGrid, MotionReveal, CRM_INPUT } from '@/components/crm/CrmUi';
+
+/* ═══════════════ shared helpers ═══════════════ */
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -87,7 +92,29 @@ function parseToLakhs(val: string): string {
   return String(parseFloat((num / 100000).toFixed(4)));
 }
 
+/* ── Salesforce-style pipeline path ──
+ * One source of truth for the lead lifecycle, ordered like the SF Lead Path:
+ * New (no status yet) → working the deal → won. Statuses on records stay
+ * exactly as stored today; 'New' is just the display state for an empty one. */
+const PATH_STEPS = ['New', 'Site Visit', 'Token Done', 'Visit Done', 'Closed'] as const;
+
+const pathIndex = (status: string | null | undefined): number => {
+  const s = (status ?? '').trim();
+  return s ? Math.max(1, PATH_STEPS.indexOf(s as (typeof PATH_STEPS)[number])) : 0;
+};
+
+const STATUS_CHIP: Record<string, string> = {
+  '': 'bg-[#C9A84C]/[0.14] text-[#96782A]',
+  'site visit': 'bg-amber-50 text-amber-700',
+  'token done': 'bg-blue-50 text-blue-700',
+  'visit done': 'bg-indigo-50 text-indigo-700',
+  closed: 'bg-emerald-50 text-emerald-700',
+};
+const statusChip = (status?: string | null) => STATUS_CHIP[(status ?? '').trim().toLowerCase()] ?? 'bg-gray-100 text-gray-600';
+
 type SortKey = 'default' | 'budget-desc' | 'budget-asc' | 'name' | 'date';
+
+/* ═══════════════ page ═══════════════ */
 
 export default function CrmLeads() {
   const [clients, setClients] = useState<SheetClient[]>([]);
@@ -157,6 +184,7 @@ export default function CrmLeads() {
       setAssigning(false);
     }
   }
+
   const [selectedClient, setSelectedClient] = useState<SheetClient | null>(null);
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<SheetClient>>({});
@@ -251,6 +279,11 @@ export default function CrmLeads() {
     if (activeFilter === 'seller') list = list.filter((c) => c.client_role === 'Seller');
     if (activeFilter === 'unassigned') list = list.filter((c) => !c.assigned_employee);
     if (activeFilter === 'assigned') list = list.filter((c) => !!c.assigned_employee);
+    if (activeFilter === 'fresh') list = list.filter((c) => !c.status);
+    if (activeFilter === 'closed') list = list.filter((c) => c.status.toLowerCase().includes('closed'));
+    if (activeFilter === 'site visit') list = list.filter((c) => c.status.toLowerCase() === 'site visit');
+    if (activeFilter === 'token done') list = list.filter((c) => c.status.toLowerCase() === 'token done');
+    if (activeFilter === 'visit done') list = list.filter((c) => c.status.toLowerCase() === 'visit done');
     if (agentFilter) list = list.filter((c) => c.assigned_employee === agentFilter);
 
     if (sortKey === 'budget-desc') list.sort((a, b) => b.budget_val - a.budget_val);
@@ -273,7 +306,8 @@ export default function CrmLeads() {
     loadActivity(client.sno);
   }
 
-  function startEdit() {    if (!selectedClient) return;
+  function startEdit() {
+    if (!selectedClient) return;
     setEditing(true);
     setSaveError('');
     setEditData({ ...selectedClient });
@@ -370,16 +404,34 @@ export default function CrmLeads() {
     }
   }
 
+  // ── Salesforce-style Path bar: the list IS the pipeline ──
+  const stageCounts = useMemo(() => ([
+    { key: null as string | null, label: 'All leads', count: clients.length },
+    { key: 'fresh', label: 'New', count: clients.filter((c) => !c.status).length },
+    { key: 'site visit', label: 'Site Visit', count: clients.filter((c) => c.status.toLowerCase() === 'site visit').length },
+    { key: 'token done', label: 'Token Done', count: clients.filter((c) => c.status.toLowerCase() === 'token done').length },
+    { key: 'visit done', label: 'Visit Done', count: clients.filter((c) => c.status.toLowerCase() === 'visit done').length },
+    { key: 'closed', label: 'Closed won', count: clients.filter((c) => c.status.toLowerCase().includes('closed')).length },
+  ]), [clients]);
+
   const filterCounts = useMemo(() => ({
     all: clients.length,
-    dated: clients.filter((c) => c.date).length,
-    notes: clients.filter((c) => c.notes).length,
-    instagram: clients.filter((c) => c.source.toLowerCase() === 'instagram').length,
+    fresh: clients.filter((c) => !c.status).length,
     buyer: clients.filter((c) => (c.client_role || 'Buyer') === 'Buyer').length,
     seller: clients.filter((c) => c.client_role === 'Seller').length,
-    unassigned: clients.filter((c) => !c.assigned_employee).length,
     assigned: clients.filter((c) => !!c.assigned_employee).length,
+    unassigned: clients.filter((c) => !c.assigned_employee).length,
+    closed: clients.filter((c) => c.status.toLowerCase().includes('closed')).length,
+    notes: clients.filter((c) => c.notes).length,
   }), [clients]);
+
+  // ── Stats band (Salesforce dashboard strip) ──
+  const stats = useMemo(() => ({
+    total: clients.length,
+    pipeline: clients.filter((c) => c.status && !c.status.toLowerCase().includes('closed')).length,
+    won: filterCounts.closed,
+    unassigned: filterCounts.unassigned,
+  }), [clients, filterCounts]);
 
   const statusVariant = (status: string) => {
     const s = status.toLowerCase();
@@ -388,41 +440,28 @@ export default function CrmLeads() {
     return 'outline' as const;
   };
 
+  const drawerOpen = !!selectedClient;
+
   return (
     <div className="h-screen overflow-hidden bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
       <main className="flex-1 min-w-0 overflow-y-auto">
         <CrmPageBody>
           <CrmPageHeader
-            eyebrow="Client Register"
+            eyebrow="Sales Pipeline"
             title="Leads"
-            description={`${clients.length} clients on file · managed in Supabase`}
+            description={`${clients.length} leads on file · synced from Supabase`}
             actions={
               <>
                 <Link to="/crm" className="no-underline">
                   <CrmBtn variant="ghost"><LayoutDashboard className="h-3.5 w-3.5" /> Dashboard</CrmBtn>
                 </Link>
                 {canEdit && (
-                  <CrmBtn variant="gold" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Client</CrmBtn>
+                  <CrmBtn variant="gold" onClick={() => setAddOpen(true)}><Plus className="h-3.5 w-3.5" /> Add Lead</CrmBtn>
                 )}
               </>
             }
           />
-
-          <div className="relative mb-7 w-full max-w-[720px]">
-            <Search className="pointer-events-none absolute left-[18px] top-1/2 h-5 w-5 -translate-y-1/2 text-[#9ca3af]" />
-            <input
-              ref={searchRef}
-              type="text"
-              placeholder="Search by name, phone, email, source, budget, location, status…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="crm-search w-full rounded-2xl border border-black/10 bg-white py-4 pl-[52px] pr-[52px] font-['Inter',sans-serif] text-base text-[#111827] shadow-[0_1px_3px_rgba(10,22,40,0.06)] outline-none transition-[border-color,box-shadow] duration-200 box-border"
-            />
-            <span className="pointer-events-none absolute right-[14px] top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-black/10 bg-[#f5f5f5] text-xs font-bold text-[#9ca3af]">
-              /
-            </span>
-          </div>
 
           {loading ? (
             <div className="flex justify-center py-16"><Spinner /></div>
@@ -430,9 +469,55 @@ export default function CrmLeads() {
             <div className="text-center py-16 text-[#9ca3af] text-sm">No client data available.</div>
           ) : (
             <>
+              {/* ── Stats band ── */}
+              <MotionReveal>
+                <CrmStatGrid>
+                  <CrmStatCard icon={<Users className="h-4.5 w-4.5" strokeWidth={1.8} />} tone="navy" value={stats.total} label="Total leads" subtext="all time" />
+                  <CrmStatCard icon={<TrendingUp className="h-4.5 w-4.5" strokeWidth={1.8} />} tone="gold" value={stats.pipeline} label="Working the deal" subtext="active pipeline" />
+                  <CrmStatCard icon={<Trophy className="h-4.5 w-4.5" strokeWidth={1.8} />} tone="emerald" value={stats.won} label="Closed / won" subtext="deals done" />
+                  <CrmStatCard icon={<UserRound className="h-4.5 w-4.5" strokeWidth={1.8} />} tone="amber" value={stats.unassigned} label="Unassigned" subtext={stats.unassigned > 0 ? 'needs an owner' : 'everyone owned'} />
+                </CrmStatGrid>
+              </MotionReveal>
+
+              {/* ── Search ── */}
+              <div className="relative mb-6 w-full max-w-[720px]">
+                <Search className="pointer-events-none absolute left-[18px] top-1/2 h-5 w-5 -translate-y-1/2 text-[#9ca3af]" />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  placeholder="Search by name, phone, email, source, budget, location, status…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="crm-search w-full rounded-2xl border border-black/10 bg-white py-4 pl-[52px] pr-[52px] font-['Inter',sans-serif] text-base text-[#111827] shadow-[0_1px_3px_rgba(10,22,40,0.06)] outline-none transition-[border-color,box-shadow] duration-200 box-border"
+                />
+                <span className="pointer-events-none absolute right-[14px] top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-black/10 bg-[#f5f5f5] text-xs font-bold text-[#9ca3af]">
+                  /
+                </span>
+              </div>
+
+              {/* ── Salesforce Path — the list is the pipeline ── */}
+              <MotionReveal delay={0.02}>
+                <div className="mb-4 flex gap-0 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-[0_1px_3px_rgba(10,22,40,0.06)] ring-1 ring-black/[0.05]">
+                  {stageCounts.map((s, i) => {
+                    const active = activeFilter === (s.key ?? 'all');
+                    return (
+                      <button key={s.label} type="button" onClick={() => setActiveFilter(s.key ?? 'all')}
+                        aria-pressed={active}
+                        className={`relative flex min-w-[92px] flex-1 cursor-pointer flex-col items-center px-3 py-2.5 transition-all duration-200 first:rounded-l-xl last:rounded-r-xl sm:flex-row sm:justify-center sm:gap-2 ${active ? 'text-[#0A1628]' : 'text-[#6b7280] hover:text-[#0A1628]'}`}>
+                        <span className={`absolute inset-0 transition-colors duration-200 first:rounded-l-xl last:rounded-r-xl ${active ? 'bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] shadow-[0_2px_10px_rgba(201,168,76,0.45)]' : 'bg-transparent'}`} />
+                        <span className="relative whitespace-nowrap text-[10.5px] font-extrabold uppercase tracking-wide">{s.label}</span>
+                        <span className={`relative rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${active ? 'bg-[#0A1628]/15 text-[#0A1628]' : 'bg-black/[0.05] text-[#6b7280]'}`}>{s.count}</span>
+                        {i < stageCounts.length - 1 && <span className="pointer-events-none absolute -right-[3px] top-1/2 z-10 hidden h-3 w-3 -translate-y-1/2 rotate-45 bg-white sm:block" style={{ boxShadow: '1px -1px 0 0 rgba(10,22,40,0.06)' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </MotionReveal>
+
+              {/* ── Filters ── */}
               <div className="mb-4 flex flex-wrap items-center gap-2">
-                {(['all', 'buyer', 'seller', 'assigned', 'unassigned', 'dated', 'notes', 'instagram'] as const).map((f) => {
-                  const label = { all: 'All Clients', buyer: 'Buyer', seller: 'Seller', assigned: 'Assigned', unassigned: 'Unassigned', dated: 'With Lead Date', notes: 'Has Notes', instagram: 'Instagram Source' }[f];
+                {(['buyer', 'seller', 'assigned', 'unassigned', 'notes'] as const).map((f) => {
+                  const label = { buyer: 'Buyer', seller: 'Seller', assigned: 'Assigned', unassigned: 'Unassigned', notes: 'Has notes' }[f];
                   const count = filterCounts[f];
                   return (
                     <CrmChip key={f} active={activeFilter === f} onClick={() => setActiveFilter(f)}>
@@ -470,585 +555,482 @@ export default function CrmLeads() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
-                {filtered.length === 0 ? (
-                  <div className="col-span-full py-16 text-center text-sm text-[#9ca3af]">No clients match this filter.</div>
-                ) : filtered.map((c) => (
-                  <CrmCard key={c.sno} onClick={() => openDrawer(c)} className="p-4">
-                    <div className="flex items-start gap-3.5">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] text-[13px] font-extrabold text-[#0a0d12] shadow-[0_2px_6px_rgba(201,169,98,0.35)]">
-                        {initials(c.name)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="truncate text-[14px] font-bold text-[#111827]">{c.name}</div>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${(c.client_role || 'Buyer') === 'Buyer' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
-                            {c.client_role || 'Buyer'}
-                          </span>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${(c.lead_type ?? 'new lead') === 'old lead' ? 'bg-indigo-50 text-indigo-700' : 'bg-sky-50 text-sky-700'}`}>
-                            {(c.lead_type ?? 'new lead') === 'old lead' ? 'Old Lead' : 'New Lead'}
-                          </span>
-                          {c.assigned_employee_info && (
-                            <span className="shrink-0 rounded-full bg-[#0A1628]/[0.05] px-2 py-0.5 text-[10px] font-bold text-[#96782A]">
-                              {c.assigned_employee_info.name} · {c.assigned_employee_info.employee_id}
-                            </span>
-                          )}
-                        </div>
-                        <div className="mt-1 space-y-0.5 text-[12.5px] text-[#6b7280]">
-                          <div className="flex items-center gap-1.5">
-                            <Phone className="h-3 w-3 text-[#9ca3af]" strokeWidth={1.5} />
-                            <span className="tabular-nums">{c.phone}</span>
+              {/* ── Lead cards ── */}
+              <MotionReveal delay={0.05}>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+                  {filtered.length === 0 ? (
+                    <div className="col-span-full py-16 text-center text-sm text-[#9ca3af]">No leads match this filter.</div>
+                  ) : filtered.map((c) => {
+                    const pi = pathIndex(c.status);
+                    return (
+                      <CrmCard key={c.sno} onClick={() => openDrawer(c)} className="group relative overflow-hidden p-4 pl-[18px] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(10,22,40,0.10)]">
+                        <span className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${STAGE_STRIPE[(c.status ?? '').trim().toLowerCase()] ?? 'bg-gray-300'}`} />
+                        <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-[#C9A84C] via-[#D6B85D] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                        <div className="flex items-start gap-3.5">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] text-[14px] font-extrabold text-[#0a0d12] shadow-[0_2px_8px_rgba(201,169,98,0.35)]">
+                            {initials(c.name)}
                           </div>
-                          {c.email && <div className="truncate">{c.email}</div>}
-                          <div>{(c.client_role || 'Buyer') === 'Seller' ? [c.type, c.property_subtype].filter(Boolean).join(' · ') : [c.type, c.location].filter(Boolean).join(' · ')}</div>
-                          {(c.client_role || 'Buyer') === 'Seller' && c.location && <div>{c.location}</div>}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <div className="truncate text-[14.5px] font-bold text-[#111827]">{c.name}</div>
+                              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9.5px] font-extrabold uppercase tracking-wide ${(c.client_role || 'Buyer') === 'Buyer' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>
+                                {c.client_role || 'Buyer'}
+                              </span>
+                            </div>
+                            <div className="mt-1 space-y-0.5 text-[12px] text-[#6b7280]">
+                              <a href={`tel:${c.phone.replace(/\s/g, '')}`} onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5 no-underline hover:text-[#96782A]">
+                                <Phone className="h-3 w-3 text-[#9ca3af]" strokeWidth={1.5} />
+                                <span className="tabular-nums">{c.phone}</span>
+                              </a>
+                              {c.email && (
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Mail className="h-3 w-3 shrink-0 text-[#9ca3af]" strokeWidth={1.5} />
+                                  <span className="truncate">{c.email}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1.5 truncate">
+                                <MapPin className="h-3 w-3 shrink-0 text-[#9ca3af]" strokeWidth={1.5} />
+                                <span className="truncate">{[(c.client_role || 'Buyer') === 'Seller' ? c.type : c.type, (c.client_role || 'Buyer') === 'Seller' ? c.property_subtype : c.location].filter(Boolean).join(' · ') || '—'}</span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-black/[0.05] pt-3">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <Badge variant={statusVariant(c.status)} className="px-2.5 py-0.5 text-[10.5px] font-bold">
-                          {c.status}
-                        </Badge>
-                        <span className="font-['Inter',sans-serif] text-[12.5px] font-semibold text-emerald-600">₹{c.budget}</span>
-                        {(c.client_role || 'Buyer') === 'Seller' && c.property_link && (
-                          <a href={c.property_link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                            className="flex h-6 w-6 items-center justify-center rounded-md bg-blue-50 text-blue-600 transition-colors hover:bg-blue-100">
-                            <ExternalLink className="h-3 w-3" strokeWidth={2} />
-                          </a>
-                        )}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        {c.total_comm ? (
-                          <span className="font-['Inter',sans-serif] text-[11.5px] font-semibold text-emerald-600">₹{toLakhs(parseFloat(String(c.total_comm)) * 100000)}</span>
-                        ) : null}
-                        {c.date && <div className="mt-0.5 text-[10.5px] text-[#9ca3af]">{formatDate(c.date)}</div>}
-                      </div>
-                    </div>
-                  </CrmCard>
-                ))}
-              </div>
 
-              <p className="text-center text-[#9ca3af] text-[11.5px] mt-8 tracking-[0.3px]">
+                        {/* Pipeline progress rail — position at a glance */}
+                        <div className="mt-3 flex items-center gap-1">
+                          {PATH_STEPS.map((_, i) => (
+                            <span key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= pi ? 'bg-gradient-to-r from-[#C9A84C] to-[#D6B85D]' : 'bg-black/[0.07]'}`} />
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-2 border-t border-black/[0.05] pt-3">
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold ${statusChip(c.status)}`}>
+                              {c.status || 'New'}
+                            </span>
+                            {(c.lead_type ?? 'new lead') === 'old lead' && (
+                              <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-extrabold text-indigo-700">Old</span>
+                            )}
+                            {c.assigned_employee_info ? (
+                              <span className="truncate rounded-full bg-[#0A1628]/[0.05] px-2 py-0.5 text-[10px] font-bold text-[#96782A]">
+                                {c.assigned_employee_info.name}
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-bold text-gray-500">Unassigned</span>
+                            )}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="text-[8.5px] font-extrabold uppercase tracking-[0.16em] text-[#9ca3af]">{c_role(c) === 'Seller' ? 'Price' : 'Budget'}</p>
+                            <span className="font-['Inter',sans-serif] text-[14px] font-extrabold text-emerald-600 tabular-nums">₹{c.budget}</span>
+                            {c.total_comm && <div className="text-[10px] font-semibold text-[#9ca3af]">comm ₹{toLakhs(parseFloat(String(c.total_comm)) * 100000)}</div>}
+                            {c.date && <div className="text-[10px] text-[#9ca3af]">{formatDate(c.date)}</div>}
+                          </div>
+                        </div>
+                      </CrmCard>
+                    );
+                  })}
+                </div>
+              </MotionReveal>
+
+              <p className="mt-8 text-center text-[11.5px] tracking-[0.3px] text-[#9ca3af]">
                 VJR Estate Properties &mdash; Confidential Client Register &middot; Data synced from Supabase
               </p>
             </>
           )}
         </CrmPageBody>
-        </main>
+      </main>
 
-      <Sheet open={!!selectedClient} onOpenChange={(open) => { if (!open) { setSelectedClient(null); setEditing(false); setEditData({}); } }}>
-        <SheetContent className="w-[420px] max-w-[92vw] bg-[#fafafa] border-l border-[#e5e7eb] p-0 overflow-y-auto">
-          {selectedClient && (
-            <>
-              <SheetHeader className="p-7 pb-5 border-b border-[#f0f0f0] bg-gradient-to-b from-[rgba(201,169,98,0.06)] to-transparent relative">
-                <div className="flex items-center justify-between">
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center font-['Inter',sans-serif] text-[22px] font-semibold text-[#0a0d12] bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] shadow-[0_0_0_4px_rgba(201,169,98,0.12)] mb-3.5">
-                    {initials(selectedClient.name)}
+      {/* ═══════════ LEAD DOSSIER DRAWER — Salesforce highlights-panel style ═══════════ */}
+      <Sheet open={drawerOpen} onOpenChange={(open) => { if (!open) { setSelectedClient(null); setEditing(false); setEditData({}); } }}>
+        <SheetContent className="w-[460px] max-w-[94vw] border-l border-[#e5e7eb] bg-[#fafafa] p-0 overflow-y-auto">
+          {selectedClient && (() => {
+            const pi = pathIndex(selectedClient.status);
+            const waLink = `https://wa.me/91${selectedClient.phone.replace(/\D/g, '').slice(-10)}`;
+            return (
+              <>
+                {/* ── Highlights panel (navy, brand) ── */}
+                <SheetHeader className="relative border-b border-white/10 bg-[#0A1628] bg-gradient-to-br from-[#0A1628] via-[#0E2036] to-[#132A45] p-6 pb-5 text-white [&&]:p-6 [&&]:pb-5 [&&]:space-y-0">
+                  <span className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full bg-[#C9A84C]/[0.12] blur-2xl" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] font-['Inter',sans-serif] text-[22px] font-extrabold text-[#0a0d12] shadow-[0_0_0_4px_rgba(201,169,98,0.18)]">
+                      {initials(selectedClient.name)}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {canEdit && !editing && (
+                        <button type="button" onClick={startEdit} aria-label="Edit lead" className="cursor-pointer rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      )}
+                      {editing && (
+                        <>
+                          <button type="button" onClick={cancelEdit} aria-label="Cancel editing" className="cursor-pointer rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white">
+                            <X className="h-4 w-4" />
+                          </button>
+                          <button type="button" onClick={saveEdit} disabled={saving} aria-label="Save changes" className="flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#C9A84C] px-3 py-2 text-[11px] font-extrabold text-[#0A1628] transition-all hover:bg-[#D6B85D] disabled:opacity-50">
+                            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  {saveError && <p className="text-xs text-red-500">{saveError}</p>}
-                  <div className="flex gap-1.5">
-                    {editing ? (
-                      <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={cancelEdit}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                        <Button variant="default" size="icon" className="h-8 w-8 bg-[#c9a962] hover:bg-[#b8953f]" onClick={saveEdit} disabled={saving}>
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : canEdit ? (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startEdit}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-                <SheetTitle className="font-['Inter',sans-serif] text-[22px] font-semibold text-left">{selectedClient.name}</SheetTitle>
-                <p className="text-xs text-[#9ca3af] mt-1 mb-3">
-                  Client ID #{selectedClient.sno} &middot; {selectedClient.type}
-                </p>
-                {selectedClient.assigned_employee_info ? (
-                  <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-[#0A1628]/[0.05] px-2.5 py-1 text-[10.5px] font-bold text-[#96782A]">
-                    <Briefcase className="h-3 w-3" strokeWidth={1.8} /> Assigned to {selectedClient.assigned_employee_info.name} ({selectedClient.assigned_employee_info.employee_id})
+                  <SheetTitle className="mt-3 text-left font-['Inter',sans-serif] text-[22px] font-bold tracking-tight text-white [&&]:mt-3">{selectedClient.name}</SheetTitle>
+                  <p className="mt-1 text-[11.5px] font-medium text-white/50">
+                    Lead #{selectedClient.sno} · {selectedClient.source || 'Direct'} · {selectedClient.date ? `logged ${formatDate(selectedClient.date)}` : 'no date logged'}
                   </p>
-                ) : (
-                  <p className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-[10.5px] font-bold text-[#9ca3af]">
-                    <Briefcase className="h-3 w-3" strokeWidth={1.8} /> Unassigned
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-bold ${(selectedClient.lead_type ?? 'new lead') === 'old lead' ? 'bg-indigo-50 text-indigo-700' : 'bg-sky-50 text-sky-700'}`}>
-                    {(selectedClient.lead_type ?? 'new lead') === 'old lead' ? 'Old Lead' : 'New Lead'}
-                  </span>
-                  <Badge variant={statusVariant(selectedClient.status)} className="self-start text-[11.5px] font-bold px-3 py-1">
-                    {editing ? (
-                      <select
-                        value={editData.status ?? selectedClient.status}
-                        onChange={(e) => setEditData({ ...editData, status: e.target.value })}
-                        className="bg-transparent border-none text-inherit font-bold text-[11.5px] outline-none cursor-pointer"
-                      >
-                        <option value="">Fresh — no pipeline yet</option>
-                        <option>Site Visit</option>
-                        <option>Token Done</option>
-                        <option>Visit Done</option>
-                        <option>Closed</option>
-                      </select>
-                    ) : (
-                      selectedClient.status
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                    <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-extrabold ring-1 ${(c_role(selectedClient) === 'Buyer' ? 'bg-amber-400/15 text-amber-200 ring-amber-300/30' : 'bg-blue-400/15 text-blue-200 ring-blue-300/30')}`}>
+                      {c_role(selectedClient)}
+                    </span>
+                    <span className={`rounded-full px-2.5 py-1 text-[10.5px] font-extrabold ring-1 ${selectedClient.status ? 'bg-white/10 text-white/85 ring-white/20' : 'bg-[#C9A84C]/20 text-[#e8d8ae] ring-[#C9A84C]/40'}`}>
+                      {selectedClient.status || 'New'}
+                    </span>
+                    {(selectedClient.lead_type ?? 'new lead') === 'old lead' && (
+                      <span className="rounded-full bg-indigo-400/15 px-2.5 py-1 text-[10.5px] font-extrabold text-indigo-200 ring-1 ring-indigo-300/30">Old lead</span>
                     )}
-                  </Badge>
-                </div>
-              </SheetHeader>
+                    {selectedClient.assigned_employee_info ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2.5 py-1 text-[10.5px] font-extrabold text-white/85 ring-1 ring-white/20">
+                        <Briefcase className="h-3 w-3" /> {selectedClient.assigned_employee_info.name}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2.5 py-1 text-[10.5px] font-extrabold text-white/50 ring-1 ring-white/15">
+                        <Briefcase className="h-3 w-3" /> Unassigned
+                      </span>
+                    )}
+                  </div>
+                  {saveError && <p className="mt-2 text-[11px] font-semibold text-red-300">{saveError}</p>}
 
-              <div className="p-7 pt-0">
-                <div className="flex gap-2 mt-5 mb-2">
-                  <a
-                    href={`tel:${selectedClient.phone.replace(/\s/g, '')}`}
-                    className="flex-1 py-2.5 rounded-xl text-center text-xs font-bold no-underline flex items-center justify-center gap-1.5 cursor-pointer border border-[#c9a962] text-[#0a0d12] bg-[#c9a962] font-['Inter',sans-serif]"
-                  >
-                    <Phone className="w-3.5 h-3.5" />
-                    Call
-                  </a>
-                  <a
-                    href={`https://wa.me/91${selectedClient.phone.replace(/\D/g, '').slice(-10)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-2.5 rounded-xl text-center text-xs font-bold no-underline flex items-center justify-center gap-1.5 cursor-pointer border border-[#e5e7eb] text-[#111827] bg-white font-['Inter',sans-serif]"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    WhatsApp
-                  </a>
-                </div>
+                  {/* Quick actions */}
+                  <div className="mt-4 flex gap-2">
+                    <a href={`tel:${selectedClient.phone.replace(/\s/g, '')}`}
+                      className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] py-2.5 text-[11.5px] font-extrabold text-[#0A1628] no-underline shadow-[0_2px_8px_rgba(201,168,76,0.35)] transition-all hover:brightness-[1.06]">
+                      <Phone className="h-3.5 w-3.5" /> Call
+                    </a>
+                    <a href={waLink} target="_blank" rel="noopener noreferrer"
+                      className="flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white/10 py-2.5 text-[11.5px] font-extrabold text-white ring-1 ring-white/20 no-underline transition-colors hover:bg-white/[0.16]">
+                      <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+                    </a>
+                  </div>
+                </SheetHeader>
 
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mt-6 mb-3">Client Overview</div>
-                <div className="grid grid-cols-2 gap-3.5">
-                  <FieldDisplay label="Phone Number" edit={editing} value={editData.phone ?? selectedClient.phone} onChange={(v) => setEditData({ ...editData, phone: v })}>
-                    <a href={`tel:${selectedClient.phone.replace(/\s/g, '')}`} className="text-[#111827] no-underline font-semibold text-sm">{selectedClient.phone}</a>
-                  </FieldDisplay>
-                  <FieldDisplay label="Email" edit={editing} value={editData.email ?? selectedClient.email} onChange={(v) => setEditData({ ...editData, email: v })}>
-                    <span className="font-semibold text-sm">{selectedClient.email || '\u2014'}</span>
-                  </FieldDisplay>
-                  {(selectedClient.client_role || 'Buyer') === 'Seller' ? (
-                    <>
-                      <FieldDisplay label="Property Category" edit={editing} value={editData.type ?? selectedClient.type} onChange={(v) => setEditData({ ...editData, type: v })}>
-                        <span className="font-semibold text-sm">{selectedClient.type}</span>
-                      </FieldDisplay>
-                      <FieldDisplay label="Property Sub-type" edit={editing} value={editData.property_subtype ?? selectedClient.property_subtype} onChange={(v) => setEditData({ ...editData, property_subtype: v })}>
-                        <span className="font-semibold text-sm">{selectedClient.property_subtype || '\u2014'}</span>
-                      </FieldDisplay>
-                      <FieldDisplay label="Location" edit={editing} value={editData.location ?? selectedClient.location} onChange={(v) => setEditData({ ...editData, location: v })}>
-                        <span className="font-semibold text-sm">{selectedClient.location || '\u2014'}</span>
-                      </FieldDisplay>
-                    </>
-                  ) : (
-                    <>
-                      <FieldDisplay label="Property Type" edit={editing} value={editData.type ?? selectedClient.type} onChange={(v) => setEditData({ ...editData, type: v })}>
-                        <span className="font-semibold text-sm">{selectedClient.type}</span>
-                      </FieldDisplay>
-                      <FieldDisplay label="Preferred Location" edit={editing} value={editData.location ?? selectedClient.location} onChange={(v) => setEditData({ ...editData, location: v })}>
-                        <span className="font-semibold text-sm">{selectedClient.location || '\u2014'}</span>
-                      </FieldDisplay>
-                    </>
-                  )}
-                  <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div>
-                      <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Role</div>
+                <div className="p-6 pt-5">
+                  {/* ── Salesforce Path ── */}
+                  <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#9ca3af]">Deal path</p>
+                  <div className="rounded-2xl border border-black/[0.06] bg-white p-4">
+                    <div className="flex items-center">
+                      {PATH_STEPS.map((step, i) => (
+                        <div key={step} className="relative flex-1 text-center">
+                          {i > 0 && <span className={`absolute right-1/2 top-[7px] -z-0 h-0.5 w-full ${i <= pi ? 'bg-[#C9A84C]/60' : 'bg-black/[0.08]'}`} />}
+                          <span className={`relative z-10 mx-auto flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 transition-colors ${i < pi ? 'border-[#C9A84C] bg-[#C9A84C]' : i === pi ? 'border-[#C9A84C] bg-white shadow-[0_0_0_3px_rgba(201,168,76,0.2)]' : 'border-black/15 bg-white'}`}>
+                            {i < pi && <Check className="h-2 w-2 text-white" strokeWidth={3.5} />}
+                          </span>
+                          {canEdit && !editing ? (
+                            <button type="button"
+                              onClick={() => {
+                                const nextStatus = i === 0 ? '' : step;
+                                if (nextStatus === selectedClient.status) return;
+                                void persistClient({ ...selectedClient, status: nextStatus });
+                              }}
+                              className={`mt-1.5 w-full cursor-pointer border-none bg-transparent p-0 text-[9.5px] font-bold leading-tight transition-colors ${i <= pi ? 'text-[#96782A]' : 'text-[#9ca3af] hover:text-[#0A1628]'}`}>
+                              {step}
+                            </button>
+                          ) : (
+                            <span className={`mt-1.5 block w-full text-[9.5px] font-bold leading-tight ${i <= pi ? 'text-[#96782A]' : 'text-[#9ca3af]'}`}>{step}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* ── Overview (editable) ── */}
+                  <SectionLabel icon={<Users className="h-3 w-3" />}>Client overview</SectionLabel>
+                  <div className="grid grid-cols-2 gap-3">
+                    <FieldDisplay label="Phone" edit={editing} value={editData.phone ?? selectedClient.phone} onChange={(v) => setEditData({ ...editData, phone: v })}>
+                      <a href={`tel:${selectedClient.phone.replace(/\s/g, '')}`} className="text-[13px] font-bold text-[#111827] no-underline">{selectedClient.phone}</a>
+                    </FieldDisplay>
+                    <FieldDisplay label="Email" edit={editing} value={editData.email ?? selectedClient.email} onChange={(v) => setEditData({ ...editData, email: v })}>
+                      <span className="text-[13px] font-semibold">{selectedClient.email || '\u2014'}</span>
+                    </FieldDisplay>
+                    {(c_role(selectedClient)) === 'Seller' ? (
+                      <>
+                        <FieldDisplay label="Property category" edit={editing} value={editData.type ?? selectedClient.type} onChange={(v) => setEditData({ ...editData, type: v })}>
+                          <span className="text-[13px] font-semibold">{selectedClient.type}</span>
+                        </FieldDisplay>
+                        <FieldDisplay label="Sub-type" edit={editing} value={editData.property_subtype ?? selectedClient.property_subtype} onChange={(v) => setEditData({ ...editData, property_subtype: v })}>
+                          <span className="text-[13px] font-semibold">{selectedClient.property_subtype || '\u2014'}</span>
+                        </FieldDisplay>
+                        <FieldDisplay label="Location" edit={editing} value={editData.location ?? selectedClient.location} onChange={(v) => setEditData({ ...editData, location: v })}>
+                          <span className="text-[13px] font-semibold">{selectedClient.location || '\u2014'}</span>
+                        </FieldDisplay>
+                      </>
+                    ) : (
+                      <>
+                        <FieldDisplay label="Property type" edit={editing} value={editData.type ?? selectedClient.type} onChange={(v) => setEditData({ ...editData, type: v })}>
+                          <span className="text-[13px] font-semibold">{selectedClient.type || '\u2014'}</span>
+                        </FieldDisplay>
+                        <FieldDisplay label="Preferred area" edit={editing} value={editData.location ?? selectedClient.location} onChange={(v) => setEditData({ ...editData, location: v })}>
+                          <span className="text-[13px] font-semibold">{selectedClient.location || '\u2014'}</span>
+                        </FieldDisplay>
+                      </>
+                    )}
+                    <FieldDisplay label="Lead source" edit={editing} value={editData.source ?? selectedClient.source} onChange={(v) => setEditData({ ...editData, source: v })}>
+                      <span className="text-[13px] font-semibold">{selectedClient.source || 'Direct'}</span>
+                    </FieldDisplay>
+                    <FieldDisplay label="Lead date" edit={editing} value={editData.date ?? selectedClient.date ?? ''} onChange={(v) => setEditData({ ...editData, date: v })}>
+                      <span className="text-[13px] font-semibold">{selectedClient.date ? formatDate(selectedClient.date) : 'Not logged'}</span>
+                    </FieldDisplay>
+                    <FieldDisplay label="Closing timeline" edit={editing} value={editData.closing_timeline ?? selectedClient.closing_timeline} onChange={(v) => setEditData({ ...editData, closing_timeline: v })}>
+                      <span className="text-[13px] font-semibold">{selectedClient.closing_timeline || '\u2014'}</span>
+                    </FieldDisplay>
+                    <div className="rounded-2xl border border-black/[0.05] bg-white p-3.5">
+                      <p className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#9ca3af]">Role</p>
                       {canEdit ? (
-                        <select value={selectedClient.client_role || 'Buyer'} onChange={async (e) => {
-                          const updated = { ...selectedClient, client_role: e.target.value };
-                          await persistClient(updated);
-                        }}
-                          className={`w-full h-9 px-3 rounded-xl border text-sm font-bold outline-none transition-colors ${
-                            (selectedClient.client_role || 'Buyer') === 'Buyer'
-                              ? 'border-amber-300 bg-amber-50 text-amber-700'
-                              : 'border-blue-300 bg-blue-50 text-blue-700'
-                          }`}>
-                          <option value="Buyer" className="text-amber-700 bg-white">Buyer</option>
-                          <option value="Seller" className="text-blue-700 bg-white">Seller</option>
+                        <select value={c_role(selectedClient)} onChange={(e) => void persistClient({ ...selectedClient, client_role: e.target.value })} className={CRM_INPUT}>
+                          <option value="Buyer">Buyer</option>
+                          <option value="Seller">Seller</option>
                         </select>
                       ) : (
-                        <span className={`inline-block px-3 py-1.5 rounded-xl text-sm font-bold ${
-                          (selectedClient.client_role || 'Buyer') === 'Buyer'
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-blue-50 text-blue-700'
-                        }`}>{selectedClient.client_role || 'Buyer'}</span>
+                        <span className={`inline-block rounded-lg px-2.5 py-1 text-[12px] font-bold ${c_role(selectedClient) === 'Buyer' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'}`}>{c_role(selectedClient)}</span>
                       )}
                     </div>
-                  </div>
-                  <div className="col-span-2 bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">{(selectedClient.client_role || 'Buyer') === 'Seller' ? 'Price' : 'Budget Range'}</div>
-                    {editing ? (
-                      <input
-                        value={editData.budget ?? selectedClient.budget}
-                        onChange={(e) => setEditData({ ...editData, budget: e.target.value })}
-                        className="w-full bg-transparent border-b border-[#c9a962] text-sm font-semibold text-emerald-600 outline-none font-['Inter',sans-serif]"
-                      />
-                    ) : (
-                      <strong className="font-['Inter',sans-serif] font-semibold text-emerald-600 text-sm">
-                        ₹{selectedClient.budget}
-                      </strong>
-                    )}
-                  </div>
-                  <FieldDisplay label="Lead Source" edit={editing} value={editData.source ?? selectedClient.source} onChange={(v) => setEditData({ ...editData, source: v })}>
-                    <span className="font-semibold text-sm">{selectedClient.source || 'Direct'}</span>
-                  </FieldDisplay>
-                  <FieldDisplay label="Lead Date Logged" edit={editing} value={editData.date ?? selectedClient.date ?? ''} onChange={(v) => setEditData({ ...editData, date: v })}>
-                    <span className="font-semibold text-sm">
-                      {selectedClient.date
-                        ? (parseDateSafe(selectedClient.date)?.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) ?? '—')
-                        : 'Not yet logged'}
-                    </span>
-                  </FieldDisplay>
-                  <FieldDisplay label="Closing Timeline" edit={editing} value={editData.closing_timeline ?? selectedClient.closing_timeline} onChange={(v) => setEditData({ ...editData, closing_timeline: v })}>
-                    <span className="font-semibold text-sm">{selectedClient.closing_timeline || '\u2014'}</span>
-                  </FieldDisplay>
-                  <div className="col-span-2 bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Special Requirements</div>
-                    {editing ? (
-                      <textarea
-                        value={editData.requirements ?? selectedClient.requirements}
-                        onChange={(e) => setEditData({ ...editData, requirements: e.target.value })}
-                        className="w-full bg-transparent border-b border-[#c9a962] text-sm outline-none resize-none font-['Inter',sans-serif]"
-                        rows={2}
-                      />
-                    ) : (
-                      <span className="font-semibold text-sm">{selectedClient.requirements || '\u2014'}</span>
-                    )}
-                  </div>
-                  {selectedClient.property_link && (
-                    <div className="col-span-2 bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                      <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Property Link</div>
+                    <div className="col-span-2 rounded-2xl border border-black/[0.05] bg-white p-3.5">
+                      <p className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#9ca3af]">{c_role(selectedClient) === 'Seller' ? 'Asking price' : 'Budget range'}</p>
                       {editing ? (
-                        <input value={editData.property_link ?? selectedClient.property_link} onChange={e => setEditData({ ...editData, property_link: e.target.value })}
-                          className="w-full bg-transparent border-b border-[#c9a962] text-sm outline-none font-['Inter',sans-serif]" type="url" />
+                        <input value={editData.budget ?? selectedClient.budget} onChange={(e) => setEditData({ ...editData, budget: e.target.value })} className="w-full border-b border-[#C9A84C] bg-transparent text-[14px] font-bold text-emerald-600 outline-none font-['Inter',sans-serif]" />
                       ) : (
-                        <a href={selectedClient.property_link} target="_blank" rel="noopener noreferrer"
-                          className="text-sm font-semibold text-blue-600 hover:underline break-all">{selectedClient.property_link}</a>
+                        <span className="font-['Inter',sans-serif] text-[16px] font-extrabold tabular-nums text-emerald-600">₹{selectedClient.budget || '\u2014'}</span>
                       )}
                     </div>
-                  )}
-                </div>
-
-                <Separator className="my-5" />
-
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Deal Pipeline</div>
-                <div className="flex items-center gap-0 mb-5">
-                  {['Site Visit', 'Token Done', 'Visit Done', 'Closed'].map((step, i) => {
-                    const steps = ['Site Visit', 'Token Done', 'Visit Done', 'Closed'];
-                    const curIdx = steps.indexOf(selectedClient.status);
-                    const isActive = i <= curIdx;
-                    return (
-                      <div key={step} className="flex-1 text-center relative">
-                        <div className={`h-1 rounded mb-2 transition-colors ${isActive ? 'bg-[#c9a962]' : 'bg-[#e5e7eb]'}`} />
-                        {canEdit ? (
-                          <button type="button" onClick={async () => {
-                            if (step === selectedClient.status) return;
-                            const updated = { ...selectedClient, status: step };
-                            await persistClient(updated);
-                          }}
-                            className="text-[11px] font-medium transition-colors cursor-pointer group border-none bg-transparent p-0 hover:opacity-80"
-                          >
-                            {step}
-                          </button>
+                    {selectedClient.property_link && (
+                      <div className="col-span-2 rounded-2xl border border-black/[0.05] bg-white p-3.5">
+                        <p className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#9ca3af]">Property link</p>
+                        {editing ? (
+                          <input type="url" value={editData.property_link ?? selectedClient.property_link} onChange={(e) => setEditData({ ...editData, property_link: e.target.value })} className="w-full border-b border-[#C9A84C] bg-transparent text-[13px] outline-none" />
                         ) : (
-                          <span className={`text-[11px] font-medium ${isActive ? 'text-[#c9a962]' : 'text-[#6b7280]'}`}>{step}</span>
+                          <a href={selectedClient.property_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 break-all text-[12.5px] font-semibold text-blue-600 hover:underline">
+                            <ExternalLink className="h-3 w-3 shrink-0" /> Open property
+                          </a>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-
-                <div className="bg-gradient-to-br from-emerald-50 to-green-50 border border-emerald-200/60 rounded-xl p-5 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-400/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 flex items-center justify-center shadow-lg shadow-emerald-200">
-                      <IndianRupee className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-emerald-700 uppercase tracking-[1.2px]">Earnings</div>
-                      <div className="text-[10px] text-emerald-500/70">Total Commission</div>
-                    </div>
+                    )}
                   </div>
-                  <div className="font-['Inter',sans-serif] text-2xl font-bold text-emerald-600">
-                    {selectedClient.total_comm ? (() => {
-                      const v = parseFloat(String(selectedClient.total_comm)) * 100000;
-                      return <span>₹{formatIndian(v)}<span className="text-sm font-normal text-emerald-400 ml-1.5">{formatLakhText(v)}</span></span>;
-                    })() : '\u2014'}
-                  </div>
-                </div>
 
-                <Separator className="my-5" />
-
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">
-                  {(selectedClient.client_role || 'Buyer') === 'Seller' ? 'Commission (Seller)' : 'Commission (Buyer)'}
-                </div>
-                <div className="space-y-3">
-                  <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Total Commission</div>
-                    {editing ? (
-                      <input
-                        value={editData.total_comm ?? selectedClient.total_comm ?? ''}
-                        onChange={(e) => setEditData({ ...editData, total_comm: e.target.value })}
-                        onBlur={(e) => {
-                          const val = e.target.value;
-                          const converted = parseToLakhs(val);
-                          if (converted !== val) {
-                            setEditData((prev) => ({ ...prev, total_comm: converted }));
-                          }
-                        }}
-                        className="w-full bg-transparent border-b border-[#c9a962] text-sm font-semibold text-emerald-600 outline-none font-['Inter',sans-serif]"
-                        placeholder="e.g. 50000 (₹)"
-                      />
-                    ) : (() => {
-                      const tv = parseFloat(String(selectedClient.total_comm || '0')) * 100000;
-                      return tv > 0 ? (
-                        <div>
-                          <span className="font-['Inter',sans-serif] font-semibold text-emerald-600 text-sm">₹{formatIndian(tv)}</span>
-                          <span className="text-[10.5px] text-emerald-400 ml-1.5">{formatLakhText(tv)}</span>
-                        </div>
-                      ) : <span className="font-semibold text-sm text-muted-foreground">\u2014</span>;
-                    })()}
-                  </div>
-                  {(selectedClient.client_role || 'Buyer') === 'Seller' ? (
-                    <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                      <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Seller Commission (%)</div>
-                      {editing ? (
-                        <input value={editData.seller_comm_pct ?? selectedClient.seller_comm_pct} onChange={e => setEditData({ ...editData, seller_comm_pct: e.target.value })}
-                          className="w-full bg-transparent border-b border-[#c9a962] text-sm outline-none font-['Inter',sans-serif]" />
-                      ) : (
-                        <span className="font-semibold text-sm">{selectedClient.seller_comm_pct || '\u2014'}</span>
-                      )}
+                  {/* ── Requirements ── */}
+                  <SectionLabel icon={<StickyNote className="h-3 w-3" />}>Special requirements</SectionLabel>
+                  {editing ? (
+                    <textarea value={editData.requirements ?? selectedClient.requirements} onChange={(e) => setEditData({ ...editData, requirements: e.target.value })} rows={3}
+                      className="w-full resize-none rounded-2xl border border-black/[0.08] bg-white p-4 text-[13px] leading-relaxed outline-none focus:border-[#C9A84C] font-['Inter',sans-serif]"
+                      placeholder="What exactly is the client looking for…" />
+                  ) : (
+                    <div className={`rounded-2xl border border-black/[0.05] border-l-[3px] border-l-[#C9A84C] bg-white p-4 text-[13px] leading-relaxed ${selectedClient.requirements ? 'text-[#374151] italic' : 'text-[#9ca3af]'}`}>
+                      {selectedClient.requirements ? `\u201C${selectedClient.requirements}\u201D` : 'No requirements captured yet.'}
                     </div>
-                  ) : null}
-                  <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div className="flex items-center justify-between">
+                  )}
+
+                  {/* ── Earnings ── */}
+                  <SectionLabel icon={<IndianRupee className="h-3 w-3" />}>Earnings</SectionLabel>
+                  <div className="relative overflow-hidden rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 to-green-50 p-5">
+                    <div className="absolute -right-10 -top-10 h-24 w-24 rounded-full bg-emerald-400/[0.07]" />
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-green-500 shadow-lg shadow-emerald-200">
+                        <IndianRupee className="h-5 w-5 text-white" />
+                      </div>
                       <div>
-                        <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Commission Status</div>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-                          (selectedClient.comm_status || 'Pending') === 'Received'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}>
+                        <p className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-emerald-700">Total commission</p>
+                        <p className="text-[10px] text-emerald-500/70">{selectedClient.comm_status || 'Pending'}{selectedClient.comm_date ? ` · ${formatDate(selectedClient.comm_date)}` : ''}</p>
+                      </div>
+                    </div>
+                    <p className="mt-3 font-['Inter',sans-serif] text-[26px] font-extrabold tabular-nums text-emerald-600">
+                      {selectedClient.total_comm ? (() => {
+                        const v = parseFloat(String(selectedClient.total_comm)) * 100000;
+                        return <>₹{formatIndian(v)}<span className="ml-1.5 text-[13px] font-semibold text-emerald-400">{formatLakhText(v)}</span></>;
+                      })() : '\u2014'}
+                    </p>
+                  </div>
+
+                  {/* ── Commission breakdown (editable) ── */}
+                  <SectionLabel icon={<IndianRupee className="h-3 w-3" />}>Commission detail</SectionLabel>
+                  <div className="space-y-2.5">
+                    <FieldDisplay label="Total commission (₹)" edit={editing} value={editData.total_comm ?? selectedClient.total_comm ?? ''} onChange={(v) => setEditData({ ...editData, total_comm: v })}>
+                      <span className="text-[13px] font-bold text-emerald-600">{selectedClient.total_comm ? `₹${formatIndian(parseFloat(String(selectedClient.total_comm)) * 100000)}` : '\u2014'}</span>
+                    </FieldDisplay>
+                    {c_role(selectedClient) === 'Seller' && (
+                      <FieldDisplay label="Seller commission (%)" edit={editing} value={editData.seller_comm_pct ?? selectedClient.seller_comm_pct} onChange={(v) => setEditData({ ...editData, seller_comm_pct: v })}>
+                        <span className="text-[13px] font-semibold">{selectedClient.seller_comm_pct || '\u2014'}</span>
+                      </FieldDisplay>
+                    )}
+                    <div className="flex items-center justify-between rounded-2xl border border-black/[0.05] bg-white p-3.5">
+                      <div>
+                        <p className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#9ca3af]">Commission status</p>
+                        <span className={`text-[11px] font-extrabold ${(selectedClient.comm_status || 'Pending') === 'Received' ? 'text-emerald-600' : 'text-amber-600'}`}>
                           {selectedClient.comm_status || 'Pending'}
                         </span>
                       </div>
                       {canEdit && parseFloat(String(selectedClient.total_comm || '0')) > 0 && (
-                        <button
-                          onClick={async () => {
-                            const newStatus = (selectedClient.comm_status || 'Pending') === 'Pending' ? 'Received' : 'Pending';
-                            const updated = { ...selectedClient, comm_status: newStatus };
-                            await persistClient(updated);
-                          }}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
-                            (selectedClient.comm_status || 'Pending') === 'Received'
-                              ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                              : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                          }`}
-                        >
-                          {(selectedClient.comm_status || 'Pending') === 'Received' ? <ToggleLeft className="w-4 h-4" /> : <ToggleRight className="w-4 h-4" />}
-                          Mark as {(selectedClient.comm_status || 'Pending') === 'Pending' ? 'Received' : 'Pending'}
+                        <button type="button"
+                          onClick={() => void persistClient({ ...selectedClient, comm_status: (selectedClient.comm_status || 'Pending') === 'Pending' ? 'Received' : 'Pending' })}
+                          className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-2 text-[11px] font-extrabold transition-colors ${(selectedClient.comm_status || 'Pending') === 'Received' ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}>
+                          {(selectedClient.comm_status || 'Pending') === 'Received' ? <ToggleLeft className="h-4 w-4" /> : <ToggleRight className="h-4 w-4" />}
+                          Mark {(selectedClient.comm_status || 'Pending') === 'Pending' ? 'received' : 'pending'}
                         </button>
                       )}
                     </div>
                   </div>
-                  <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-                    <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">Received Date</div>
-                    {editing ? (
-                      <input value={editData.comm_date ?? selectedClient.comm_date ?? ''} onChange={e => setEditData({ ...editData, comm_date: e.target.value })}
-                        className="w-full bg-transparent border-b border-[#c9a962] text-sm outline-none font-['Inter',sans-serif]" type="date" />
+
+                  <Separator className="my-5" />
+
+                  {/* ── Team assignment ── */}
+                  <SectionLabel icon={<Briefcase className="h-3 w-3" />}>Team assignment</SectionLabel>
+                  <div className="rounded-2xl border border-black/[0.06] bg-gradient-to-br from-[#0A1628]/[0.03] to-transparent p-4">
+                    {canEdit ? (
+                      <div className="flex items-center gap-2">
+                        <select value={assignId} onChange={(e) => setAssignId(e.target.value)} className={CRM_INPUT}>
+                          <option value="">Unassigned — nobody owns this lead</option>
+                          {agents.map((a: any) => (
+                            <option key={a.id} value={a.id}>{a.name} · {a.employee_id} · {a.designation || a.department}</option>
+                          ))}
+                        </select>
+                        <button type="button" onClick={() => handleAssign(assignId)} disabled={assigning || assignId === (selectedClient.assigned_employee ?? '')}
+                          className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#0A1628] px-4 text-[11.5px] font-extrabold text-white transition-colors hover:bg-[#1E3852] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-[40px]">
+                          {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : assignId ? <UserPlus className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
+                          {assigning ? 'Saving…' : assignId ? 'Assign' : 'Unassign'}
+                        </button>
+                      </div>
+                    ) : selectedClient.assigned_employee_info ? (
+                      <p className="text-[12px] font-bold text-[#0A1628]">Owned by {selectedClient.assigned_employee_info.name} ({selectedClient.assigned_employee_info.employee_id})</p>
                     ) : (
-                      <span className="font-semibold text-sm">
-                        {selectedClient.comm_date ? (parseDateSafe(selectedClient.comm_date)?.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) ?? '—') : '\u2014'}
-                      </span>
+                      <p className="text-[12px] text-[#9ca3af]">This lead is unassigned.</p>
+                    )}
+                    {canEdit && (
+                      <div className="mt-3 grid grid-cols-1 gap-2 border-t border-black/[0.05] pt-3 sm:grid-cols-[130px_1fr_auto]">
+                        <select value={statusLog.status} onChange={(e) => setStatusLog((s) => ({ ...s, status: e.target.value }))} className="h-9 rounded-xl border border-black/10 bg-white px-2.5 text-[11.5px] font-bold text-[#0A1628] outline-none">
+                          <option value="">Fresh — no pipeline yet</option>
+                          <option>Site Visit</option>
+                          <option>Token Done</option>
+                          <option>Visit Done</option>
+                          <option>Closed</option>
+                        </select>
+                        <input value={statusLog.note} onChange={(e) => setStatusLog((s) => ({ ...s, note: e.target.value }))}
+                          placeholder="Note for the team (who spoke, what happened)…"
+                          className="h-9 rounded-xl border border-black/10 bg-white px-3 text-[11.5px] text-[#0A1628] outline-none placeholder:text-[#9ca3af] focus:border-[#C9A84C]/60" />
+                        <button type="button" onClick={handleLogStatus} disabled={assigning || !statusLog.status || statusLog.status === selectedClient.status}
+                          className="inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[#C9A84C]/50 bg-white px-3.5 text-[11px] font-extrabold text-[#96782A] transition-colors hover:bg-[#C9A84C]/10 disabled:cursor-not-allowed disabled:opacity-40">
+                          {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Update
+                        </button>
+                      </div>
+                    )}
+                    {assignMsg && <p className="mt-2 text-[11px] font-semibold text-emerald-600">{assignMsg}</p>}
+                  </div>
+
+                  <Separator className="my-5" />
+
+                  {/* ── Activity timeline ── */}
+                  <SectionLabel icon={<History className="h-3 w-3" />}>Activity timeline</SectionLabel>
+                  <div className="relative rounded-2xl border border-black/[0.05] bg-white p-4">
+                    {activityLoading ? (
+                      <div className="space-y-2.5">{[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-black/[0.04]" />)}</div>
+                    ) : !activity || activity.length === 0 ? (
+                      <div className="py-4 text-center">
+                        <History className="mx-auto mb-2 h-5 w-5 text-[#C9A84C]" strokeWidth={1.5} />
+                        <p className="text-[11.5px] text-[#9ca3af]">No activity yet — status changes and assignments will appear here.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-0">
+                        {activity.map((a: any, i: number) => (
+                          <div key={a.id} className={`flex items-start gap-3 py-2.5 ${i > 0 ? 'border-t border-black/[0.04]' : ''}`}>
+                            <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${a.action === 'status_changed' ? 'bg-[#C9A84C]/[0.15] text-[#96782A]' : 'bg-[#0A1628]/[0.06] text-[#0A1628]'}`}>
+                              <Check className="h-3 w-3" strokeWidth={2.2} />
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline gap-x-2">
+                                <p className="text-[12px] font-bold text-[#0A1628]">{activityLabel(a.action)}</p>
+                                {a.status && <span className="text-[11px] font-semibold text-[#96782A]">→ {a.status}</span>}
+                                <span className="ml-auto text-[9.5px] font-semibold text-[#9ca3af]">{activityTime(a.created_at)}</span>
+                              </div>
+                              {a.note && <p className="mt-0.5 break-words text-[11.5px] leading-relaxed text-[#6b7280]">{a.note}</p>}
+                              <p className="mt-0.5 text-[9.5px] font-semibold text-[#c4a84c]">{a.performed_by || 'System'}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
-                </div>
 
-                <Separator className="my-5" />
-
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Team Assignment</div>
-                <div className="rounded-2xl border border-[#f0f0f0] bg-gradient-to-br from-[#0A1628]/[0.03] to-transparent p-4">
-                  {canEdit ? (
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={assignId}
-                        onChange={(e) => setAssignId(e.target.value)}
-                        className="h-10 flex-1 rounded-xl border border-[#c9a962]/40 bg-white px-3 text-xs font-semibold text-[#0A1628] outline-none focus:ring-2 focus:ring-[#c9a962]/30"
-                      >
-                        <option value="">Unassigned — nobody owns this lead</option>
-                        {agents.map((a: any) => (
-                          <option key={a.id} value={a.id}>
-                            {a.name} · {a.employee_id} · {a.designation || a.department}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => handleAssign(assignId)}
-                        disabled={assigning || assignId === (selectedClient.assigned_employee ?? '')}
-                        className="inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-xl bg-[#0A1628] px-4 text-xs font-bold text-white transition-colors hover:bg-[#1E3852] disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : assignId ? <UserPlus className="h-3.5 w-3.5" /> : <UserX className="h-3.5 w-3.5" />}
-                        {assigning ? 'Saving…' : assignId ? 'Assign' : 'Unassign'}
-                      </button>
+                  {/* ── Notes ── */}
+                  <SectionLabel icon={<StickyNote className="h-3 w-3" />}>Notes</SectionLabel>
+                  {editing ? (
+                    <textarea value={editData.notes ?? selectedClient.notes} onChange={(e) => setEditData({ ...editData, notes: e.target.value })} rows={4}
+                      className="w-full resize-none rounded-2xl border border-black/[0.08] bg-white p-4 text-[13px] leading-relaxed outline-none focus:border-[#C9A84C] font-['Inter',sans-serif]"
+                      placeholder="Add notes about this client…" />
+                  ) : selectedClient.notes ? (
+                    <div className="rounded-2xl border border-black/[0.05] border-l-[3px] border-l-[#C9A84C] bg-white p-4 text-[13px] italic leading-relaxed text-[#6b7280]">
+                      &ldquo;{selectedClient.notes}&rdquo;
                     </div>
-                  ) : selectedClient.assigned_employee_info ? (
-                    <p className="text-xs font-semibold text-[#0A1628]">
-                      Owned by {selectedClient.assigned_employee_info.name} ({selectedClient.assigned_employee_info.employee_id})
-                    </p>
                   ) : (
-                    <p className="text-xs text-[#9ca3af]">This lead is unassigned.</p>
+                    <div className="rounded-2xl border border-dashed border-black/10 bg-white py-4 text-center text-[12px] text-[#9ca3af]">
+                      No notes added for this client yet.
+                    </div>
                   )}
-                  {canEdit && (
-                    <div className="mt-3 grid grid-cols-1 gap-2 border-t border-black/[0.05] pt-3 sm:grid-cols-[130px_1fr_auto]">
-                      <select
-                        value={statusLog.status}
-                        onChange={(e) => setStatusLog((s) => ({ ...s, status: e.target.value }))}
-                        className="h-9 rounded-xl border border-black/10 bg-white px-2.5 text-xs font-bold text-[#0A1628] outline-none"
-                      >
-                        <option value="">Fresh — no pipeline yet</option>
-                        <option>Site Visit</option>
-                        <option>Token Done</option>
-                        <option>Visit Done</option>
-                        <option>Closed</option>
-                      </select>
-                      <input
-                        value={statusLog.note}
-                        onChange={(e) => setStatusLog((s) => ({ ...s, note: e.target.value }))}
-                        placeholder="Note for the team (who spoke, what happened)…"
-                        className="h-9 rounded-xl border border-black/10 bg-white px-3 text-xs text-[#0A1628] outline-none placeholder:text-[#9ca3af] focus:border-[#c9a962]/60"
-                      />
-                      <button
-                        onClick={handleLogStatus}
-                        disabled={assigning || !statusLog.status || statusLog.status === selectedClient.status}
-                        className="inline-flex min-h-[36px] items-center justify-center gap-1.5 rounded-xl border border-[#c9a962]/50 bg-white px-3.5 text-xs font-bold text-[#96782A] transition-colors hover:bg-[#C9A84C]/10 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        {assigning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                        Update Status
+
+                  {canEdit && !editing && (
+                    <div className="mt-6 border-t border-black/[0.05] pt-4">
+                      <button type="button" onClick={async () => {
+                        if (!confirm('Delete this client permanently?')) return;
+                        try {
+                          await leadSupabase.crmClients.delete(selectedClient.sno);
+                          setClients(prev => prev.filter(c => c.sno !== selectedClient.sno));
+                          setSelectedClient(null);
+                        } catch (e: any) {
+                          alert(e?.message || 'Failed to delete');
+                        }
+                      }}
+                        className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[11.5px] font-extrabold text-red-600 transition-colors hover:bg-red-100">
+                        <Landmark className="h-3.5 w-3.5" /> Delete lead
                       </button>
                     </div>
                   )}
-                  {assignMsg && <p className="mt-2 text-[11px] font-semibold text-emerald-600">{assignMsg}</p>}
                 </div>
-
-                <Separator className="my-5" />
-
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Client Activity</div>
-                <div className="relative rounded-2xl border border-[#f0f0f0] bg-white p-4">
-                  {activityLoading ? (
-                    <div className="space-y-2.5">
-                      {[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-black/[0.04]" />)}
-                    </div>
-                  ) : !activity || activity.length === 0 ? (
-                    <div className="py-4 text-center">
-                      <History className="mx-auto mb-2 h-5 w-5 text-[#c9a962]" strokeWidth={1.5} />
-                      <p className="text-[11.5px] text-[#9ca3af]">No activity yet — status changes and assignments will appear here.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-0">
-                      {activity.map((a: any, i: number) => (
-                        <div key={a.id} className={`flex items-start gap-3 py-2.5 ${i > 0 ? 'border-t border-black/[0.04]' : ''}`}>
-                          <span className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${a.action === 'status_changed' ? 'bg-[#C9A84C]/[0.15] text-[#96782A]' : 'bg-[#0A1628]/[0.06] text-[#0A1628]'}`}>
-                            <Check className="h-3 w-3" strokeWidth={2.2} />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-baseline gap-x-2">
-                              <p className="text-[12px] font-bold text-[#0A1628]">{activityLabel(a.action)}</p>
-                              {a.status && <span className="text-[11px] font-semibold text-[#96782A]">→ {a.status}</span>}
-                              <span className="ml-auto text-[9.5px] font-semibold text-[#9ca3af]">{activityTime(a.created_at)}</span>
-                            </div>
-                            {a.note && <p className="mt-0.5 break-words text-[11.5px] leading-relaxed text-[#6b7280]">{a.note}</p>}
-                            <p className="mt-0.5 text-[9.5px] font-semibold text-[#c4a84c]">{a.performed_by || 'System'}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <Separator className="my-5" />
-
-                <div className="text-[10.5px] uppercase tracking-[1.4px] text-[#9ca3af] mb-3">Notes</div>
-                {editing ? (
-                  <textarea
-                    value={editData.notes ?? selectedClient.notes}
-                    onChange={(e) => setEditData({ ...editData, notes: e.target.value })}
-                    className="w-full bg-white border border-[#f0f0f0] border-l-[3px] border-l-[#c9a962] rounded-xl p-4 text-sm text-[#6b7280] leading-relaxed italic outline-none resize-none font-['Inter',sans-serif]"
-                    rows={4}
-                    placeholder="Add notes about this client..."
-                  />
-                ) : selectedClient.notes ? (
-                  <div className="bg-white border border-[#f0f0f0] border-l-[3px] border-l-[#c9a962] rounded-xl p-4 text-sm text-[#6b7280] leading-relaxed italic">
-                    &ldquo;{selectedClient.notes}&rdquo;
-                  </div>
-                ) : (
-                  <div className="text-center text-[#9ca3af] text-[12.5px] py-3.5">
-                    No notes added for this client yet.
-                  </div>
-                )}
-
-                {canEdit && !editing && (
-                  <div className="mt-6 pt-4 border-t border-border">
-                    <button onClick={async () => {
-                      if (!confirm('Delete this client permanently?')) return;
-                      try {
-                        await leadSupabase.crmClients.delete(selectedClient.sno);
-                        setClients(prev => prev.filter(c => c.sno !== selectedClient.sno));
-                        setSelectedClient(null);
-                      } catch (e: any) {
-                        alert(e?.message || 'Failed to delete');
-                      }
-                    }}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-all cursor-pointer">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                      Delete Client
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </SheetContent>
       </Sheet>
 
+      {/* ═══════════ ADD LEAD ═══════════ */}
       <Dialog open={addOpen} onOpenChange={(o) => { setAddOpen(o); if (!o) setAddError(''); }}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[520px]">
           <DialogHeader>
-            <DialogTitle className="font-['Inter',sans-serif] text-xl">Add Client</DialogTitle>
+            <DialogTitle className="font-['Inter',sans-serif] text-xl">Add lead</DialogTitle>
           </DialogHeader>
           <div className="space-y-3.5 pt-2">
-            {addError && <p className="text-xs text-red-500">{addError}</p>}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {addError && <p className="text-xs font-semibold text-red-500">{addError}</p>}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Name *</label>
-                <input value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} placeholder="Client name"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Name *</label>
+                <input value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} placeholder="Client name" className={CRM_INPUT} />
               </div>
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Phone</label>
-                <input value={addForm.phone} onChange={e => setAddForm({...addForm, phone: e.target.value})} placeholder="Phone number" type="tel"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Phone</label>
+                <input value={addForm.phone} onChange={e => setAddForm({...addForm, phone: e.target.value})} placeholder="Phone number" type="tel" className={CRM_INPUT} />
               </div>
             </div>
-            <div>
-              <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-2">Role</label>
-              <select value={addForm.client_role} onChange={e => setAddForm({...addForm, client_role: e.target.value})}
-                className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
-                <option value="Buyer">Buyer</option>
-                <option value="Seller">Seller</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Email</label>
-                <input value={addForm.email} onChange={e => setAddForm({...addForm, email: e.target.value})} placeholder="email@example.com" type="email"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Role</label>
+                <select value={addForm.client_role} onChange={e => setAddForm({...addForm, client_role: e.target.value})} className={CRM_INPUT}>
+                  <option value="Buyer">Buyer</option>
+                  <option value="Seller">Seller</option>
+                </select>
               </div>
+              <div>
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Email</label>
+                <input value={addForm.email} onChange={e => setAddForm({...addForm, email: e.target.value})} placeholder="email@example.com" type="email" className={CRM_INPUT} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {addForm.client_role === 'Seller' ? (
                 <div>
-                  <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Property Category</label>
-                  <select value={addForm.type} onChange={e => setAddForm({...addForm, type: e.target.value, property_subtype: ''})}
-                    className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
+                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Property category</label>
+                  <select value={addForm.type} onChange={e => setAddForm({...addForm, type: e.target.value, property_subtype: ''})} className={CRM_INPUT}>
                     <option value="">Select</option>
                     <option value="Land">Land</option>
                     <option value="PG Building">PG Building</option>
@@ -1058,55 +1040,37 @@ export default function CrmLeads() {
                 </div>
               ) : (
                 <div>
-                  <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Property Type</label>
-                  <input value={addForm.type} onChange={e => setAddForm({...addForm, type: e.target.value})} placeholder="e.g. Villa, Plot, Apt"
-                    className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                  <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Property type</label>
+                  <input value={addForm.type} onChange={e => setAddForm({...addForm, type: e.target.value})} placeholder="e.g. Villa, Plot, Apt" className={CRM_INPUT} />
                 </div>
               )}
-            </div>
-            {addForm.client_role === 'Seller' && addForm.type === 'Land' && (
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Property Sub-type</label>
-                <select value={addForm.property_subtype} onChange={e => setAddForm({...addForm, property_subtype: e.target.value})}
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
-                  <option value="">Select</option>
-
-                </select>
-              </div>
-            )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">{addForm.client_role === 'Seller' ? 'Price' : 'Budget'}</label>
-                <input value={addForm.budget} onChange={e => setAddForm({...addForm, budget: e.target.value})} placeholder="e.g. 1.5 Cr"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
-              </div>
-              <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Location</label>
-                <input value={addForm.location} onChange={e => setAddForm({...addForm, location: e.target.value})} placeholder="Preferred area"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">{addForm.client_role === 'Seller' ? 'Price' : 'Budget'}</label>
+                <input value={addForm.budget} onChange={e => setAddForm({...addForm, budget: e.target.value})} placeholder="e.g. 1.5 Cr" className={CRM_INPUT} />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Source</label>
-                <input value={addForm.source} onChange={e => setAddForm({...addForm, source: e.target.value})} placeholder="e.g. Instagram, Referral"
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Location</label>
+                <input value={addForm.location} onChange={e => setAddForm({...addForm, location: e.target.value})} placeholder="Preferred area" className={CRM_INPUT} />
               </div>
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Lead Type</label>
-                <select value={addForm.lead_type} onChange={e => setAddForm({...addForm, lead_type: e.target.value})}
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Source</label>
+                <input value={addForm.source} onChange={e => setAddForm({...addForm, source: e.target.value})} placeholder="e.g. Instagram, Referral" className={CRM_INPUT} />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Lead type</label>
+                <select value={addForm.lead_type} onChange={e => setAddForm({...addForm, lead_type: e.target.value})} className={CRM_INPUT}>
                   <option value="new lead">New Lead</option>
                   <option value="old lead">Old Lead</option>
                 </select>
               </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Status</label>
-                <select value={addForm.status} onChange={e => setAddForm({...addForm, status: e.target.value})}
-                  className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors">
-                  <option value="">Fresh — no pipeline yet</option>
+                <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Status</label>
+                <select value={addForm.status} onChange={e => setAddForm({...addForm, status: e.target.value})} className={CRM_INPUT}>
+                  <option value="">New — fresh lead</option>
                   <option>Site Visit</option>
                   <option>Token Done</option>
                   <option>Visit Done</option>
@@ -1115,32 +1079,53 @@ export default function CrmLeads() {
               </div>
             </div>
             <div>
-              <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Notes</label>
-              <textarea value={addForm.notes} onChange={e => setAddForm({...addForm, notes: e.target.value})} placeholder="Any notes about the client..."
-                className="w-full h-16 px-3 py-2 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors resize-none" />
+              <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Notes</label>
+              <textarea value={addForm.notes} onChange={e => setAddForm({...addForm, notes: e.target.value})} placeholder="Any notes about the client…" className={`${CRM_INPUT} h-16 resize-none py-2`} />
             </div>
             <div>
-              <label className="text-[11px] uppercase tracking-[1px] font-bold text-muted-foreground block mb-1">Property Link</label>
-              <input value={addForm.property_link} onChange={e => setAddForm({...addForm, property_link: e.target.value})} placeholder="https://example.com/property" type="url"
-                className="w-full h-9 px-3 rounded-xl border border-border bg-card text-sm outline-none focus:border-emerald-400 transition-colors" />
+              <label className="mb-1 block text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#6b7280]">Property link</label>
+              <input value={addForm.property_link} onChange={e => setAddForm({...addForm, property_link: e.target.value})} placeholder="https://example.com/property" type="url" className={CRM_INPUT} />
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => setAddOpen(false)}
-                className="px-4 py-2.5 rounded-xl border border-border text-xs font-bold text-muted-foreground bg-card hover:bg-accent transition-colors">Cancel</button>
-              <button onClick={handleAddClient} disabled={addSaving || !addForm.name.trim()}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-gradient-to-br from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 transition-all disabled:opacity-50">
-                {addSaving ? 'Adding...' : 'Add Client'}
-              </button>
+              <CrmBtn variant="ghost" onClick={() => setAddOpen(false)}>Cancel</CrmBtn>
+              <CrmBtn variant="gold" onClick={handleAddClient} disabled={addSaving || !addForm.name.trim()}>
+                {addSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                {addSaving ? 'Adding…' : 'Add lead'}
+              </CrmBtn>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
       <style>{`
-        .crm-search:focus { border-color: #c9a962 !important; box-shadow: 0 0 0 4px rgba(201,169,98,0.12) !important; }
+        .crm-search:focus { border-color: #C9A84C !important; box-shadow: 0 0 0 4px rgba(201,168,76,0.14) !important; }
         @media (max-width: 640px) { .crm-search { font-size: 15px !important; } }
       `}</style>
     </div>
+  );
+}
+
+/* ═══════════════ small shared pieces ═══════════════ */
+
+const c_role = (c: SheetClient) => c.client_role || 'Buyer';
+
+/** Left spine on every card — stage color at a glance (Zoho-style row highlight). */
+const STAGE_STRIPE: Record<string, string> = {
+  '': 'bg-[#C9A84C]',
+  'site visit': 'bg-amber-400',
+  'token done': 'bg-blue-500',
+  'visit done': 'bg-indigo-400',
+  closed: 'bg-emerald-500',
+};
+
+
+
+function SectionLabel({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <p className="mb-2.5 mt-6 flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#6b7280] first:mt-0">
+      <span className="text-[#C9A84C]">{icon}</span>
+      {children}
+    </p>
   );
 }
 
@@ -1154,19 +1139,15 @@ function FieldDisplay({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-[#f0f0f0] rounded-xl p-3.5">
-      <div className="text-[10.5px] uppercase tracking-[1px] text-[#9ca3af] mb-1">{label}</div>
-      {edit ? (
-        inputFor(label, value, onChange)
-      ) : (
-        <div className="font-semibold text-sm">{children}</div>
-      )}
+    <div className="rounded-2xl border border-black/[0.05] bg-white p-3.5">
+      <p className="mb-1 text-[9.5px] font-extrabold uppercase tracking-[0.14em] text-[#9ca3af]">{label}</p>
+      {edit ? inputFor(label, value, onChange) : <div className="text-[13px] font-semibold">{children}</div>}
     </div>
   );
 }
 
 function inputFor(label: string, value: string, onChange: (v: string) => void) {
-  const base = 'w-full bg-transparent border-b border-[#c9a962] text-sm outline-none font-[\'Inter\',sans-serif]';
+  const base = 'w-full border-b border-[#C9A84C] bg-transparent text-[13px] font-semibold text-[#0A1628] outline-none font-[\'Inter\',sans-serif]';
   if (label.toLowerCase().includes('phone')) {
     return <input value={value} onChange={(e) => onChange(e.target.value)} className={base} type="tel" />;
   }
