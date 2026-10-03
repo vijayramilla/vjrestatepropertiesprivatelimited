@@ -386,6 +386,91 @@ export interface LedgerCompanyProfile {
   logo_url?: string;
 }
 
+/* ── LEDGERS: company master data (incorporation baseline) ────────────── */
+
+export interface LedgerShareCapital {
+  id?: string;
+  capital_type?: string;
+  authorised_amount: number;
+  authorised_shares: number;
+  subscribed_amount: number;
+  subscribed_shares: number;
+  face_value: number;
+  class_name: string;
+  effective_from: string;
+  effective_to?: string | null;
+  source?: string;
+  verification_status?: string;
+}
+
+export interface LedgerShareholder {
+  id?: string;
+  name: string;
+  type?: string;
+  pan?: string;
+  occupation?: string;
+  original_subscriber?: boolean;
+  current_shareholder?: boolean;
+  source?: string;
+  verification_status?: string;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  notes?: string;
+}
+
+export interface LedgerShareholding {
+  id?: string;
+  shareholder_id: string;
+  snapshot_type: 'incorporation' | 'current' | 'historical';
+  shares_held: number;
+  share_class?: string;
+  face_value?: number;
+  subscription_value?: number;
+  effective_from: string;
+  effective_to?: string | null;
+  source?: string;
+  verification_status?: string;
+}
+
+export interface LedgerAddressRecord {
+  id?: string;
+  address_type: string;
+  full_address: string;
+  state?: string;
+  district?: string;
+  city?: string;
+  pin?: string;
+  effective_from: string;
+  effective_to?: string | null;
+  source?: string;
+  verification_status?: string;
+}
+
+export interface LedgerMoaObject {
+  id?: string;
+  object_type?: string;
+  title: string;
+  description?: string;
+  moa_supported?: boolean;
+  currently_conducted?: string;
+  source?: string;
+}
+
+export interface CompanyMasterData {
+  ledger_share_capital: LedgerShareCapital[];
+  ledger_shareholders: LedgerShareholder[];
+  ledger_shareholding: LedgerShareholding[];
+  ledger_address_history: LedgerAddressRecord[];
+  ledger_moa_objects: LedgerMoaObject[];
+  ledger_constitution: { private_company?: boolean; limited_by_shares?: boolean; table_f_applicable?: boolean; aoa_version?: string } | null;
+}
+
+export const fetchCompanyMaster = () =>
+  callDataProxy('ledger.master.get', {}) as Promise<CompanyMasterData>;
+
+export const saveCompanyMasterRow = (table: string, row: Record<string, unknown> & { id?: string }) =>
+  callDataProxy('ledger.master.set', { table, row }) as Promise<{ id: string | null }>;
+
 export const fetchLedgerProfile = () => callDataProxy('ledger.profile.get', {});
 
 export const saveLedgerProfile = (p: Partial<LedgerCompanyProfile>) =>
@@ -410,6 +495,253 @@ export async function uploadLedgerLogo(file: File): Promise<string> {
   const res = await callDataProxy('ledger.logo.upload', { dataBase64, contentType: file.type || 'image/png' });
   return res.url as string;
 }
+
+/* ── LEDGERS: registers — payments · notices · directors · documents ─────── */
+
+export type LedgerRegister = 'payments' | 'notices' | 'directors' | 'documents';
+
+export interface LedgerPayment {
+  id?: string;
+  payment_type?: string;
+  authority?: string;
+  compliance_item_id?: string | null;
+  title?: string;
+  period?: string;
+  fy?: string;
+  amount?: number;
+  due_date?: string | null;
+  paid_date?: string | null;
+  payment_ref?: string;
+  challan_url?: string;
+  status?: string; // upcoming | due | paid | overdue | reconciled
+  notes?: string;
+}
+
+export interface LedgerNotice {
+  id?: string;
+  notice_type?: string;
+  authority?: string;
+  notice_no?: string;
+  notice_date?: string | null;
+  received_date?: string | null;
+  response_deadline?: string | null;
+  subject?: string;
+  amount_involved?: number;
+  responsible?: string;
+  advisor?: string;
+  response_summary?: string;
+  status?: string; // open | drafting | response_filed | resolved | closed
+  documents_url?: string;
+  notes?: string;
+}
+
+export interface LedgerDirector {
+  id?: string;
+  name?: string;
+  din?: string;
+  designation?: string;
+  appointment_date?: string | null;
+  resignation_date?: string | null;
+  kyc_status?: string; // pending | done | na
+  kyc_due_date?: string | null;
+  dsc_status?: string; // active | expired | na
+  dsc_expiry_date?: string | null;
+  email?: string;
+  phone?: string;
+  notes?: string;
+}
+
+export interface LedgerDocument {
+  id?: string;
+  name?: string;
+  doc_type?: string;
+  fy?: string;
+  period?: string;
+  entity_type?: string; // item | case | payment | notice | director | company
+  entity_id?: string | null;
+  url?: string;
+  storage_path?: string;
+  expiry_date?: string | null;
+  version_no?: number;
+  parent_id?: string | null;
+  notes?: string;
+  uploaded_by?: string;
+}
+
+async function ledgerRows<T>(register: LedgerRegister, fy?: string): Promise<T[]> {
+  const res = await callDataProxy('ledger.rows.list', { register, ...(fy ? { fy } : {}) });
+  return (res?.data ?? []) as T[];
+}
+
+export const fetchLedgerPayments = (fy?: string) => ledgerRows<LedgerPayment>('payments', fy);
+export const fetchLedgerNotices = () => ledgerRows<LedgerNotice>('notices');
+export const fetchLedgerDirectors = () => ledgerRows<LedgerDirector>('directors');
+export const fetchLedgerDocuments = (fy?: string) => ledgerRows<LedgerDocument>('documents', fy);
+
+export const upsertLedgerRow = (register: LedgerRegister, row: Record<string, unknown> & { id?: string }) =>
+  callDataProxy('ledger.rows.upsert', { register, ...row }) as Promise<{ id: string | null }>;
+
+export const deleteLedgerRow = (register: LedgerRegister, id: string) =>
+  callDataProxy('ledger.rows.delete', { register, id }) as Promise<{ id: string }>;
+
+const LEDGER_DOC_TYPES = /^application\/(pdf|vnd\.ms-excel|msword)|^image\/(png|jpeg|webp)$|^application\/vnd\.openxmlformats-officedocument\.(spreadsheetml\.sheet|wordprocessingml\.document)$|^text\/csv$/;
+
+/**
+ * Upload a compliance document into the PRIVATE `ledger-docs` bucket via the
+ * data-proxy (service-role write). Returns the storage path — the document
+ * row stores it and reads go through short-lived signed URLs (ledgerDocumentUrl).
+ */
+export async function uploadLedgerDocument(file: File): Promise<string> {
+  if (!LEDGER_DOC_TYPES.test(file.type)) {
+    throw new Error('Only PDF, image, Excel, Word or CSV files are allowed');
+  }
+  if (file.size > 3 * 1024 * 1024) throw new Error('Documents must be under 3 MB');
+  const dataBase64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+    reader.onerror = () => reject(new Error('Could not read the file'));
+    reader.readAsDataURL(file);
+  });
+  const res = await callDataProxy('ledger.doc.upload', { dataBase64, contentType: file.type, name: file.name });
+  return res.path as string;
+}
+
+/** Short-lived (60 min) signed URL for a document in the private bucket. */
+export const ledgerDocumentUrl = (path: string) =>
+  callDataProxy('ledger.doc.url', { path }) as Promise<{ url: string }>;
+
+/* ── LEDGERS: server-side rule engine + reminder engine ────────────────── */
+
+/** Runs the rule engine on the backend and inserts missing obligations. */
+export const generateLedgerCalendar = (fyStartYear: number) =>
+  callDataProxy('ledger.generate', { fyStartYear }) as Promise<{ generated: number; saved: number; ruleVersion: string }>;
+
+export interface LedgerNotification {
+  id?: string;
+  key?: string;
+  kind?: string; // compliance | hearing | notice | payment | kyc | document
+  title?: string;
+  body?: string;
+  due_date?: string | null;
+  days_delta?: number | null;
+  severity?: string; // info | warning | urgent
+  read_at?: string | null;
+  created_at?: string;
+}
+
+export const fetchLedgerNotifications = () =>
+  callDataProxy('ledger.notifications.list', {}) as Promise<{ data: LedgerNotification[] }>;
+
+/* ── LEDGERS: GST engine (spec §22-26/§52/§66) ───────────────────────────
+ *
+ * Three independent concepts: gst status, threshold monitoring, compliance
+ * generation. Regular/Composition are mutually exclusive taxpayer modes.
+ * Exception facts are true/false/null (null = unknown → requires review).
+ */
+
+export type GstStatus = 'not_registered' | 'registration_required' | 'application_in_progress' | 'registered_regular' | 'registered_composition' | 'voluntarily_registered' | 'cancelled' | 'suspended' | 'requires_review';
+
+export interface GstProfile {
+  status: GstStatus;
+  threshold_monitoring_enabled: boolean;
+  threshold_amount: number;
+  registration_type?: 'regular' | 'composition' | null;
+  gstin?: string;
+  registration_state?: string;
+  effective_date?: string | null;
+  cancellation_date?: string | null;
+  compliance_generation_enabled: boolean;
+  filing_frequency?: 'monthly' | 'qrmp';
+  voluntary_registration?: boolean;
+  interstate_taxable_supply?: boolean | null;
+  compulsory_registration_condition?: boolean | null;
+  exempt_supply_only?: boolean | null;
+  ecommerce_condition?: boolean | null;
+  agent_condition?: boolean | null;
+  reverse_charge_condition?: boolean | null;
+  other_state_registration?: boolean | null;
+  source_url?: string;
+  source_title?: string;
+  rule_version?: string;
+  last_verified_at?: string | null;
+}
+
+export interface GstTurnoverRecord {
+  id?: string;
+  period: string; // 'FY 2026-27' (annual) or '2026-04' (monthly)
+  period_type: 'annual' | 'monthly';
+  fy: string;
+  opening_turnover?: number;
+  taxable_supplies?: number;
+  exempt_supplies?: number;
+  exports?: number;
+  interstate_supplies?: number;
+  other_included?: number;
+  inward_rcm?: number;
+  taxes_excluded?: number;
+  aggregate_turnover: number;
+  as_of_date?: string | null;
+  source?: string;
+  verified?: boolean;
+  notes?: string;
+}
+
+export interface GstEvaluation {
+  status: GstStatus;
+  registered: boolean;
+  generation: boolean;
+  monitoring: boolean;
+  threshold: number;
+  turnover: number;
+  pctUsed: number;
+  remaining: number;
+  crossed: boolean;
+  reviewRequired: boolean;
+  unknownExceptions: number;
+}
+
+export interface GstThresholdEvent {
+  id?: string;
+  fy?: string;
+  threshold?: number;
+  previous_turnover?: number;
+  current_turnover?: number;
+  crossing_amount?: number;
+  crossing_date?: string;
+  liability_status?: string; // requires_review | liability_established | no_liability | registered | closed
+  registration_deadline?: string | null;
+  deadline_basis?: string;
+  reviewed_by?: string;
+  review_notes?: string;
+}
+
+export const fetchGstProfile = () =>
+  callDataProxy('ledger.gst.get', {}) as Promise<{ data: GstProfile | null }>;
+
+export const saveGstProfile = (p: Partial<GstProfile>) =>
+  callDataProxy('ledger.gst.set', p) as Promise<{ ok: boolean }>;
+
+export const fetchGstTurnover = () =>
+  callDataProxy('ledger.gst.turnover.list', {}) as Promise<{ data: GstTurnoverRecord[] }>;
+
+export const saveGstTurnover = (r: Partial<GstTurnoverRecord> & { period: string; fy: string; period_type: 'annual' | 'monthly' }) =>
+  callDataProxy('ledger.gst.turnover.set', r) as Promise<{ id: string | null }>;
+
+export const evaluateGstThreshold = (fy: string) =>
+  callDataProxy('ledger.gst.evaluate', { fy }) as Promise<{ eval: GstEvaluation; event: GstThresholdEvent | null }>;
+
+export const fetchGstEvents = () =>
+  callDataProxy('ledger.gst.events.list', {}) as Promise<{ data: GstThresholdEvent[] }>;
+
+/** Manual reminder-scan trigger — the same scan the nightly cron runs. */
+export const runLedgerReminders = () =>
+  callDataProxy('ledger.reminders.run', {}) as Promise<{ today: string; candidates: number; created: number }>;
+
+export const markLedgerNotificationRead = (id: string) =>
+  callDataProxy('ledger.notification.read', { id }) as Promise<{ id: string }>;
+
+export const markAllLedgerNotificationsRead = () =>
+  callDataProxy('ledger.notifications.readAll', {}) as Promise<{ ok: boolean }>;
 
 export function subscribeSupabaseProperties(
   onData: (docs: { id: string; data: Record<string, unknown> }[]) => void,

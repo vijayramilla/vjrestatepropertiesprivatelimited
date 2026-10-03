@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  AlertTriangle, ArrowLeft, ArrowRight, BellRing, Building2, CalendarDays, CalendarPlus,
-  Check, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Clock, Download, FileText,
+  AlertTriangle, ArrowLeft, ArrowRight, Bell, BellRing, Building2, CalendarDays, CalendarPlus,
+  Check, CheckCheck, CheckCircle2, ChevronDown, ChevronRight, ClipboardList, Clock, Download, FileText,
   Gavel, History, Landmark, Loader2, Pencil, Plus, RefreshCw, Scale, Search, Settings2,
   ShieldCheck, Sparkles, Trash2, Upload, X,
 } from 'lucide-react';
@@ -12,16 +12,26 @@ import {
   fetchLedgerItems, upsertLedgerItem, deleteLedgerItem,
   fetchLedgerCases, upsertLedgerCase, deleteLedgerCase,
   fetchLedgerProfile, saveLedgerProfile, fetchLedgerActivity, uploadLedgerLogo,
+  fetchLedgerPayments, fetchLedgerNotices, fetchLedgerDirectors, fetchLedgerDocuments,
+  generateLedgerCalendar, fetchLedgerNotifications, runLedgerReminders,
+  markLedgerNotificationRead, markAllLedgerNotificationsRead,
+  fetchGstProfile, saveGstProfile, fetchGstTurnover, saveGstTurnover, evaluateGstThreshold,
+  fetchCompanyMaster, saveCompanyMasterRow, upsertLedgerRow,
+  type GstProfile, type GstTurnoverRecord, type GstEvaluation, type GstThresholdEvent, type GstStatus,
+  type CompanyMasterData, type LedgerShareholder, type LedgerMoaObject,
+  type LedgerNotification,
   type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile,
+  type LedgerPayment, type LedgerNotice, type LedgerDirector, type LedgerDocument,
 } from '@/lib/supabaseData';
+import { kycState, deriveKyc } from '@/data/directorKyc';
+import { PaymentsRegister, NoticesRegister, DirectorsRegister, DocumentsRegister, type DocLink } from '@/pages/crm/LedgerRegisters';
 import {
-  generateComplianceCalendar, riskBand, daysUntil, complianceToIcs,
+  riskBand, daysUntil, complianceToIcs,
   ENTITY_TYPES, REGISTRATION_OPTIONS, currentFyLabel, availableFyLabels,
-  rulesForProfile, type RiskBand, type EntityType,
+  type RiskBand,
 } from '@/data/ledgerComplianceRules';
 
 /* ── Palette / shared styles ── */
-const NAVY = '#0A1628';
 
 const LAW_STYLES: Record<string, { chip: string; dot: string; icon: typeof Landmark }> = {
   ROC: { chip: 'bg-[#0A1628]/[0.06] text-[#0A1628]', dot: 'bg-[#0A1628]', icon: Landmark },
@@ -46,7 +56,14 @@ const fmtINR = (n: number) => (n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} 
 const fmtDate = (iso: string) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const entityLabel = (v: string) => ENTITY_TYPES.find((e) => e.value === v)?.label ?? v;
 
-type Tab = 'compliances' | 'dashboard' | 'calendar' | 'cases' | 'audit' | 'profile';
+const HeaderChip = ({ k, v }: { k: string; v: string }) => (
+  <span className="rounded-lg bg-white/70 px-2 py-1 ring-1 ring-black/[0.06]">
+    <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{k} </span>
+    <span className="text-[11px] font-bold text-[#0A1628]">{v}</span>
+  </span>
+);
+
+type Tab = 'compliances' | 'dashboard' | 'calendar' | 'gst' | 'payments' | 'notices' | 'documents' | 'directors' | 'cases' | 'audit' | 'profile';
 
 export default function CrmLedgers() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -55,11 +72,20 @@ export default function CrmLedgers() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [items, setItems] = useState<LedgerComplianceItem[]>([]);
   const [cases, setCases] = useState<LedgerLegalCase[]>([]);
+  const [notices, setNotices] = useState<LedgerNotice[]>([]);
+  const [payments, setPayments] = useState<LedgerPayment[]>([]);
+  const [directors, setDirectors] = useState<LedgerDirector[]>([]);
+  const [documents, setDocuments] = useState<LedgerDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [seededCount, setSeededCount] = useState<number | null>(null);
   const [genError, setGenError] = useState('');
+  const [genSummary, setGenSummary] = useState<{ rulesEvaluated: number; applicable: number; notApplicable: number; saved: number; skippedDuplicates: number } | null>(null);
   const [selectedFy, setSelectedFy] = useState('');
+  // ── GST engine state (spec §66: status / monitoring / generation) ──
+  const [gstProfile, setGstProfile] = useState<GstProfile | null>(null);
+  const [gstEval, setGstEval] = useState<GstEvaluation | null>(null);
+  const [gstEvent, setGstEvent] = useState<GstThresholdEvent | null>(null);
 
   /* ── Load profile first — drives everything else ── */
   useEffect(() => {
@@ -83,11 +109,30 @@ export default function CrmLedgers() {
 
   const loadItems = async () => {
     setLoading(true);
-    try {
-      const [i, c] = await Promise.all([fetchLedgerItems(selectedFy || undefined), fetchLedgerCases()]);
-      setItems((i.data ?? []) as LedgerComplianceItem[]);
-      setCases((c.data ?? []) as LedgerLegalCase[]);
-    } catch { /* tables may not exist yet */ }
+    // Each register degrades to [] on its own — an older proxy or a missing
+    // table must never blank out the registers that did load. Older ledger
+    // fetchers resolve to { data: [...] }, newer ones to a plain array —
+    // normalise both so state is always a real array.
+    const safe = async <T,>(p: Promise<T[] | { data?: unknown[] }>): Promise<T[]> => {
+      try {
+        const r = await p;
+        return (Array.isArray(r) ? r : (r?.data ?? [])) as T[];
+      } catch { return []; }
+    };
+    const [i, c, n, p, dr, dc] = await Promise.all([
+      safe<LedgerComplianceItem>(fetchLedgerItems(selectedFy || undefined)),
+      safe<LedgerLegalCase>(fetchLedgerCases()),
+      safe<LedgerNotice>(fetchLedgerNotices()),
+      safe<LedgerPayment>(fetchLedgerPayments(selectedFy || undefined)),
+      safe<LedgerDirector>(fetchLedgerDirectors()),
+      safe<LedgerDocument>(fetchLedgerDocuments()),
+    ]);
+    setItems(i);
+    setCases(c);
+    setNotices(n);
+    setPayments(p);
+    setDirectors(dr);
+    setDocuments(dc);
     setLoading(false);
   };
   useEffect(() => { if (selectedFy) void loadItems(); }, [selectedFy]);
@@ -98,65 +143,91 @@ export default function CrmLedgers() {
     await saveLedgerProfile(merged);
   };
 
-  /* ── Generate calendar from profile + rules engine ── */
+  /* ── Generate calendar — the rule engine runs SERVER-side in the data proxy,
+     so statutory logic never depends on the browser and each obligation is
+     stamped with the rule version that produced it. Existing rows (manual
+     edits, filed status, ARN) are never touched. ── */
   const seedCalendar = async () => {
     if (!profile) return;
     setSeeding(true);
     setGenError('');
     try {
-      const fyStartYear = Number(selectedFy.split(' ')[1]);
+      // Label is "FY 2026-27" — take the first 4-digit year (the FY start).
+      // Number("2026-27") would be NaN and silently abort generation.
+      const fyStartYear = Number(selectedFy.match(/(\d{4})/)?.[1]);
       if (!Number.isFinite(fyStartYear)) {
         setGenError('No financial year selected — pick an FY in the dropdown and try again.');
         setSeeding(false);
         return;
       }
-      const generated = generateComplianceCalendar({
-        fyStartYear,
-        entityType: (profile.entity_type as EntityType) ?? 'pvtltd',
-        registrations: profile.registrations ?? [],
-        incorporatedOn: profile.incorporated_on,
-        gstScheme: (profile.gst_scheme as 'monthly' | 'qrmp') ?? 'monthly',
-        // Compliance cleared till today: past-due obligations in this FY are
-        // seeded as 'filed' (with the due date as filed date) so the queue
-        // opens with only upcoming work. Flip any of them manually if missed.
-        markPastFiled: true,
-      });
-      if (generated.length === 0) {
-        const why: string[] = [];
-        if (!profile.entity_type) why.push('entity type is missing');
-        if (!profile.registrations?.length) why.push('no registrations are ticked');
-        why.push(`no rules match a ${(profile.entity_type ?? '—')} with those registrations — tick GST/TDS/PF etc. in Company Profile`);
-        setGenError(`Generated 0 obligations: ${why.join('; ')}.`);
-        setSeeding(false);
-        return;
-      }
-      const existingKeys = new Set(items.map((i) => `${i.form}|${i.period}`));
-      const fresh = generated.filter((g) => !existingKeys.has(`${g.form}|${g.period}`));
-      let saved = 0;
-      const failures: string[] = [];
-      for (const g of fresh) {
-        // Keep the generated status (past due dates arrive as 'filed' —
-        // compliance cleared till today) instead of forcing 'pending'.
-        try {
-          await upsertLedgerItem({ ...g } as unknown as LedgerComplianceItem);
-          saved++;
-        } catch (err) {
-          failures.push(`${g.form}: ${err instanceof Error ? err.message : 'save failed'}`);
-          if (failures.length >= 3) break; // enough to diagnose
-        }
-      }
+      const result = await generateLedgerCalendar(fyStartYear);
       await loadItems();
-      if (saved === 0 && failures.length > 0) {
-        setGenError(`Could not save obligations — ${failures[0]}${failures.length > 1 ? ` (+${failures.length - 1} more)` : ''}.`);
+      // Spec §46: show the full evaluation summary after every generation.
+      const s = (result as { summary?: { rulesEvaluated?: number; applicable?: number; notApplicable?: number } }).summary;
+      setGenSummary({
+        rulesEvaluated: s?.rulesEvaluated ?? result.generated ?? 0,
+        applicable: s?.applicable ?? result.generated ?? 0,
+        notApplicable: s?.notApplicable ?? 0,
+        saved: result.saved ?? 0,
+        skippedDuplicates: (result as { skippedDuplicates?: number }).skippedDuplicates ?? 0,
+      });
+      setTimeout(() => setGenSummary(null), 8000);
+      void loadGst(); // thresholds may have been crossed by new turnover data
+      if ((result.saved ?? 0) === 0) {
+        setGenError(`Nothing new to add — every evaluated obligation for ${selectedFy} already exists. Rule version v${result.ruleVersion}.`);
       } else {
-        setSeededCount(saved);
-        if (failures.length > 0) setGenError(`${saved} saved, ${failures.length}+ failed — ${failures[0]}`);
+        setSeededCount(result.saved);
         setTimeout(() => setSeededCount(null), 5000);
       }
     } catch (e) {
       setGenError(e instanceof Error ? e.message : 'Could not generate calendar');
     }
     setSeeding(false);
+  };
+
+  /* ── Reminder bell (server scan + in-app notifications) ── */
+  const [notifs, setNotifs] = useState<LedgerNotification[]>([]);
+  const [notifsOpen, setNotifsOpen] = useState(false);
+  const [remindersRunning, setRemindersRunning] = useState(false);
+  const loadNotifs = useCallback(async () => {
+    try {
+      const r = await fetchLedgerNotifications();
+      setNotifs(Array.isArray(r?.data) ? r.data : []);
+    } catch { setNotifs([]); }
+  }, []);
+  useEffect(() => { void loadNotifs(); }, [loadNotifs]);
+
+  /* ── GST engine loaders — profile + threshold evaluation for this FY ── */
+  const loadGst = useCallback(async () => {
+    if (!selectedFy) return;
+    try {
+      const [p, e] = await Promise.all([
+        fetchGstProfile().catch(() => ({ data: null })),
+        evaluateGstThreshold(selectedFy).catch(() => null),
+      ]);
+      setGstProfile(p.data);
+      if (e) { setGstEval(e.eval); setGstEvent(e.event); }
+    } catch { /* GST tables may not exist yet — card simply hides */ }
+  }, [selectedFy]);
+  useEffect(() => { void loadGst(); }, [loadGst]);
+
+  const unread = notifs.filter((n) => !n.read_at).length;
+  const runReminders = async () => {
+    setRemindersRunning(true);
+    try {
+      await runLedgerReminders();
+      await loadNotifs();
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : 'Reminder scan failed');
+    }
+    setRemindersRunning(false);
+  };
+  const markAllRead = async () => {
+    try { await markAllLedgerNotificationsRead(); setNotifs((ns) => ns.map((n) => ({ ...n, read_at: n.read_at ?? new Date().toISOString() }))); } catch { /* noop */ }
+  };
+  const markRead = async (id: string) => {
+    setNotifs((ns) => ns.map((n) => (n.id === id ? { ...n, read_at: n.read_at ?? new Date().toISOString() } : n)));
+    try { await markLedgerNotificationRead(id); } catch { /* noop */ }
   };
 
   /* ── Derived ── */
@@ -173,6 +244,15 @@ export default function CrmLedgers() {
   );
   const complianceScore = items.length === 0 ? 100 : Math.round(((items.length - buckets.overdue.length) / items.length) * 100);
   const openCases = cases.filter((c) => c.status !== 'closed').length;
+
+  // Everything a document can be attached to — feeds the Documents vault picker.
+  const docLinks: DocLink[] = useMemo(() => [
+    ...items.filter((i) => i.id).map((i) => ({ type: 'item', id: i.id!, label: `${i.form} · ${i.title}` })),
+    ...cases.filter((c) => c.id).map((c) => ({ type: 'case', id: c.id!, label: c.title })),
+    ...notices.filter((n) => n.id).map((n) => ({ type: 'notice', id: n.id!, label: n.subject ?? 'Notice' })),
+    ...payments.filter((p) => p.id).map((p) => ({ type: 'payment', id: p.id!, label: p.title ?? 'Payment' })),
+    ...directors.filter((d) => d.id).map((d) => ({ type: 'director', id: d.id!, label: d.name ?? 'Director' })),
+  ], [items, cases, notices, payments, directors]);
 
   const exportIcs = () => {
     const blob = new Blob([complianceToIcs(items, profile?.name || 'VJR Estate')], { type: 'text/calendar;charset=utf-8' });
@@ -211,12 +291,83 @@ export default function CrmLedgers() {
             title="Ledgers"
             description={
               profile?.name
-                ? `${profile.name} · ${entityLabel(profile.entity_type)}${profile.incorporated_on ? ` · incorporated ${fmtDate(profile.incorporated_on)}` : ''} · ${selectedFy}`
+                ? `${entityLabel(profile.entity_type)}${profile.incorporated_on ? ` · incorporated ${fmtDate(profile.incorporated_on)}` : ''} · ${selectedFy}`
                 : 'Company compliance calendar, legal register and penalty exposure.'
+            }
+            titleExtra={
+              profile?.name ? (
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-[#C9A84C]/25 bg-gradient-to-r from-[#C9A84C]/[0.08] to-transparent px-4 py-2.5">
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0A1628] shadow-[0_2px_8px_rgba(10,22,40,0.25)]">
+                      <Building2 className="h-4 w-4 text-[#D6B85D]" strokeWidth={1.6} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-['Instrument_Serif',Georgia,serif] text-[17px] leading-tight text-[#0A1628]">{profile.name}</span>
+                      {profile.cin && <span className="block truncate text-[10px] font-semibold tracking-wide text-[#9ca3af]">CIN {profile.cin}</span>}
+                    </span>
+                  </span>
+                  {profile.pan && <HeaderChip k="PAN" v={profile.pan} />}
+                  {profile.gstin && <HeaderChip k="GSTIN" v={profile.gstin} />}
+                  {profile.tan && <HeaderChip k="TAN" v={profile.tan} />}
+                </div>
+              ) : undefined
             }
             actions={
               !showOnboarding && (
                 <div className="flex flex-wrap gap-2">
+                  <div className="relative">
+                    <CrmBtn variant="ghost" onClick={() => setNotifsOpen((o) => !o)} aria-label="Reminders">
+                      <Bell className={`h-3.5 w-3.5 ${unread > 0 ? 'text-[#96782A]' : ''}`} />
+                      <span className="hidden sm:inline">Reminders</span>
+                      {unread > 0 && (
+                        <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-extrabold text-white">{unread}</span>
+                      )}
+                    </CrmBtn>
+                    {notifsOpen && (
+                      <div className="absolute right-0 z-30 mt-2 w-[360px] max-w-[92vw] overflow-hidden rounded-2xl border border-black/[0.08] bg-white shadow-[0_12px_40px_rgba(10,22,40,0.18)]">
+                        <div className="flex items-center justify-between border-b border-black/[0.05] px-4 py-3">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em]">Reminders</p>
+                          <div className="flex items-center gap-1">
+                            <button type="button" onClick={() => void runReminders()} disabled={remindersRunning} className="cursor-pointer rounded-lg px-2 py-1 text-[10.5px] font-bold text-[#96782A] transition-colors hover:bg-[#C9A84C]/[0.1] disabled:opacity-50">
+                              {remindersRunning ? 'Scanning…' : 'Scan now'}
+                            </button>
+                            {unread > 0 && (
+                              <button type="button" onClick={() => void markAllRead()} className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1 text-[10.5px] font-bold text-[#6b7280] transition-colors hover:bg-black/[0.04]">
+                                <CheckCheck className="h-3 w-3" /> Mark read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="max-h-[380px] divide-y divide-black/[0.04] overflow-y-auto">
+                          {notifs.length === 0 ? (
+                            <div className="px-4 py-8 text-center">
+                              <BellRing className="mx-auto h-6 w-6 text-[#C9A84C]" strokeWidth={1.5} />
+                              <p className="mt-2 text-[12px] font-semibold">No reminders yet</p>
+                              <p className="mx-auto mt-1 max-w-[260px] text-[10.5px] leading-relaxed text-[#9ca3af]">
+                                A nightly job scans every deadline (filings, hearings, notices, payments, KYC, document expiry) and posts 30/15/7/3/1-day and overdue alerts here. “Scan now” runs the same check immediately.
+                              </p>
+                            </div>
+                          ) : (
+                            notifs.map((n) => {
+                              const sev = n.severity ?? 'info';
+                              return (
+                                <button key={n.id} type="button" onClick={() => n.id && void markRead(n.id)} className={`flex w-full cursor-pointer gap-2.5 px-4 py-3 text-left transition-colors hover:bg-[#C9A84C]/[0.04] ${n.read_at ? 'opacity-55' : ''}`}>
+                                  <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${sev === 'urgent' ? 'bg-red-500' : sev === 'warning' ? 'bg-amber-400' : 'bg-blue-400'}`} />
+                                  <span className="min-w-0 flex-1">
+                                    <span className="block truncate text-[12px] font-bold">{n.title}</span>
+                                    <span className="mt-0.5 block text-[10.5px] leading-relaxed text-[#6b7280]">{n.body}</span>
+                                    <span className="mt-1 block text-[9.5px] font-semibold uppercase tracking-wide text-[#9ca3af]">
+                                      {n.kind ?? 'reminder'}{n.created_at ? ` · ${new Date(n.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <CrmBtn variant="ghost" onClick={() => setTab('profile')}>
                     <Settings2 className="h-3.5 w-3.5" /> Company
                   </CrmBtn>
@@ -272,16 +423,24 @@ export default function CrmLedgers() {
                   <StatCard icon={Scale} tone="navy" label="Penalty exposure" value={fmtINR(penaltyExposure)} sub="if pending items slip" delay={0.15} />
                 </div>
 
-                {/* Health score */}
+                {/* Health score — "Not assessed" until real obligations exist */}
                 <CrmCard className="mb-6 p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[15px] font-extrabold ${complianceScore >= 90 ? 'bg-emerald-50 text-emerald-600' : complianceScore >= 70 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
-                        {complianceScore}
-                      </div>
+                      {items.length === 0 ? (
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-[10px] font-extrabold text-gray-500">N/A</div>
+                      ) : (
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[15px] font-extrabold ${complianceScore >= 90 ? 'bg-emerald-50 text-emerald-600' : complianceScore >= 70 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
+                          {complianceScore}
+                        </div>
+                      )}
                       <div>
-                        <p className="text-[13px] font-bold">Compliance health score</p>
-                        <p className="text-[11px] text-[#6b7280]">{items.length} tracked obligations · {buckets.overdue.length} overdue · {openCases} legal matters</p>
+                        <p className="text-[13px] font-bold">{items.length === 0 ? 'Compliance health — Not assessed' : 'Compliance health score'}</p>
+                        <p className="text-[11px] text-[#6b7280]">
+                          {items.length === 0
+                            ? 'No compliance obligations have been generated for this financial year yet.'
+                            : `${items.length} tracked obligations · ${buckets.overdue.length} overdue · ${openCases} legal matters`}
+                        </p>
                       </div>
                     </div>
                     {seededCount !== null && (
@@ -298,20 +457,24 @@ export default function CrmLedgers() {
                   <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${complianceScore}%` }}
+                      animate={{ width: items.length === 0 ? '0%' : `${complianceScore}%` }}
                       transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
                       className={`h-full rounded-full ${complianceScore >= 90 ? 'bg-emerald-500' : complianceScore >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
                     />
                   </div>
                 </CrmCard>
 
-                {/* Tabs */}
-                <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-black/[0.06] bg-white p-1 [scrollbar-width:none]">
-                  {([['compliances', 'Legal Compliances'], ['dashboard', 'Priority Queue'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
+                {/* GST status card (spec §18/§61) — three independent concepts */}
+                {gstEval && <GstStatusCard gst={gstEval} event={gstEvent} onOpen={() => setTab('gst')} />}
+
+                {/* Tabs — sticky on mobile for one-hand reach, 44px targets */}
+                <div className="mb-4 sticky top-[64px] z-20 -mx-4 overflow-x-auto rounded-xl border border-black/[0.06] bg-white/95 px-4 py-1 backdrop-blur [scrollbar-width:none] sm:mx-0 sm:px-1">
+                  {([['compliances', 'Legal Compliances'], ['dashboard', 'Priority Queue'], ['calendar', 'Calendar'], ['gst', 'GST Monitor'], ['payments', 'Payments'], ['notices', 'Notices'], ['documents', 'Documents'], ['directors', 'Directors'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setTab(key)}
-                      className={`relative whitespace-nowrap rounded-lg px-3.5 py-2 text-[12.5px] font-bold transition-colors sm:px-4 ${tab === key ? 'text-white' : 'text-[#6b7280] hover:text-[#0A1628]'}`}
+                      aria-current={tab === key ? 'page' : undefined}
+                      className={`relative inline-flex min-h-[44px] cursor-pointer items-center whitespace-nowrap rounded-lg px-3.5 text-[12.5px] font-bold transition-colors sm:min-h-[40px] sm:px-4 ${tab === key ? 'text-white' : 'text-[#6b7280] hover:text-[#0A1628]'}`}
                     >
                       {tab === key && <motion.span layoutId="ledger-tab" className="absolute inset-0 rounded-lg bg-[#0A1628]" transition={{ type: 'spring', stiffness: 400, damping: 32 }} />}
                       <span className="relative z-10">{label}</span>
@@ -321,12 +484,17 @@ export default function CrmLedgers() {
 
                 <AnimatePresence mode="wait">
                   <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
-                    {tab === 'compliances' && <LegalCompliancesTable items={items} loading={loading} onChanged={loadItems} />}
-                    {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} loading={loading} onChanged={loadItems} />}
+                    {tab === 'compliances' && <LegalCompliancesTable items={items} loading={loading} />}
+                    {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} notices={notices} payments={payments} directors={directors} loading={loading} onChanged={loadItems} />}
                     {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={loadItems} />}
+                    {tab === 'gst' && <GstMonitor gst={gstProfile} evalResult={gstEval} event={gstEvent} fy={selectedFy} onChanged={() => { void loadGst(); void loadItems(); }} />}
+                    {tab === 'payments' && <PaymentsRegister payments={payments} items={items} fy={selectedFy} loading={loading} onChanged={loadItems} />}
+                    {tab === 'notices' && <NoticesRegister notices={notices} loading={loading} onChanged={loadItems} />}
+                    {tab === 'documents' && <DocumentsRegister documents={documents} fy={selectedFy} links={docLinks} loading={loading} onChanged={loadItems} />}
+                    {tab === 'directors' && <DirectorsRegister directors={directors} fy={selectedFy} incorporatedOn={profile?.incorporated_on} items={items} loading={loading} onChanged={loadItems} />}
                     {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={loadItems} />}
                     {tab === 'audit' && <AuditTrail />}
-                    {tab === 'profile' && <ProfileEditor profile={profile!} onSave={saveProfile} onChanged={loadItems} />}
+                    {tab === 'profile' && <CompanyMaster profile={profile!} onSave={saveProfile} onChanged={loadItems} />}
                   </motion.div>
                 </AnimatePresence>
 
@@ -340,6 +508,298 @@ export default function CrmLedgers() {
           </AnimatePresence>
         </CrmPageBody>
       </main>
+    </div>
+  );
+}
+
+/* ═══════════════ GST ENGINE UI (spec §3/§18/§44/§52/§66) ═══════════════
+ *
+ * GST registration status, threshold monitoring and compliance generation
+ * are three independent concepts. The monitor tracks PAN-based aggregate
+ * turnover against the rule-driven threshold; a crossing creates a review
+ * event — never a filing. Regular/Composition are exclusive modes.
+ */
+
+const GST_STATUS_LABELS: Record<GstStatus, string> = {
+  not_registered: 'Not Registered',
+  registration_required: 'Registration Required',
+  application_in_progress: 'Application In Progress',
+  registered_regular: 'Registered — Regular',
+  registered_composition: 'Registered — Composition',
+  voluntarily_registered: 'Voluntarily Registered',
+  cancelled: 'Cancelled',
+  suspended: 'Suspended',
+  requires_review: 'Requires Review',
+};
+
+const GST_TONE: Partial<Record<GstStatus, string>> = {
+  registered_regular: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  registered_composition: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  voluntarily_registered: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  registration_required: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+  application_in_progress: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  cancelled: 'bg-gray-100 text-gray-500 ring-1 ring-gray-200',
+  suspended: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  requires_review: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  not_registered: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
+};
+
+function GstStatusCard({ gst, event, onOpen }: { gst: GstEvaluation; event: GstThresholdEvent | null; onOpen: () => void }) {
+  const crossed = gst.crossed || gst.status === 'registration_required';
+  const registered = gst.registered;
+  const tone = crossed ? 'border-red-300 bg-red-50/[0.5]' : registered ? 'border-emerald-200 bg-emerald-50/[0.4]' : 'border-black/[0.06] bg-white';
+  return (
+    <CrmCard className={`mb-6 p-4 sm:p-5 ${tone}`}>
+      <div className="flex flex-wrap items-center gap-4">
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${crossed ? 'bg-red-100 text-red-600' : registered ? 'bg-emerald-100 text-emerald-600' : 'bg-[#0A1628] text-[#D6B85D]'}`}>
+          <Landmark className="h-5 w-5" strokeWidth={1.8} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex flex-wrap items-center gap-2 text-[13px] font-bold">
+            GST
+            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider ${GST_TONE[gst.status] ?? GST_TONE.not_registered}`}>
+              {GST_STATUS_LABELS[gst.status]}
+            </span>
+            {gst.monitoring && !registered && <span className="text-[10.5px] font-semibold text-[#6b7280]">· Threshold monitoring ON</span>}
+          </p>
+          {registered ? (
+            <p className="mt-1 text-[11.5px] text-[#6b7280]">GST compliance generation active — see Legal Compliances for GSTR obligations.</p>
+          ) : crossed ? (
+            <p className="mt-1 text-[11.5px] text-red-700">
+              Threshold crossed: ₹{(gst.turnover / 100000).toFixed(2)}L / ₹{(gst.threshold / 100000).toFixed(2)}L{event?.crossing_date ? ` on ${fmtDate(event.crossing_date)}` : ''} — registration review required.
+            </p>
+          ) : (
+            <p className="mt-1 text-[11.5px] text-[#6b7280]">
+              FY turnover ₹{(gst.turnover / 100000).toFixed(2)}L of ₹{(gst.threshold / 100000).toFixed(2)}L threshold ({gst.pctUsed}%) · Remaining ₹{(gst.remaining / 100000).toFixed(2)}L · No registration trigger detected.
+            </p>
+          )}
+        </div>
+        <CrmBtn variant={crossed ? 'gold' : 'ghost'} onClick={onOpen}>
+          {crossed ? 'Review Now' : 'GST Monitor'} <ArrowRight className="h-3.5 w-3.5" />
+        </CrmBtn>
+      </div>
+      {!registered && gst.monitoring && (
+        <div className="mt-3.5">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, gst.pctUsed)}%` }}
+              transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
+              className={`h-full rounded-full ${gst.pctUsed >= 100 ? 'bg-red-500' : gst.pctUsed >= 90 ? 'bg-orange-500' : gst.pctUsed >= 75 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+            />
+          </div>
+          <p className="mt-1.5 text-[10.5px] font-semibold text-[#9ca3af]">
+            {gst.pctUsed >= 100 ? 'THRESHOLD CROSSED — ACTION REQUIRED' : gst.pctUsed >= 90 ? 'GST threshold approaching' : `${gst.pctUsed}% of threshold used`}
+          </p>
+        </div>
+      )}
+    </CrmCard>
+  );
+}
+
+function GstMonitor({ gst, evalResult, event, fy, onChanged }: { gst: GstProfile | null; evalResult: GstEvaluation | null; event: GstThresholdEvent | null; fy: string; onChanged: () => void }) {
+  const [f, setF] = useState<Partial<GstProfile>>(gst ?? {});
+  const [turnover, setTurnover] = useState('');
+  const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+
+  useEffect(() => setF(gst ?? {}), [gst]);
+
+  const save = async (patch: Partial<GstProfile>) => {
+    setSaving(true);
+    try {
+      await saveGstProfile(patch);
+      setSavedMsg('GST settings saved');
+      setTimeout(() => setSavedMsg(''), 2500);
+      onChanged();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not save GST settings');
+    }
+    setSaving(false);
+  };
+
+  const recordTurnover = async () => {
+    const v = Number(turnover.replace(/[^\d.]/g, ''));
+    if (!v || v <= 0) { alert('Enter a valid aggregate turnover amount'); return; }
+    setSaving(true);
+    try {
+      await saveGstTurnover({ period: fy, period_type: 'annual', fy, aggregate_turnover: v, as_of_date: asOf, source: 'Manual' });
+      setTurnover('');
+      setSavedMsg('Turnover recorded');
+      setTimeout(() => setSavedMsg(''), 2500);
+      onChanged();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not record turnover');
+    }
+    setSaving(false);
+  };
+
+  const setStatus = (status: GstStatus) => {
+    // Activation requires registration facts (spec §13); cancellation keeps history (§54).
+    if (['registered_regular', 'registered_composition', 'voluntarily_registered'].includes(status) && !f.gstin) {
+      const gin = window.prompt('Enter the GSTIN to activate GST compliance:');
+      if (!gin) return;
+      setF((x) => ({ ...x, gstin: gin.trim().toUpperCase(), status }));
+      void save({ gstin: gin.trim().toUpperCase(), status, effective_date: f.effective_date ?? new Date().toISOString().slice(0, 10), compliance_generation_enabled: true });
+      return;
+    }
+    setF((x) => ({ ...x, status }));
+    void save({ status });
+  };
+
+  const inputCls = 'h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-[13px] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20';
+  const e = evalResult;
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-4">
+      {/* Threshold monitor */}
+      {e && (
+        <CrmCard className="p-4 sm:p-6">
+          <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Landmark className="h-3.5 w-3.5" /> GST threshold monitor — {fy}</p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[24px] font-extrabold leading-none tracking-tight">₹{e.turnover.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-[11px] text-[#9ca3af]">Aggregate turnover · threshold ₹{e.threshold.toLocaleString('en-IN')}</p>
+            </div>
+            <span className={`rounded-full px-3 py-1 text-[11px] font-extrabold ${e.crossed ? 'bg-red-100 text-red-700' : e.pctUsed >= 90 ? 'bg-orange-100 text-orange-700' : 'bg-emerald-50 text-emerald-700'}`}>
+              {e.crossed ? 'THRESHOLD CROSSED' : `${e.pctUsed}% · Monitoring`}
+            </span>
+          </div>
+          <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
+            <motion.div initial={{ width: 0 }} animate={{ width: `${Math.min(100, e.pctUsed)}%` }} transition={{ duration: 0.8 }} className={`h-full rounded-full ${e.pctUsed >= 100 ? 'bg-red-500' : e.pctUsed >= 90 ? 'bg-orange-500' : e.pctUsed >= 75 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+          </div>
+          {e.crossed && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
+              <p className="text-[12.5px] font-bold text-red-800">GST REGISTRATION REVIEW REQUIRED</p>
+              <p className="mt-1 text-[11.5px] leading-relaxed text-red-700">
+                Aggregate turnover ₹{e.turnover.toLocaleString('en-IN')} crossed the ₹{e.threshold.toLocaleString('en-IN')} threshold{event?.crossing_date ? ` on ${fmtDate(event.crossing_date)}` : ''}.
+                Evaluate compulsory-registration conditions with your CA — the registration deadline is calculated from the actual liability date, never from a fixed calendar date.
+              </p>
+              {event?.registration_deadline && <p className="mt-2 text-[11.5px] font-bold text-red-800">Registration deadline: {fmtDate(event.registration_deadline)}</p>}
+            </div>
+          )}
+          {e.reviewRequired && !e.crossed && e.unknownExceptions > 0 && (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-[11.5px] leading-relaxed text-amber-800">
+              GST applicability review required — {e.unknownExceptions} registration condition{e.unknownExceptions > 1 ? 's' : ''} not yet confirmed (inter-state supplies, compulsory-registration categories, exempt-only supplies, e-commerce, agent, reverse-charge). Answer them below.
+            </div>
+          )}
+        </CrmCard>
+      )}
+
+      {/* Turnover entry (spec §7 mode A) */}
+      <CrmCard className="p-4 sm:p-6">
+        <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Record aggregate turnover — {fy}</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_170px_auto]">
+          <div><Label>Current aggregate turnover (₹)</Label><input inputMode="numeric" value={turnover} onChange={(ev) => setTurnover(ev.target.value)} className={inputCls} placeholder="e.g. 1420000" /></div>
+          <div><Label>As of date</Label><input type="date" value={asOf} onChange={(ev) => setAsOf(ev.target.value)} className={inputCls} /></div>
+          <div className="flex items-end"><CrmBtn variant="gold" onClick={() => void recordTurnover()} disabled={saving || !turnover}>Record</CrmBtn></div>
+        </div>
+        <p className="mt-2.5 text-[11px] text-[#9ca3af]">PAN-based all-India aggregate: taxable + exempt + exports + inter-state supplies, minus excluded taxes. Crossing the threshold creates a review event — never a filing.</p>
+      </CrmCard>
+
+      {/* GST control center (spec §5/§52) */}
+      <CrmCard className="p-4 sm:p-6">
+        <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Settings2 className="h-3.5 w-3.5" /> GST control center</p>
+
+        <div className="space-y-4">
+          <div>
+            <Label>GST registration status</Label>
+            <div className="flex flex-wrap gap-2">
+              {(['not_registered', 'application_in_progress', 'registered_regular', 'registered_composition', 'voluntarily_registered', 'cancelled', 'suspended', 'requires_review'] as GstStatus[]).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setStatus(s)}
+                  className={`cursor-pointer rounded-full px-3.5 py-2 text-[11.5px] font-bold transition-all duration-200 ${f.status === s ? 'bg-[#0A1628] text-[#D6B85D] shadow-[0_2px_8px_rgba(10,22,40,0.2)]' : 'bg-black/[0.05] text-[#6b7280] hover:bg-black/[0.09]'}`}
+                >
+                  {GST_STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] text-[#9ca3af]">Regular and Composition are mutually exclusive taxpayer modes — choosing one clears the other. Cancelling preserves all GST history.</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label>GSTIN</Label>
+              <input value={f.gstin ?? ''} onChange={(ev) => setF((x) => ({ ...x, gstin: ev.target.value.toUpperCase() }))} className={inputCls} maxLength={15} placeholder="29ABCDE1234F1Z5" />
+            </div>
+            <div>
+              <Label>Registration effective date</Label>
+              <input type="date" value={f.effective_date ?? ''} onChange={(ev) => setF((x) => ({ ...x, effective_date: ev.target.value || null }))} className={inputCls} />
+            </div>
+            <div>
+              <Label>Filing frequency</Label>
+              <select value={f.filing_frequency ?? 'monthly'} onChange={(ev) => setF((x) => ({ ...x, filing_frequency: ev.target.value as 'monthly' | 'qrmp' }))} className={inputCls}>
+                <option value="monthly">Monthly</option>
+                <option value="qrmp">QRMP (quarterly)</option>
+              </select>
+            </div>
+            <div>
+              <Label>Applicable threshold (₹)</Label>
+              <input inputMode="numeric" value={f.threshold_amount ?? 2000000} onChange={(ev) => setF((x) => ({ ...x, threshold_amount: Number(ev.target.value.replace(/\D/g, '')) || 0 }))} className={inputCls} />
+            </div>
+          </div>
+
+          {/* Exception conditions (spec §11) — never inferred */}
+          <div className="rounded-xl border border-black/[0.06] bg-[#fafafa] p-4">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#6b7280]">Registration conditions — answer from company facts</p>
+            <div className="mt-3 space-y-2.5">
+              {([
+                ['interstate_taxable_supply', 'Inter-State taxable outward supplies?'],
+                ['compulsory_registration_condition', 'Falls under any compulsory-registration category (Sec 24)?'],
+                ['exempt_supply_only', 'Makes exclusively exempt / non-taxable supplies?'],
+                ['ecommerce_condition', 'Sells through an e-commerce operator?'],
+                ['agent_condition', 'Acts as an agent of a taxable principal?'],
+                ['reverse_charge_condition', 'Receives supplies under reverse charge?'],
+                ['other_state_registration', 'GST registrations in other states under the same PAN?'],
+              ] as [keyof GstProfile, string][]).map(([key, label]) => (
+                <TriStateRow
+                  key={String(key)}
+                  label={label}
+                  value={(f[key] as boolean | null | undefined) ?? null}
+                  onChange={(v) => { setF((x) => ({ ...x, [key]: v })); void save({ [key]: v } as Partial<GstProfile>); }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <CrmBtn variant="gold" onClick={() => void save(f)} disabled={saving}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save GST settings
+            </CrmBtn>
+            {savedMsg && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[12px] font-bold text-emerald-600">{savedMsg}</motion.span>}
+          </div>
+        </div>
+      </CrmCard>
+
+      <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[11.5px] leading-relaxed text-amber-800">
+        Threshold: services ₹20 lakh (Sec 22, CGST Act — Karnataka) unless changed above. Exceptions and compulsory-registration
+        categories (Sec 24) change this — confirm applicability and registration deadlines with your CA/CS.
+      </p>
+    </div>
+  );
+}
+
+function TriStateRow({ label, value, onChange }: { label: string; value: boolean | null; onChange: (v: boolean | null) => void }) {
+  const opts: [string, boolean | null][] = [['Yes', true], ['No', false], ['Unknown', null]];
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <p className="min-w-0 flex-1 text-[12px] font-semibold text-[#374151]">{label}</p>
+      <div className="flex gap-1.5">
+        {opts.map(([lbl, v]) => (
+          <button
+            key={lbl}
+            type="button"
+            onClick={() => onChange(v)}
+            aria-pressed={value === v}
+            className={`min-h-[36px] cursor-pointer rounded-lg px-3 py-1.5 text-[11px] font-bold transition-colors sm:min-h-[30px] sm:px-2.5 sm:text-[10.5px] ${value === v ? 'bg-[#0A1628] text-white' : 'bg-black/[0.05] text-[#6b7280] hover:bg-black/[0.09]'}`}
+          >
+            {lbl}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -605,13 +1065,70 @@ function Label({ children }: { children: React.ReactNode }) {
 
 /* ═══════════════ PROFILE EDITOR ═══════════════ */
 
-function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyProfile; onSave: (p: Partial<LedgerCompanyProfile>) => Promise<void>; onChanged: () => void }) {
+/* ═══════════════ COMPANY MASTER (premium, provenance-driven) ═══════════════
+ *
+ * Presents the incorporation baseline (COI · MOA · AOA · SPICe+ · DIN letter)
+ * with source + verification status on every fact, alongside the editable
+ * operating profile. Ownership % is CALCULATED from share counts; historical
+ * records are shown as historical, never silently merged into "current".
+ * Design: platinum system — navy/gold, serif display, GPU-friendly motion.
+ */
+
+const VERIF_STYLE: Record<string, string> = {
+  confirmed: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200',
+  unverified: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
+  needs_review: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
+  conflicting: 'bg-red-50 text-red-700 ring-1 ring-red-200',
+  expired: 'bg-gray-100 text-gray-400 ring-1 ring-gray-200',
+};
+
+const VERIF_LABEL: Record<string, string> = {
+  confirmed: 'Confirmed',
+  unverified: 'Unverified',
+  needs_review: 'Needs verification',
+  conflicting: 'Conflict',
+  expired: 'Expired',
+};
+
+function VerifBadge({ status }: { status?: string }) {
+  const s = status ?? 'unverified';
+  return <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider ${VERIF_STYLE[s] ?? VERIF_STYLE.unverified}`}>{VERIF_LABEL[s] ?? s}</span>;
+}
+
+function MasterField({ label, value, mono, hint }: { label: string; value?: string | null; mono?: boolean; hint?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{label}</p>
+      <p className={`mt-1 truncate text-[13px] font-semibold text-[#0A1628] ${mono ? 'font-mono tracking-tight' : ''}`} title={value ?? ''}>{value?.trim() ? value : '—'}</p>
+      {hint && <p className="mt-0.5 text-[10px] text-[#9ca3af]">{hint}</p>}
+    </div>
+  );
+}
+
+function SectionHead({ icon: Icon, title, note }: { icon: typeof Building2; title: string; note?: string }) {
+  return (
+    <div className="mb-4 flex items-center justify-between gap-3 border-b border-black/[0.05] pb-3">
+      <p className="flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.2em] text-[#A3842E]">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#0A1628] text-[#D6B85D]"><Icon className="h-3.5 w-3.5" strokeWidth={1.8} /></span>
+        {title}
+      </p>
+      {note && <span className="text-[10px] font-semibold text-[#9ca3af]">{note}</span>}
+    </div>
+  );
+}
+
+function CompanyMaster({ profile, onSave, onChanged }: { profile: LedgerCompanyProfile; onSave: (p: Partial<LedgerCompanyProfile>) => Promise<void>; onChanged: () => void }) {
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>(profile);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [master, setMaster] = useState<CompanyMasterData | null>(null);
+  const [masterLoading, setMasterLoading] = useState(true);
 
   useEffect(() => setF(profile), [profile]);
+  useEffect(() => {
+    fetchCompanyMaster().then(setMaster).catch(() => setMaster(null)).finally(() => setMasterLoading(false));
+  }, []);
 
   const pickLogo = async (file: File | undefined) => {
     if (!file) return;
@@ -619,7 +1136,7 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
     try {
       const url = await uploadLedgerLogo(file);
       setF((x) => ({ ...x, logo_url: url }));
-      await onSave({ logo_url: url }); // persist immediately
+      await onSave({ logo_url: url });
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Logo upload failed');
     }
@@ -636,31 +1153,162 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
     } finally { setSaving(false); }
   };
 
-  const inputCls = 'h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-[13px] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20';
+  const inputCls = 'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-[13px] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20 sm:h-10';
+
+  // Derived capital + ownership (spec: calculate, never store percentages)
+  const cap = master?.ledger_share_capital?.[0];
+  const holdings = (master?.ledger_shareholding ?? []).filter((h) => h.snapshot_type === 'incorporation');
+  const totalShares = holdings.reduce((s, h) => s + (h.shares_held || 0), 0) || cap?.subscribed_shares || 0;
+  const shareholders = (master?.ledger_shareholders ?? []).map((sh) => {
+    const h = holdings.find((x) => x.shareholder_id === sh.id);
+    return { ...sh, holding: h, pct: h && totalShares ? (h.shares_held / totalShares) * 100 : 0 };
+  }).sort((a, z) => (z.holding?.shares_held ?? 0) - (a.holding?.shares_held ?? 0));
+  const unissued = (cap?.authorised_shares ?? 0) - (cap?.subscribed_shares ?? 0);
+  const remainingAuth = (cap?.authorised_amount ?? 0) - (cap?.subscribed_amount ?? 0);
+  const incAddress = (master?.ledger_address_history ?? []).find((a) => a.address_type === 'incorporation_registered_address');
 
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <CrmCard className="p-4 sm:p-6">
-        <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><Building2 className="h-3.5 w-3.5" /> Company identity</p>
-        <div className="mb-4 flex items-center gap-4">
-          <label className="group relative shrink-0 cursor-pointer">
-            <input type="file" accept="image/*" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} />
-            {f.logo_url ? (
-              <img src={f.logo_url} alt="Company logo" className="h-16 w-16 rounded-2xl border border-black/10 bg-white object-contain p-1.5 shadow-sm" />
-            ) : (
-              <span className="flex h-16 w-16 items-center justify-center rounded-2xl border-2 border-dashed border-black/15 bg-[#fafafa] text-[#9ca3af] transition-colors group-hover:border-[#C9A84C]/60 group-hover:text-[#96782A]">
-                {logoUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" strokeWidth={1.8} />}
-              </span>
-            )}
-            <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-[#0A1628] text-white shadow">
-              <Upload className="h-3 w-3" strokeWidth={2.2} />
+    <div className="mx-auto max-w-4xl space-y-5">
+      {/* ── Legal identity — serif display, gold seal ── */}
+      <CrmCard className="overflow-hidden p-0">
+        <div className="relative bg-[#0A1628] px-5 py-6 sm:px-7">
+          <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#C9A84C]/15 blur-3xl" />
+          <div className="relative flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <label className="group relative shrink-0 cursor-pointer">
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => void pickLogo(e.target.files?.[0])} />
+                {f.logo_url ? (
+                  <img src={f.logo_url} alt="Company logo" className="h-14 w-14 rounded-2xl border border-white/20 bg-white object-contain p-1.5" />
+                ) : (
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#C9A84C] to-[#E8C76A] text-[18px] font-extrabold text-[#0A1628] shadow-[0_4px_16px_rgba(201,168,76,0.4)]">
+                    {logoUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : (f.name || 'V').slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+              </label>
+              <div className="min-w-0">
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.24em] text-[#C9A84C]">Company Master</p>
+                <h2 className="mt-1 font-['Instrument_Serif',Georgia,serif] text-[24px] leading-tight text-white sm:text-[28px]">{profile.name}</h2>
+                <p className="mt-1 font-mono text-[11px] tracking-wide text-white/50">{profile.cin || 'CIN —'}</p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/10 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
+              <ShieldCheck className="h-3 w-3" /> Active
             </span>
-          </label>
-          <div>
-            <p className="text-[13px] font-bold">Company logo</p>
-            <p className="text-[11px] text-[#6b7280]">Click the tile to upload — saves instantly.</p>
           </div>
         </div>
+
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-5 sm:grid-cols-4 sm:p-7">
+          <MasterField label="Legal name" value={profile.name} />
+          <MasterField label="Entity type" value="Private Company Limited by Shares" />
+          <MasterField label="Incorporated" value={profile.incorporated_on ? fmtDate(profile.incorporated_on) : null} hint="COI · 15 Oct 2025" />
+          <MasterField label="ROC" value="Registrar of Companies, Karnataka" hint="Jurisdiction: Karnataka" />
+          <MasterField label="CIN" value={profile.cin || 'U68100KA2025PTC209772'} mono />
+          <MasterField label="PAN" value={profile.pan || 'AALCV5120G'} mono hint="COI · confirmed" />
+          <MasterField label="TAN" value={profile.tan || 'BLRV32731G'} mono hint="COI · confirmed" />
+          <MasterField label="Company status" value="ACTIVE" hint="Editable · audited" />
+        </div>
+      </CrmCard>
+
+      {/* ── Capital structure ── */}
+      <CrmCard className="p-5 sm:p-7">
+        <SectionHead icon={Landmark} title="Share capital" note={cap ? `SPICe+ · ${VERIF_LABEL[cap.verification_status ?? 'unverified']}` : masterLoading ? 'Loading…' : 'No records'} />
+        {cap ? (
+          <>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+              <MasterField label="Authorised capital" value={`₹${(cap.authorised_amount ?? 0).toLocaleString('en-IN')}`} />
+              <MasterField label="Subscribed capital" value={`₹${(cap.subscribed_amount ?? 0).toLocaleString('en-IN')}`} />
+              <MasterField label="Face value" value={`₹${cap.face_value ?? 10}`} />
+              <MasterField label="Share class" value={cap.class_name} />
+              <MasterField label="Authorised shares" value={String(cap.authorised_shares ?? 0)} mono />
+              <MasterField label="Subscribed shares" value={String(cap.subscribed_shares ?? 0)} mono />
+              <MasterField label="Unissued shares" value={String(unissued)} mono hint="Allotment capacity" />
+              <MasterField label="Remaining authorised" value={`₹${remainingAuth.toLocaleString('en-IN')}`} hint="Capital capacity, not cash" />
+            </div>
+            <div className="mt-5">
+              <div className="flex justify-between text-[10px] font-bold text-[#6b7280]"><span>Capital utilisation</span><span>{cap.authorised_amount ? Math.round((cap.subscribed_amount / cap.authorised_amount) * 100) : 0}%</span></div>
+              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${cap.authorised_amount ? Math.min(100, (cap.subscribed_amount / cap.authorised_amount) * 100) : 0}%` }} transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }} className="h-full rounded-full bg-gradient-to-r from-[#D6B85D] to-[#C9A84C]" />
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-[12px] text-[#9ca3af]">{masterLoading ? 'Loading capital records…' : 'Capital records not available.'}</p>
+        )}
+      </CrmCard>
+
+      {/* ── Shareholders (incorporation snapshot, ownership calculated) ── */}
+      <CrmCard className="p-5 sm:p-7">
+        <SectionHead icon={Scale} title="Shareholders — incorporation position" note="15 Oct 2025 · MOA / SPICe+" />
+        <div className="space-y-3">
+          {shareholders.map((sh) => (
+            <motion.div key={sh.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="rounded-2xl border border-black/[0.06] bg-[#fafaf9] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="flex flex-wrap items-center gap-2 text-[13.5px] font-bold text-[#0A1628]">
+                    {sh.name}
+                    {sh.original_subscriber && <span className="rounded-full bg-[#C9A84C]/15 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-[#96782A]">Original subscriber</span>}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-[#6b7280]">{sh.holding?.shares_held ?? 0} equity shares · ₹{(sh.holding?.subscription_value ?? 0).toLocaleString('en-IN')} subscribed · {sh.holding?.share_class ?? 'Equity Class A'}</p>
+                </div>
+                <p className="font-['Instrument_Serif',Georgia,serif] text-[26px] leading-none text-[#0A1628]">{sh.pct.toFixed(0)}<span className="text-[14px] text-[#9ca3af]">%</span></p>
+              </div>
+              <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.05]">
+                <motion.div initial={{ width: 0 }} animate={{ width: `${sh.pct}%` }} transition={{ duration: 0.7 }} className={`h-full rounded-full ${sh.pct >= 50 ? 'bg-[#0A1628]' : 'bg-[#C9A84C]'}`} />
+              </div>
+            </motion.div>
+          ))}
+          <div className="flex justify-between rounded-xl bg-[#0A1628] px-4 py-3 text-[12px] font-bold text-white">
+            <span>Total · {totalShares.toLocaleString('en-IN')} shares</span>
+            <span>100%</span>
+          </div>
+          <p className="text-[10.5px] leading-relaxed text-[#9ca3af]">
+            Ownership calculated as shares held ÷ total issued shares — never stored as a fixed percentage. Current shareholding after incorporation: based on available records (no transactions entered yet).
+          </p>
+        </div>
+      </CrmCard>
+
+      {/* ── Registered address history ── */}
+      <CrmCard className="p-5 sm:p-7">
+        <SectionHead icon={Building2} title="Registered office history" note="Historical records preserved" />
+        <div className="space-y-3">
+          {incAddress ? (
+            <div className="rounded-2xl border border-[#C9A84C]/30 bg-[#C9A84C]/[0.05] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-extrabold uppercase tracking-[0.16em] text-[#96782A]">Incorporation registered address</p>
+                <VerifBadge status={incAddress.verification_status} />
+              </div>
+              <p className="mt-2 text-[13px] leading-relaxed text-[#0A1628]">{incAddress.full_address}</p>
+              <p className="mt-1.5 text-[10.5px] text-[#6b7280]">Effective {fmtDate(incAddress.effective_from)} · Source: {incAddress.source}</p>
+            </div>
+          ) : (
+            <p className="text-[12px] text-[#9ca3af]">{masterLoading ? 'Loading…' : 'No address records yet.'}</p>
+          )}
+          <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-4">
+            <p className="text-[11.5px] font-semibold leading-relaxed text-amber-800">
+              Current registered office: not yet verified. If it differs from the incorporation record, add it as a new record — the incorporation address is never overwritten.
+            </p>
+          </div>
+        </div>
+      </CrmCard>
+
+      {/* ── MOA objects (permitted ≠ conducted) ── */}
+      <CrmCard className="p-5 sm:p-7">
+        <SectionHead icon={FileText} title="MOA principal objects" note="Permitted by charter — not necessarily conducted" />
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {(master?.ledger_moa_objects ?? []).map((o) => (
+            <div key={o.id} className="rounded-xl border border-black/[0.06] bg-[#fafaf9] p-3.5">
+              <p className="text-[12px] font-bold text-[#0A1628]">{o.title}</p>
+              <p className="mt-1 text-[10.5px] leading-relaxed text-[#6b7280]">{o.description}</p>
+            </div>
+          ))}
+          {masterLoading && <p className="text-[12px] text-[#9ca3af]">Loading MOA objects…</p>}
+        </div>
+        <p className="mt-3 text-[10.5px] text-[#9ca3af]">MOA object ≠ actual business activity. Record what the company actually conducts to drive the compliance engine.</p>
+      </CrmCard>
+
+      {/* ── Operating profile (editable) ── */}
+      <CrmCard className="p-5 sm:p-7">
+        <SectionHead icon={Settings2} title="Operating profile" note="Editable" />
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
           <div className="sm:col-span-2"><Label>Company name</Label><input value={f.name ?? ''} onChange={(e) => setF((x) => ({ ...x, name: e.target.value }))} className={inputCls} /></div>
           <div>
@@ -670,67 +1318,29 @@ function ProfileEditor({ profile, onSave, onChanged }: { profile: LedgerCompanyP
             </select>
           </div>
           <div><Label>Incorporated on</Label><input type="date" value={f.incorporated_on ?? ''} onChange={(e) => setF((x) => ({ ...x, incorporated_on: e.target.value || null }))} className={inputCls} /></div>
-          <div className="sm:col-span-2"><Label>Registered office</Label><input value={f.registered_office ?? ''} onChange={(e) => setF((x) => ({ ...x, registered_office: e.target.value }))} className={inputCls} /></div>
-          <div><Label>CIN / LLPIN</Label><input value={f.cin ?? ''} onChange={(e) => setF((x) => ({ ...x, cin: e.target.value.toUpperCase() }))} className={inputCls} /></div>
-          <div><Label>PAN</Label><input value={f.pan ?? ''} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className={inputCls} maxLength={10} /></div>
-          <div><Label>TAN</Label><input value={f.tan ?? ''} onChange={(e) => setF((x) => ({ ...x, tan: e.target.value.toUpperCase() }))} className={inputCls} maxLength={10} /></div>
-          <div><Label>GSTIN</Label><input value={f.gstin ?? ''} onChange={(e) => setF((x) => ({ ...x, gstin: e.target.value.toUpperCase() }))} className={inputCls} maxLength={15} /></div>
-        </div>
-      </CrmCard>
-
-      <CrmCard className="p-4 sm:p-6">
-        <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]"><ShieldCheck className="h-3.5 w-3.5" /> Registrations held</p>
-        <div className="flex flex-wrap gap-2">
-          {REGISTRATION_OPTIONS.map((r) => {
-            const on = (f.registrations ?? []).includes(r.value);
-            return (
-              <button
-                key={r.value}
-                type="button"
-                onClick={() => setF((x) => ({ ...x, registrations: on ? (x.registrations ?? []).filter((v) => v !== r.value) : [...(x.registrations ?? []), r.value] }))}
-                className={`cursor-pointer rounded-full px-3.5 py-2 text-[11.5px] font-bold transition-all duration-200 ${on ? 'bg-[#0A1628] text-[#D6B85D] shadow-[0_2px_8px_rgba(10,22,40,0.2)]' : 'bg-black/[0.05] text-[#6b7280] hover:bg-black/[0.09]'}`}
-              >
-                {on && <Check className="mr-1 inline h-3 w-3" strokeWidth={3} />}{r.label}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-[11px] text-[#9ca3af]">Changing registrations or entity type changes which obligations the generator creates — hit “Sync New” on the header afterwards.</p>
-      </CrmCard>
-
-      <CrmCard className="p-4 sm:p-6">
-        <p className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Scale & advisors</p>
-        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          <div><Label>PAN</Label><input value={f.pan ?? ''} onChange={(e) => setF((x) => ({ ...x, pan: e.target.value.toUpperCase() }))} className={`${inputCls} font-mono`} maxLength={10} /></div>
+          <div><Label>TAN</Label><input value={f.tan ?? ''} onChange={(e) => setF((x) => ({ ...x, tan: e.target.value.toUpperCase() }))} className={`${inputCls} font-mono`} maxLength={10} /></div>
+          <div><Label>CIN / LLPIN</Label><input value={f.cin ?? ''} onChange={(e) => setF((x) => ({ ...x, cin: e.target.value.toUpperCase() }))} className={`${inputCls} font-mono`} /></div>
+          <div><Label>Current registered office</Label><input value={f.registered_office ?? ''} onChange={(e) => setF((x) => ({ ...x, registered_office: e.target.value }))} className={inputCls} placeholder="Current operating address" /></div>
           <div>
             <Label>Approx. employees</Label>
             <input inputMode="numeric" value={f.employee_count ?? ''} onChange={(e) => setF((x) => ({ ...x, employee_count: Number(e.target.value.replace(/\D/g, '')) || 0 }))} className={inputCls} />
           </div>
-          <div>
-            <Label>Turnover band</Label>
-            <select value={f.turnover_band ?? ''} onChange={(e) => setF((x) => ({ ...x, turnover_band: e.target.value }))} className={inputCls}>
-              <option value="">Select…</option>
-              <option value="lt_20l">Under ₹20 lakh (no GST needed)</option>
-              <option value="20l_1cr">₹20 lakh – 1 crore</option>
-              <option value="1_2cr">₹1 – 2 crore</option>
-              <option value="2_10cr">₹2 – 10 crore</option>
-              <option value="10_50cr">₹10 – 50 crore</option>
-              <option value="gt_50cr">Above ₹50 crore</option>
-            </select>
-          </div>
           <div><Label>CA</Label><input value={f.ca_name ?? ''} onChange={(e) => setF((x) => ({ ...x, ca_name: e.target.value }))} className={inputCls} /></div>
           <div><Label>CS</Label><input value={f.cs_name ?? ''} onChange={(e) => setF((x) => ({ ...x, cs_name: e.target.value }))} className={inputCls} /></div>
         </div>
+        <div className="mt-5 flex items-center gap-3">
+          <CrmBtn variant="gold" onClick={() => void save()} disabled={saving}>
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save changes
+          </CrmBtn>
+          {saved && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[12px] font-bold text-emerald-600">Saved</motion.span>}
+        </div>
+        <p className="mt-3 text-[10.5px] text-[#9ca3af]">Legal-identity fields mirror the incorporation record — changes are audit-logged. GST, registrations and labour settings live in their own tabs.</p>
       </CrmCard>
-
-      <div className="flex items-center gap-3">
-        <CrmBtn variant="gold" onClick={() => void save()} disabled={saving}>
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Save profile
-        </CrmBtn>
-        {saved && <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[12px] font-bold text-emerald-600">Profile saved</motion.span>}
-      </div>
     </div>
   );
 }
+
 
 /* ═══════════════ DASHBOARD ═══════════════ */
 
@@ -750,11 +1360,39 @@ function StatCard({ icon: Icon, tone, label, value, sub, delay }: { icon: typeof
   );
 }
 
-function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record<RiskBand, LedgerComplianceItem[]>; cases: LedgerLegalCase[]; loading: boolean; onChanged: () => void }) {
-  const hearingSoon = cases
-    .filter((c) => (c.next_hearing_on || c.reply_due_on) && c.status !== 'closed')
-    .sort((a, z) => (a.next_hearing_on ?? a.reply_due_on ?? '').localeCompare(z.next_hearing_on ?? z.reply_due_on ?? ''))
-    .slice(0, 5);
+function PriorityQueue({ buckets, cases, notices, payments, directors, loading, onChanged }: { buckets: Record<RiskBand, LedgerComplianceItem[]>; cases: LedgerLegalCase[]; notices: LedgerNotice[]; payments: LedgerPayment[]; directors: LedgerDirector[]; loading: boolean; onChanged: () => void }) {
+  // Court hearings + notice response deadlines + unpaid payment dues — one
+  // rule-based list, nearest date first. Every entry shows what, when and why.
+  const deadlines = useMemo(() => {
+    const list: { key: string; title: string; date: string; meta: string }[] = [];
+    for (const c of cases) {
+      if (c.status === 'closed') continue;
+      if (c.next_hearing_on) list.push({ key: `case-h-${c.id}`, title: c.title, date: c.next_hearing_on, meta: `Hearing · ${c.authority || 'court'}` });
+      if (c.reply_due_on) list.push({ key: `case-r-${c.id}`, title: c.title, date: c.reply_due_on, meta: `Reply due · ${c.authority || 'authority'}` });
+    }
+    for (const n of notices) {
+      if (n.status === 'closed' || n.status === 'resolved' || !n.response_deadline) continue;
+      list.push({ key: `notice-${n.id}`, title: n.subject ?? 'Notice', date: n.response_deadline, meta: `Notice reply · ${n.authority || n.notice_type || 'authority'}` });
+    }
+    for (const p of payments) {
+      if (p.status === 'paid' || p.status === 'reconciled' || !p.due_date) continue;
+      list.push({ key: `pay-${p.id}`, title: p.title ?? 'Payment', date: p.due_date, meta: `Payment · ${p.payment_type || 'due'}${(p.amount ?? 0) > 0 ? ` · ${fmtINR(p.amount ?? 0)}` : ''}` });
+    }
+    // Director KYC dues — pending + stored date, same state machine as the
+    // directors register. Overdue auto-fill: pending + no stored date yet →
+    // write the derived statutory date once so the nightly reminder job
+    // (which reads the persisted column) stays in sync.
+    for (const d of directors) {
+      if (d.resignation_date) continue;
+      if (d.kyc_status === 'pending' && d.kyc_due_date) {
+        const s = kycState(d.kyc_status, d.kyc_due_date);
+        if (s === 'overdue' || s === 'due') list.push({ key: `kyc-${d.id}`, title: `DIR-3 KYC — ${d.name ?? 'director'}`, date: d.kyc_due_date, meta: `Director KYC · DIN ${d.din || '—'} · ₹5,000 penalty` });
+      } else if (d.kyc_status === 'pending' && !d.kyc_due_date) {
+        void upsertLedgerRow('directors', { id: d.id, kyc_due_date: deriveKyc().dueDate }).catch(() => null);
+      }
+    }
+    return list.sort((a, z) => a.date.localeCompare(z.date)).slice(0, 8);
+  }, [cases, notices, payments, directors]);
 
   if (loading) return <div className="h-64 animate-pulse rounded-2xl border border-black/[0.05] bg-white" />;
   if (buckets.overdue.length + buckets.critical.length + buckets.warning.length + buckets.upcoming.length === 0) {
@@ -787,23 +1425,22 @@ function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record
         </div>
       ))}
 
-      {hearingSoon.length > 0 && (
+      {deadlines.length > 0 && (
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em]">
-            <Gavel className="h-3.5 w-3.5 text-[#C9A84C]" /> Hearings & notice replies
+            <Gavel className="h-3.5 w-3.5 text-[#C9A84C]" /> Hearings, notice replies & payment dues
           </p>
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
-            {hearingSoon.map((c) => {
-              const target = c.next_hearing_on ?? c.reply_due_on!;
-              const d = daysUntil(target);
+            {deadlines.map((e) => {
+              const d = daysUntil(e.date);
               return (
-                <CrmCard key={c.id} className="flex items-center gap-3 p-3.5">
+                <CrmCard key={e.key} className="flex items-center gap-3 p-3.5">
                   <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-extrabold ${d < 0 ? 'bg-red-50 text-red-600' : d <= 7 ? 'bg-orange-50 text-orange-600' : 'bg-[#0A1628]/[0.06]'}`}>
                     {d < 0 ? `${Math.abs(d)}d↑` : `${d}d`}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[12.5px] font-bold">{c.title}</p>
-                    <p className="text-[10.5px] text-[#9ca3af]">{c.authority || 'Authority'} · {fmtDate(target)}</p>
+                    <p className="truncate text-[12.5px] font-bold">{e.title}</p>
+                    <p className="text-[10.5px] text-[#9ca3af]">{e.meta} · {fmtDate(e.date)}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-[#c9c9c9]" />
                 </CrmCard>
@@ -821,7 +1458,7 @@ function PriorityQueue({ buckets, cases, loading, onChanged }: { buckets: Record
 function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '', amount_paid: (item as Record<string, unknown>).amount_paid != null ? String((item as Record<string, unknown>).amount_paid) : '', proof_url: item.proof_url ?? '' });
+  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '', amount_paid: item.amount_paid != null ? String(item.amount_paid) : '', proof_url: item.proof_url ?? '' });
   const [dirty, setDirty] = useState(false);
   const band = riskBand(item);
   const law = LAW_STYLES[item.law] ?? LAW_STYLES.Other;
@@ -1150,7 +1787,7 @@ const STATUS_LABEL: Record<string, string> = {
   na: 'N/A',
 };
 
-function LegalCompliancesTable({ items, loading, onChanged }: { items: LedgerComplianceItem[]; loading: boolean; onChanged: () => void }) {
+function LegalCompliancesTable({ items, loading }: { items: LedgerComplianceItem[]; loading: boolean }) {
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'filed' | 'all'>('upcoming');
   const [search, setSearch] = useState('');
 
@@ -1242,6 +1879,7 @@ function LegalCompliancesTable({ items, loading, onChanged }: { items: LedgerCom
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold ${RISK_STYLES[band].chip}`}>
                           {it.status === 'filed' || it.status === 'na' ? '—' : d < 0 ? `${Math.abs(d)}d late` : `${d}d`}
                         </span>
+                        <p className="mt-0.5 whitespace-nowrap text-[10px] font-semibold text-[#6b7280]">due {fmtDate(it.due_date)}</p>
                       </td>
                       <td className="px-3 py-3 text-[11.5px] text-[#374151] sm:px-4">
                         {it.filed_date ? fmtDate(it.filed_date) : <span className="text-[#c9c9c9]">Not yet</span>}

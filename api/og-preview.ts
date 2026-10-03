@@ -1,5 +1,5 @@
 const SITE_NAME = 'VJR Estate';
-const FALLBACK_IMAGE = '/og-image.png';
+const FALLBACK_IMAGE = '/og-image-v2.png';
 // Bump this whenever the OG card design/dimensions change so WhatsApp
 // (which caches link previews by exact URL) re-fetches the new image.
 const OG_IMAGE_VERSION = 'v3';

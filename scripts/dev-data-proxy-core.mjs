@@ -5,6 +5,8 @@
  * behaves like production. Used by the Vite plugin and dev-crm-proxy.mjs.
  */
 import { createClient } from '@supabase/supabase-js';
+import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from '../api/ledger-rules.mjs';
+import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from '../api/ledger-reminders.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -304,11 +306,13 @@ CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
   authority TEXT DEFAULT '',
   recurrence TEXT DEFAULT 'monthly',
   reminders_sent JSONB NOT NULL DEFAULT '[]',
+  rule_version TEXT DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_items_due ON public.ledger_compliance_items (due_date);
 CREATE INDEX IF NOT EXISTS idx_ledger_items_fy ON public.ledger_compliance_items (fy);
+ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS rule_version TEXT DEFAULT '';
 CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_no TEXT DEFAULT '',
@@ -328,6 +332,86 @@ CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_cases_hearing ON public.ledger_legal_cases (next_hearing_on);
+CREATE TABLE IF NOT EXISTS public.ledger_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  payment_type TEXT DEFAULT '',
+  authority TEXT DEFAULT '',
+  compliance_item_id UUID DEFAULT NULL,
+  title TEXT DEFAULT '',
+  period TEXT DEFAULT '',
+  fy TEXT DEFAULT '',
+  amount NUMERIC DEFAULT 0,
+  due_date DATE,
+  paid_date DATE,
+  payment_ref TEXT DEFAULT '',
+  challan_url TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'upcoming',
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_payments_due ON public.ledger_payments (due_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_payments_fy ON public.ledger_payments (fy);
+CREATE TABLE IF NOT EXISTS public.ledger_notices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  notice_type TEXT DEFAULT '',
+  authority TEXT DEFAULT '',
+  notice_no TEXT DEFAULT '',
+  notice_date DATE,
+  received_date DATE,
+  response_deadline DATE,
+  subject TEXT DEFAULT '',
+  amount_involved NUMERIC DEFAULT 0,
+  responsible TEXT DEFAULT '',
+  advisor TEXT DEFAULT '',
+  response_summary TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',
+  documents_url TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_notices_deadline ON public.ledger_notices (response_deadline);
+CREATE INDEX IF NOT EXISTS idx_ledger_notices_status ON public.ledger_notices (status);
+CREATE TABLE IF NOT EXISTS public.ledger_directors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL DEFAULT '',
+  din TEXT DEFAULT '',
+  designation TEXT DEFAULT '',
+  appointment_date DATE,
+  resignation_date DATE,
+  kyc_status TEXT NOT NULL DEFAULT 'pending',
+  kyc_due_date DATE,
+  dsc_status TEXT NOT NULL DEFAULT 'na',
+  dsc_expiry_date DATE,
+  email TEXT DEFAULT '',
+  phone TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_directors_name ON public.ledger_directors (name);
+CREATE TABLE IF NOT EXISTS public.ledger_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL DEFAULT '',
+  doc_type TEXT DEFAULT '',
+  fy TEXT DEFAULT '',
+  period TEXT DEFAULT '',
+  entity_type TEXT DEFAULT '',
+  entity_id UUID DEFAULT NULL,
+  url TEXT DEFAULT '',
+  storage_path TEXT DEFAULT '',
+  expiry_date DATE,
+  version_no INT NOT NULL DEFAULT 1,
+  parent_id UUID DEFAULT NULL,
+  notes TEXT DEFAULT '',
+  uploaded_by TEXT DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ledger_documents_entity ON public.ledger_documents (entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_documents_expiry ON public.ledger_documents (expiry_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_documents_parent ON public.ledger_documents (parent_id);
 CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   entity_type TEXT NOT NULL,
@@ -339,13 +423,42 @@ CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_log_created ON public.ledger_activity_log (created_at DESC);
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_legal_cases','ledger_company_profile','ledger_activity_log'] LOOP
+  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_legal_cases','ledger_company_profile','ledger_activity_log','ledger_payments','ledger_notices','ledger_directors','ledger_documents'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated;', t);
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
   END LOOP;
 END $$;
 INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-assets','ledger-assets',TRUE) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-docs','ledger-docs',FALSE) ON CONFLICT (id) DO NOTHING;
 `;
+
+/**
+ * Whitelist for the generic ledger register CRUD (payments / notices /
+ * directors / documents) — mirrors api/data-proxy.ts. A register not listed
+ * here cannot be touched; only the columns below can be written.
+ */
+const LEDGER_REGISTERS = {
+  payments: {
+    table: 'ledger_payments',
+    columns: ['payment_type', 'authority', 'compliance_item_id', 'title', 'period', 'fy', 'amount', 'due_date', 'paid_date', 'payment_ref', 'challan_url', 'status', 'notes'],
+    order: 'due_date.asc', entity: 'payment', fyFilter: true,
+  },
+  notices: {
+    table: 'ledger_notices',
+    columns: ['notice_type', 'authority', 'notice_no', 'notice_date', 'received_date', 'response_deadline', 'subject', 'amount_involved', 'responsible', 'advisor', 'response_summary', 'status', 'documents_url', 'notes'],
+    order: 'response_deadline.asc', entity: 'notice',
+  },
+  directors: {
+    table: 'ledger_directors',
+    columns: ['name', 'din', 'designation', 'appointment_date', 'resignation_date', 'kyc_status', 'kyc_due_date', 'dsc_status', 'dsc_expiry_date', 'email', 'phone', 'notes', 'father_name', 'date_of_birth', 'nationality', 'occupation', 'category', 'executive_status', 'din_status', 'date_source', 'source', 'verification_status', 'shares_held'],
+    order: 'name.asc', entity: 'director',
+  },
+  documents: {
+    table: 'ledger_documents',
+    columns: ['name', 'doc_type', 'fy', 'period', 'entity_type', 'entity_id', 'url', 'storage_path', 'expiry_date', 'version_no', 'parent_id', 'notes', 'uploaded_by'],
+    order: 'created_at.desc', entity: 'document', fyFilter: true,
+  },
+};
 
 const _ledgerSchemaOnce = { done: false };
 async function ensureLedgerSchema() {
@@ -967,6 +1080,66 @@ async function executeAction(action, params) {
       return { url: pub.data.publicUrl };
     }
 
+    // ── LEDGERS: company master data — mirrors api/data-proxy.ts ──
+    case 'ledger.master.get': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const tables = ['ledger_share_capital', 'ledger_shareholders', 'ledger_shareholding', 'ledger_address_history', 'ledger_moa_objects'];
+      const out = {};
+      for (const t of tables) {
+        const q = () => supabaseAdmin.from(t).select('*').limit(200);
+        let r = await q();
+        if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await q(); }
+        if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+        out[t] = r.data ?? [];
+      }
+      const cQ = () => supabaseAdmin.from('ledger_constitution').select('*').eq('id', 'company').maybeSingle();
+      let c = await cQ();
+      if (c.error && isMissingRelationMsg(c.error.message)) { await ensureLedgerSchema(); c = await cQ(); }
+      out.ledger_constitution = c.data ?? null;
+      return out;
+    }
+
+    case 'ledger.master.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const MASTER_TABLES = {
+        ledger_share_capital: ['capital_type', 'authorised_amount', 'authorised_shares', 'subscribed_amount', 'subscribed_shares', 'face_value', 'class_name', 'effective_from', 'effective_to', 'source', 'verification_status'],
+        ledger_shareholders: ['name', 'type', 'pan', 'occupation', 'original_subscriber', 'current_shareholder', 'source', 'verification_status', 'effective_from', 'effective_to', 'notes'],
+        ledger_shareholding: ['shareholder_id', 'snapshot_type', 'shares_held', 'share_class', 'face_value', 'subscription_value', 'effective_from', 'effective_to', 'source', 'verification_status'],
+        ledger_address_history: ['address_type', 'full_address', 'state', 'district', 'city', 'pin', 'effective_from', 'effective_to', 'source', 'verification_status'],
+        ledger_moa_objects: ['object_type', 'title', 'description', 'moa_supported', 'currently_conducted', 'source'],
+      };
+      const table = String(params.table ?? '');
+      const allowed = MASTER_TABLES[table];
+      if (!allowed) throw new Error('Unknown master table');
+      const { id, ...fields } = params.row;
+      const clean = {};
+      for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (!Object.keys(clean).length) throw new Error('Nothing to update');
+      const write = async () => {
+        if (id) {
+          clean.updated_at = new Date().toISOString();
+          const { error } = await supabaseAdmin.from(table).update(clean).eq('id', String(id));
+          if (error) throw new Error(error.message);
+          return { id: String(id) };
+        }
+        const { data, error } = await supabaseAdmin.from(table).insert(clean).select('id').single();
+        if (error) throw new Error(error.message);
+        return { id: data.id };
+      };
+      let result;
+      try {
+        result = await write();
+      } catch (e) {
+        if (!isMissingRelationMsg(e.message)) throw e;
+        await ensureLedgerSchema();
+        result = await write();
+      }
+      try {
+        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'master', entity_id: result.id, action: id ? 'updated' : 'created', summary: `${table}: ${String(clean.name ?? clean.title ?? clean.address_type ?? clean.class_name ?? 'row')}`, actor: auth?.email ?? '' });
+      } catch { /* best-effort */ }
+      return result;
+    }
+
     case 'ledger.profile.get': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const runQ = () => supabaseAdmin.from('ledger_company_profile').select('*').eq('id', 'company').maybeSingle();
@@ -992,6 +1165,301 @@ async function executeAction(action, params) {
         }
       } catch (e) { err = e; }
       if (err) throw new Error(err.message ?? String(err));
+      return { ok: true };
+    }
+
+    // ── LEDGERS: registers — payments / notices / directors / documents ──
+    // Generic CRUD behind a strict per-table whitelist (LEDGER_REGISTERS).
+    case 'ledger.rows.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const reg = LEDGER_REGISTERS[String(params.register ?? '')];
+      if (!reg) throw new Error('Unknown register');
+      const [orderCol, orderDir] = reg.order.split('.');
+      const runQ = () => {
+        let q = supabaseAdmin.from(reg.table).select('*').order(orderCol, { ascending: orderDir !== 'desc' }).limit(500);
+        if (reg.fyFilter && params.fy) q = q.eq('fy', String(params.fy));
+        return q;
+      };
+      let r = await runQ();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await runQ(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
+    }
+
+    case 'ledger.rows.upsert': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const reg = LEDGER_REGISTERS[String(params.register ?? '')];
+      if (!reg) throw new Error('Unknown register');
+      const { id, ...fields } = params;
+      const clean = {};
+      for (const k of reg.columns) if (fields[k] !== undefined) clean[k] = fields[k];
+      const label = () => String(clean.name ?? clean.title ?? clean.subject ?? reg.entity);
+      const logIt = async (action) => {
+        try {
+          await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: reg.entity, entity_id: String(id ?? ''), action, summary: label(), actor: auth?.email ?? '' });
+        } catch { /* log table may not exist yet */ }
+      };
+      if (id) {
+        clean.updated_at = new Date().toISOString();
+        let r = await supabaseAdmin.from(reg.table).update(clean).eq('id', String(id));
+        if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from(reg.table).update(clean).eq('id', String(id)); }
+        if (r.error) throw new Error(r.error.message);
+        await logIt('updated');
+        return { id: String(id) };
+      }
+      let r = await supabaseAdmin.from(reg.table).insert(clean).select('id').single();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from(reg.table).insert(clean).select('id').single(); }
+      if (r.error) throw new Error(r.error.message);
+      await logIt('created');
+      return { id: r.data.id };
+    }
+
+    case 'ledger.rows.delete': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const reg = LEDGER_REGISTERS[String(params.register ?? '')];
+      if (!reg) throw new Error('Unknown register');
+      const { error } = await supabaseAdmin.from(reg.table).delete().eq('id', String(params.id));
+      if (error) throw new Error(error.message);
+      try {
+        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: reg.entity, entity_id: String(params.id), action: 'deleted', summary: `${reg.entity} removed`, actor: auth?.email ?? '' });
+      } catch { /* best-effort */ }
+      return { id: String(params.id) };
+    }
+
+    // ── LEDGERS: GST engine — mirrors api/data-proxy.ts (spec §22-26) ──
+    case 'ledger.gst.get': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      let r = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? null };
+    }
+
+    case 'ledger.gst.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const allowed = ['status','threshold_monitoring_enabled','threshold_amount','registration_type','gstin','registration_state','effective_date','cancellation_date','compliance_generation_enabled','filing_frequency','voluntary_registration','interstate_taxable_supply','compulsory_registration_condition','exempt_supply_only','ecommerce_condition','agent_condition','reverse_charge_condition','other_state_registration','rule_version'];
+      const clean = { id: 'company', updated_at: new Date().toISOString(), rule_version: RULES_VERSION };
+      for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      if (clean.status === 'registered_composition') clean.registration_type = 'composition';
+      else if (clean.status === 'registered_regular' || clean.status === 'voluntarily_registered') clean.registration_type = clean.registration_type ?? 'regular';
+      const s = String(clean.status ?? 'not_registered');
+      const active = ['registered_regular', 'registered_composition', 'voluntarily_registered'].includes(s);
+      clean.compliance_generation_enabled = active ? clean.compliance_generation_enabled ?? true : false;
+      let r = await supabaseAdmin.from('gst_profile').upsert(clean, { onConflict: 'id' });
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_profile').upsert(clean, { onConflict: 'id' }); }
+      if (r.error) throw new Error(r.error.message);
+      try { await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'gst', entity_id: 'company', action: 'gst_status_changed', summary: `GST status → ${s}`, actor: auth?.email ?? '' }); } catch { /* best-effort */ }
+      return { ok: true };
+    }
+
+    case 'ledger.gst.turnover.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      let r = await supabaseAdmin.from('gst_turnover_records').select('*').order('period', { ascending: true }).limit(200);
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_turnover_records').select('*').order('period', { ascending: true }).limit(200); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
+    }
+
+    case 'ledger.gst.turnover.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const allowed = ['id','period','period_type','fy','opening_turnover','taxable_supplies','exempt_supplies','exports','interstate_supplies','other_included','inward_rcm','taxes_excluded','aggregate_turnover','as_of_date','source','verified','notes'];
+      const clean = { updated_at: new Date().toISOString() };
+      for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
+      if (!clean.period || !clean.fy) throw new Error('period and fy are required');
+      const comps = ['taxable_supplies','exempt_supplies','exports','interstate_supplies','other_included'].reduce((s2, k) => s2 + (Number(clean[k]) || 0), 0) - (Number(clean.taxes_excluded) || 0);
+      if (comps > 0) clean.aggregate_turnover = comps;
+      let r = await supabaseAdmin.from('gst_turnover_records').upsert(clean, clean.id ? { onConflict: 'id' } : undefined);
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_turnover_records').upsert(clean, clean.id ? { onConflict: 'id' } : undefined); }
+      if (r.error) throw new Error(r.error.message);
+      const savedRow = Array.isArray(r.data) ? r.data[0] : r.data;
+      return { id: savedRow?.id ?? null };
+    }
+
+    case 'ledger.gst.evaluate': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const fy = String(params.fy ?? '');
+      let tr = await supabaseAdmin.from('gst_turnover_records').select('*').eq('fy', fy).order('period', { ascending: false });
+      if (tr.error && isMissingRelationMsg(tr.error.message)) { await ensureLedgerSchema(); tr = await supabaseAdmin.from('gst_turnover_records').select('*').eq('fy', fy).order('period', { ascending: false }); }
+      if (tr.error && !isMissingRelationMsg(tr.error.message)) throw new Error(tr.error.message);
+      const rows = tr.data ?? [];
+      const annual = rows.find((x) => x.period_type === 'annual');
+      const turnover = annual ? Number(annual.aggregate_turnover) || 0 : rows.filter((x) => x.period_type === 'monthly').reduce((s2, x) => s2 + (Number(x.aggregate_turnover) || 0), 0);
+      let gr = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle();
+      if (gr.error && isMissingRelationMsg(gr.error.message)) { await ensureLedgerSchema(); gr = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle(); }
+      const evalResult = evaluateGst(gr.data ?? {}, turnover);
+      let event = null;
+      if (evalResult.crossed) {
+        let er = await supabaseAdmin.from('gst_threshold_events').select('*').eq('fy', fy).order('created_at', { ascending: false }).limit(1);
+        if (er.error && isMissingRelationMsg(er.error.message)) { await ensureLedgerSchema(); er = await supabaseAdmin.from('gst_threshold_events').select('*').eq('fy', fy).order('created_at', { ascending: false }).limit(1); }
+        event = (er.data ?? [])[0] ?? null;
+        if (!event) {
+          const asOf = rows[0]?.as_of_date ?? new Date().toISOString().slice(0, 10);
+          const ins = await supabaseAdmin.from('gst_threshold_events').insert({
+            fy, threshold: evalResult.threshold, previous_turnover: evalResult.threshold,
+            current_turnover: turnover, crossing_amount: turnover - evalResult.threshold,
+            crossing_date: asOf, as_of_date: asOf, liability_status: 'requires_review',
+            deadline_basis: 'Sec 23(2)/30 days from crossing — CONFIRM WITH CA',
+            source_record_id: annual?.id ?? rows[0]?.id ?? null,
+          }).select('*').single();
+          if (!ins.error) event = ins.data;
+          try { await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'gst', entity_id: 'company', action: 'threshold_crossed', summary: `Aggregate turnover crossed GST threshold for ${fy}`, actor: auth?.email ?? '' }); } catch { /* best-effort */ }
+        }
+      }
+      return { eval: evalResult, event };
+    }
+
+    case 'ledger.gst.events.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      let r = await supabaseAdmin.from('gst_threshold_events').select('*').order('created_at', { ascending: false }).limit(50);
+      if (r.error && isMissingRelationMsg(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_threshold_events').select('*').order('created_at', { ascending: false }).limit(50); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
+    }
+
+    // Private document vault: upload lands in the ledger-docs bucket (no
+    // public policy); reads go through short-lived signed URLs only.
+    case 'ledger.doc.upload': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const ct = String(params.contentType ?? '');
+      const ALLOWED = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/msword', 'text/csv'];
+      if (!ALLOWED.includes(ct)) throw new Error('Only PDF, image, Excel, Word or CSV files are allowed');
+      const buf = decodeBase64(String(params.dataBase64 ?? ''));
+      if (!buf.length) throw new Error('Empty file');
+      if (buf.length > 3 * 1024 * 1024) throw new Error('Documents must be under 3 MB');
+      const path = `docs/${Date.now()}-${sanitizeFileName(String(params.name ?? 'document'))}`;
+      let up = await supabaseAdmin.storage.from('ledger-docs').upload(path, buf, { contentType: ct, upsert: false });
+      if (up.error && /bucket/i.test(up.error.message)) {
+        try {
+          await fetch(`${(process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '')}/rest/v1/rpc/exec_sql`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SERVICE_KEY}`, apikey: SERVICE_KEY },
+            body: JSON.stringify({ q: "INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-docs','ledger-docs',FALSE) ON CONFLICT (id) DO NOTHING;" }),
+          });
+          up = await supabaseAdmin.storage.from('ledger-docs').upload(path, buf, { contentType: ct, upsert: false });
+        } catch { /* fall through */ }
+      }
+      if (up.error) throw new Error(up.error.message);
+      return { path };
+    }
+
+    case 'ledger.doc.url': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const path = String(params.path ?? '');
+      if (!path || path.includes('..')) throw new Error('Invalid document path');
+      const signed = await supabaseAdmin.storage.from('ledger-docs').createSignedUrl(path, 3600);
+      if (signed.error) throw new Error(signed.error.message);
+      return { url: signed.data.signedUrl };
+    }
+
+    // ── LEDGERS: server-side calendar generation — mirrors api/data-proxy.ts ──
+    case 'ledger.generate': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const fyStartYear = Number(params.fyStartYear);
+      if (!Number.isFinite(fyStartYear)) throw new Error('fyStartYear is required');
+      let prof = await supabaseAdmin.from('ledger_company_profile').select('*').eq('id', 'company').maybeSingle();
+      if (prof.error && isMissingRelationMsg(prof.error.message)) { await ensureLedgerSchema(); prof = await supabaseAdmin.from('ledger_company_profile').select('*').eq('id', 'company').maybeSingle(); }
+      const p = prof.data;
+      if (!p?.name) throw new Error('Save the company profile first — the rule engine needs the entity type and registrations.');
+      const entityType = String(p.entity_type ?? 'pvtltd');
+      const registrations = Array.isArray(p.registrations) ? p.registrations : [];
+      if (!registrations.length) throw new Error('No registrations ticked in the company profile — nothing to generate.');
+
+      // GST context from gst_profile + FY aggregate turnover (spec §66).
+      const fyLabel = `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`;
+      let gRes = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle();
+      if (gRes.error && isMissingRelationMsg(gRes.error.message)) { await ensureLedgerSchema(); gRes = await supabaseAdmin.from('gst_profile').select('*').eq('id', 'company').maybeSingle(); }
+      const gstProfile = gRes.data ?? gstProfileFromLegacy(registrations, p.gst_scheme);
+      let tRes = await supabaseAdmin.from('gst_turnover_records').select('*').eq('fy', fyLabel).order('period', { ascending: false });
+      if (tRes.error && isMissingRelationMsg(tRes.error.message)) { await ensureLedgerSchema(); tRes = await supabaseAdmin.from('gst_turnover_records').select('*').eq('fy', fyLabel).order('period', { ascending: false }); }
+      const tRows = tRes.data ?? [];
+      const annual = tRows.find((x) => x.period_type === 'annual');
+      const aggregateTurnover = annual ? Number(annual.aggregate_turnover) || 0 : tRows.filter((x) => x.period_type === 'monthly').reduce((s2, x) => s2 + (Number(x.aggregate_turnover) || 0), 0);
+
+      const { items: generated, summary, gstEval } = generateComplianceCalendarWithSummary({
+        fyStartYear,
+        entityType,
+        registrations,
+        incorporatedOn: p.incorporated_on ?? null,
+        gstScheme: p.gst_scheme === 'qrmp' ? 'qrmp' : 'monthly',
+        gst: gstProfile,
+        aggregateTurnover,
+        markPastFiled: params.markPastFiled !== false,
+      });
+      if (!generated.length) throw new Error(`Generated 0 obligations for a ${entityType} with those registrations — tick GST/TDS/PF etc. in Company Profile.`);
+
+      // Threshold crossing → create the review event once (idempotent).
+      if (gstEval.crossed) {
+        let eRes = await supabaseAdmin.from('gst_threshold_events').select('id').eq('fy', fyLabel).limit(1);
+        if (eRes.error && isMissingRelationMsg(eRes.error.message)) { await ensureLedgerSchema(); eRes = await supabaseAdmin.from('gst_threshold_events').select('id').eq('fy', fyLabel).limit(1); }
+        if (!(eRes.data ?? []).length) {
+          const asOf = tRows[0]?.as_of_date ?? new Date().toISOString().slice(0, 10);
+          await supabaseAdmin.from('gst_threshold_events').insert({
+            fy: fyLabel, threshold: gstEval.threshold, previous_turnover: gstEval.threshold,
+            current_turnover: aggregateTurnover, crossing_amount: aggregateTurnover - gstEval.threshold,
+            crossing_date: asOf, as_of_date: asOf, liability_status: 'requires_review',
+            deadline_basis: 'Sec 23(2)/30 days from crossing — CONFIRM WITH CA',
+          });
+          try { await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'gst', entity_id: 'company', action: 'threshold_crossed', summary: `Aggregate turnover crossed GST threshold for ${fyLabel}`, actor: auth?.email ?? '' }); } catch { /* best-effort */ }
+        }
+      }
+
+      // Existing rows keep manual edits; only missing form|period pairs are inserted.
+      let existing = await supabaseAdmin.from('ledger_compliance_items').select('form,period').eq('fy', `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`);
+      if (existing.error && isMissingRelationMsg(existing.error.message)) { await ensureLedgerSchema(); existing = await supabaseAdmin.from('ledger_compliance_items').select('form,period').eq('fy', `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`); }
+      const have = new Set((existing.data ?? []).map((r) => `${r.form}|${r.period}`));
+      const fresh = generated.filter((g) => !have.has(`${g.form}|${g.period}`));
+      const insertItems = async (rows) => {
+        let savedCount = 0;
+        const failures = [];
+        for (const g of rows) {
+          const { error } = await supabaseAdmin.from('ledger_compliance_items').insert(g);
+          if (error) { failures.push(`${g.form}: ${error.message}`); if (failures.length >= 3) break; }
+          else savedCount++;
+        }
+        return { savedCount, failures };
+      };
+      let { savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION })));
+      // Self-heal: a live table missing columns added after its creation fails
+      // every insert with a schema-cache error — re-run the DDL once and retry.
+      if (saved === 0 && failures.length && isMissingRelationMsg(failures[0])) {
+        await ensureLedgerSchema();
+        ({ savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION }))));
+      }
+      try {
+        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'item', entity_id: '', action: 'generated', summary: `Rules evaluated ${summary.rulesEvaluated} · applicable ${summary.applicable} · created ${saved} for ${fyLabel} (v${RULES_VERSION})`, actor: auth?.email ?? '' });
+      } catch { /* log table may not exist */ }
+      if (saved === 0 && failures.length) throw new Error(`Could not save obligations — ${failures[0]}${failures.length > 1 ? ` (+${failures.length - 1} more)` : ''}`);
+      return { generated: generated.length, saved, skippedDuplicates: generated.length - fresh.length, ruleVersion: RULES_VERSION, summary };
+    }
+
+    // ── LEDGERS: reminder engine (same code the cron runs — manual trigger) ──
+    case 'ledger.reminders.run': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      try { await supabaseAdmin.rpc('exec_sql', { q: LEDGER_NOTIFICATIONS_DDL }); } catch { /* table likely exists */ }
+      const base = (process.env.SUPABASE_REQ_URL ?? process.env.VITE_SUPABASE_REQ_URL ?? '').replace(/\/$/, '');
+      return await scanAndNotify({ baseUrl: base, serviceKey: SERVICE_KEY });
+    }
+
+    case 'ledger.notifications.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const runQ = () => supabaseAdmin.from('ledger_notifications').select('*').order('created_at', { ascending: false }).limit(100);
+      let r = await runQ();
+      if (r.error && isMissingRelationMsg(r.error.message)) { await supabaseAdmin.rpc('exec_sql', { q: LEDGER_NOTIFICATIONS_DDL }); r = await runQ(); }
+      if (r.error && !isMissingRelationMsg(r.error.message)) throw new Error(r.error.message);
+      return { data: r.data ?? [] };
+    }
+
+    case 'ledger.notification.read': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { error } = await supabaseAdmin.from('ledger_notifications').update({ read_at: new Date().toISOString() }).eq('id', String(params.id));
+      if (error) throw new Error(error.message);
+      return { id: String(params.id) };
+    }
+
+    case 'ledger.notifications.readAll': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { error } = await supabaseAdmin.from('ledger_notifications').update({ read_at: new Date().toISOString() }).is('read_at', null);
+      if (error) throw new Error(error.message);
       return { ok: true };
     }
 

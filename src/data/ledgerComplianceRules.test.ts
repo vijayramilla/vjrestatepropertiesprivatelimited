@@ -1,11 +1,13 @@
 /**
- * Unit tests for the LEDGERS due-date engine.
+ * Unit tests for the LEDGERS due-date engine (server-side module).
  * Run: npx tsx src/data/ledgerComplianceRules.test.ts
  * (no test framework installed — plain asserts, ponytail-style)
  */
 import {
-  generateComplianceCalendar, rulesForProfile, daysUntil, riskBand,
-  complianceToIcs, REMINDER_SCHEDULE,
+  generateComplianceCalendar, rulesForProfile,
+} from '../../api/ledger-rules.mjs';
+import {
+  daysUntil, riskBand, complianceToIcs, REMINDER_SCHEDULE,
 } from './ledgerComplianceRules';
 
 let passed = 0;

@@ -1,5 +1,5 @@
 const SITE_NAME = 'VJR Estate';
-const FALLBACK_IMAGE = '/og-image.png';
+const FALLBACK_IMAGE = '/og-image-v2.png';
 // Bump when the job OG card design changes so WhatsApp/social scrapers re-fetch.
 const OG_JOB_IMAGE_VERSION = 'v1';
 

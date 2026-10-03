@@ -26,10 +26,10 @@ export function setDefaultSiteMeta() {
   setMeta('og:site_name', SITE_NAME, true);
   setMeta('og:type', 'website', true);
   setMeta('og:url', `${origin}/`, true);
-  setMeta('og:image', `${origin}/og-image.png`, true);
+  setMeta('og:image', `${origin}/og-image-v2.png`, true);
   setMeta('twitter:title', DEFAULT_TITLE);
   setMeta('twitter:description', DEFAULT_DESCRIPTION);
-  setMeta('twitter:image', `${origin}/og-image.png`);
+  setMeta('twitter:image', `${origin}/og-image-v2.png`);
 }
 
 // Keep in sync with OG_IMAGE_VERSION in api/og-preview.ts — bumping it forces
@@ -45,10 +45,10 @@ export function setPageMeta(title: string, description: string) {
   setMeta('og:site_name', SITE_NAME, true);
   setMeta('og:type', 'website', true);
   setMeta('og:url', `${getSiteOrigin()}/`, true);
-  setMeta('og:image', `${getSiteOrigin()}/og-image.png`, true);
+  setMeta('og:image', `${getSiteOrigin()}/og-image-v2.png`, true);
   setMeta('twitter:title', title);
   setMeta('twitter:description', description);
-  setMeta('twitter:image', `${getSiteOrigin()}/og-image.png`);
+  setMeta('twitter:image', `${getSiteOrigin()}/og-image-v2.png`);
 }
 
 export function setPropertyShareMeta(property: {
@@ -68,7 +68,7 @@ export function setPropertyShareMeta(property: {
   // (the card endpoint returns 404 for image-less properties).
   const image = property.imageUrl
     ? `${origin}/api/og-image?id=${encodeURIComponent(property.id)}&v=${OG_IMAGE_VERSION}`
-    : `${origin}/og-image.png`;
+    : `${origin}/og-image-v2.png`;
 
   document.title = title;
   setMeta('description', description);

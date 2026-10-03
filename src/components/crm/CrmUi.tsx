@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode, type ButtonHTMLAttributes } from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 /* ────────────────────────────────────────────────────────────────────────────
    VJR CRM — Platinum design system
@@ -22,10 +22,12 @@ export function useIsDesktop() {
   return isDesktop;
 }
 
-/** Entrance reveal — animated only on desktop, plain on mobile (lag-free). */
+/** Entrance reveal — animated only on desktop, plain on mobile (lag-free).
+ *  Honours prefers-reduced-motion (UX guideline: reduced-motion). */
 export function MotionReveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
   const isDesktop = useIsDesktop();
-  if (!isDesktop) return <div className={className}>{children}</div>;
+  const reduceMotion = useReducedMotion();
+  if (!isDesktop || reduceMotion) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
@@ -47,11 +49,13 @@ export function CrmPageHeader({
   eyebrow,
   title,
   description,
+  titleExtra,
   actions,
 }: {
   eyebrow?: string;
   title: string;
   description?: string;
+  titleExtra?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -67,6 +71,7 @@ export function CrmPageHeader({
           {title}
         </h1>
         {description && <p className="mt-1.5 text-[12.5px] leading-relaxed text-[#6b7280] sm:text-[13.5px]">{description}</p>}
+        {titleExtra}
       </div>
       {actions && <div className="flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">{actions}</div>}
     </div>
@@ -143,7 +148,7 @@ export function CrmBtn({ variant = 'primary', className = '', children, ...rest 
   return (
     <button
       type="button"
-      className={`inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${styles[variant]} ${className}`}
+      className={`inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[40px] ${styles[variant]} ${className}`}
       {...rest}
     >
       {children}
@@ -164,7 +169,7 @@ export function CrmChip({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all duration-200 ${
+      className={`inline-flex min-h-[44px] cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all duration-200 sm:min-h-[36px] ${
         active
           ? 'border-[#C9A84C]/50 bg-[#C9A84C]/[0.12] text-[#8a6d1f]'
           : 'border-black/10 bg-white text-[#6b7280] hover:bg-black/[0.03]'
@@ -184,5 +189,5 @@ export function CrmBadge({ color, children }: { color: string; children: ReactNo
   );
 }
 
-/** Input/select styling shared across CRM pages. */
-export const CRM_INPUT = 'h-10 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#0A1628] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20';
+/** Input/select styling shared across CRM pages. 44px tall on touch screens. */
+export const CRM_INPUT = 'h-11 w-full rounded-xl border border-black/10 bg-white px-3 text-sm text-[#0A1628] outline-none transition-colors focus:border-[#C9A84C]/70 focus:ring-2 focus:ring-[#C9A84C]/20 sm:h-10';
