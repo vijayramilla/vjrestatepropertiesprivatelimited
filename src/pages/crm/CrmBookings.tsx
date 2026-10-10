@@ -11,6 +11,7 @@ import {
 import { subscribePropertyLeads, type PropertyLead } from '@/lib/propertyLeads';
 import {
   callDataProxy,
+  fetchPropertyOwnerMap,
   isSupabaseDataEnabled,
   supabaseDeletePropertyLead,
   supabaseGetProperty,
@@ -349,6 +350,30 @@ export default function CrmBookings() {
   const [agentsCanSee, setAgentsCanSee] = useState<boolean | null>(null);
   const [savingAccess, setSavingAccess] = useState(false);
 
+  // Booking source: Partner (listing created by a registered partner via
+  // properties.uid, stamped server-side) vs Direct VJR Estate. The canonical rule
+  // lives in the data-proxy (lead.create stamps owner_uid from the property);
+  // here we map property ids to their partner-ownership flag.
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'partner' | 'direct'>('all');
+  const [ownerMap, setOwnerMap] = useState<Map<string, boolean>>(new Map());
+  const isPartnerBooking = useCallback(
+    (b: Booking) => ownerMap.get(b.propertyId) === true,
+    [ownerMap],
+  );
+
+  useEffect(() => {
+    let alive = true;
+    const ids = Array.from(new Set(leads.filter((l) => l.leadType === 'book_visit' && l.propertyId).map((l) => l.propertyId!)));
+    if (!ids.length) {
+      if (alive) setOwnerMap(new Map());
+      return;
+    }
+    fetchPropertyOwnerMap(ids)
+      .then((m) => { if (alive) setOwnerMap(m); })
+      .catch(() => { if (alive) setOwnerMap(new Map()); });
+    return () => { alive = false; };
+  }, [leads]);
+
   // Telecaller / sales agent visibility — one global switch persisted on the
   // employees table (bookings_visible). The employee portal hides or shows
   // Bookings based on this.
@@ -437,6 +462,9 @@ export default function CrmBookings() {
         [b.name, b.phone, b.propertyTitle, b.propertyArea].some((v) => String(v ?? '').toLowerCase().includes(q)),
       );
     }
+    if (sourceFilter !== 'all') {
+      list = list.filter((b) => (sourceFilter === 'partner' ? isPartnerBooking(b) : !isPartnerBooking(b)));
+    }
     const now = todayMidnight();
     if (scope === 'today') {
       list = list.filter((b) => b.visitDateObj && sameLocalDay(b.visitDateObj, now));
@@ -458,7 +486,7 @@ export default function CrmBookings() {
         list.sort((a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0));
     }
     return list;
-  }, [bookings, search, scope, sortKey]);
+  }, [bookings, search, scope, sortKey, sourceFilter, isPartnerBooking]);
 
   const filteredHistory = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -470,11 +498,12 @@ export default function CrmBookings() {
     );
   }, [history, search]);
 
-  const hasFilters = Boolean(search || scope !== 'all');
+  const hasFilters = Boolean(search || scope !== 'all' || sourceFilter !== 'all');
 
   const clearFilters = () => {
     setSearch('');
     setScope('all');
+    setSourceFilter('all');
   };
 
   // Delete = move to History (deleted_bookings) so it stays visible there.
@@ -544,6 +573,24 @@ export default function CrmBookings() {
                     }`}
                   >
                     All <span className="opacity-60">{counts.total}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSourceFilter(sourceFilter === 'partner' ? 'all' : 'partner')}
+                    className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all ${
+                      sourceFilter === 'partner' ? 'border-[#C9A84C]/50 bg-[#C9A84C]/[0.12] text-[#8a6d1f]' : 'border-black/10 bg-white text-[#6b7280]'
+                    }`}
+                  >
+                    Partner <span className="opacity-60">{bookings.filter(isPartnerBooking).length}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSourceFilter(sourceFilter === 'direct' ? 'all' : 'direct')}
+                    className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-bold transition-all ${
+                      sourceFilter === 'direct' ? 'border-[#C9A84C]/50 bg-[#C9A84C]/[0.12] text-[#8a6d1f]' : 'border-black/10 bg-white text-[#6b7280]'
+                    }`}
+                  >
+                    Direct VJR Estate <span className="opacity-60">{bookings.filter((b) => !isPartnerBooking(b)).length}</span>
                   </button>
                   <button
                     type="button"
@@ -764,7 +811,7 @@ export default function CrmBookings() {
                                 {initials(booking.name)}
                               </div>
                               <span className="text-[10.5px] text-[#9ca3af]">
-                                {booking.source} · booked {booking.createdAt
+                                {booking.source} · {isPartnerBooking(booking) ? 'Partner booking' : 'Direct VJR Estate'} · booked {booking.createdAt
                                   ? booking.createdAt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })
                                   : 'recently'}
                               </span>

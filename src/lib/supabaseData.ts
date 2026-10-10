@@ -918,6 +918,26 @@ export async function supabaseDeletePropertyLead(id: string): Promise<void> {
   await callDataProxy('lead.remove', { id });
 }
 
+/**
+ * Property-owner map for booking-source classification: a booking is a
+ * "Partner Booking" when its listing was created by a registered partner
+ * (properties.uid set —uzu stamped server-side at partner.property.create),
+ * otherwise it is a Direct VJR Estate Booking. One cheap admin call.
+ */
+export async function fetchPropertyOwnerMap(ids: string[]): Promise<Map<string, boolean>> {
+  const map = new Map<string, boolean>();
+  if (!client || ids.length === 0) return map;
+  const { data, error } = await client
+    .from('properties')
+    .select('id,uid')
+    .in('id', ids);
+  if (error || !data) return map;
+  for (const row of data as { id: string; uid?: string | null }[]) {
+    map.set(String(row.id), Boolean(row.uid));
+  }
+  return map;
+}
+
 /* ── Users ───────────────────────────────────────────────────────────────── */
 
 export async function supabaseTrackUser(payload: {
@@ -1182,7 +1202,7 @@ export async function resizeImageForUpload(file: File): Promise<File> {
 }
 
 export async function supabaseUploadImage(
-  bucket: 'property-images' | 'team-photos',
+  bucket: 'property-images' | 'team-photos' | 'partner-photos',
   entityId: string,
   file: File,
 ): Promise<string> {
@@ -1199,7 +1219,7 @@ export async function supabaseUploadImage(
 }
 
 export async function supabaseUploadImages(
-  bucket: 'property-images' | 'team-photos',
+  bucket: 'property-images' | 'team-photos' | 'partner-photos',
   entityId: string,
   files: File[],
 ): Promise<string[]> {
@@ -1211,7 +1231,7 @@ export async function supabaseUploadImages(
  * "Uploading images (3/5)" instead of an opaque blocking spinner.
  */
 export async function supabaseUploadImagesWithProgress(
-  bucket: 'property-images' | 'team-photos',
+  bucket: 'property-images' | 'team-photos' | 'partner-photos',
   entityId: string,
   files: File[],
   onProgress?: (done: number, total: number) => void,

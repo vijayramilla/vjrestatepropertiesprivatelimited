@@ -1,2 +1,9 @@
 User-agent: *
 Allow: /
+Disallow: /admin
+Disallow: /crm
+Disallow: /employee-login
+Disallow: /shortlist
+Disallow: /verify
+
+Sitemap: https://vjrestate.com/sitemap.xml

@@ -1,834 +1,1359 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { addDoc, collection, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { uploadPropertyImages } from '@/lib/propertyImages';
-import { sanitizeForFirestore } from '@/lib/firestoreHelpers';
-import { isSupabaseDataEnabled, propertyDocToRow, callDataProxy } from '@/lib/supabaseData';
-import { formatPrice, formatINR, formatINRPerSqft } from '@/lib/formatPrice';
-import { computePlotLandAreaSqft, sqftToAcresGuntas } from '@/lib/plotLandForm';
-import type { AreaUnit } from '@/lib/plotLandForm';
-import { KARNATAKA_KATHA_GROUPS, KARNATAKA_KATHA_CUSTOM_VALUE, findKathaOption } from '@/data/karnatakaKathas';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  AnimatePresence,
+  motion,
+} from 'framer-motion';
+import {
+  Buildings,
+  HouseLine,
+  Storefront,
+  XCircle,
+  CheckCircle,
+  CaretLeft,
+  CaretRight,
+  ImageIcon,
+  MapPin,
+  CurrencyInr,
+  Ruler,
+  RocketLaunch,
+  Star,
+} from '@phosphor-icons/react';
 import { useAuth } from '@/context/AuthContext';
-import { useGoogleMapsLoader } from '@/context/GoogleMapsContext';
-import { usePropertyAccess } from '@/lib/propertyAccess';
-import LandMapLocationPicker from '@/components/admin/LandMapLocationPicker';
-import type { LandLocationValue } from '@/lib/mapGeocoding';
+import { formatPrice, formatRental, formatYield, formatINR } from '@/lib/formatPrice';
+import { callDataProxy, isSupabaseDataEnabled, propertyDocToRow } from '@/lib/supabaseData';
+import { uploadPropertyImages } from '@/lib/propertyImages';
+import AreaLocalityPicker from '@/components/admin/AreaLocalityPicker';
+import {
+  KARNATAKA_KATHA_GROUPS,
+  KARNATAKA_KATHA_CUSTOM_VALUE,
+  findKathaOption,
+  getKathaSelectValue,
+  getSuggestedKathaGroupId,
+} from '@/data/karnatakaKathas';
 import { enhanceDescription } from '@/utils/aiDescription';
 
-const PLOT_TYPES: string[] = [];
-const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
-const LISTED_BY_OPTIONS = ['Agent', 'Owner'];
+/**
+ * Partner listing flow (Agents / Builders / Owners).
+ *
+ * Frontend mirrors the admin Add Property wizard one-to-one (same navy & gold
+ * theme, same step structure) — but the backend is a separate pipeline:
+ * `partner.property.create` (data-proxy), which requires an active partner
+ * registration instead of the invite-only `can_add_property` grant the admin
+ * flow uses. Admin add-property stays untouched at /admin/properties/new.
+ */
 
-interface FormState {
+/** Housing.com-style guided flow: one decision per screen. */
+const FORM_STEPS = [
+  { label: 'Basic Information', short: 'Basics', hint: 'What are you listing?', icon: Buildings },
+  { label: 'Location', short: 'Location', hint: 'Where is it?', icon: MapPin },
+  { label: 'Pricing & Rental Income', short: 'Pricing', hint: 'Set the right price', icon: CurrencyInr },
+  { label: 'Property Details', short: 'Details', hint: 'Specifications, highlights & story', icon: Ruler },
+  { label: 'Media — Photos', short: 'Media', hint: 'Upload property photos', icon: ImageIcon },
+  { label: 'Review & Publish', short: 'Publish', hint: 'Review & post', icon: RocketLaunch },
+] as const;
+
+/** value = stored backend mapping (unchanged); label = visible name. */
+const TYPE_CARDS: { value: string; label: string; icon: typeof Buildings }[] = [
+  { value: 'PG Buildings', label: 'PG Building', icon: Buildings },
+  { value: 'Residential Rental Income', label: 'Residential Building', icon: HouseLine },
+  { value: 'Commercial Properties', label: 'Commercial Properties', icon: Storefront },
+];
+
+const COMMERCIAL_SUBTYPES = [
+  'Office Space',
+  'Mall / Retail',
+  'Hospital / Clinic',
+  'Warehouse / Industrial',
+  'Showroom',
+  'Hotel / Hospitality',
+  'Factory / Manufacturing',
+  'Mixed Use',
+  'Flex Space',
+];
+
+const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
+
+const AGES = ['New', 'Less than 1 Year', '1-3 Years', '3-5 Years', '5-10 Years', '10+ Years'];
+
+const HIGHLIGHTS = [
+  'Bank Loan Eligible',
+  'Corner Plot',
+  'Fully Tenanted',
+  'High Yield Zone',
+  'Prime Location',
+  'Near IT Park',
+  'Metro Connectivity',
+  'Gated Community',
+  'Power Backup',
+  '24/7 Security',
+];
+
+const AMENITIES = [
+  'Power Backup',
+  'Car Parking',
+  'Water Supply',
+  'Lift',
+  '24/7 Security',
+  'Fire Safety',
+  'Generator',
+  'CCTV',
+  'Wi-Fi',
+  'Intercom',
+];
+
+interface PartnerInfo {
+  partnerType: 'Owner' | 'Builder' | 'Agent';
+  fullName: string;
+  companyName: string;
+  commissionPercent: number;
+  status: 'pending' | 'active' | 'suspended' | 'terminated' | 'rejected';
+  partnerCode: string;
+}
+
+interface FormData {
   title: string;
   type: string;
+  commercial_subtype: string;
+  status: string;
   area: string;
   location: string;
   price: number;
-  price_per_sqft: number;
+  price_label: string;
+  monthly_rental: number;
+  monthly_rental_label: string;
+  rental_yield: number | null;
   area_sqft: number;
-  area_unit: AreaUnit;
-  land_acres: number;
-  land_guntas: number;
-  dimensions: string;
+  built_up_area_sqft: number;
   facing: string;
+  age: string;
   katha: string;
+  highlights: string[];
+  amenities: string[];
   description: string;
-  contact_name: string;
-  contact_phone: string;
-  listed_by: string;
-  map_lat: number;
-  map_lng: number;
-  maps_link: string;
-  city: string;
-  state: string;
-  pincode: string;
-  fullAddress: string;
 }
+
+const INITIAL_FORM: FormData = {
+  title: '',
+  type: 'PG Buildings',
+  commercial_subtype: '',
+  status: 'Ready',
+  area: '',
+  location: '',
+  price: 0,
+  price_label: '',
+  monthly_rental: 0,
+  monthly_rental_label: '',
+  rental_yield: null,
+  area_sqft: 0,
+  built_up_area_sqft: 0,
+  facing: 'East',
+  age: 'New',
+  katha: '',
+  highlights: [],
+  amenities: [],
+  description: '',
+};
+
+type StepErrors = Partial<Record<'title' | 'area' | 'price' | 'photos', string>>;
 
 export default function ListPropertyPage() {
   const navigate = useNavigate();
-  const lastPriceEdited = useRef<'total' | 'perSqft' | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState('');
-  const [submitted, setSubmitted] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [enhancing, setEnhancing] = useState(false);
-  const [descError, setDescError] = useState('');
-  const { user, loading: authLoading, signInWithGoogle } = useAuth();
-  const { isLoaded: mapsLoaded, requestMaps } = useGoogleMapsLoader();
-  // Listing is permission-gated: only users granted Add Property access by
-  // an admin (plus admins themselves) can submit.
-  const { loading: accessLoading, canAdd: canAddProperty } = usePropertyAccess();
+  const { user, loading: authLoading } = useAuth();
 
-  // Maps SDK is deferred app-wide; this page hosts a genuine map surface,
-  // so request it as soon as the page mounts.
+  // LOGIN-FIRST: guests are routed to the login experience with their
+  // destination preserved, instead of an inline fallback sign-in card.
   useEffect(() => {
-    requestMaps();
-  }, [requestMaps]);
-  const [showSignIn, setShowSignIn] = useState(false);
-  const [form, setForm] = useState<FormState>({
-    title: '',
-    type: 'PG Buildings',
-    area: '',
-    location: '',
-    price: 0,
-    price_per_sqft: 0,
-    area_sqft: 0,
-    area_unit: 'sqft',
-    land_acres: 0,
-    land_guntas: 0,
-    dimensions: '',
-    facing: 'East',
-    katha: '',
-    description: '',
-    contact_name: '',
-    contact_phone: '',
-    listed_by: 'Owner',
-    map_lat: 0,
-    map_lng: 0,
-    maps_link: '',
-    city: '',
-    state: '',
-    pincode: '',
-    fullAddress: '',
-  });
+    if (!authLoading && !user) navigate('/login?next=%2Flist-property', { replace: true });
+  }, [authLoading, user, navigate]);
 
-  const update = (key: string, value: unknown) => setForm((prev) => ({ ...prev, [key]: value }));
+  // Partner gate state
+  const [checking, setChecking] = useState(true);
+  const [partner, setPartner] = useState<PartnerInfo | null>(null);
 
-  const plotLandAreaSqft = computePlotLandAreaSqft(form.area_unit, form.area_sqft, form.land_acres, form.land_guntas);
+  // Wizard state
+  const [step, setStep] = useState(0);
+  const [stepDir, setStepDir] = useState(1);
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+  const [errors, setErrors] = useState<StepErrors>({});
+  const [customHighlight, setCustomHighlight] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingPreviews, setPendingPreviews] = useState<string[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  const [publishError, setPublishError] = useState('');
+  const [published, setPublished] = useState<{ propertyCode: string } | null>(null);
+  const [aiDescLoading, setAiDescLoading] = useState(false);
+  const [aiDescError, setAiDescError] = useState('');
+  const [dragActive, setDragActive] = useState(false);
 
-  const recalcPrices = (prev: FormState, area: number, source: 'area' | 'total' | 'perSqft') => {
-    if (area <= 0) return {};
-    if (source === 'total' || (source === 'area' && lastPriceEdited.current === 'total')) {
-      if (prev.price > 0) return { price_per_sqft: Math.round(prev.price / area) };
-    }
-    if (source === 'perSqft' || (source === 'area' && lastPriceEdited.current === 'perSqft')) {
-      if ((prev.price_per_sqft ?? 0) > 0) {
-        const price = Math.round((prev.price_per_sqft ?? 0) * area);
-        return { price };
+  // Check partner registration whenever a signed-in user lands here.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user) { setChecking(false); return; }
+      setChecking(true);
+      try {
+        const result = await callDataProxy('partner.check');
+        if (cancelled) return;
+        setPartner(
+          result.registered
+            ? {
+                partnerType: result.partner.partnerType,
+                fullName: result.partner.fullName,
+                companyName: result.partner.companyName,
+                commissionPercent: Number(result.partner.commissionPercent ?? 50),
+                status: (result.partner.status ?? 'active') as PartnerInfo['status'],
+                partnerCode: result.partner.partnerCode ?? '',
+              }
+            : null,
+        );
+      } catch {
+        if (!cancelled) setPartner(null);
+      } finally {
+        if (!cancelled) setChecking(false);
       }
-    }
-    return {};
-  };
+    })();
+    return () => { cancelled = true; };
+  }, [user]);
 
-  const handleAreaUnitChange = (unit: AreaUnit) => {
-    setForm((prev) => {
-      if (unit === prev.area_unit) return prev;
-      if (unit === 'acres') {
-        const { acres, guntas } = sqftToAcresGuntas(prev.area_sqft);
-        return { ...prev, area_unit: unit, land_acres: acres, land_guntas: guntas };
-      }
-      const sqft = computePlotLandAreaSqft('acres', 0, prev.land_acres, prev.land_guntas);
-      const next = { ...prev, area_unit: unit, area_sqft: sqft };
-      return { ...next, ...recalcPrices(next, sqft, 'area') };
-    });
-  };
-
-  const handlePlotAreaSqftChange = (value: number) => {
-    setForm((prev) => {
-      const next = { ...prev, area_sqft: value };
-      return { ...next, ...recalcPrices(next, value, 'area') };
-    });
-  };
-
-  const handleAcresChange = (value: number) => {
-    setForm((prev) => {
-      const next = { ...prev, land_acres: value };
-      const area = computePlotLandAreaSqft('acres', 0, value, prev.land_guntas);
-      return { ...next, ...recalcPrices(next, area, 'area') };
-    });
-  };
-
-  const handleTotalPriceChange = (value: number) => {
-    lastPriceEdited.current = 'total';
-    setForm((prev) => {
-      const area = computePlotLandAreaSqft(prev.area_unit, prev.area_sqft, prev.land_acres, prev.land_guntas);
-      const next = { ...prev, price: value };
-      if (area > 0 && value > 0) next.price_per_sqft = Math.round(value / area);
+  const updateFormData = <K extends keyof FormData>(key: K, value: FormData[K]) => {
+    setFormData((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === 'price') next.price_label = formatPrice(Number(value) || 0);
+      if (key === 'monthly_rental') next.monthly_rental_label = formatRental(Number(value) || 0);
       return next;
     });
-  };
-
-  const handlePricePerSqftChange = (value: number) => {
-    lastPriceEdited.current = 'perSqft';
-    setForm((prev) => {
-      const area = computePlotLandAreaSqft(prev.area_unit, prev.area_sqft, prev.land_acres, prev.land_guntas);
-      const next = { ...prev, price_per_sqft: value };
-      if (area > 0 && value > 0) next.price = Math.round(value * area);
-      return next;
+    setErrors((prev) => {
+      if (!prev[key as keyof StepErrors]) return prev;
+      const nextErrors = { ...prev };
+      delete nextErrors[key as keyof StepErrors];
+      return nextErrors;
     });
   };
 
-  const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const goToStep = (target: number) => {
+    setStepDir(target > step ? 1 : -1);
+    setStep(Math.max(0, Math.min(target, FORM_STEPS.length - 1)));
+  };
+
+  const validateStep = (s: number): StepErrors => {
+    const e: StepErrors = {};
+    if (s === 0) {
+      if (!formData.title.trim()) e.title = 'Property title is required';
+      if (!formData.type) e.title = e.title ?? 'Select a property type';
+    }
+    if (s === 1 && !formData.area.trim()) e.area = 'Select the area / locality';
+    if (s === 2 && formData.price <= 0) e.price = 'Asking price is required';
+    if (s === 4) {
+      if (pendingFiles.length < 2) e.photos = 'Upload at least 2 photos before publishing';
+    }
+    return e;
+  };
+
+  const handleContinue = () => {
+    const e = validateStep(step);
+    setErrors(e);
+    if (Object.keys(e).length > 0) return;
+    goToStep(step + 1);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = Array.from(e.target.files ?? []);
     if (!selected.length) return;
-    setFiles((prev) => [...prev, ...selected]);
-    setPreviews((prev) => [...prev, ...selected.map((f) => URL.createObjectURL(f))]);
+    setPendingFiles((prev) => [...prev, ...selected]);
+    setPendingPreviews((prev) => [...prev, ...selected.map((f) => URL.createObjectURL(f))]);
     e.target.value = '';
+    setErrors((prev) => { const n = { ...prev }; delete n.photos; return n; });
   };
 
-  const removeFile = (i: number) => {
-    URL.revokeObjectURL(previews[i]);
-    setFiles((prev) => prev.filter((_, idx) => idx !== i));
-    setPreviews((prev) => prev.filter((_, idx) => idx !== i));
+  const removePendingImage = (index: number) => {
+    URL.revokeObjectURL(pendingPreviews[index]);
+    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    setPendingPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  /* Media gallery: cover + reorder (first photo is the cover). */
+  const makeCoverImage = (index: number) => {
+    if (index === 0) return;
+    const files = [...pendingFiles];
+    const previews = [...pendingPreviews];
+    const [f] = files.splice(index, 1);
+    const [p] = previews.splice(index, 1);
+    files.unshift(f);
+    previews.unshift(p);
+    setPendingFiles(files);
+    setPendingPreviews(previews);
+  };
+
+  const moveImage = (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= pendingFiles.length) return;
+    const files = [...pendingFiles];
+    const previews = [...pendingPreviews];
+    [files[index], files[target]] = [files[target], files[index]];
+    [previews[index], previews[target]] = [previews[target], previews[index]];
+    setPendingFiles(files);
+    setPendingPreviews(previews);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!user) { setShowSignIn(true); return; }
-    if (!canAddProperty) { setToast('Your account does not have Add Property access. Contact VJR Estate.'); return; }
-    
-    // Validation
-    const errors: string[] = [];
-    if (!form.title.trim()) errors.push('Title is required');
-    if (!form.area.trim()) errors.push('Area is required');
-    if (form.map_lat === 0 || form.map_lng === 0) errors.push('Please set location pin on map');
-    if (!form.price) errors.push('Price is required');
-    if (form.contact_phone.trim().length < 10) errors.push('Phone number must be at least 10 digits');
-    if (files.length < 2) errors.push('Upload at least 2 photos');
-    if (!privacyAccepted) errors.push('Accept the privacy policy to continue');
-    
-    if (errors.length > 0) {
-      setToast(errors[0]);
-      return;
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragActive(false);
+    const dropped = Array.from(e.dataTransfer.files ?? []).filter((f) => f.type.startsWith('image/'));
+    if (!dropped.length) return;
+    setPendingFiles((prev) => [...prev, ...dropped]);
+    setPendingPreviews((prev) => [...prev, ...dropped.map((f) => URL.createObjectURL(f))]);
+    setErrors((prev) => { const n = { ...prev }; delete n.photos; return n; });
+  };
+
+  const handleAddHighlight = () => {
+    const h = customHighlight.trim();
+    if (!h || formData.highlights.includes(h)) return;
+    updateFormData('highlights', [...formData.highlights, h]);
+    setCustomHighlight('');
+  };
+
+  const handleSubmit = async () => {
+    if (!user || !partner) return;
+    // Final pass over every step before publishing.
+    for (let s = 0; s < FORM_STEPS.length; s++) {
+      const e = validateStep(s);
+      if (Object.keys(e).length > 0) {
+        setErrors(e);
+        goToStep(s);
+        return;
+      }
     }
-    
+    setPublishError('');
     setSaving(true);
     try {
       const docData = {
-        title: form.title.trim(),
-        type: form.type,
-        area: form.area.trim(),
-        location: form.location.trim() || form.area.trim(),
-        price: form.price,
-        price_label: formatPrice(form.price),
-        price_per_sqft: form.price_per_sqft || 0,
-        area_sqft: plotLandAreaSqft,
-        area_unit: form.area_unit,
-        area_acres: form.land_acres,
-        dimensions: form.dimensions || '—',
-        facing: form.facing,
-        katha: form.katha || '—',
-        description: form.description.trim(),
-        contact_name: form.contact_name.trim() || 'Not provided',
-        contact_phone: form.contact_phone.trim(),
-        listed_by: form.listed_by,
-        status: 'Ready',
+        title: formData.title.trim(),
+        type: formData.type,
+        commercial_subtype: formData.commercial_subtype || undefined,
+        area: formData.area,
+        location: formData.location.trim() || formData.area,
+        price: formData.price,
+        price_label: formData.price_label || formatPrice(formData.price),
+        monthly_rental: formData.monthly_rental || 0,
+        monthly_rental_label: formData.monthly_rental_label,
+        rental_yield: formData.rental_yield,
+        area_sqft: formData.area_sqft || 0,
+        built_up_area_sqft: formData.built_up_area_sqft || 0,
+        facing: formData.facing,
+        age: formData.age,
+        status: formData.status,
+        katha: formData.katha || undefined,
+        highlights: formData.highlights,
+        amenities: formData.amenities,
+        description: formData.description.trim(),
+        listed_days_ago: 0,
+        contact_name: partner.fullName,
+        contact_phone: '',
+        listed_by: partner.partnerType, // server re-stamps from the verified partner record
         featured: false,
-        uid: user!.uid,
-        userEmail: user!.email || '',
-        userDisplayName: user!.displayName || user!.email?.split('@')[0] || 'User',
-        map_lat: form.map_lat,
-        map_lng: form.map_lng,
-        maps_link: form.maps_link,
-        city: form.city,
-        state: form.state,
-        pincode: form.pincode,
-        fullAddress: form.fullAddress,
-        images: [],
+        uid: user.uid,
+        userEmail: user.email ?? '',
+        userDisplayName: user.displayName ?? user.email?.split('@')[0] ?? 'Partner',
+        images: [] as string[],
       };
 
-      let propertyId: string;
-      if (isSupabaseDataEnabled()) {
-        const created = await callDataProxy('property.create', propertyDocToRow(docData));
-        propertyId = created.id as string;
-      } else {
-        const ref = await addDoc(collection(db, 'properties'), sanitizeForFirestore({
-          ...docData,
-          createdAt: serverTimestamp(),
-        }));
-        propertyId = ref.id;
-      }
+      if (!isSupabaseDataEnabled()) throw new Error('Listings are temporarily unavailable. Please try again shortly.');
+      const created = await callDataProxy('partner.property.create', propertyDocToRow(docData));
+      const propertyId = String(created.id);
+      const propertyCode = String(created.propertyCode ?? '');
 
-      if (files.length > 0) {
-        const urls = await uploadPropertyImages(files, propertyId, user.uid);
-        if (isSupabaseDataEnabled()) {
-          await callDataProxy('property.update', { id: propertyId, images: urls });
-        } else {
-          await updateDoc(doc(db, 'properties', propertyId), { images: urls });
-        }
+      if (pendingFiles.length > 0) {
+        setUploadProgress({ done: 0, total: pendingFiles.length });
+        const urls = await uploadPropertyImages(pendingFiles, propertyId, user.uid, (done, total) =>
+          setUploadProgress({ done, total }),
+        );
+        await callDataProxy('property.update', { id: propertyId, images: urls });
       }
-      setSubmitted(true);
+      previewsCleanup();
+      setPublished({ propertyCode });
     } catch (err) {
-      console.error('Property save failed:', err);
-      setToast(err instanceof Error ? err.message : 'Error saving property. Check your connection and try again.');
+      console.error('Partner listing failed:', err);
+      setPublishError(err instanceof Error ? err.message : 'Error publishing property. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
   };
 
-  const kathaSelectValue =
-    form.katha && findKathaOption(form.katha)
-      ? form.katha
-      : '';
-
-  const plotLandPriceSummary =
-    form.price > 0 && form.price_per_sqft > 0
-      ? `Price saved as: ${formatINR(form.price)} total · ${formatINRPerSqft(form.price_per_sqft)}`
-      : '';
-
-  // Form validation
-  const isFormValid = form.title.trim() && form.area.trim() && form.price && form.map_lat !== 0 && form.map_lng !== 0 && form.contact_phone.trim().length >= 10 && files.length >= 2 && privacyAccepted;
-  const getValidationMessage = () => {
-    if (!form.title.trim()) return 'Title is required';
-    if (!form.area.trim()) return 'Location is required';
-    if (form.map_lat === 0 || form.map_lng === 0) return 'Set pin on map';
-    if (!form.price) return 'Price is required';
-    if (form.contact_phone.trim().length < 10) return 'Phone number must be at least 10 digits';
-    if (files.length < 2) return 'Upload at least 2 photos';
-    if (!privacyAccepted) return 'Accept the privacy policy to continue';
-    return '';
+  const previewsCleanup = () => {
+    pendingPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setPendingFiles([]);
+    setPendingPreviews([]);
   };
 
-  type KathaGroup = typeof KARNATAKA_KATHA_GROUPS[number];
+  const kathaSelectValue = getKathaSelectValue(formData.katha ?? '');
+  const suggestedKathaGroup = KARNATAKA_KATHA_GROUPS.find((g) => g.id === getSuggestedKathaGroupId(formData.type));
+  const selectedKathaOption = findKathaOption(formData.katha ?? '');
 
-  const plotKathaGroups: KathaGroup[] = KARNATAKA_KATHA_GROUPS.filter((g) =>
-    ['revenue', 'status', 'panchayat', 'bda'].includes(g.id)
+  const handleKathaSelectChange = (value: string) => {
+    if (value === KARNATAKA_KATHA_CUSTOM_VALUE) {
+      updateFormData('katha', KARNATAKA_KATHA_CUSTOM_VALUE);
+      return;
+    }
+    updateFormData('katha', value);
+  };
+
+  const handleAIDescription = async () => {
+    setAiDescError('');
+    setAiDescLoading(true);
+    try {
+      const enhanced = await enhanceDescription({
+        ...formData,
+        price_per_sqft: 0,
+        area_unit: 'sqft',
+        land_acres: 0,
+        land_guntas: 0,
+        dimensions: '',
+        city: 'Bengaluru',
+        state: 'Karnataka',
+      });
+      updateFormData('description', enhanced.slice(0, 1200));
+    } catch (err) {
+      setAiDescError(err instanceof Error ? err.message : 'Failed to enhance description');
+    } finally {
+      setAiDescLoading(false);
+    }
+  };
+
+  const isCommercialType = formData.type === 'Commercial Properties';
+
+  /* ── Gate screens ──────────────────────────────────────────────────────── */
+
+  const gateShell = (children: React.ReactNode) => (
+    <div
+      className="min-h-[calc(100vh-var(--vjr-header-h))] bg-gradient-to-b from-[#fafafa] to-white"
+      style={{ paddingTop: 'var(--vjr-header-h)' }}
+    >
+      <div className="mx-auto max-w-xl px-4 py-14 sm:px-6">{children}</div>
+    </div>
   );
 
+  if (published) {
+    return gateShell(
+      <div className="admin-theme admin-section p-8 text-center sm:p-10">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+          <CheckCircle size={32} weight="fill" className="text-emerald-600" />
+        </div>
+        <h1 className="admin-heading mt-6 text-2xl font-medium text-black sm:text-3xl">Property Published!</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-gray-500">
+          Your listing is live on vjrestate.com. Buyers can find and contact you directly.
+        </p>
+        {published.propertyCode && (
+          <p className="mt-2 text-[12px] text-gray-500">
+            Property ID: <span className="font-mono font-semibold text-black">{published.propertyCode}</span>
+          </p>
+        )}
+        <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+          <button type="button" onClick={() => navigate('/properties')} className="admin-btn-primary min-h-[48px] flex-1">
+            View Properties
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setPublished(null);
+              setFormData(INITIAL_FORM);
+              setStep(0);
+            }}
+            className="admin-btn-secondary min-h-[48px] flex-1 items-center justify-center"
+          >
+            List Another
+          </button>
+        </div>
+      </div>,
+    );
+  }
+
+  if (authLoading || (user && checking)) {
+    return gateShell(
+      <div className="admin-theme flex flex-col items-center py-20 text-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
+        <p className="mt-4 text-xs text-gray-500">{user ? 'Checking your partnership…' : 'Loading…'}</p>
+      </div>,
+    );
+  }
+
+  if (!user) {
+    // Redirect above fires; render a spinner so the gated intent is never
+    // visually "failed" while the login page loads.
+    return gateShell(
+      <div className="admin-theme flex flex-col items-center py-20 text-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
+        <p className="mt-4 text-xs text-gray-500">Taking you to sign in…</p>
+      </div>,
+    );
+  }
+
+  if (!partner) {
+    return gateShell(
+      <div className="admin-theme admin-section p-8 text-center sm:p-10">
+        <div className="flex items-center justify-center gap-2.5">
+          <img src="/favicon.png" alt="VJR Estate logo" className="h-10 w-10 shrink-0 object-contain" />
+          <span className="font-serif text-xl font-bold tracking-tight text-[#0A1628]">VJR Estate</span>
+        </div>
+        <h1 className="admin-heading mt-6 text-2xl font-medium text-black">Become a VJR Estate Partner</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+          Property listing is available to registered partners only. Register once as an Owner,
+          Builder or Agent — then list as many properties as you like.
+        </p>
+        <Link to="/partner" className="admin-btn-primary no-underline mt-8 min-h-[48px] w-full">
+          Become a Partner
+        </Link>
+      </div>,
+    );
+  }
+
+  if (partner && partner.status !== 'active') {
+    return gateShell(
+      <div className="admin-theme admin-section p-8 text-center sm:p-10">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 ring-1 ring-amber-200">
+          <CheckCircle size={28} className="text-amber-500" />
+        </div>
+        <h1 className="admin-heading mt-6 text-2xl font-medium text-black">Partnership under review</h1>
+        <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
+          {partner.status === 'pending'
+            ? 'Thank you for registering as a VJR Estate partner. Your application is being reviewed and verified — you will be able to publish listings as soon as your partnership is approved.'
+            : partner.status === 'suspended'
+              ? 'Your partnership is currently suspended. Please contact VJR Estate for assistance.'
+              : 'This partnership is no longer active. Please contact VJR Estate for assistance.'}
+        </p>
+        {partner.partnerCode && (
+          <p className="mt-2 font-mono text-[12px] text-gray-500">Partner ID: {partner.partnerCode}</p>
+        )}
+      </div>,
+    );
+  }
+
+  /* ── Wizard (admin Add Property design, separate backend) ─────────────── */
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
-      <div className="pt-14 md:pt-16">
-        <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
-          {submitted ? (
-            <div className="mt-10 text-center">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg shadow-emerald-200/50 ring-4 ring-emerald-50">
-                <svg className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h2 className="mt-6 text-2xl font-bold text-gray-900">Property Submitted Successfully!</h2>
-              <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto leading-relaxed">Your listing has been posted and is now live on the map. Buyers can find and contact you directly.</p>
-              <div className="mt-8 flex justify-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => navigate('/map')}
-                  className="rounded-xl bg-gray-900 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-gray-900/25 transition-all hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 active:scale-[0.97]"
-                >
-                  View on Map
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    previews.forEach(URL.revokeObjectURL);
-                    setSubmitted(false);
-                    setForm({
-                      title: '', type: 'PG Buildings', area: '', location: '', price: 0,
-                      price_per_sqft: 0, area_sqft: 0, area_unit: 'sqft', land_acres: 0,
-                      land_guntas: 0, dimensions: '', facing: 'East', katha: '', description: '',
-                      contact_name: '', contact_phone: '', listed_by: 'Owner', map_lat: 0,
-                      map_lng: 0, maps_link: '', city: '', state: '', pincode: '', fullAddress: '',
-                    });
-                    setFiles([]);
-                    setPreviews([]);
-                    setPrivacyAccepted(false);
-                  }}
-                  className="rounded-xl border border-gray-200 bg-white px-6 py-3.5 text-sm font-medium text-gray-600 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97]"
-                >
-                  Submit Another
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-          <div className="text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-gray-500 shadow-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              List your property
-            </span>
-            <h1 className="mt-5 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">List Your Property</h1>
-            <p className="mt-3 text-sm text-gray-500 max-w-md mx-auto leading-relaxed">Reach thousands of buyers — list your property for free. No commissions, no fees.</p>
+    <div
+      className="admin-theme min-h-[calc(100vh-var(--vjr-header-h))] bg-gradient-to-b from-[#F7F8FA] to-white"
+      style={{ paddingTop: 'var(--vjr-header-h)' }}
+    >
+      <div className="mx-auto max-w-3xl px-3 py-4 pb-[calc(8rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-6 sm:pb-32">
+        {/* Compact premium page header — eyebrow, fixed title, right progress */}
+        <div className="flex items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8778]">
+              Partner listing · {partner.partnerType}
+            </p>
+            <h1 className="mt-1 text-[19px] font-semibold leading-tight tracking-tight text-[#0B1729] sm:text-[22px]">
+              List Your Property
+            </h1>
+            <p className="mt-0.5 text-[12.5px] text-gray-500">Share your property details to get started.</p>
           </div>
-          {showSignIn && (
-            <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
-              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-gray-50 to-gray-100 ring-1 ring-gray-200">
-                <svg className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>
-              </div>
-              <p className="text-sm font-semibold text-gray-900">Sign in to list your property</p>
-              <p className="mt-1.5 text-xs text-gray-500">You need a Google account to submit a listing.</p>
-              <button
-                type="button"
-                onClick={async () => { try { await signInWithGoogle(); setShowSignIn(false); } catch (e) { console.warn('Sign-in cancelled or failed:', e); } }}
-                disabled={authLoading}
-                className="mt-6 inline-flex items-center gap-3 rounded-xl border-2 border-gray-200 bg-white px-7 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
-              >
-                <svg className="h-5 w-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-                {authLoading ? 'Signing in...' : 'Continue with Google'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSignIn(false)}
-                className="mt-3 text-xs text-gray-400 underline-offset-2 transition-colors hover:text-gray-600 hover:underline"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
+          <span className="shrink-0 text-[11px] font-semibold tabular-nums tracking-[0.1em] text-[#C9A646]">
+            STEP {String(step + 1).padStart(2, '0')} / {String(FORM_STEPS.length).padStart(2, '0')}
+          </span>
+        </div>
 
-          {accessLoading ? (
-            <div className="mb-6 rounded-2xl border border-gray-200/80 bg-white p-8 text-center shadow-sm">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
-              <p className="mt-4 text-xs text-gray-400">Checking your access…</p>
-            </div>
-          ) : !canAddProperty ? (
-            <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
-              <p className="text-sm font-semibold text-amber-900">Add Property access required</p>
-              <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-amber-800">
-                Listing properties on VJR Estate is invite-only. Ask the VJR Estate team to
-                enable Add Property for your account, then sign in with the same Google
-                account and reload this page.
-              </p>
-              {!user && (
-                <button
-                  type="button"
-                  onClick={async () => { try { await signInWithGoogle(); } catch (e) { console.warn('Sign-in cancelled or failed:', e); } }}
-                  disabled={authLoading}
-                  className="mt-5 inline-flex items-center gap-3 rounded-xl border-2 border-amber-200 bg-white px-6 py-3 text-sm font-semibold text-amber-900 shadow-sm transition-all hover:bg-amber-50 active:scale-[0.97] disabled:opacity-50"
-                >
-                  {authLoading ? 'Signing in...' : 'Sign in to check access'}
-                </button>
-              )}
-            </div>
-          ) : (
-          <form onSubmit={handleSubmit} className="mt-10 space-y-5">
-            <div className="rounded-2xl border border-gray-200/70 bg-white shadow-sm p-7 sm:p-8 space-y-7">
-              <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900 text-[10px] font-bold text-white">1</div>
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Property Details</h2>
-                  <p className="text-[11px] text-gray-400">Tell buyers about your property</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Property Title *</label>
-                <input
-                  type="text"
-                  placeholder="e.g. PG Building in Whitefield"
-                  value={form.title}
-                  onChange={(e) => update('title', e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2.5">Property Type</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {PLOT_TYPES.map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => update('type', t)}
-                      className={`rounded-xl px-3 py-3 text-xs font-semibold tracking-wide transition-all duration-200 ${
-                        form.type === t
-                          ? 'bg-gray-900 text-white shadow-md shadow-gray-900/20 ring-1 ring-gray-900'
-                          : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+        {/* Compact stepper — thin rail, small numbered dots */}
+        <nav aria-label="Listing steps" className="mt-5">
+          <ol className="hidden items-center sm:flex">
+            {FORM_STEPS.map((s, i) => {
+              const done = i < step;
+              const active = i === step;
+              return (
+                <li key={s.label} className="flex min-w-0 flex-1 items-center">
+                  <button
+                    type="button"
+                    onClick={() => goToStep(i)}
+                    aria-current={active ? "step" : undefined}
+                    className={`group flex min-w-0 cursor-pointer flex-col items-start gap-1 rounded-lg py-1 pr-2 text-left transition-opacity duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#C9A646] ${
+                      active ? "" : done ? "opacity-80 hover:opacity-100" : "opacity-60 hover:opacity-90"
+                    }`}
+                  >
+                    <span
+                      className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10.5px] font-bold ${
+                        active
+                          ? "border-[#0B1729] bg-[#0B1729] text-white"
+                          : done
+                            ? "border-[#C9A646]/50 bg-[#FBF7EC] text-[#8a6d1f]"
+                            : "border-gray-200 bg-white text-gray-400 group-hover:border-[#C9A646]/40"
                       }`}
                     >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                      {done ? "✓" : i + 1}
+                    </span>
+                    <span
+                      className={`whitespace-nowrap text-[11px] font-semibold ${
+                        active ? "text-[#0B1729]" : done ? "text-gray-500" : "text-gray-400"
+                      }`}
+                    >
+                      {s.short}
+                    </span>
+                    {active && <span className="h-0.5 w-5 rounded-full bg-[#C9A646]" aria-hidden="true" />}
+                  </button>
+                  {i < FORM_STEPS.length - 1 && (
+                    <span className={`mx-1 h-px min-w-3 flex-1 ${done ? "bg-[#C9A646]/45" : "bg-gray-200"}`} aria-hidden="true" />
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+          <div className="sm:hidden">
+            <div className="-mx-3 overflow-x-auto px-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <ol className="flex w-max items-center gap-1.5">
+                {FORM_STEPS.map((s, i) => {
+                  const done = i < step;
+                  const active = i === step;
+                  return (
+                    <li key={s.label} className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => goToStep(i)}
+                        aria-current={active ? "step" : undefined}
+                        className={`flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[11.5px] font-semibold transition-colors duration-200 ${
+                          active
+                            ? "border-[#0B1729] bg-[#0B1729] text-white"
+                            : done
+                              ? "border-[#C9A646]/50 bg-[#FBF7EC] text-[#8a6d1f]"
+                              : "border-gray-200 bg-white text-gray-400"
+                        }`}
+                      >
+                        <span
+                          className={`flex h-5 w-5 items-center justify-center rounded-full text-[9.5px] font-bold ${
+                            active ? "bg-[#C9A646] text-[#0B1729]" : done ? "bg-[#C9A646]/25 text-[#8a6d1f]" : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {done ? "✓" : i + 1}
+                        </span>
+                        {s.short}
+                      </button>
+                      {i < FORM_STEPS.length - 1 && (
+                        <span className={`h-px w-2 ${done ? "bg-[#C9A646]/45" : "bg-gray-200"}`} aria-hidden="true" />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
+          </div>
+        </nav>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2.5">Google Maps Location *</label>
-                {!mapsLoaded ? (
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/50 px-4 py-3.5 text-sm text-gray-400">
-                    Loading Google Maps search…
+        <form id="partner-property-form" onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="mt-6 space-y-4">
+          <AnimatePresence mode="wait" initial={false}>
+            {step === 0 && (
+              <motion.div
+                key="step-0"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="admin-section">
+                  <h2 className="mb-5 text-[13px] font-semibold uppercase tracking-[0.08em] text-[#0A1628]">Basic Information</h2>
+                  <div className="space-y-5">
+                    <div>
+                      <label className="admin-label">Property title *</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Commercial Building For Sale in Whitefield"
+                        value={formData.title}
+                        onChange={(e) => updateFormData('title', e.target.value)}
+                        aria-invalid={!!errors.title}
+                        className={`admin-input ${errors.title ? 'border-red-300 focus:border-red-400' : ''}`}
+                      />
+                      {errors.title && <p className="mt-2 text-xs text-red-600">{errors.title}</p>}
+                    </div>
+
+                    <div>
+                      <label className="admin-label">Property Type *</label>
+                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                        {TYPE_CARDS.map(({ value, label, icon: TypeIcon }) => {
+                          const activeType = formData.type === value;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              onClick={() => updateFormData('type', value)}
+                              className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 ${
+                                activeType
+                                  ? 'border-[#C9A646] bg-[#FBF7EC] shadow-[inset_0_0_0_1px_rgba(201,166,70,0.35)]'
+                                  : 'border-[#e7e4dc] bg-white text-[#10192b] hover:border-[#C9A646]/60 hover:bg-[#FBF7EC]/60'
+                              }`}
+                              aria-pressed={activeType}
+                            >
+                              <span
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
+                                  activeType ? 'bg-[#0B1729] text-[#C9A646]' : 'bg-gray-100 text-[#0B1729]'
+                                }`}
+                              >
+                                <TypeIcon size={16} weight={activeType ? 'fill' : 'regular'} />
+                              </span>
+                              <span className="min-w-0 text-[12.5px] font-semibold leading-tight">{label}</span>
+                              <span
+                                className={`ml-auto flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                                  activeType ? 'border-[#C9A646] bg-[#C9A646]' : 'border-gray-300'
+                                }`}
+                                aria-hidden="true"
+                              >
+                                {activeType && <CheckCircle size={9} weight="bold" className="text-white" />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {isCommercialType && (
+                      <div>
+                        <label className="block font-sans text-xs text-gray-500 mb-2">Commercial Sub-type</label>
+                        <select
+                          value={formData.commercial_subtype}
+                          onChange={(e) => updateFormData('commercial_subtype', e.target.value)}
+                          className="admin-select"
+                        >
+                          <option value="">Select...</option>
+                          {COMMERCIAL_SUBTYPES.map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="admin-label">Status</label>
+                      <div className="flex gap-2">
+                        {['Ready', 'New Launch'].map((s) => (
+                          <label key={s} className="flex min-h-[40px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 text-[13px] font-medium transition-colors duration-200 sm:flex-none sm:min-w-[160px]"
+                            style={formData.status === s
+                              ? { borderColor: '#C9A646', background: '#FBF7EC', color: '#0B1729' }
+                              : { borderColor: '#e7e4dc' }}
+                          >
+                            <input
+                              type="radio"
+                              name="status"
+                              value={s}
+                              checked={formData.status === s}
+                              onChange={(e) => updateFormData('status', e.target.value)}
+                              className="h-3.5 w-3.5 accent-[#0B1729]"
+                            />
+                            {s}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <LandMapLocationPicker
-                    value={
-                      form.area
-                        ? {
-                            area: form.area,
-                            location: form.location,
-                            map_lat: form.map_lat,
-                            map_lng: form.map_lng,
-                            maps_link: form.maps_link,
+                </div>
+              </motion.div>
+            )}
+
+            {step === 1 && (
+              <motion.div
+                key="step-1"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Location</h2>
+                  <div className="space-y-6">
+                    <div>
+                      <AreaLocalityPicker
+                        value={formData.area}
+                        onChange={(area) => updateFormData('area', area)}
+                        error={errors.area}
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Full address (optional)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. No 42, 3rd Cross, Palm Meadows Road"
+                        value={formData.location}
+                        onChange={(e) => updateFormData('location', e.target.value)}
+                        className="admin-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 2 && (
+              <motion.div
+                key="step-2"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="admin-section-muted">
+                  <h2 className="admin-section-title mb-2">Pricing &amp; Rental Income</h2>
+                  <p className="text-[11px] text-gray-500">These are the two most important fields</p>
+
+                  <div className="mt-6 space-y-6">
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Asking Price (₹) *</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.price || 0}
+                        onChange={(e) => updateFormData('price', Number(e.target.value))}
+                        className="admin-input"
+                      />
+                      {formData.price > 0 && (
+                        <p className="mt-2 text-[11px] text-gray-500">
+                          Will display as: <strong>{formatINR(formData.price)}</strong>
+                        </p>
+                      )}
+                      {errors.price && <p className="mt-2 text-xs text-gray-500">{errors.price}</p>}
+                    </div>
+
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Monthly Income (₹)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.monthly_rental || 0}
+                        onChange={(e) => updateFormData('monthly_rental', Number(e.target.value))}
+                        className="admin-input"
+                      />
+                      {formData.monthly_rental > 0 && (
+                        <p className="mt-2 text-[11px] text-gray-500">
+                          Will display as: <strong>{formData.monthly_rental_label}</strong>
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Rental Yield (%)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        placeholder="0"
+                        value={formData.rental_yield ?? 0}
+                        onChange={(e) => updateFormData('rental_yield', Number(e.target.value))}
+                        className="admin-input flex-1"
+                      />
+                      {formData.price > 0 && formData.monthly_rental > 0 && (
+                        <p className="mt-2 text-[11px] text-gray-500">
+                          Suggested: {formatYield(formData.price, formData.monthly_rental)}%
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 3 && (
+              <motion.div
+                key="step-3"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Property Details</h2>
+                  <p className="-mt-3 mb-5 text-[11px] text-gray-500">
+                    Area, age &amp; document type — builds buyer trust
+                  </p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Facing</label>
+                      <select
+                        value={formData.facing}
+                        onChange={(e) => updateFormData('facing', e.target.value)}
+                        className="admin-select"
+                      >
+                        {FACINGS.map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Age of Property</label>
+                      <select
+                        value={formData.age}
+                        onChange={(e) => updateFormData('age', e.target.value)}
+                        className="admin-select"
+                      >
+                        {AGES.map((a) => (
+                          <option key={a} value={a}>{a}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Plot Area (sq.ft)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.area_sqft || ''}
+                        onChange={(e) => updateFormData('area_sqft', Number(e.target.value))}
+                        className="admin-input"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-sans text-xs text-gray-500 mb-2">Built-up Area (sq.ft)</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.built_up_area_sqft || ''}
+                        onChange={(e) => updateFormData('built_up_area_sqft', Number(e.target.value))}
+                        className="admin-input"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Khata — Karnataka (shown on property card)</label>
+                      <select
+                        value={kathaSelectValue}
+                        onChange={(e) => handleKathaSelectChange(e.target.value)}
+                        className="admin-select"
+                      >
+                        <option value="">Select Khata type</option>
+                        {KARNATAKA_KATHA_GROUPS.map((group) => (
+                          <optgroup key={group.id} label={group.label}>
+                            {group.options.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                        <optgroup label="Other">
+                          <option value={KARNATAKA_KATHA_CUSTOM_VALUE}>Other (Specify)</option>
+                        </optgroup>
+                      </select>
+
+                      {selectedKathaOption?.hint && (
+                        <p className="mt-2 text-[11px] leading-relaxed text-gray-600">{selectedKathaOption.hint}</p>
+                      )}
+                      {!formData.katha?.trim() && suggestedKathaGroup && (
+                        <p className="mt-2 text-[11px] text-gray-500">
+                          Suggested for <span className="font-medium text-black">{formData.type}</span>: {suggestedKathaGroup.label}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Legal &amp; loan status (shown on listing card)</label>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="flex min-h-[44px] items-center gap-2.5 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={formData.highlights.includes('Bank Loan Eligible')}
+                            onChange={() =>
+                              updateFormData(
+                                'highlights',
+                                formData.highlights.includes('Bank Loan Eligible')
+                                  ? formData.highlights.filter((h) => h !== 'Bank Loan Eligible')
+                                  : [...formData.highlights, 'Bank Loan Eligible'],
+                              )
+                            }
+                            className="h-4 w-4"
+                          />
+                          Bank Loan Eligible
+                        </label>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-gray-400">Ticked only if your bank has actually pre-eligible the property — buyers may ask for proof.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Highlights</h2>
+                  <p className="-mt-3 mb-5 text-[11px] text-gray-500">Tap to select — choose only what genuinely applies</p>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                    {HIGHLIGHTS.map((h) => (
+                      <label key={h} className="flex min-h-[44px] items-center gap-3 font-sans text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formData.highlights.includes(h)}
+                          onChange={() =>
+                            updateFormData(
+                              'highlights',
+                              formData.highlights.includes(h)
+                                ? formData.highlights.filter((x) => x !== h)
+                                : [...formData.highlights, h],
+                            )
                           }
-                        : null
-                    }
-                    onChange={(next: LandLocationValue | null) => {
-                      if (!next) {
-                        setForm(prev => ({
-                          ...prev,
-                          area: '',
-                          location: '',
-                          map_lat: 0,
-                          map_lng: 0,
-                          maps_link: '',
-                        }));
-                        return;
-                      }
-                      setForm(prev => ({
-                        ...prev,
-                        area: next.area,
-                        location: next.location,
-                        map_lat: next.map_lat,
-                        map_lng: next.map_lng,
-                        maps_link: next.maps_link ?? '',
-                        city: next.city || prev.city,
-                        state: next.state || prev.state,
-                        pincode: next.pincode || prev.pincode,
-                        fullAddress: next.fullAddress || prev.fullAddress,
-                      }));
-                    }}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2.5">Pricing</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">₹</span>
-                      <input
-                        type="number"
-                        placeholder="Total Price *"
-                        value={form.price || ''}
-                        onChange={(e) => handleTotalPriceChange(Number(e.target.value))}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pl-8 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                      />
+                          className="h-4 w-4"
+                        />
+                        {h}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      placeholder="Add custom highlight"
+                      value={customHighlight}
+                      onChange={(e) => setCustomHighlight(e.target.value)}
+                      className="admin-input min-h-[44px] flex-1 sm:text-sm"
+                    />
+                    <button type="button" onClick={handleAddHighlight} className="admin-btn-primary min-h-[44px] sm:shrink-0">
+                      Add
+                    </button>
+                  </div>
+                  {formData.highlights.some((h) => !HIGHLIGHTS.includes(h)) && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {formData.highlights.filter((h) => !HIGHLIGHTS.includes(h)).map((h) => (
+                        <div key={h} className="flex items-center gap-2 rounded-full bg-gray-800 px-3 py-1 text-xs text-white">
+                          {h}
+                          <button
+                            type="button"
+                            onClick={() => updateFormData('highlights', formData.highlights.filter((x) => x !== h))}
+                            className="hover:opacity-70"
+                          >
+                            <XCircle size={12} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    {form.price > 0 && (
-                      <p className="mt-1.5 text-xs font-semibold text-emerald-600">{formatINR(form.price)}</p>
-                    )}
-                  </div>
-                  <div>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-medium">₹</span>
-                      <input
-                        type="number"
-                        placeholder="Per sq.ft"
-                        value={form.price_per_sqft || ''}
-                        onChange={(e) => handlePricePerSqftChange(Number(e.target.value))}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pl-8 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                      />
-                    </div>
-                    {form.price_per_sqft > 0 && (
-                      <p className="mt-1.5 text-xs font-semibold text-emerald-600">{formatINRPerSqft(form.price_per_sqft)}</p>
-                    )}
-                  </div>
-                </div>
-                {plotLandPriceSummary && (
-                  <div className="mt-3 rounded-xl bg-emerald-50/80 border border-emerald-100/80 px-4 py-3">
-                    <p className="text-xs font-medium text-emerald-700">{plotLandPriceSummary}</p>
-                  </div>
-                )}
-                {plotLandAreaSqft <= 0 && (form.price > 0 || form.price_per_sqft > 0) && (
-                  <p className="mt-2 text-xs text-gray-400">Enter land area below to auto-calculate.</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2.5">Land Area</label>
-                <div className="flex gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => handleAreaUnitChange('sqft')}
-                    className={`rounded-xl px-5 py-2.5 text-xs font-semibold tracking-wide transition-all duration-200 ${
-                      form.area_unit === 'sqft'
-                        ? 'bg-gray-900 text-white shadow-sm ring-1 ring-gray-900'
-                        : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    sq.ft
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleAreaUnitChange('acres')}
-                    className={`rounded-xl px-5 py-2.5 text-xs font-semibold tracking-wide transition-all duration-200 ${
-                      form.area_unit === 'acres'
-                        ? 'bg-gray-900 text-white shadow-sm ring-1 ring-gray-900'
-                        : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    Acres
-                  </button>
+                  )}
                 </div>
 
-                {form.area_unit === 'sqft' ? (
-                  <div className="relative">
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={form.area_sqft || ''}
-                      onChange={(e) => handlePlotAreaSqftChange(Number(e.target.value))}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                    />
-                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">sq.ft</span>
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Amenities</h2>
+                  <p className="-mt-3 mb-5 text-[11px] text-gray-500">Present on the premises — leave unchecked anything you can't confirm</p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+                    {AMENITIES.map((a) => (
+                      <label key={a} className="flex min-h-[44px] items-center gap-3 font-sans text-sm">
+                        <input
+                          type="checkbox"
+                          checked={formData.amenities.includes(a)}
+                          onChange={() =>
+                            updateFormData(
+                              'amenities',
+                              formData.amenities.includes(a)
+                                ? formData.amenities.filter((x) => x !== a)
+                                : [...formData.amenities, a],
+                            )
+                          }
+                          className="h-4 w-4"
+                        />
+                        {a}
+                      </label>
+                    ))}
                   </div>
-                ) : (
-                  <div className="relative">
-                    <input
-                      type="number"
-                      step="0.01"
-                      placeholder="0"
-                      value={form.land_acres || ''}
-                      onChange={(e) => handleAcresChange(Number(e.target.value))}
-                      className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 pr-16 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                    />
-                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-medium text-gray-400">Acres</span>
+                </div>
+
+                <div className="admin-section">
+                  <div className="flex items-center justify-between">
+                    <h2 className="admin-section-title">Description</h2>
+                    <button
+                      type="button"
+                      onClick={handleAIDescription}
+                      disabled={aiDescLoading || !formData.description.trim()}
+                      className="rounded-lg bg-black px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-80 disabled:opacity-40"
+                    >
+                      {aiDescLoading ? 'Enhancing…' : 'AI · Enhance'}
+                    </button>
                   </div>
-                )}
-              </div>
-              {plotLandAreaSqft > 0 && (
-                <div className="rounded-xl bg-gray-50/80 border border-gray-100/80 px-4 py-3">
-                  <p className="text-xs text-gray-500">
-                    Saved as: <span className="font-semibold text-gray-700">{plotLandAreaSqft.toLocaleString('en-IN')} sq.ft</span>
+                  <div className="relative">
+                    <textarea
+                      placeholder="Describe the property — condition, location advantages, rental information, etc. without inventing claims."
+                      value={formData.description}
+                      onChange={(e) => updateFormData('description', e.target.value.slice(0, 1200))}
+                      className="admin-textarea"
+                    />
+                    <p className="mt-2 text-right text-[11px] text-gray-400">{formData.description.length} / 1200 characters</p>
+                    {aiDescError && <p className="mt-1 text-xs text-red-600">{aiDescError}</p>}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 4 && (
+              <motion.div
+                key="step-4"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="admin-section">
+                  <h2 className="admin-section-title">Photos</h2>
+                  <p className="-mt-3 mb-5 text-[11px] text-gray-500">
+                    Upload at least 2 in-focus daylight photos — listings with photos get far more enquiry interest.
+                  </p>
+
+                  <div
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    className={`rounded-2xl border-2 border-dashed p-6 text-center transition-colors sm:p-8 ${
+                      dragActive ? 'border-[#C9A84C] bg-[#FBF7EC]' : 'border-gray-300 bg-[#FAFAFA] hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="pointer-events-none flex flex-col items-center">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0A1628]">
+                        <ImageIcon size={22} className="text-[#C9A84C]" weight="regular" />
+                      </span>
+                      <p className="mt-3 text-sm font-semibold text-[#0A1628]">Drag &amp; drop photos here</p>
+                      <p className="mt-1 text-[11.5px] text-gray-500">JPG, PNG or WebP · one click uploads the whole selection</p>
+                    </div>
+                    <label className="admin-btn-secondary mt-4 inline-flex cursor-pointer min-h-[44px]">
+                      Browse files
+                      <input type="file" accept="image/*" multiple className="sr-only" onChange={handleImageSelect} />
+                    </label>
+                  </div>
+
+                  <p className="mt-3 text-[11px] font-semibold text-gray-500">
+                    {pendingFiles.length} photo{pendingFiles.length === 1 ? '' : 's'} selected{pendingFiles.length < 2 ? ' · at least 2 required to publish' : ''}
+                  </p>
+                  {errors.photos && <p className="mt-1 text-xs text-red-600">{errors.photos}</p>}
+
+                  {pendingPreviews.length > 0 && (
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                      {pendingPreviews.map((url, index) => (
+                        <div key={url} className="group relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
+                          <img src={url} alt={`Selected photo ${index + 1}`} className="h-full w-full object-cover" />
+                          {index === 0 && (
+                            <span className="absolute left-1.5 top-1.5 rounded-md bg-[#0A1628] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#C9A84C]">
+                              Cover
+                            </span>
+                          )}
+                          {index > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => makeCoverImage(index)}
+                              title="Make cover photo"
+                              className="absolute left-1.5 top-1.5 rounded-md bg-white/90 p-1 text-[#0A1628] opacity-0 transition-opacity group-hover:opacity-100"
+                            >
+                              <Star size={12} weight="fill" />
+                            </button>
+                          )}
+                          <div className="absolute right-1.5 top-1.5 flex gap-1">
+                            {index > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => moveImage(index, -1)}
+                                title="Move left"
+                                className="rounded-md bg-white/90 p-1 text-[#0A1628] opacity-0 transition-opacity group-hover:opacity-100"
+                              >
+                                <CaretLeft size={12} weight="bold" />
+                              </button>
+                            )}
+                            {index < pendingPreviews.length - 1 && (
+                              <button
+                                type="button"
+                                onClick={() => moveImage(index, 1)}
+                                title="Move right"
+                                className="rounded-md bg-white/90 p-1 text-[#0A1628] opacity-0 transition-opacity group-hover:opacity-100"
+                              >
+                                <CaretRight size={12} weight="bold" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removePendingImage(index)}
+                              aria-label={`Remove photo ${index + 1}`}
+                              className="rounded-md bg-black/80 p-1 text-white"
+                            >
+                              <XCircle size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {step === 5 && (
+              <motion.div
+                key="step-5"
+                initial={{ opacity: 0, x: 28 * stepDir }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -28 * stepDir }}
+                transition={{ duration: 0.22, ease: 'easeOut' }}
+                className="space-y-4"
+              >
+                <div className="rounded-2xl bg-gradient-to-br from-[#0A1628] to-[#12294a] p-5 text-white shadow-[0_10px_30px_-12px_rgba(10,22,40,0.55)] sm:p-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C9A84C]">
+                    Ready to publish
+                  </p>
+                  <p className="mt-1 truncate text-lg font-semibold">
+                    {formData.title || 'Untitled property'}
+                  </p>
+                  <p className="mt-0.5 text-xs text-white/60">
+                    {formData.type} · {formData.area || ''} · {formData.price > 0 ? formData.price_label : 'Price pending'} · {pendingFiles.length} photo{pendingFiles.length === 1 ? '' : 's'}
                   </p>
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Dimensions</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30×40"
-                    value={form.dimensions}
-                    onChange={(e) => update('dimensions', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Facing</label>
-                  <select
-                    value={form.facing}
-                    onChange={(e) => update('facing', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5"
-                  >
-                    {FACINGS.map((f) => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Khata Type</label>
-                <select
-                  value={kathaSelectValue}
-                  onChange={(e) => update('katha', e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5"
-                >
-                  <option value="">Select Khata type</option>
-                  {plotKathaGroups.map((group) => (
-                    <optgroup key={group.id} label={group.label}>
-                      {group.options.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                {[
+                  { label: 'Basics', stepNo: 0, rows: [[formData.title || ''], [formData.type, formData.commercial_subtype].filter(Boolean), formData.status] },
+                  { label: 'Location', stepNo: 1, rows: [[formData.area || ''], [formData.location].filter(Boolean)] },
+                  { label: 'Pricing', stepNo: 2, rows: [[formData.price > 0 ? formData.price_label : 'Price required'], formData.monthly_rental > 0 ? `Monthly income ${formData.monthly_rental_label}` : null, formData.rental_yield ? `Est. yield ${formData.rental_yield}%` : null].filter(Boolean) },
+                  { label: 'Details', stepNo: 3, rows: [
+                      [
+                        formData.area_sqft > 0 ? `Plot ${formData.area_sqft.toLocaleString('en-IN')} sq.ft` : '',
+                        formData.built_up_area_sqft > 0 ? `Built-up ${formData.built_up_area_sqft.toLocaleString('en-IN')} sq.ft` : '',
+                        formData.facing,
+                        formData.age,
+                      ].filter(Boolean),
+                      [formData.katha || 'No Khata selected'],
+                    ] },
+                  { label: 'Highlights & amenities', stepNo: 4, rows: [[(formData.highlights.length ? formData.highlights.join(', ') : 'None selected')], [(formData.amenities.length ? formData.amenities.join(', ') : 'None selected')]] },
+                  { label: 'Description', stepNo: 4, rows: [[formData.description ? `${formData.description.slice(0, 160)}${formData.description.length > 160 ? '…' : ''}` : 'Not provided']] },
+                  { label: 'Media', stepNo: 5, rows: [[`${pendingFiles.length} photo${pendingFiles.length === 1 ? '' : 's'} ready for upload`]] },
+                ].map((card) => (
+                  <div key={card.label} className="admin-section">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">{card.label}</h3>
+                      <button
+                        type="button"
+                        onClick={() => goToStep(Math.min(card.stepNo, 5))}
+                        className="text-[11.5px] font-semibold text-[#8a6d1f] transition-colors hover:text-[#0A1628]"
+                      >
+                        Edit
+                      </button>
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {card.rows.flat().filter(Boolean).map((row, i) => (
+                        <p key={i} className="text-[13px] text-[#10192b]">{row}</p>
                       ))}
-                    </optgroup>
-                  ))}
-                  <optgroup label="Other">
-                    <option value={KARNATAKA_KATHA_CUSTOM_VALUE}>Other (Specify)</option>
-                  </optgroup>
-                </select>
-                {kathaSelectValue === KARNATAKA_KATHA_CUSTOM_VALUE && (
-                  <input
-                    type="text"
-                    placeholder="Enter custom Khata type"
-                    value={form.katha}
-                    onChange={(e) => update('katha', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 mt-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                  />
-                )}
-                {findKathaOption(form.katha)?.hint && (
-                  <p className="mt-2 text-xs text-gray-400">{findKathaOption(form.katha)!.hint}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1.5">Description</label>
-                <textarea
-                  placeholder="Describe your property — location highlights, nearby landmarks, road access, etc."
-                  value={form.description}
-                  onChange={(e) => { update('description', e.target.value.slice(0, 500)); setDescError(''); }}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300 resize-none"
-                  rows={3}
-                />
-                <div className="mt-2 flex items-center justify-between">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!form.title.trim() || !form.area.trim()) {
-                        setDescError('Add a title and location first');
-                        return;
-                      }
-                      setDescError('');
-                      setEnhancing(true);
-                      try {
-                        const enhanced = await enhanceDescription(form);
-                        update('description', enhanced);
-                      } catch (err) {
-                        setDescError(err instanceof Error ? err.message : 'Failed to enhance description');
-                      } finally {
-                        setEnhancing(false);
-                      }
-                    }}
-                    disabled={enhancing}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-gray-600 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50"
-                  >
-                    {enhancing ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600" />
-                    ) : (
-                      <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M12 2l2.4 7.2L22 9l-6 4.8L17.6 22 12 17l-5.6 5L8 13.8 2 9l7.6-.2L12 2z"/></svg>
-                    )}
-                    {enhancing ? 'Enhancing…' : 'AI Enhance'}
-                  </button>
-                  <span className="text-[10px] font-medium text-gray-400">{form.description.length}/500</span>
-                </div>
-                {descError && <p className="mt-1.5 text-[11px] text-red-500">{descError}</p>}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200/70 bg-white shadow-sm p-7 sm:p-8 space-y-6">
-              <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900 text-[10px] font-bold text-white">2</div>
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Contact &amp; Listing Info</h2>
-                  <p className="text-[11px] text-gray-400">How buyers can reach you</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Your Name *</label>
-                  <input
-                    type="text"
-                    placeholder="Full name"
-                    value={form.contact_name}
-                    onChange={(e) => update('contact_name', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone Number *</label>
-                  <input
-                    type="tel"
-                    placeholder="10-digit number"
-                    value={form.contact_phone}
-                    onChange={(e) => update('contact_phone', e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none transition-all focus:border-gray-900/40 focus:ring-2 focus:ring-gray-900/5 placeholder:text-gray-300"
-                  />
-                  <p className="mt-1.5 text-[11px] text-gray-400">This number will be used for connecting the buyers directly</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-2.5">Listed By</label>
-                <div className="flex gap-2">
-                  {LISTED_BY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => update('listed_by', opt)}
-                      className={`rounded-xl px-5 py-2.5 text-xs font-semibold tracking-wide transition-all duration-200 ${
-                        form.listed_by === opt
-                          ? 'bg-gray-900 text-white shadow-sm ring-1 ring-gray-900'
-                          : 'border border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-gray-200/70 bg-white shadow-sm p-7 sm:p-8 space-y-5">
-              <div className="flex items-center gap-3 pb-3 border-b border-gray-100">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-900 text-[10px] font-bold text-white">3</div>
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900">Photos</h2>
-                  <p className="text-[11px] text-gray-400">Add at least 2 photos to showcase your property</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {previews.map((url, i) => (
-                  <div key={url} className="relative aspect-square overflow-hidden rounded-xl bg-gray-100 ring-1 ring-gray-200/50 group">
-                    <img src={url} alt="" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/10" />
-                    <button type="button" onClick={() => removeFile(i)} className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-black/50 text-[10px] text-white opacity-0 backdrop-blur-sm transition-all group-hover:opacity-100 hover:bg-black/70">✕</button>
+                    </div>
                   </div>
                 ))}
-                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white transition-all hover:border-gray-400 hover:bg-gray-50/50">
-                  <svg className="h-6 w-6 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                  <span className="mt-1.5 text-[10px] font-medium text-gray-400">{files.length}/5 · Add photos</span>
-                  <input type="file" accept="image/*" multiple className="sr-only" onChange={handleFiles} />
-                </label>
-              </div>
-            </div>
 
-            <label className="flex items-start gap-3 pt-2 cursor-pointer group">
-              <input
-                type="checkbox"
-                checked={privacyAccepted}
-                onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-gray-900 focus:ring-gray-900/30"
-              />
-              <span className="text-xs leading-relaxed text-gray-500 group-hover:text-gray-700 transition-colors">
-                I accept the{' '}
-                <a href="/privacy" target="_blank" rel="noopener noreferrer"
-                   className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700">
-                  Privacy Policy & Terms
-                </a>{' '}
-                and agree that VJR Estate is a platform only and is not involved in any transaction. I am solely
-                responsible for my property listing and all commitments made to buyers.
-              </span>
-            </label>
+                <div className="admin-section space-y-5">
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">Listed By</label>
+                    <div className="flex min-h-[44px] items-center rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]">
+                      {partner.partnerType}
+                      {partner.companyName ? ` · ${partner.companyName}` : ''}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-gray-400">
+                      Fixed to your partner registration. To change it, update your partnership.
+                    </p>
+                  </div>
 
-            <div className="flex gap-3 pt-2">
+                  <div className="rounded-2xl bg-[#0A1628] p-4 text-white">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C9A84C]">
+                      Service charge
+                    </p>
+                    <p className="mt-1.5 text-sm font-semibold">
+                      {partner.commissionPercent === 1
+                        ? '1% brokerage service charge of deal value, only on successful closure'
+                        : '50 / 50 partnership share on every successful deal — no other charges'}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-sans text-xs text-gray-500 mb-2">Buyer contact</label>
+                    <div className="flex min-h-[44px] items-center rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]">
+                      {partner.fullName}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-gray-400">
+                      Buyer enquiries and visit bookings arrive through VJR Estate — your personal number is never published on the listing.
+                    </p>
+                  </div>
+                </div>
+
+                {publishError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    {publishError}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </form>
+
+        {/* FOOTER BAR (Sticky) — page-local bar with tight keyboard/safe-area bottom padding */}
+        <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-[#C9A84C]/25 bg-white/95 px-4 py-3 backdrop-blur-md sm:px-8"
+             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+          <div className="flex items-center gap-2">
+            {step > 0 ? (
+              <button
+                type="button"
+                onClick={handleContinueBack}
+                disabled={saving}
+                aria-label="Go back to previous step"
+                className="admin-btn-secondary min-h-[48px] shrink-0 !px-4 disabled:opacity-60 sm:!px-5"
+              >
+                <CaretLeft size={16} weight="bold" />
+                <span className="hidden sm:inline">Back</span>
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className="flex-1 rounded-xl border border-gray-200 bg-white py-3.5 text-sm font-medium text-gray-600 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.98]"
+                disabled={saving}
+                aria-label="Cancel and go back"
+                className="admin-btn-secondary min-h-[48px] shrink-0 !px-4 disabled:opacity-60 sm:!px-5"
               >
-                Cancel
+                <span className="hidden sm:inline">Cancel</span>
+                <span className="sm:hidden">✕</span>
               </button>
+            )}
+            {step < FORM_STEPS.length - 1 ? (
+              <button
+                type="button"
+                onClick={handleContinue}
+                disabled={saving}
+                className="admin-btn-primary min-h-[48px] flex-1 gap-1.5 disabled:opacity-60 sm:flex-none sm:px-8"
+              >
+                Next
+                <CaretRight size={14} weight="bold" />
+              </button>
+            ) : (
               <button
                 type="submit"
-                disabled={saving || !isFormValid}
-                title={!isFormValid ? getValidationMessage() : 'Submit property listing'}
-                className={`flex-1 rounded-xl py-3.5 text-sm font-semibold transition-all active:scale-[0.97] ${
-                  isFormValid
-                    ? 'bg-gray-900 text-white shadow-lg shadow-gray-900/25 hover:bg-gray-800 hover:shadow-xl hover:shadow-gray-900/30 disabled:opacity-50 disabled:shadow-none'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}
+                form="partner-property-form"
+                disabled={saving}
+                className="admin-btn-primary min-h-[48px] flex-1 disabled:opacity-60 sm:flex-none sm:px-8"
               >
                 {saving ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Submitting...
-                  </span>
-                ) : 'Submit Listing'}
+                  uploadProgress.total > 0 ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Uploading {uploadProgress.done}/{uploadProgress.total}…
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Publishing…
+                    </span>
+                  )
+                ) : (
+                  'Publish'
+                )}
               </button>
-            </div>
-            {!isFormValid && (
-              <div className="text-center text-xs text-amber-700 bg-amber-50/80 rounded-xl p-3.5 border border-amber-200/80">
-                {getValidationMessage()}
-              </div>
             )}
-          </form>
-          )}
-          </>
-          )}
+          </div>
         </div>
       </div>
 
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3.5 text-sm text-white shadow-xl flex items-center gap-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-white/60" />
-          {toast}
+      {publishError && step !== 5 && (
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3.5 text-sm text-white shadow-xl">
+          {publishError}
         </div>
       )}
     </div>
   );
+
+  function handleContinueBack() {
+    goToStep(step - 1);
+  }
 }
+

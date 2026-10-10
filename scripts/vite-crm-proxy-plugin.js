@@ -270,6 +270,7 @@ DO $$ DECLARE t text; BEGIN
 END $$;
 INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-assets','ledger-assets',TRUE) ON CONFLICT (id) DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('ledger-docs','ledger-docs',FALSE) ON CONFLICT (id) DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('partner-photos','partner-photos',TRUE) ON CONFLICT (id) DO NOTHING;
 `;
 
 /**
@@ -626,6 +627,257 @@ async function ensureVisitSlotsColumn() {
   if (_visitSlotsOnce.done) return;
   _visitSlotsOnce.done = true;
   await supabaseRpc('exec_sql', { q: VISIT_SLOTS_DDL }).catch(() => {});
+}
+
+// Partner program (Agents / Builders / Owners) — mirror of api/data-proxy.ts.
+const PARTNERS_DDL = `
+CREATE TABLE IF NOT EXISTS public.partners (
+  id                  TEXT PRIMARY KEY,
+  uid                 TEXT,
+  email               TEXT NOT NULL DEFAULT '',
+  partner_type        TEXT NOT NULL DEFAULT 'Owner' CHECK (partner_type IN ('Owner','Builder','Agent')),
+  full_name           TEXT NOT NULL DEFAULT '',
+  mobile              TEXT NOT NULL DEFAULT '',
+  company_name        TEXT,
+  rera_number         TEXT,
+  experience_years    INT,
+  city                TEXT NOT NULL DEFAULT 'Bengaluru',
+  areas               TEXT[] NOT NULL DEFAULT '{}',
+  commission_percent  NUMERIC NOT NULL DEFAULT 50,
+  terms_accepted      BOOLEAN NOT NULL DEFAULT FALSE,
+  status              TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended')),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_partners_uid ON public.partners (uid);
+CREATE INDEX IF NOT EXISTS idx_partners_email ON public.partners (email);
+-- Consent records (versioned legal acceptance) — added after initial rollout.
+DO $$ BEGIN
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS terms_version TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS privacy_accepted_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS authority_declared_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS marketing_consent BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS consents JSONB;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+NOTIFY pgrst, 'reload schema';
+`;
+
+/**
+ * Partner CRM module — partner_code (VJR-P-NNNNNN), lifecycle status machine
+ * (pending/active/suspended/terminated/rejected), and the immutable
+ * partner_activity_log that powers the Partner 360° timeline.
+ */
+const PARTNER_CRM_DDL = `
+DO $$ BEGIN
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS partner_code TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+  ALTER TABLE public.partners DROP CONSTRAINT IF EXISTS partners_status_check;
+  ALTER TABLE public.partners ADD CONSTRAINT partners_status_check CHECK (status IN ('pending','active','suspended','terminated','rejected'));
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_reason TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_note TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_changed_by TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS verification_status TEXT NOT NULL DEFAULT 'UNVERIFIED';
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS verification_items JSONB NOT NULL DEFAULT '{}'::jsonb;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ;
+  -- Device-reported registration location (partner verification aid).
+  -- Never exposed via public reads.
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS latitude NUMERIC;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS longitude NUMERIC;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS accuracy_meters NUMERIC;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS captured_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS resolved_address TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS capture_method TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS location_capture_status TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS photo_url TEXT;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+CREATE TABLE IF NOT EXISTS public.partner_activity_log (
+  id           TEXT PRIMARY KEY,
+  partner_id   TEXT NOT NULL,
+  action       TEXT NOT NULL,
+  description  TEXT NOT NULL DEFAULT '',
+  actor_type   TEXT NOT NULL DEFAULT 'system',
+  actor        TEXT NOT NULL DEFAULT '',
+  related_type TEXT,
+  related_id   TEXT,
+  prev_value   TEXT,
+  new_value    TEXT,
+  metadata     JSONB,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pal_partner ON public.partner_activity_log (partner_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS public.partner_notes (
+  id         TEXT PRIMARY KEY,
+  partner_id TEXT NOT NULL,
+  author_email TEXT NOT NULL DEFAULT '',
+  note_type  TEXT NOT NULL DEFAULT 'General',
+  priority   TEXT NOT NULL DEFAULT 'Normal',
+  body       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pnotes_partner ON public.partner_notes (partner_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS public.partner_transactions (
+  id                TEXT PRIMARY KEY,
+  partner_id        TEXT NOT NULL,
+  property_id       TEXT,
+  property_title    TEXT NOT NULL DEFAULT '',
+  counterparty_name TEXT NOT NULL DEFAULT '',
+  txn_type          TEXT NOT NULL DEFAULT 'sale',
+  transaction_value NUMERIC NOT NULL DEFAULT 0,
+  commission_percent NUMERIC,
+  vjr_amount        NUMERIC NOT NULL DEFAULT 0,
+  partner_amount    NUMERIC NOT NULL DEFAULT 0,
+  gst_amount        NUMERIC NOT NULL DEFAULT 0,
+  paid_amount       NUMERIC NOT NULL DEFAULT 0,
+  txn_status        TEXT NOT NULL DEFAULT 'PENDING' CHECK (txn_status IN ('PENDING','NEGOTIATION','AGREED','CLOSED','CANCELLED','DISPUTED')),
+  payment_status    TEXT NOT NULL DEFAULT 'UNPAID' CHECK (payment_status IN ('UNPAID','PARTIAL','PAID')),
+  closure_date      DATE,
+  notes             TEXT NOT NULL DEFAULT '',
+  created_by        TEXT NOT NULL DEFAULT '',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ptxn_partner ON public.partner_transactions (partner_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS public.partner_disputes (
+  id                TEXT PRIMARY KEY,
+  partner_id        TEXT NOT NULL,
+  related_property_id TEXT,
+  related_lead_id   TEXT,
+  related_txn_id    TEXT,
+  dispute_type      TEXT NOT NULL DEFAULT 'Other',
+  description       TEXT NOT NULL DEFAULT '',
+  assigned_admin    TEXT NOT NULL DEFAULT '',
+  dispute_status    TEXT NOT NULL DEFAULT 'OPEN' CHECK (dispute_status IN ('OPEN','UNDER_REVIEW','WAITING_FOR_DOCUMENTS','RESOLVED','CLOSED')),
+  resolution        TEXT NOT NULL DEFAULT '',
+  resolution_date   DATE,
+  created_by        TEXT NOT NULL DEFAULT '',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_pdisp_partner ON public.partner_disputes (partner_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS public.partner_support_conversations (
+  id               TEXT PRIMARY KEY,
+  partner_id       TEXT NOT NULL,
+  partner_uid      TEXT NOT NULL DEFAULT '',
+  support_ref      TEXT NOT NULL,
+  subject          TEXT NOT NULL,
+  category         TEXT NOT NULL DEFAULT 'Other',
+  status           TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','In Progress','Waiting for Partner','Resolved')),
+  assigned_admin   TEXT NOT NULL DEFAULT '',
+  priority         TEXT NOT NULL DEFAULT 'Normal',
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_message_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at      TIMESTAMPTZ,
+  resolved_by      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_psc_partner ON public.partner_support_conversations (partner_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_psc_status ON public.partner_support_conversations (status, updated_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uniq_psc_ref ON public.partner_support_conversations (support_ref);
+CREATE TABLE IF NOT EXISTS public.partner_support_messages (
+  id              TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  sender_role     TEXT NOT NULL CHECK (sender_role IN ('partner','admin')),
+  sender_id       TEXT NOT NULL DEFAULT '',
+  sender_name     TEXT NOT NULL DEFAULT '',
+  body            TEXT NOT NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at         TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_psm_conv ON public.partner_support_messages (conversation_id, created_at);
+NOTIFY pgrst, 'reload schema';
+`;
+
+const _partnersOnce = { done: false };
+async function ensurePartnersTable() {
+  if (_partnersOnce.done) return;
+  _partnersOnce.done = true;
+  await supabaseRpc('exec_sql', { q: PARTNERS_DDL }).catch(() => {});
+  await supabaseRpc('exec_sql', { q: PARTNER_CRM_DDL }).catch(() => {});
+}
+
+/** Immutable activity-log write for the Partner 360° timeline. Never throws. */
+async function logPartnerActivity(entry) {
+  try {
+    await supabaseFetch('POST', 'partner_activity_log', {
+      id: crypto.randomUUID(),
+      partner_id: entry.partnerId,
+      action: entry.action,
+      description: entry.description ?? '',
+      actor_type: entry.actorType ?? 'system',
+      actor: entry.actor ?? '',
+      related_type: entry.relatedType ?? null,
+      related_id: entry.relatedId ?? null,
+      prev_value: entry.prevValue ?? null,
+      new_value: entry.newValue ?? null,
+      metadata: entry.metadata ?? null,
+    });
+  } catch { /* activity logging must never break the main flow */ }
+}
+
+/** Partner lookup by verified uid or email; claims email-only registrations. */
+/**
+ * Validated device-reported location from partner.register payload.
+ * Returns a partial partners-row spread when valid, null when absent, and
+ * THROWS when present-but-malformed (client bug or tampering attempt).
+ * Precision is preserved as sent — no rounding.
+ */
+function parseLocationCapture(loc) {
+  if (!loc) return null;
+  const lat = Number(loc.latitude);
+  const lng = Number(loc.longitude);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw new Error('Invalid latitude in location payload');
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw new Error('Invalid longitude in location payload');
+  const acc = loc.accuracyMeters == null ? null : Number(loc.accuracyMeters);
+  if (acc != null && (!Number.isFinite(acc) || acc < 0 || acc > 100000)) throw new Error('Invalid accuracy in location payload');
+  const capturedAt = String(loc.capturedAt ?? '');
+  if (capturedAt && Number.isNaN(new Date(capturedAt).getTime())) throw new Error('Invalid capture timestamp in location payload');
+  const status = ['CAPTURED', 'CAPTURED_LOW_ACCURACY', 'FAILED', 'DENIED', 'SKIPPED'].includes(String(loc.status))
+    ? String(loc.status)
+    : 'CAPTURED';
+  return {
+    latitude: lat,
+    longitude: lng,
+    accuracy_meters: acc,
+    captured_at: capturedAt || new Date().toISOString(),
+    resolved_address: String(loc.resolvedAddress ?? '').slice(0, 400) || null,
+    capture_method: 'browser_geolocation_gps',
+    location_capture_status: status,
+  };
+}
+
+async function findPartner(uid, email) {
+  const enc = encodeURIComponent;
+  const { data: byUid } = await supabaseFetch('GET', `partners?uid=eq.${enc(uid)}&limit=1`, null);
+  if (byUid?.[0]) return byUid[0];
+  if (!email) return null;
+  const { data: byEmail } = await supabaseFetch('GET', `partners?email=eq.${enc(normalizeEmail(email))}&limit=1`, null);
+  const row = byEmail?.[0];
+  if (!row) return null;
+  if (!row.uid) {
+    await supabaseFetch('PATCH', `partners?id=eq.${enc(row.id)}`, { uid, updated_at: new Date().toISOString() });
+    return { ...row, uid };
+  }
+  return row.uid === uid ? row : null;
+}
+
+function supportSubjectShort(body) {
+  return String(body).replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+/** Sequential support reference: VJR-SUP-YYYY-NNNN from the current year's rows. */
+async function nextSupportRef() {
+  const year = new Date().getFullYear();
+  const { data } = await supabaseFetch('GET', `partner_support_conversations?support_ref=like.VJR-SUP-${year}-*&select=support_ref`, null);
+  let maxNum = 0;
+  for (const r of data ?? []) {
+    const m = String(r.support_ref).match(new RegExp(`^VJR-SUP-${year}-(\\d+)$`));
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
+  }
+  return `VJR-SUP-${year}-${String(maxNum + 1).padStart(4, '0')}`;
 }
 
 function historyRowFromLead(row, deletedAt) {
@@ -1782,13 +2034,19 @@ async function executeAction(action, params) {
     case 'image.upload': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { bucket, entityId, name, contentType, dataBase64 } = params;
-      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos', 'partner-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!entityId) throw new Error('entityId required');
       if (!ALLOWED_IMAGE_TYPES.test(contentType ?? '')) throw new Error('Invalid image type');
       const buffer = decodeBase64(dataBase64);
       if (buffer.length === 0) throw new Error('Empty file');
       if (buffer.length > MAX_IMAGE_BYTES) throw new Error('Image exceeds 3 MB');
       if (bucket === 'team-photos' && !isAdmin(params._auth)) throw new Error('Forbidden');
+      // partner-photos: entityId IS the partner id — only that partner or an admin.
+      if (bucket === 'partner-photos' && !isAdmin(params._auth)) {
+        await ensurePartnersTable();
+        const me = await findPartner(params._auth.uid, params._auth.email);
+        if (!me || String(me.id) !== String(entityId)) throw new Error('Forbidden');
+      }
       const safeName = sanitizeFileName(name);
       const path = `${entityId}/${Date.now()}-${safeName}`;
       const e = getEnv();
@@ -1805,9 +2063,14 @@ async function executeAction(action, params) {
     case 'image.delete': {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       const { bucket, path: imgPath } = params;
-      if (!['property-images', 'team-photos'].includes(bucket)) throw new Error('Invalid bucket');
+      if (!['property-images', 'team-photos', 'partner-photos'].includes(bucket)) throw new Error('Invalid bucket');
       if (!imgPath) throw new Error('path required');
       if (bucket === 'team-photos' && !isAdmin(params._auth)) throw new Error('Forbidden');
+      if (bucket === 'partner-photos' && !isAdmin(params._auth)) {
+        await ensurePartnersTable();
+        const me = await findPartner(params._auth.uid, params._auth.email);
+        if (!me || String(me.id) !== String(imgPath.split('/')[0])) throw new Error('Forbidden');
+      }
       const e = getEnv();
       await fetch(`${e.REQ_URL}/storage/v1/object/${bucket}/${imgPath}`, {
         method: 'DELETE',
@@ -1845,6 +2108,10 @@ async function executeAction(action, params) {
         const { data: acc } = await supabaseFetch('GET', `users?uid=eq.${encodeURIComponent(params._auth.uid)}&select=can_add_property`);
         if (acc?.[0]?.can_add_property !== true) throw new Error('Add Property access not granted for this account');
       }
+      // Company-side listing (admin or granted user): always attributed to
+      // VJR Estate, never a partner type — partners come in through
+      // partner.property.create only.
+      params.listed_by = 'VJR Estate';
       const { uid: _uid, _auth: _a1, _ip: _ip1, _public: _pub1, ...raw } = params;
       const code = await nextPropertyCode();
       const finalCode = (params.property_code ?? '').trim() || code;
@@ -1872,6 +2139,8 @@ async function executeAction(action, params) {
       if (!isAdmin(params._auth) && row.uid !== params._auth.uid) throw new Error('Forbidden');
       const updates = pickPropertyColumns({ ...rawFields, updated_at: new Date().toISOString() });
       delete updates.uid;
+      // listed_by set only at create time (see property.create) — not editable.
+      delete updates.listed_by;
       await supabaseFetch('PATCH', `properties?id=eq.${encodeURIComponent(_pid)}`, updates);
       return { id: _pid };
     }
@@ -2531,15 +2800,18 @@ async function executeAction(action, params) {
     case 'lead.create': {
       if (!params._public) throw new Error('Forbidden');
       if (rateLimited(`lead:${params._ip}`, 10, 60000)) throw new Error('Too many requests');
-      const { propertyId, propertyTitle, leadType, message, propertyType, propertyArea, propertyPrice, propertyMonthlyRental, propertyUrl, visitDate, visitTime, buyerName, buyerPhone, buyerLat, buyerLng, source, ownerUid, listedBy } = params;
+      const { propertyId, propertyTitle, leadType, message, propertyType, propertyArea, propertyPrice, propertyMonthlyRental, propertyUrl, visitDate, visitTime, buyerName, buyerPhone, buyerLat, buyerLng, source, listedBy } = params;
       if (!propertyId || !propertyTitle || !message || !leadType) throw new Error('Invalid lead');
+      // Booking source is derived server-side from the property's owning
+      // partner (properties.uid) — never from a client-supplied label.
+      const { data: listingOwner } = await supabaseFetch('GET', `properties?id=eq.${encodeURIComponent(String(propertyId))}&select=uid&limit=1`);
       const leadId = crypto.randomUUID();
       await supabaseFetch('POST', 'property_leads', {
         id: leadId, property_id: propertyId, property_title: propertyTitle, property_type: propertyType ?? '', property_area: propertyArea ?? '',
         property_price: propertyPrice ?? '', property_monthly_rental: propertyMonthlyRental ?? null, property_url: propertyUrl ?? '',
         lead_type: leadType, visit_date: visitDate ?? null, visit_time: visitTime ?? null,
         buyer_name: buyerName ?? null, buyer_phone: buyerPhone ?? null, buyer_lat: buyerLat ?? null, buyer_lng: buyerLng ?? null,
-        message, source: source ?? 'card', owner_uid: ownerUid ?? null, listed_by: listedBy ?? null, ip_address: params._ip, status: 'new',
+        message, source: source ?? 'card', owner_uid: listingOwner?.[0]?.uid ?? null, listed_by: listedBy ?? null, ip_address: params._ip, status: 'new',
         created_at: new Date().toISOString(),
       });
       return { id: leadId };
@@ -2921,6 +3193,822 @@ async function executeAction(action, params) {
       }
       const { data } = await supabaseFetch('GET', 'property_leads?lead_type=eq.book_visit&order=created_at.desc&limit=200&select=id,buyer_name,buyer_phone,property_title,property_type,property_area,property_price,visit_date,visit_time,status,created_at', null);
       return { data: (data ?? []).filter((r) => r.buyer_name || r.buyer_phone) };
+    }
+
+    // ── Partner program (public Agent/Builder/Owner listing flow) ──────
+    case 'partner.register': {
+      if (rateLimited(`partner-register:${params._ip}`, 6, 60000)) throw new Error('Too many requests');
+      await ensurePartnersTable();
+      const isAuthed = !!params._auth?.authorized;
+      const partnerType = ['Owner', 'Builder', 'Agent'].includes(params.partnerType) ? params.partnerType : '';
+      if (!partnerType) throw new Error('Select a partner type (Owner, Builder or Agent)');
+      const email = isAuthed ? params._auth.email : normalizeEmail(String(params.email ?? ''));
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid email address is required');
+      const fullName = String(params.fullName ?? '').trim().slice(0, 100);
+      if (!fullName) throw new Error('Full name is required');
+      const mobile = String(params.mobile ?? '').replace(/\D/g, '').slice(0, 10);
+      if (mobile.length !== 10) throw new Error('A valid 10-digit mobile number is required');
+      // RERA / firm details apply to Agents & Builders and are recommended but
+      // optional at registration (validated only when provided).
+      const needsRera = partnerType !== 'Owner';
+      const companyName = String(params.companyName ?? '').trim().slice(0, 120);
+      const reraNumber = String(params.reraNumber ?? '').trim().toUpperCase().slice(0, 60);
+      if (needsRera && reraNumber && reraNumber.length < 6) {
+        throw new Error('Enter a valid Karnataka RERA registration number, or leave it blank to add later');
+      }
+      if (params.termsAccepted !== true) throw new Error('You must accept the partnership terms to register');
+      // Device-reported geolocation (optional at submit): validated server-side.
+      const loc = parseLocationCapture(params.location);
+      // Fixed commission model: 50% VJR Estate for Agents & Builders, 1% for Owners.
+      const commissionPercent = partnerType === 'Owner' ? 1 : 50;
+      const now = new Date().toISOString();
+      const existing = isAuthed
+        ? await findPartner(params._auth.uid, params._auth.email)
+        : (await supabaseFetch('GET', `partners?email=eq.${encodeURIComponent(email)}&limit=1`, null)).data?.[0] ?? null;
+      // CRM lifecycle: new registrations enter PENDING review. Existing
+      // partners re-registering (profile updates) keep their lifecycle status.
+      const crmStatus = existing?.status === 'pending' || existing?.status === 'suspended'
+        ? existing.status
+        : existing?.status ?? 'pending';
+      // Sequential partner ID: VJR-P-000001, never reused.
+      let partnerCode = existing?.partner_code ?? '';
+      if (!partnerCode) {
+        const { data: lastCoded } = await supabaseFetch('GET', 'partners?partner_code=not.is.null&order=partner_code.desc&limit=1', null);
+        const lastNum = Number(String(lastCoded?.[0]?.partner_code ?? '').split('-').pop() ?? '0') || 0;
+        partnerCode = `VJR-P-${String(lastNum + 1).padStart(6, '0')}`;
+      }
+      const row = {
+        uid: isAuthed ? params._auth.uid : existing?.uid ?? null,
+        email,
+        partner_type: partnerType,
+        full_name: fullName,
+        mobile,
+        company_name: companyName || null,
+        rera_number: needsRera ? reraNumber : null,
+        experience_years: Number(params.experienceYears) > 0 ? Math.floor(Number(params.experienceYears)) : null,
+        city: String(params.city ?? 'Bengaluru').trim().slice(0, 60) || 'Bengaluru',
+        areas: Array.isArray(params.areas) ? params.areas.map((a) => String(a).slice(0, 80)).filter(Boolean).slice(0, 10) : [],
+        commission_percent: commissionPercent,
+        terms_accepted: true,
+        // Versioned consent record — Partner Terms v2026-10 (/partner-terms) and
+        // Partner Privacy Policy v2026-10 (/partner-privacy).
+        terms_version: '2026-10',
+        terms_accepted_at: now,
+        privacy_accepted_at: now,
+        authority_declared_at: now,
+        marketing_consent: params.marketingConsent === true,
+        ...(loc ?? {}),
+        consents: {
+          terms: { version: '2026-10', at: now },
+          privacy: { at: now },
+          authority: { at: now },
+          marketing: params.marketingConsent === true ? { at: now } : null,
+          ip: params._ip || null,
+        },
+        partner_code: partnerCode,
+        status: crmStatus,
+        verification_status: existing?.verification_status ?? 'UNVERIFIED',
+        updated_at: now,
+      };
+      if (existing?.id) {
+        await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(existing.id)}`, row);
+        if (crmStatus !== existing.status) {
+          await logPartnerActivity({ partnerId: existing.id, action: 'PARTNER REGISTERED (UPDATED)', description: `${partnerType} re-registered; lifecycle status moved to ${crmStatus}`, actorType: 'partner', actor: email });
+        }
+      } else {
+        const newId = crypto.randomUUID();
+        await supabaseFetch('POST', 'partners', { ...row, id: newId, created_at: now });
+        await logPartnerActivity({ partnerId: newId, action: 'PARTNER REGISTERED', description: `${partnerType} partner registered as ${fullName} (${email}) and entered pending review`, actorType: 'partner', actor: email, newValue: 'PENDING' });
+      }
+      return { partnerType, commissionPercent, email, registeredWithAccount: isAuthed, status: crmStatus, partnerCode };
+    }
+
+    case 'partner.check': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      const regStatus = partner?.status ?? '';
+      return {
+        registered: !!partner && ['active', 'pending'].includes(regStatus),
+        partner: partner
+          ? {
+              partnerType: partner.partner_type,
+              fullName: partner.full_name,
+              companyName: partner.company_name ?? '',
+              commissionPercent: Number(partner.commission_percent ?? (partner.partner_type === 'Owner' ? 1 : 50)),
+              status: regStatus,
+              partnerCode: partner.partner_code ?? '',
+            }
+          : null,
+      };
+    }
+
+    // ── Partner CRM (admin) — lifecycle, verification, notes, activity, transactions, disputes ──
+    case 'partner.admin.list': {
+      if (!hasPerm(params._auth, 'partners.view')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const { data: partners } = await supabaseFetch('GET', 'partners?order=created_at.desc&limit=1000', null);
+      const list = partners ?? [];
+      const { data: props } = await supabaseFetch('GET', 'properties?uid=not.is.null&select=id,uid,title,status,listed_by,price,monthly_rental,created_at,updated_at&limit=5000', null);
+      const propRows = props ?? [];
+      const propsByUid = new Map();
+      for (const p of propRows) {
+        const arr = propsByUid.get(String(p.uid)) ?? [];
+        arr.push(p);
+        propsByUid.set(String(p.uid), arr);
+      }
+      const propIds = propRows.map((p) => String(p.id)).filter(Boolean);
+      const leadCounts = new Map();
+      for (let i = 0; i < propIds.length; i += 100) {
+        const chunk = propIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        const filter = `in.${encodeURIComponent(`(${chunk.map((v) => `"${v}"`).join(',')})`)}`;
+        const { data: leads } = await supabaseFetch('GET', `property_leads?property_id=${filter}&select=property_id&limit=20000`, null);
+        for (const l of leads ?? []) leadCounts.set(String(l.property_id), (leadCounts.get(String(l.property_id)) ?? 0) + 1);
+      }
+      const { data: txns } = await supabaseFetch('GET', 'partner_transactions?select=partner_id,vjr_amount,partner_amount,txn_status,payment_status&limit=10000', null);
+      const finByPartner = new Map();
+      for (const t of txns ?? []) {
+        const f = finByPartner.get(String(t.partner_id)) ?? { vjr: 0, partner: 0, pending: 0 };
+        f.vjr += Number(t.vjr_amount ?? 0);
+        f.partner += Number(t.partner_amount ?? 0);
+        if (t.payment_status !== 'PAID' && t.txn_status === 'CLOSED') f.pending += Number(t.vjr_amount ?? 0);
+        finByPartner.set(String(t.partner_id), f);
+      }
+      const enriched = list.map((p) => {
+        const myProps = p.uid ? (propsByUid.get(String(p.uid)) ?? []) : [];
+        const fin = finByPartner.get(String(p.id)) ?? { vjr: 0, partner: 0, pending: 0 };
+        return {
+          ...p,
+          listingsCount: myProps.length,
+          activeListings: myProps.length,
+          leadsCount: myProps.reduce((n, pr) => n + (leadCounts.get(String(pr.id)) ?? 0), 0),
+          transactionsCount: (txns ?? []).filter((t) => String(t.partner_id) === String(p.id)).length,
+          vjrRevenue: fin.vjr,
+          partnerRevenue: fin.partner,
+          pendingPayments: fin.pending,
+        };
+      });
+      return { partners: enriched };
+    }
+
+    case 'partner.admin.detail': {
+      if (!hasPerm(params._auth, 'partners.view')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const { data: partner } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&limit=1`, null);
+      if (!partner?.[0]) throw new Error('Partner not found');
+      const p = partner[0];
+      const uidFilter = p.uid ? `uid=eq.${encodeURIComponent(String(p.uid))}` : 'uid=eq.__none__';
+      const { data: listings } = await supabaseFetch('GET', `properties?${uidFilter}&select=id,property_code,title,type,status,listed_by,area,location,price,price_label,monthly_rental,monthly_rental_label,images,contact_name,contact_phone,created_at,updated_at&order=created_at.desc&limit=200`, null);
+      const propIds = (listings ?? []).map((x) => String(x.id)).filter(Boolean);
+      const leads = [];
+      for (let i = 0; i < propIds.length; i += 100) {
+        const chunk = propIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        const filter = `in.${encodeURIComponent(`(${chunk.map((v) => `"${v}"`).join(',')})`)}`;
+        const { data } = await supabaseFetch('GET', `property_leads?property_id=${filter}&select=id,property_id,property_title,buyer_name,buyer_phone,message,lead_type,source,status,created_at&order=created_at.desc&limit=20000`, null);
+        if (data) leads.push(...data);
+      }
+      const [notes, activity, txns, disputes] = await Promise.all([
+        supabaseFetch('GET', `partner_notes?partner_id=eq.${encodeURIComponent(id)}&order=created_at.desc&limit=100`, null),
+        supabaseFetch('GET', `partner_activity_log?partner_id=eq.${encodeURIComponent(id)}&order=created_at.desc&limit=100`, null),
+        supabaseFetch('GET', `partner_transactions?partner_id=eq.${encodeURIComponent(id)}&order=created_at.desc&limit=200`, null),
+        supabaseFetch('GET', `partner_disputes?partner_id=eq.${encodeURIComponent(id)}&order=created_at.desc&limit=100`, null),
+      ]);
+      return { partner: p, listings: listings ?? [], leads, notes: notes?.data ?? [], activity: activity?.data ?? [], transactions: txns?.data ?? [], disputes: disputes?.data ?? [] };
+    }
+
+    case 'partner.admin.status': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const nextStatus = String(params.status ?? '');
+      if (!['active', 'suspended', 'terminated', 'rejected'].includes(nextStatus)) throw new Error('Invalid partner status');
+      // Status machine: PENDING→ACTIVE|REJECTED, ACTIVE→SUSPENDED|TERMINATED, SUSPENDED→ACTIVE|TERMINATED.
+      const ALLOWED = { pending: ['active', 'rejected'], active: ['suspended', 'terminated'], suspended: ['active', 'terminated'], rejected: [], terminated: [] };
+      const { data: partnerRows } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&select=id,status,full_name,partner_code&limit=1`, null);
+      const partner = partnerRows?.[0];
+      if (!partner) throw new Error('Partner not found');
+      const prev = String(partner.status ?? 'active');
+      if (!(ALLOWED[prev] ?? []).includes(nextStatus)) throw new Error(`Cannot change partner status from ${prev.toUpperCase()} to ${nextStatus.toUpperCase()}`);
+      const reason = String(params.reason ?? '').trim();
+      const note = String(params.note ?? '').trim().slice(0, 1000);
+      if (!reason) throw new Error('A reason is required for this action');
+      const nowIso = new Date().toISOString();
+      const statusMeta = nextStatus === 'suspended'
+        ? { type: String(params.suspensionType ?? 'INDEFINITE'), reason, note, at: nowIso, by: params._auth.email }
+        : nextStatus === 'terminated'
+          ? { reason, note, effectiveDate: String(params.effectiveDate ?? nowIso.slice(0, 10)), settlement: String(params.settlement ?? ''), at: nowIso, by: params._auth.email }
+          : { reason, note, at: nowIso, by: params._auth.email };
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, {
+        status: nextStatus,
+        status_reason: reason,
+        status_note: note || null,
+        status_changed_at: nowIso,
+        status_changed_by: params._auth.email,
+      });
+      await logPartnerActivity({
+        partnerId: id,
+        action: nextStatus === 'suspended' ? 'PARTNER SUSPENDED' : nextStatus === 'terminated' ? 'PARTNER TERMINATED' : nextStatus === 'active' ? 'PARTNER REINSTATED' : 'PARTNER STATUS CHANGED',
+        description: `${partner.partner_code ?? id} (${partner.full_name}) — ${reason}${note ? ` · ${note}` : ''}`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        prevValue: prev.toUpperCase(),
+        newValue: nextStatus.toUpperCase(),
+        metadata: statusMeta,
+      });
+      return { ok: true, status: nextStatus };
+    }
+
+    case 'partner.admin.verify': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const verificationStatus = String(params.verificationStatus ?? '');
+      if (!['UNVERIFIED', 'PARTIALLY VERIFIED', 'VERIFIED', 'VERIFICATION REQUIRED', 'REJECTED'].includes(verificationStatus)) throw new Error('Invalid verification status');
+      const { data: partnerRows } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&select=id,verification_status,verification_items&limit=1`, null);
+      const partner = partnerRows?.[0];
+      if (!partner) throw new Error('Partner not found');
+      const itemKey = String(params.item ?? 'identity');
+      const nextItems = { ...(partner.verification_items ?? {}), [itemKey]: { status: verificationStatus, at: new Date().toISOString(), by: params._auth.email, notes: String(params.notes ?? '') } };
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, { verification_status: verificationStatus, verification_items: nextItems });
+      await logPartnerActivity({
+        partnerId: id,
+        action: 'VERIFICATION UPDATED',
+        description: `${itemKey} → ${verificationStatus}${params.notes ? ` · ${String(params.notes).slice(0, 200)}` : ''}`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        prevValue: String(partner.verification_status ?? ''),
+        newValue: verificationStatus,
+      });
+      return { ok: true, verificationStatus };
+    }
+
+    case 'partner.admin.update': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const { data: partnerRows } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&limit=1`, null);
+      const partner = partnerRows?.[0];
+      if (!partner) throw new Error('Partner not found');
+      const editable = ['full_name', 'mobile', 'company_name', 'rera_number', 'experience_years', 'areas', 'city', 'partner_type'];
+      const patch = { updated_at: new Date().toISOString() };
+      const changes = [];
+      for (const key of editable) {
+        if (params[key] === undefined) continue;
+        const nextVal = key === 'experience_years' ? Math.max(0, Math.floor(Number(params[key]) || 0)) : params[key];
+        if (String(nextVal) !== String(partner[key] ?? '')) {
+          patch[key] = nextVal;
+          changes.push(`${key}: ${String(partner[key] ?? '—')} → ${String(nextVal)}`);
+        }
+      }
+      if (Object.keys(patch).length === 1) return { ok: true, changed: false };
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, patch);
+      await logPartnerActivity({ partnerId: id, action: 'PARTNER PROFILE UPDATED', description: changes.join(' · ').slice(0, 900), actorType: 'admin', actor: params._auth.email });
+      return { ok: true, changed: true };
+    }
+
+    // ── Partner support / live chat (partner + admin) — dev mirror ────
+    case 'partner.support.list': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner) throw new Error('No partner registration found for this account.');
+      const enc = encodeURIComponent;
+      const partnerId = String(partner.id);
+      const { data: convs } = await supabaseFetch('GET', `partner_support_conversations?partner_id=eq.${enc(partnerId)}&order=updated_at.desc&limit=100`, null);
+      const ids = (convs ?? []).map((c) => String(c.id));
+      const lastByConv = new Map();
+      const unreadByConv = {};
+      if (ids.length) {
+        const { data: msgs } = await supabaseFetch('GET', `partner_support_messages?conversation_id=in.(${ids.map(enc).join(',')})&order=created_at.desc&limit=1000&select=conversation_id,body,created_at,sender_role,read_at`, null);
+        for (const m of (msgs ?? [])) {
+          if (!lastByConv.has(String(m.conversation_id))) {
+            lastByConv.set(String(m.conversation_id), { body: String(m.body), created_at: String(m.created_at) });
+          }
+          if (m.sender_role === 'admin' && !m.read_at) {
+            unreadByConv[String(m.conversation_id)] = (unreadByConv[String(m.conversation_id)] ?? 0) + 1;
+          }
+        }
+      }
+      return {
+        partnerCode: partner.partner_code ?? '',
+        conversations: (convs ?? []).map((c) => ({
+          ...c,
+          lastMessage: lastByConv.get(String(c.id))?.body ?? '',
+          lastMessageAt: lastByConv.get(String(c.id))?.created_at ?? c.last_message_at,
+          unreadCount: unreadByConv[String(c.id)] ?? 0,
+        })),
+      };
+    }
+
+    case 'partner.support.get': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner) throw new Error('No partner registration found for this account.');
+      const enc = encodeURIComponent;
+      const conversationId = String(params.id ?? '');
+      const { data: conv } = await supabaseFetch('GET', `partner_support_conversations?id=eq.${enc(conversationId)}&limit=1`, null);
+      if (!conv?.[0]) throw new Error('Conversation not found');
+      const conversation = conv[0];
+      if (String(conversation.partner_id) !== String(partner.id)) throw new Error('Forbidden');
+      const { data: msgs } = await supabaseFetch('GET', `partner_support_messages?conversation_id=eq.${enc(conversationId)}&order=created_at.asc&limit=500`, null);
+      const unreadAdmin = (msgs ?? []).filter((m) => m.sender_role === 'admin' && !m.read_at);
+      for (const m of unreadAdmin) {
+        void supabaseFetch('PATCH', `partner_support_messages?id=eq.${enc(String(m.id))}`, { read_at: new Date().toISOString() });
+      }
+      const { data: props } = partner.uid
+        ? await supabaseFetch('GET', `properties?uid=eq.${enc(String(partner.uid))}&order=created_at.desc&limit=20&select=id,property_code,title,status`, null)
+        : { data: [] };
+      return { conversation, messages: msgs ?? [], partner, relatedProperties: props ?? [] };
+    }
+
+    case 'partner.support.create': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      if (rateLimited(`support:${params._auth.uid}`, 5, 60_000)) throw new Error('Too many requests — please wait a moment.');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner) throw new Error('No partner registration found for this account.');
+      const subject = String(params.subject ?? '').trim().slice(0, 160);
+      const body = String(params.body ?? '').trim().slice(0, 4000);
+      const category = String(params.category ?? 'Other').trim().slice(0, 60);
+      if (!subject || !body) throw new Error('Subject and message are required.');
+      const now = new Date().toISOString();
+      const conversationId = crypto.randomUUID();
+      const insertConv = {
+        id: conversationId,
+        partner_id: String(partner.id),
+        partner_uid: String(partner.uid ?? ''),
+        support_ref: await nextSupportRef(),
+        subject,
+        category,
+        status: 'Open',
+        created_at: now,
+        updated_at: now,
+        last_message_at: now,
+      };
+      await supabaseFetch('POST', 'partner_support_conversations', insertConv);
+      const msgId = crypto.randomUUID();
+      await supabaseFetch('POST', 'partner_support_messages', {
+        id: msgId,
+        conversation_id: conversationId,
+        sender_role: 'partner',
+        sender_id: params._auth.uid,
+        sender_name: String(partner.full_name ?? ''),
+        body,
+        created_at: now,
+      });
+      await logPartnerActivity({
+        partnerId: String(partner.id),
+        action: 'SUPPORT REQUEST OPENED',
+        description: `${insertConv.support_ref} — ${subject}`.slice(0, 300),
+        actorType: 'partner',
+        actor: String(partner.full_name ?? params._auth.email),
+        relatedType: 'support_conversation',
+        relatedId: conversationId,
+      });
+      return { conversation: insertConv, message: { id: msgId, body } };
+    }
+
+    case 'partner.support.reply': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      if (rateLimited(`support:${params._auth.uid}`, 12, 60_000)) throw new Error('Too many requests — please wait a moment.');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner) throw new Error('No partner registration found for this account.');
+      const enc = encodeURIComponent;
+      const conversationId = String(params.id ?? '');
+      const body = String(params.body ?? '').trim().slice(0, 4000);
+      if (!body) throw new Error('Message is empty.');
+      const { data: conv } = await supabaseFetch('GET', `partner_support_conversations?id=eq.${enc(conversationId)}&limit=1`, null);
+      if (!conv?.[0]) throw new Error('Conversation not found');
+      const conversation = conv[0];
+      if (String(conversation.partner_id) !== String(partner.id)) throw new Error('Forbidden');
+      const now = new Date().toISOString();
+      const msgId = crypto.randomUUID();
+      await supabaseFetch('POST', 'partner_support_messages', {
+        id: msgId,
+        conversation_id: conversationId,
+        sender_role: 'partner',
+        sender_id: params._auth.uid,
+        sender_name: String(partner.full_name ?? ''),
+        body,
+        created_at: now,
+      });
+      const nextStatus = conversation.status === 'Resolved' ? 'Open' : conversation.status;
+      await supabaseFetch('PATCH', `partner_support_conversations?id=eq.${enc(conversationId)}`, { status: nextStatus, updated_at: now, last_message_at: now });
+      await logPartnerActivity({
+        partnerId: String(partner.id),
+        action: conversation.status === 'Resolved' ? 'SUPPORT REQUEST REOPENED' : 'SUPPORT MESSAGE SENT',
+        description: `${conversation.support_ref} — ${supportSubjectShort(body)}`,
+        actorType: 'partner',
+        actor: String(partner.full_name ?? params._auth.email),
+        relatedType: 'support_conversation',
+        relatedId: conversationId,
+      });
+      return { message: { id: msgId, body, created_at: now }, conversation: { ...conversation, status: nextStatus, updated_at: now } };
+    }
+
+    case 'partner.support.adminList': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const enc = encodeURIComponent;
+      const { data: convsRaw } = await supabaseFetch('GET', 'partner_support_conversations?order=updated_at.desc&limit=300', null);
+      const convs = convsRaw ?? [];
+      const partnerIds = Array.from(new Set(convs.map((c) => String(c.partner_id))));
+      const partnerMap = new Map();
+      for (let i = 0; i < partnerIds.length; i += 100) {
+        const chunk = partnerIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        const { data: prows } = await supabaseFetch('GET', `partners?id=in.(${chunk.map(enc).join(',')})&select=id,partner_code,full_name,partner_type,status,mobile,email`, null);
+        for (const p of (prows ?? [])) partnerMap.set(String(p.id), p);
+      }
+      const ids = convs.map((c) => String(c.id));
+      const lastByConv = new Map();
+      const unreadByConv = {};
+      if (ids.length) {
+        const { data: msgs } = await supabaseFetch('GET', `partner_support_messages?conversation_id=in.(${ids.map(enc).join(',')})&order=created_at.desc&limit=2000&select=conversation_id,body,created_at,sender_role,read_at`, null);
+        for (const m of (msgs ?? [])) {
+          if (!lastByConv.has(String(m.conversation_id))) {
+            lastByConv.set(String(m.conversation_id), { body: String(m.body), created_at: String(m.created_at) });
+          }
+          if (m.sender_role === 'partner' && !m.read_at) {
+            unreadByConv[String(m.conversation_id)] = (unreadByConv[String(m.conversation_id)] ?? 0) + 1;
+          }
+        }
+      }
+      return {
+        conversations: convs.map((c) => ({
+          ...c,
+          lastMessage: lastByConv.get(String(c.id))?.body ?? '',
+          lastMessageAt: lastByConv.get(String(c.id))?.created_at ?? c.last_message_at,
+          unreadCount: unreadByConv[String(c.id)] ?? 0,
+          partner: partnerMap.get(String(c.partner_id)) ?? null,
+        })),
+      };
+    }
+
+    case 'partner.support.adminGet': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const enc = encodeURIComponent;
+      const { data: conv } = await supabaseFetch('GET', `partner_support_conversations?id=eq.${enc(String(params.id ?? ''))}&limit=1`, null);
+      if (!conv?.[0]) throw new Error('Conversation not found');
+      const conversation = conv[0];
+      const { data: msgs } = await supabaseFetch('GET', `partner_support_messages?conversation_id=eq.${enc(String(conversation.id))}&order=created_at.asc&limit=500`, null);
+      const unreadPartner = (msgs ?? []).filter((m) => m.sender_role === 'partner' && !m.read_at);
+      if (unreadPartner.length) {
+        for (const m of unreadPartner) {
+          await supabaseFetch('PATCH', `partner_support_messages?id=eq.${enc(String(m.id))}`, { read_at: new Date().toISOString() });
+        }
+      }
+      const { data: partner } = await supabaseFetch('GET', `partners?id=eq.${enc(String(conversation.partner_id))}&limit=1`, null);
+      const { data: props } = (partner?.[0]?.uid ?? '')
+        ? await supabaseFetch('GET', `properties?uid=eq.${enc(String(partner[0].uid))}&order=created_at.desc&limit=20&select=id,property_code,title,status`, null)
+        : { data: [] };
+      return { conversation, messages: msgs ?? [], partner: partner?.[0] ?? null, relatedProperties: props ?? [] };
+    }
+
+    case 'partner.support.adminReply': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const enc = encodeURIComponent;
+      const conversationId = String(params.id ?? '');
+      const body = String(params.body ?? '').trim().slice(0, 4000);
+      if (!body) throw new Error('Message is empty.');
+      const { data: conv } = await supabaseFetch('GET', `partner_support_conversations?id=eq.${enc(conversationId)}&limit=1`, null);
+      if (!conv?.[0]) throw new Error('Conversation not found');
+      const conversation = conv[0];
+      const now = new Date().toISOString();
+      const msgId = crypto.randomUUID();
+      await supabaseFetch('POST', 'partner_support_messages', {
+        id: msgId,
+        conversation_id: conversationId,
+        sender_role: 'admin',
+        sender_id: params._auth.uid,
+        sender_name: params._auth.email,
+        body,
+        created_at: now,
+      });
+      await supabaseFetch('PATCH', `partner_support_conversations?id=eq.${enc(conversationId)}`, { status: 'In Progress', updated_at: now, last_message_at: now });
+      await logPartnerActivity({
+        partnerId: String(conversation.partner_id),
+        action: 'SUPPORT REPLY RECEIVED',
+        description: `${conversation.support_ref} — a reply from the VJR Estate team is waiting in Help & Support.`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        relatedType: 'support_conversation',
+        relatedId: conversationId,
+      });
+      return { message: { id: msgId, body, created_at: now } };
+    }
+
+    case 'partner.support.adminUpdate': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const enc = encodeURIComponent;
+      const conversationId = String(params.id ?? '');
+      const { data: conv } = await supabaseFetch('GET', `partner_support_conversations?id=eq.${enc(conversationId)}&limit=1`, null);
+      if (!conv?.[0]) throw new Error('Conversation not found');
+      const conversation = conv[0];
+      const patch = { updated_at: new Date().toISOString() };
+      const allowedStatuses = ['Open', 'In Progress', 'Waiting for Partner', 'Resolved'];
+      if (params.status !== undefined) {
+        const status = String(params.status);
+        if (!allowedStatuses.includes(status)) throw new Error(`Invalid status: ${status}`);
+        patch.status = status;
+        if (status === 'Resolved') {
+          patch.resolved_at = new Date().toISOString();
+          patch.resolved_by = params._auth.email;
+        }
+        if (conversation.status === 'Resolved' && status !== 'Resolved') {
+          patch.resolved_at = null;
+          patch.resolved_by = null;
+        }
+      }
+      if (params.assignedAdmin !== undefined) patch.assigned_admin = String(params.assignedAdmin).slice(0, 120);
+      if (params.priority !== undefined) {
+        const priority = String(params.priority);
+        if (!['Low', 'Normal', 'High'].includes(priority)) throw new Error(`Invalid priority: ${priority}`);
+        patch.priority = priority;
+      }
+      const { error } = await supabaseFetch('PATCH', `partner_support_conversations?id=eq.${enc(conversationId)}`, patch);
+      if (error) throw new Error(error.message);
+      if (patch.status !== undefined && patch.status !== conversation.status) {
+        await logPartnerActivity({
+          partnerId: String(conversation.partner_id),
+          action: patch.status === 'Resolved' ? 'SUPPORT REQUEST RESOLVED' : 'SUPPORT STATUS CHANGED',
+          description: `${conversation.support_ref} — status: ${String(conversation.status)} → ${String(patch.status)}`,
+          actorType: 'admin',
+          actor: params._auth.email,
+          relatedType: 'support_conversation',
+          relatedId: conversationId,
+        });
+      }
+      return { ok: true };
+    }
+
+    case 'partner.admin.note.add': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const body = String(params.body ?? '').trim().slice(0, 2000);
+      if (!body) throw new Error('Note text is required');
+      const note = {
+        id: crypto.randomUUID(),
+        partner_id: id,
+        author_email: params._auth.email,
+        note_type: String(params.noteType ?? 'General').slice(0, 40),
+        priority: String(params.priority ?? 'Normal').slice(0, 20),
+        body,
+      };
+      await supabaseFetch('POST', 'partner_notes', note);
+      await logPartnerActivity({ partnerId: id, action: 'ADMIN NOTE ADDED', description: `[${note.note_type}/${note.priority}] ${body.slice(0, 300)}`, actorType: 'admin', actor: params._auth.email, relatedType: 'note', relatedId: note.id });
+      return { note };
+    }
+
+    case 'partner.admin.transaction.create': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partnerId = String(params.partnerId ?? '');
+      const transactionValue = Math.max(0, Number(params.transactionValue) || 0);
+      const commissionPercent = params.commissionPercent === undefined || params.commissionPercent === null || params.commissionPercent === '' ? null : Math.max(0, Number(params.commissionPercent));
+      const vjrAmount = Math.max(0, Number(params.vjrAmount) || (commissionPercent !== null ? (transactionValue * commissionPercent) / 100 : 0));
+      const partnerAmount = Math.max(0, Number(params.partnerAmount) || (transactionValue - vjrAmount));
+      const txn = {
+        id: crypto.randomUUID(),
+        partner_id: partnerId,
+        property_id: params.propertyId ? String(params.propertyId) : null,
+        property_title: String(params.propertyTitle ?? '').slice(0, 200),
+        counterparty_name: String(params.counterpartyName ?? '').slice(0, 120),
+        txn_type: ['sale', 'lease', 'rental'].includes(String(params.txnType)) ? String(params.txnType) : 'sale',
+        transaction_value: transactionValue,
+        commission_percent: commissionPercent,
+        vjr_amount: vjrAmount,
+        partner_amount: partnerAmount,
+        gst_amount: Math.max(0, Number(params.gstAmount) || 0),
+        paid_amount: 0,
+        txn_status: ['PENDING', 'NEGOTIATION', 'AGREED', 'CLOSED', 'CANCELLED', 'DISPUTED'].includes(String(params.txnStatus)) ? String(params.txnStatus) : 'PENDING',
+        payment_status: 'UNPAID',
+        closure_date: params.closureDate ? String(params.closureDate) : null,
+        notes: String(params.notes ?? '').slice(0, 1000),
+        created_by: params._auth.email,
+      };
+      await supabaseFetch('POST', 'partner_transactions', txn);
+      await logPartnerActivity({ partnerId, action: 'TRANSACTION CREATED', description: `${txn.property_title || 'Transaction'} · ₹${transactionValue.toLocaleString('en-IN')} · ${txn.txn_status}`, actorType: 'admin', actor: params._auth.email, relatedType: 'transaction', relatedId: txn.id });
+      return { transaction: txn };
+    }
+
+    case 'partner.admin.transaction.update': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const { data: prevRows } = await supabaseFetch('GET', `partner_transactions?id=eq.${encodeURIComponent(id)}&limit=1`, null);
+      const prevTxn = prevRows?.[0];
+      if (!prevTxn) throw new Error('Transaction not found');
+      // Transactions are historical records: update only, never delete.
+      const patch = { updated_at: new Date().toISOString() };
+      for (const key of ['txn_status', 'payment_status', 'notes', 'closure_date']) {
+        if (params[key] !== undefined) patch[key] = params[key];
+      }
+      if (params.paidAmount !== undefined) {
+        const paid = Math.max(0, Number(params.paidAmount) || 0);
+        patch.paid_amount = paid;
+        const total = Number(prevTxn.vjr_amount ?? 0) + Number(prevTxn.gst_amount ?? 0);
+        patch.payment_status = paid >= total && total > 0 ? 'PAID' : paid > 0 ? 'PARTIAL' : 'UNPAID';
+      }
+      await supabaseFetch('PATCH', `partner_transactions?id=eq.${encodeURIComponent(id)}`, patch);
+      const txn = { ...prevTxn, ...patch };
+      await logPartnerActivity({
+        partnerId: String(prevTxn.partner_id),
+        action: 'TRANSACTION UPDATED',
+        description: `${txn.property_title || 'Transaction'} · status ${txn.txn_status} · payment ${txn.payment_status}`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        relatedType: 'transaction',
+        relatedId: id,
+        prevValue: `${prevTxn.txn_status}/${prevTxn.payment_status}`,
+        newValue: `${txn.txn_status}/${txn.payment_status}`,
+      });
+      return { transaction: txn };
+    }
+
+    case 'partner.admin.dispute.create': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partnerId = String(params.partnerId ?? '');
+      const description = String(params.description ?? '').trim().slice(0, 2000);
+      if (!description) throw new Error('Dispute description is required');
+      const dispute = {
+        id: crypto.randomUUID(),
+        partner_id: partnerId,
+        related_property_id: params.relatedPropertyId ? String(params.relatedPropertyId) : null,
+        related_lead_id: params.relatedLeadId ? String(params.relatedLeadId) : null,
+        related_txn_id: params.relatedTxnId ? String(params.relatedTxnId) : null,
+        dispute_type: String(params.disputeType ?? 'Other').slice(0, 60),
+        description,
+        assigned_admin: params._auth.email,
+        dispute_status: 'OPEN',
+        created_by: params._auth.email,
+      };
+      await supabaseFetch('POST', 'partner_disputes', dispute);
+      await logPartnerActivity({ partnerId, action: 'DISPUTE OPENED', description: `[${dispute.dispute_type}] ${description.slice(0, 300)}`, actorType: 'admin', actor: params._auth.email, relatedType: 'dispute', relatedId: dispute.id });
+      return { dispute };
+    }
+
+    case 'partner.admin.dispute.update': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const { data: prevRows } = await supabaseFetch('GET', `partner_disputes?id=eq.${encodeURIComponent(id)}&limit=1`, null);
+      const prevDisp = prevRows?.[0];
+      if (!prevDisp) throw new Error('Dispute not found');
+      const patch = { updated_at: new Date().toISOString() };
+      if (params.disputeStatus !== undefined) {
+        if (!['OPEN', 'UNDER_REVIEW', 'WAITING_FOR_DOCUMENTS', 'RESOLVED', 'CLOSED'].includes(String(params.disputeStatus))) throw new Error('Invalid dispute status');
+        patch.dispute_status = params.disputeStatus;
+      }
+      if (params.resolution !== undefined) {
+        patch.resolution = String(params.resolution).slice(0, 2000);
+        patch.resolution_date = new Date().toISOString().slice(0, 10);
+      }
+      if (params.assignedAdmin !== undefined) patch.assigned_admin = String(params.assignedAdmin).slice(0, 120);
+      await supabaseFetch('PATCH', `partner_disputes?id=eq.${encodeURIComponent(id)}`, patch);
+      const dispute = { ...prevDisp, ...patch };
+      await logPartnerActivity({
+        partnerId: String(prevDisp.partner_id),
+        action: 'DISPUTE UPDATED',
+        description: `Status ${dispute.dispute_status}${dispute.resolution ? ` · ${String(dispute.resolution).slice(0, 200)}` : ''}`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        relatedType: 'dispute',
+        relatedId: id,
+        prevValue: String(prevDisp.dispute_status),
+        newValue: String(dispute.dispute_status),
+      });
+      return { dispute };
+    }
+
+    case 'partner.profile.update': {
+      // Partner-editable profile fields. Scoped to the verified session.
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const me = await findPartner(params._auth.uid, params._auth.email);
+      if (!me) throw new Error('No partner registration found for this account.');
+      if (me.status === 'terminated') throw new Error('This partnership is terminated; the profile cannot be edited.');
+
+      const fullName = String(params.fullName ?? '').trim().slice(0, 100);
+      if (!fullName) throw new Error('Full name is required');
+      const companyName = String(params.companyName ?? '').trim().slice(0, 120);
+      const experience = Number(params.experienceYears) > 0 ? Math.floor(Number(params.experienceYears)) : null;
+      if (experience != null && experience > 60) throw new Error('Experience must be 60 years or less');
+      const areas = Array.isArray(params.areas)
+        ? params.areas.map((a) => String(a).trim().slice(0, 80)).filter(Boolean).slice(0, 10)
+        : [];
+
+      let photoUrl = me.photo_url ?? null;
+      if (params.photo !== undefined) {
+        const next = String(params.photo ?? '').trim();
+        if (next && !/^https:\/\//.test(next)) throw new Error('Photo must be an uploaded image URL');
+        try {
+          const prevStorage = (me.photo_url ?? '').match(/\/storage\/v1\/object\/public\/partner-photos\/(.+)$/);
+          if (prevStorage?.[1] && `/storage/v1/object/public/partner-photos/${decodeURIComponent(prevStorage[1])}` !== (next ? new URL(next).pathname : '')) {
+            await fetch(`${getEnv().REQ_URL}/storage/v1/object/partner-photos/${decodeURIComponent(prevStorage[1])}`, {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${getEnv().REQ_KEY}`, 'apikey': getEnv().REQ_KEY },
+            });
+          }
+        } catch { /* non-fatal */ }
+        photoUrl = next || null;
+      }
+
+      const updates = {
+        full_name: fullName,
+        company_name: companyName || null,
+        experience_years: experience,
+        areas,
+        photo_url: photoUrl,
+        updated_at: new Date().toISOString(),
+      };
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(me.id)}`, updates);
+      await logPartnerActivity({ partnerId: me.id, action: 'PROFILE UPDATED', description: `${params._auth.email} updated their partner profile`, actorType: 'partner', actor: params._auth.email });
+      const { data: refreshed } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(me.id)}&limit=1`, null);
+      return { partner: refreshed?.[0] ?? null };
+    }
+
+    case 'partner.dashboard': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner) throw new Error('No partner registration found for this account. Register at /partner-register first.');
+      const enc = encodeURIComponent;
+      const partnerId = String(partner.id);
+      const uid = String(partner.uid ?? '__none__');
+      const { data: props } = await supabaseFetch('GET', `properties?uid=eq.${enc(uid)}&order=created_at.desc&limit=200&select=id,property_code,title,type,status,area,location,price,price_label,monthly_rental,monthly_rental_label,images,created_at,updated_at`, null);
+      const listings = props ?? [];
+      const propIds = listings.map((p) => String(p.id)).filter(Boolean);
+      let leads = [];
+      for (let i = 0; i < propIds.length; i += 100) {
+        const chunk = propIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        const { data } = await supabaseFetch('GET', `property_leads?property_id=in.(${chunk.map(enc).join(',')})&order=created_at.desc&limit=10000&select=id,property_id,property_title,property_type,property_area,property_price,visit_date,visit_time,buyer_name,buyer_phone,message,lead_type,source,listed_by,status,created_at`, null);
+        if (data) leads = leads.concat(data);
+      }
+      const { data: txns } = await supabaseFetch('GET', `partner_transactions?partner_id=eq.${enc(partnerId)}&order=created_at.desc&limit=200`, null);
+      const { data: activity } = await supabaseFetch('GET', `partner_activity_log?partner_id=eq.${enc(partnerId)}&order=created_at.desc&limit=100`, null);
+      const { data: disputes } = await supabaseFetch('GET', `partner_disputes?partner_id=eq.${enc(partnerId)}&order=created_at.desc&limit=100`, null);
+      const transactions = txns ?? [];
+      const closed = transactions.filter((t) => t.txn_status === 'CLOSED');
+      const paidSum = closed.reduce((n, t) => n + Number(t.paid_amount ?? 0), 0);
+      const vjrDue = closed.reduce((n, t) => n + Math.max(0, Number(t.vjr_amount ?? 0) - Number(t.paid_amount ?? 0)), 0);
+      const partnerDue = closed.reduce((n, t) => n + Math.max(0, Number(t.partner_amount ?? 0) - Number(t.paid_amount ?? 0)), 0);
+      const visitLeads = leads.filter((l) => l.lead_type === 'book_visit');
+      return {
+        partner,
+        listings,
+        leads,
+        transactions,
+        disputes: disputes ?? [],
+        activity: activity ?? [],
+        counts: {
+          properties: listings.length,
+          leads: leads.length,
+          visitsUpcoming: visitLeads.filter((l) => l.visit_date && String(l.visit_date) >= new Date().toISOString().slice(0, 10)).length,
+          transactionsOpen: transactions.filter((t) => !['CLOSED', 'CANCELLED', 'DISPUTED'].includes(String(t.txn_status))).length,
+          transactionsClosed: closed.length,
+          partnerEarnings: closed.reduce((n, t) => n + Number(t.partner_amount ?? 0), 0),
+          partnerPaid: paidSum,
+          partnerDue,
+          vjrDue,
+        },
+      };
+    }
+
+    case 'partner.property.create': {
+      if (!params._auth?.authorized) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const partner = await findPartner(params._auth.uid, params._auth.email);
+      if (!partner || partner.status !== 'active') {
+        throw new Error('Register as a VJR Estate partner before listing properties');
+      }
+      const { uid: _puid, _auth: _pa, _ip: _pip, _public: _ppub, property_code: _pc, agent_id: _paid, ...raw } = params;
+      const finalCode = await nextPropertyCode();
+      const propId = crypto.randomUUID();
+      const clean = pickPropertyColumns({
+        ...raw,
+        id: propId,
+        property_code: finalCode,
+        uid: params._auth.uid,
+        user_email: params._auth.email,
+        listed_by: partner.partner_type, // Owner | Builder | Agent
+        featured: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      await supabaseFetch('POST', 'properties', clean);
+      return { id: propId, propertyCode: finalCode };
     }
 
     default:

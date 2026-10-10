@@ -1,4 +1,4 @@
-import { getJobShareUrl, getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
+import { getBlogPostUrl, getJobShareUrl, getPropertyShareUrl, getSiteOrigin } from '@/lib/siteUrl';
 
 const SITE_NAME = 'VJR Estate';
 const DEFAULT_TITLE =
@@ -85,6 +85,134 @@ export function setPropertyShareMeta(property: {
 
 // Keep in sync with OG_JOB_IMAGE_VERSION in api/og-job-preview.ts.
 const OG_JOB_IMAGE_VERSION = 'v1';
+
+export function setBlogPageMeta() {
+  const origin = getSiteOrigin();
+  const url = `${origin}/blog`;
+  const title = 'Property Investment Blog | VJR Estate';
+  const description =
+    "Guides and market insights on buying rental income properties in Bangalore — PG buildings, BBMP approval, rental yields and more from VJR Estate specialists.";
+
+  document.title = title;
+  setMeta('description', description);
+  setCanonical(url);
+  setMeta('og:title', title, true);
+  setMeta('og:description', description, true);
+  setMeta('og:type', 'website', true);
+  setMeta('og:url', url, true);
+  setMeta('og:image', `${origin}/og-image-v2.png`, true);
+  setMeta('twitter:title', title);
+  setMeta('twitter:description', description);
+  setMeta('twitter:image', `${origin}/og-image-v2.png`);
+}
+
+export function setBlogPostShareMeta(post: {
+  slug: string;
+  title: string;
+  excerpt: string;
+  image?: string;
+  date?: string;
+  author?: string;
+}) {
+  const origin = getSiteOrigin();
+  const url = getBlogPostUrl(post.slug);
+  const image = post.image || `${origin}/og-image-v2.png`;
+
+  document.title = `${post.title} | VJR Estate`;
+  setMeta('description', post.excerpt);
+  setCanonical(url);
+  setMeta('og:title', post.title, true);
+  setMeta('og:description', post.excerpt, true);
+  setMeta('og:type', 'article', true);
+  setMeta('og:url', url, true);
+  setMeta('og:image', image, true);
+  if (post.date) setMeta('article:published_time', new Date(post.date).toISOString(), true);
+  if (post.author) setMeta('article:author', post.author, true);
+  setMeta('twitter:card', 'summary_large_image');
+  setMeta('twitter:title', post.title);
+  setMeta('twitter:description', post.excerpt);
+  setMeta('twitter:image', image);
+}
+
+function setCanonical(url: string) {
+  let el = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+  if (!el) {
+    el = document.createElement('link');
+    el.setAttribute('rel', 'canonical');
+    document.head.appendChild(el);
+  }
+  el.setAttribute('href', url);
+}
+
+function setJsonLd(data: Record<string, unknown> | Array<Record<string, unknown>>) {
+  const id = 'jsonld-blog';
+  document.getElementById(id)?.remove();
+  const el = document.createElement('script');
+  el.id = id;
+  el.type = 'application/ld+json';
+  el.textContent = JSON.stringify(data);
+  document.head.appendChild(el);
+}
+
+/** BlogPosting structured data so Google can show author/date on the result. */
+export function setBlogPostJsonLd(post: { slug: string; title: string; excerpt?: string; image?: string; date?: string; author?: string; readTime?: string }) {
+  const origin = getSiteOrigin();
+  const url = getBlogPostUrl(post.slug);
+  setJsonLd([
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.excerpt,
+      image: post.image ? [post.image] : undefined,
+      datePublished: post.date,
+      dateModified: post.date,
+      author: { '@type': 'Organization', name: post.author || 'VJR Estate' },
+      publisher: {
+        '@type': 'Organization',
+        name: 'VJR Estate',
+        logo: { '@type': 'ImageObject', url: `${origin}/og-image-v2.png` },
+      },
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      url,
+      inLanguage: 'en-IN',
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${origin}/` },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `${origin}/blog` },
+        { '@type': 'ListItem', position: 3, name: post.title, item: url },
+      ],
+    },
+  ]);
+}
+
+/** Blog index structured data, injected on /blog. */
+export function setBlogIndexJsonLd() {
+  const origin = getSiteOrigin();
+  setJsonLd([
+    {
+      '@context': 'https://schema.org',
+      '@type': 'Blog',
+      name: 'VJR Estate Blog',
+      url: `${origin}/blog`,
+      inLanguage: 'en-IN',
+      description:
+        'Guides and market insights on buying rental income properties in Bangalore — PG buildings, BBMP approval, rental yields and more.',
+      publisher: { '@type': 'Organization', name: 'VJR Estate' },
+    },
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${origin}/` },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `${origin}/blog` },
+      ],
+    },
+  ]);
+}
 
 export function setJobShareMeta(job: {
   id: string;

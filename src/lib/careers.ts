@@ -237,7 +237,7 @@ export const INITIAL_JOBS: SeedJob[] = [
     description:
       'Help clients buy and sell properties across Bangalore with expert guidance and local market knowledge.',
     responsibilities: [
-      'Source and list new properties on VJR platform',
+      'Source and list new properties on VJR Estate platform',
       'Guide buyers through property selection process',
       'Conduct property inspections and valuations',
       'Handle documentation and legal verification',

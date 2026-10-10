@@ -52,6 +52,16 @@ const columns = [
       { label: 'Investment Guide', to: '/blog' },
     ],
   },
+  {
+    title: 'Partnership',
+    links: [
+      { label: 'How Partnership Works', to: '/partner' },
+      { label: 'Register as Partner', to: '/partner-register' },
+      { label: 'List Your Property', to: '/list-property' },
+      { label: 'Partner Terms', to: '/partner-terms' },
+      { label: 'Partner Privacy', to: '/partner-privacy' },
+    ],
+  },
 ];
 
 const socials = [
@@ -110,7 +120,7 @@ export default function Footer() {
         {/* ── Brand + navigation ── */}
         <div className="grid grid-cols-1 gap-12 border-b border-white/10 py-12 md:grid-cols-12 md:gap-8 lg:py-14">
           {/* Brand */}
-          <div className="md:col-span-5">
+          <div className="md:col-span-4">
             <Link to="/" className="inline-block">
               <span className="font-display text-[26px] font-semibold tracking-tight text-white">
                 VJR Estate
@@ -168,7 +178,7 @@ export default function Footer() {
           </div>
 
           {/* Link columns */}
-          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:col-span-5">
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-4 md:col-span-6">
             {columns.map((col) => (
               <div key={col.title}>
                 <h3 className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/40">

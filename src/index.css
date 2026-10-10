@@ -31,6 +31,10 @@
   }
 
   :root {
+    /* Fixed global header height (h-12 mobile / h-14 ≥768px) — pages with
+       non-scrolling headers offset their content with this variable so a
+       heading is never clipped under the fixed Navbar. */
+    --vjr-header-h: 3rem;
     --card: #ffffff;
     --ring: #C9A84C;
     --input: #d4d4d8;
@@ -591,6 +595,9 @@ input[type="range"]::-moz-range-thumb {
 
 
 @media (min-width: 768px) {
+  :root {
+    --vjr-header-h: 3.5rem;
+  }
   .map-property-popup {
     left: max(1rem, env(safe-area-inset-left)) !important;
     right: auto !important;

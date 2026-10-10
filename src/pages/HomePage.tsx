@@ -5,6 +5,7 @@ import HomePgCoverflow from '../components/home/HomePgCoverflow';
 // Temporarily disabled — restore along with the <HarmonicWave /> usage below.
 // import HarmonicWave from '../components/ui/harmonic-wave';
 import HomeSearchBar from '../components/home/HomeSearchBar';
+import HomeListPropertyCta from '../components/home/HomeListPropertyCta';
 import HomeCategoryGrid from '../components/home/HomeCategoryGrid';
 import HomeHowItWorks from '../components/home/HomeHowItWorks';
 import HomeAboutVjr from '../components/home/HomeAboutVjr';
@@ -115,6 +116,7 @@ export default function HomePage() {
           >
             <HomeSearchBar />
           </motion.div>
+          <HomeListPropertyCta />
         </div>
       </section>
 

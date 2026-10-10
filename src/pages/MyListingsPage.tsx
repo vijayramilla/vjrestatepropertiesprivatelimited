@@ -26,6 +26,10 @@ interface UserProperty {
 export default function MyListingsPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  // LOGIN-FIRST with destination preservation for this account-action page.
+  useEffect(() => {
+    if (!authLoading && !user) navigate('/login?next=%2Fmy-listings', { replace: true });
+  }, [authLoading, user, navigate]);
   const [properties, setProperties] = useState<UserProperty[]>([]);
   const [leads, setLeads] = useState<PropertyLead[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,22 +111,13 @@ export default function MyListingsPage() {
   }
 
   if (!user) {
+    // LOGIN-FIRST: preserved-destination redirect to the login experience.
     return (
       <div className="min-h-screen bg-gradient-to-b from-[#fafafa] to-white">
         <div className="pt-14 md:pt-16" />
-        <div className="mx-auto max-w-md px-4 py-24 text-center sm:px-6">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-            <Building2 size={28} className="text-gray-400" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900">Sign in to view your listings</h1>
-          <p className="mt-2 text-sm text-gray-500">You need to sign in to see your listed properties and enquiries.</p>
-          <button
-            type="button"
-            onClick={() => navigate('/list-property')}
-            className="mt-6 rounded-xl bg-gray-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-gray-900/25 transition-all hover:bg-gray-800 active:scale-[0.97]"
-          >
-            Sign in & List Property
-          </button>
+        <div className="mx-auto flex min-h-[50vh] max-w-md flex-col items-center justify-center px-4 py-24 text-center sm:px-6">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
+          <p className="mt-4 text-xs text-gray-500">Taking you to sign in…</p>
         </div>
       </div>
     );

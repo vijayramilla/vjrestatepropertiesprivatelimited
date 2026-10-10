@@ -20,8 +20,15 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const PropertiesPage = lazy(() => import('./pages/PropertiesPage'));
 const PropertyDetailPage = lazy(() => import('./pages/PropertyDetailPage'));
 const ShortlistPage = lazy(() => import('./pages/ShortlistPage'));
+const MyListingsPage = lazy(() => import('./pages/MyListingsPage'));
 const QuickPickPage = lazy(() => import('./pages/QuickPickPage'));
 const ListPropertyPage = lazy(() => import('./pages/ListPropertyPage'));
+const PartnerHowItWorksPage = lazy(() => import('./pages/PartnerHowItWorksPage'));
+const PartnerRegisterPage = lazy(() => import('./pages/PartnerRegisterPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const PartnerDashboard = lazy(() => import('./pages/partner/PartnerDashboard'));
+const PartnerTermsPage = lazy(() => import('./pages/PartnerTermsPage'));
+const PartnerPrivacyPage = lazy(() => import('./pages/PartnerPrivacyPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const SubmitRequirementPage = lazy(() => import('./pages/SubmitRequirementPage'));
@@ -64,6 +71,8 @@ const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
 const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
 const CrmPayroll = lazy(() => import('./pages/crm/CrmPayroll'));
 const CrmMyBookings = lazy(() => import('./pages/crm/CrmMyBookings'));
+const CrmPartnership = lazy(() => import('./pages/crm/CrmPartnership'));
+const CrmPartnerDetail = lazy(() => import('./pages/crm/CrmPartnerDetail'));
 const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
 const DisclaimerPage = lazy(() => import('./pages/DisclaimerPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
@@ -93,8 +102,15 @@ function AppRoutes() {
         <Route path="/properties" element={<LazyPage><PropertiesPage /></LazyPage>} />
         <Route path="/properties/:id" element={<LazyPage><PropertyDetailPage /></LazyPage>} />
         <Route path="/shortlist" element={<LazyPage><ShortlistPage /></LazyPage>} />
+        <Route path="/my-listings" element={<LazyPage><MyListingsPage /></LazyPage>} />
         <Route path="/quick-pick" element={<LazyPage><QuickPickPage /></LazyPage>} />
         <Route path="/list-property" element={<LazyPage><ListPropertyPage /></LazyPage>} />
+        <Route path="/partner-register" element={<LazyPage><PartnerRegisterPage /></LazyPage>} />
+        <Route path="/login" element={<LazyPage><LoginPage /></LazyPage>} />
+        <Route path="/partner" element={<LazyPage><PartnerHowItWorksPage /></LazyPage>} />
+        <Route path="/partner-dashboard" element={<LazyPage><PartnerDashboard /></LazyPage>} />
+        <Route path="/partner-terms" element={<LazyPage><PartnerTermsPage /></LazyPage>} />
+        <Route path="/partner-privacy" element={<LazyPage><PartnerPrivacyPage /></LazyPage>} />
         <Route path="/about" element={<LazyPage><AboutPage /></LazyPage>} />
         <Route path="/contact" element={<LazyPage><ContactPage /></LazyPage>} />
         <Route path="/submit-requirement" element={<LazyPage><SubmitRequirementPage /></LazyPage>} />
@@ -278,6 +294,22 @@ function AppRoutes() {
         element={
           <CrmRoute>
             <LazyPage><CrmHome /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/partnership"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmPartnership /></LazyPage>
+          </CrmRoute>
+        }
+      />
+      <Route
+        path="/crm/partnership/partners/:partnerId"
+        element={
+          <CrmRoute>
+            <LazyPage><CrmPartnerDetail /></LazyPage>
           </CrmRoute>
         }
       />

@@ -518,6 +518,10 @@ async function executeAction(action, params) {
       if (!auth?.authorized) throw new Error('Forbidden');
       const isAdminCall = isAdmin(auth);
       if (!isAdminCall && params.uid !== auth.uid) throw new Error('Forbidden');
+      // Company-side listing (admin or granted user): always attributed to
+      // VJR Estate, never a partner type — partners come in through
+      // partner.property.create only.
+      params.listed_by = 'VJR Estate';
       const { uid, ...raw } = params;
       const code = await nextPropertyCode();
       const finalCode = (params.property_code ?? '').trim() || code;
@@ -544,6 +548,8 @@ async function executeAction(action, params) {
       if (!isAdmin(auth) && row.uid !== auth.uid) throw new Error('Forbidden');
       const updates = pickPropertyColumns({ ...rawFields, updated_at: new Date().toISOString() });
       delete updates.uid;
+      // listed_by set only at create time (see property.create) — not editable.
+      delete updates.listed_by;
       const { error } = await supabaseAdmin.from('properties').update(updates).eq('id', id);
       if (error) throw new Error(error.message);
       return { id };
@@ -736,6 +742,13 @@ async function executeAction(action, params) {
         buyerName, buyerPhone, buyerLat, buyerLng, source, ownerUid, listedBy,
       } = params;
       if (!propertyId || !propertyTitle || !message || !leadType) throw new Error('Invalid lead');
+      // Booking source is derived server-side from the property's owning
+      // partner (properties.uid) — never from a client-supplied label.
+      const { data: listingOwner } = await supabaseAdmin
+        .from('properties')
+        .select('uid')
+        .eq('id', String(propertyId))
+        .maybeSingle();
       const { data, error } = await supabaseAdmin
         .from('property_leads')
         .insert({
@@ -755,7 +768,7 @@ async function executeAction(action, params) {
           buyer_lng: buyerLng ?? null,
           message,
           source: source ?? 'card',
-          owner_uid: ownerUid ?? null,
+          owner_uid: listingOwner?.uid ?? null,
           listed_by: listedBy ?? null,
           ip_address: ip,
           status: 'new',

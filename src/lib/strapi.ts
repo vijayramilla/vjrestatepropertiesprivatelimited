@@ -1,6 +1,7 @@
 import type { BlogPost } from '@/data/blogPosts';
 
-const STRAPI_URL = import.meta.env.VITE_STRAPI_URL;
+// Must match src/lib/strapiAdmin.ts — local Strapi backend on port 1337.
+const STRAPI_URL = import.meta.env.VITE_STRAPI_URL || 'http://localhost:1337';
 
 interface StrapiPost {
   id: number;

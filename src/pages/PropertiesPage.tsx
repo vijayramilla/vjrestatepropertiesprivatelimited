@@ -661,7 +661,7 @@ export default function PropertiesPage() {
   );
 
   return (
-    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-12 md:pt-14 lg:bg-gray-50">
+    <div className="properties-toolbar min-h-screen bg-[#fafafa] pt-14 md:pt-16 lg:bg-gray-50">
       <div
         ref={toolbarRef}
         className={`fixed inset-x-0 z-[90] border-b border-gray-200/90 bg-white/95 shadow-[0_4px_24px_rgba(0,0,0,0.06)] backdrop-blur-lg transition-all duration-300 ${
@@ -838,8 +838,10 @@ export default function PropertiesPage() {
         />
       </div>
 
-      {/* Spacer for fixed toolbar (includes expanded search panel height) */}
-      <div aria-hidden style={{ height: toolbarHeight }} className="shrink-0" />
+      {/* Spacer for fixed toolbar (includes expanded search panel height),
+          plus breathing room so the first content row is never flush
+          against (or clipped under) the toolbar edge. */}
+      <div aria-hidden style={{ height: toolbarHeight + 16 }} className="shrink-0" />
 
       {/* Filters panel — mobile/tablet only; desktop uses sidebar */}
       <AnimatePresence>

@@ -22,6 +22,7 @@ import {
   CalendarDays,
   Users,
   BookLock,
+  Handshake,
 } from 'lucide-react';
 import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
 import { useEmployeeSession } from '@/hooks/useEmployeeSession';
@@ -33,6 +34,17 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   path: string;
   perm: string | null;
+};
+
+/** Partnership — a partner is a registered Owner/Builder/Agent, fully separate
+ * from normal website users. Direct nav item: all partner views live on the
+ * page itself (tabs + KPI-card filters), never as a sidebar submenu. */
+const PARTNERSHIP_ITEM: NavItem = {
+  id: 'partnership',
+  title: 'Partnership',
+  icon: Handshake,
+  path: '/crm/partnership?view=all',
+  perm: 'partners.view',
 };
 
 const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
@@ -70,7 +82,9 @@ const SECTIONS: { key: string; label: string; items: NavItem[] }[] = [
   },
 ];
 
-export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+const COLLAPSED_KEY = 'vjr_crm_sidebar_collapsed';
+
+export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { collapsed?: boolean; onToggle?: () => void } = {}) {
   useEmployeeSession();
   const navigate = useNavigate();
   const location = useLocation();
@@ -84,6 +98,22 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
     () => location.pathname === '/crm/dashboard' || location.pathname === '/crm/my-clients',
   );
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Collapsed preference lives here, not on each page, so it survives
+  // navigation between CRM modules and full page refreshes.
+  const [internalCollapsed, setInternalCollapsed] = useState(
+    () => localStorage.getItem(COLLAPSED_KEY) === '1',
+  );
+  // Pages may still pass controlled props; otherwise state is internal+persisted.
+  const collapsed = collapsedProp ?? internalCollapsed;
+  const toggle = () => {
+    if (onToggle) {
+      onToggle();
+      return;
+    }
+    const next = !collapsed;
+    setInternalCollapsed(next);
+    try { localStorage.setItem(COLLAPSED_KEY, next ? '1' : '0'); } catch { /* storage full/blocked */ }
+  };
 
   useEffect(() => {
     const apply = (name: string, initial: string) => {
@@ -142,7 +172,16 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
     return false;
   }
 
-  const isActive = (path: string) => (path === '/crm' ? location.pathname === '/crm' : location.pathname === path);
+  const isActive = (path: string) => {
+    if (path === '/crm') return location.pathname === '/crm';
+    if (path === PARTNERSHIP_ITEM.path) {
+      // Active on the dashboard AND the Partner 360° detail page.
+      return location.pathname.startsWith('/crm/partnership');
+    }
+    const [p, q] = path.split('?');
+    if (q) return location.pathname === p && location.search === `?${q}`;
+    return location.pathname === p;
+  };
 
   // The desktop rail sits outside the page's scrollable column (root is
   // overflow-hidden), so the wheel is dead with the cursor over the sidebar.
@@ -195,9 +234,10 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
   };
 
   const sidebar = (
-    <div className={`flex h-full flex-col bg-[#0A1628] ${collapsed ? 'w-[68px]' : 'w-[248px]'} transition-all duration-300`}>
-      {/* Brand */}
-      <div className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] ${collapsed ? 'justify-center px-0' : 'gap-3 px-4'}`}>
+    <div className={`flex h-full flex-col bg-[#0A1628] ${collapsed ? 'w-[72px]' : 'w-[248px]'} transition-all duration-300`}>
+      {/* Brand + collapse control — the toggle is always visible in the header
+          strip, and in the collapsed rail it flips to an "expand" affordance. */}
+      <div className={`flex h-16 shrink-0 items-center border-b border-white/[0.07] ${collapsed ? 'justify-center gap-2 px-2' : 'gap-3 px-4'}`}>
         <img
           src="/favicon.png"
           alt="VJR Estate"
@@ -209,12 +249,29 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
             <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-[#C9A84C]">CRM Portal</p>
           </div>
         )}
-        <button
-          onClick={onToggle}
-          className="ml-auto hidden shrink-0 rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white max-lg:hidden"
-        >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-        </button>
+        {/* One control, both states: collapse chevron when expanded (right
+            side), visible expand button when collapsed (static header, unlike
+            the old always-visible variant which collided in the rail). */}
+        {!collapsed && (
+          <button
+            onClick={toggle}
+            aria-label="Collapse sidebar"
+            title="Collapse sidebar"
+            className="ml-auto hidden shrink-0 cursor-pointer rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-white lg:block max-lg:!hidden"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
+        {collapsed && (
+          <button
+            onClick={toggle}
+            aria-label="Expand sidebar"
+            title="Expand sidebar"
+            className="shrink-0 cursor-pointer rounded-lg p-1.5 text-[#C9A84C]/80 transition-colors hover:bg-white/10 hover:text-[#D6B85D] max-lg:!hidden"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        )}
         <button onClick={() => setMobileOpen(false)} className="ml-auto rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 lg:hidden">
           <X className="h-4 w-4" />
         </button>
@@ -231,20 +288,30 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
             </div>
           </div>
         ) : (
-          SECTIONS.map(section => {
-            const visible = section.items.filter(i => canSee(i.perm));
-            if (visible.length === 0) return null;
-            return (
-              <div key={section.key}>
-              {!collapsed && (
-                <p className="mb-1.5 px-3 text-[9.5px] font-bold uppercase tracking-[0.22em] text-white/45">{section.label}</p>
-              )}
-                <div className="space-y-0.5">
-                  {visible.map(item => <NavRow key={item.id} item={item} />)}
+          <>
+            {SECTIONS.map(section => {
+              const visible = section.items.filter(i => canSee(i.perm));
+              if (visible.length === 0) return null;
+              return (
+                <div key={section.key}>
+                {!collapsed && (
+                  <p className="mb-1.5 px-3 text-[9.5px] font-bold uppercase tracking-[0.22em] text-white/45">{section.label}</p>
+                )}
+                  <div className="space-y-0.5">
+                    {visible.map(item => <NavRow key={item.id} item={item} />)}
+                  </div>
                 </div>
+              );
+            })}
+            {canSee(PARTNERSHIP_ITEM.perm) && (
+              <div>
+                {!collapsed && (
+                  <p className="mb-1.5 px-3 text-[9.5px] font-bold uppercase tracking-[0.22em] text-white/45">Partnership</p>
+                )}
+                <NavRow item={PARTNERSHIP_ITEM} />
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </nav>
 
@@ -303,11 +370,12 @@ export default function CrmSidebar({ collapsed, onToggle }: { collapsed: boolean
       </div>
       {/* Desktop rail — sits inside the page's h-screen overflow-hidden shell,
           so it always fills the viewport height and never scrolls with the
-          page; only the <main> beside it scrolls. */}
+          page; only the <main> beside it scrolls. Content beside it reflows
+          automatically because pages lay out with flex. */}
       <div
         ref={railRef}
         onWheel={forwardWheelToContent}
-        className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[68px]' : 'w-[248px]'}`}
+        className={`hidden h-full shrink-0 border-r border-black/[0.06] transition-all duration-300 lg:flex ${collapsed ? 'w-[72px]' : 'w-[248px]'}`}
       >
         {sidebar}
       </div>

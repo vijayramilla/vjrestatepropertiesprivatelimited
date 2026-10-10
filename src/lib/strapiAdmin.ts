@@ -1,4 +1,6 @@
-const STRAPI_URL = import.meta.env.VITE_STRAPI_URL;
+// Default matches the local Strapi backend (vjr-estate-backend, port 1337) so the
+// admin blog panel works without extra env setup. Set VITE_STRAPI_URL in prod.
+const STRAPI_URL = import.meta.env.VITE_STRAPI_URL || 'http://localhost:1337';
 const ADMIN_EMAIL = import.meta.env.VITE_STRAPI_ADMIN_EMAIL || 'admin@vjrestate.com';
 const ADMIN_PASSWORD = import.meta.env.VITE_STRAPI_ADMIN_PASSWORD || 'Admin123!';
 

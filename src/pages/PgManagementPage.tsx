@@ -34,7 +34,7 @@ const FEATURES = [
   {
     icon: Receipt,
     title: 'Transparent owner statements',
-    body: 'Monthly statement: rent collected − VJR fee (with GST invoice) − maintenance − a disclosed coordination margin. Net payout on schedule, every month. NRI payouts routed via NRO per FEMA.',
+    body: 'Monthly statement: rent collected − VJR Estate fee (with GST invoice) − maintenance − a disclosed coordination margin. Net payout on schedule, every month. NRI payouts routed via NRO per FEMA.',
   },
   {
     icon: Users,
@@ -79,7 +79,7 @@ const FEES = [
 const FAQS = [
   {
     q: 'Who owns the property and the rent?',
-    a: 'You do. VJR manages under a management contract: you keep ownership and receive the rent; VJR earns the agreed management fee. We never take your title as collateral and payouts hit your account on the agreed schedule.',
+    a: 'You do. VJR Estate manages under a management contract: you keep ownership and receive the rent; VJR Estate earns the agreed management fee. We never take your title as collateral and payouts hit your account on the agreed schedule.',
   },
   {
     q: 'What licences does my PG actually need in Bangalore?',
@@ -199,11 +199,11 @@ export default function PgManagementPage() {
           >
             <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#96782A]">The management contract</p>
             <h2 className="mt-3 text-3xl text-[#0A1628] sm:text-4xl" style={{ fontFamily: "'Poppins', sans-serif" }}>
-              VJR manages. You own. The rent is yours.
+              VJR Estate manages. You own. The rent is yours.
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed text-gray-600">
               This is not a lease-and-sublet scheme. Under our management contract the title never moves,
-              the rent is yours, and VJR earns a disclosed fee for running the building properly.
+              the rent is yours, and VJR Estate earns a disclosed fee for running the building properly.
             </p>
           </motion.div>
 
@@ -211,7 +211,7 @@ export default function PgManagementPage() {
             {[
               { icon: Bed, step: '01', title: 'You keep ownership', body: 'Sale deed, Khata and titles stay with you. We add a document vault with licences and inspections, not a transfer.' },
               { icon: Receipt, step: '02', title: 'Rent flows to you', body: 'Tenants pay; we collect, reconcile and disburse with a monthly statement. GST invoice for our fee, every time.' },
-              { icon: ShieldCheck, step: '03', title: 'VJR runs operations', body: 'Beds, compliance, repairs, tenants, gate and mess — run by our warden network under SLAs you can audit.' },
+              { icon: ShieldCheck, step: '03', title: 'VJR Estate runs operations', body: 'Beds, compliance, repairs, tenants, gate and mess — run by our warden network under SLAs you can audit.' },
             ].map((s, i) => (
               <motion.div
                 key={s.step}

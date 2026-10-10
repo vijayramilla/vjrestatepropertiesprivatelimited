@@ -5,41 +5,41 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   BookmarkSimple,
   User,
-  Envelope,
-  Phone,
-  Info,
   SignOut,
   SquaresFour,
 
   Buildings,
   PlusCircle,
-  Briefcase,
-  Users,
   HandSwipeRight,
+  Gauge,
+  Pulse,
+  CaretDown,
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin } from '@/lib/adminAuth';
 import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
 import { usePropertyAccess } from '@/lib/propertyAccess';
+import { callDataProxy, isSupabaseDataEnabled } from '@/lib/supabaseData';
 import GoogleSignInButton from './GoogleSignInButton';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 import LazyImage from './common/LazyImage';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
 
+/*
+ * Account-menu configuration — the single source for the header dropdown.
+ * Ownership rules: public pages live in the header's primary nav; personal
+ * actions live here; partner operations live in the dashboard sidebar.
+ * Public website links (About/Team/Careers/Contact) are intentionally NOT
+ * reproduced here — they already sit in the main header.
+ */
 const profileLinks = [
   { label: 'Quick Pick', path: '/quick-pick', Icon: HandSwipeRight },
   { label: 'My Shortlist', path: '/shortlist', Icon: BookmarkSimple },
   ...(PG_MANAGEMENT_ENABLED
     ? [{ label: 'PG Management', path: '/pg-management', Icon: Buildings }]
     : []),
-
-  { label: 'About Us', path: '/about', Icon: Info },
-  { label: 'Our Team', path: '/team', Icon: Users },
-  { label: 'Careers', path: '/careers', Icon: Briefcase },
-  { label: 'Submit Requirement', path: '/submit-requirement', Icon: Envelope },
-  { label: 'Contact Us', path: '/contact', Icon: Phone },
 ];
 
 function NavIconAction({
@@ -90,6 +90,7 @@ export default function Navbar() {
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut, clearError } = useAuth();
   const { showLocationModal } = useLocationPermission();
   const { canAdd: canAddProperty } = usePropertyAccess();
+  const [isPartner, setIsPartner] = useState(false);
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
@@ -114,6 +115,27 @@ export default function Navbar() {
 
   // DM Sans is now self-hosted via @fontsource (bundled in the CSS) —
   // no Google Fonts runtime injection, no render-blocking fetch.
+
+  // Registered-partner check for the account menu's "Partner Dashboard"
+  // entry. The backend decides from the verified session — the menu item
+  // merely reflects its answer, so unregistered accounts see nothing extra.
+  useEffect(() => {
+    if (!user || !isSupabaseDataEnabled()) {
+      setIsPartner(false);
+      return;
+    }
+    let cancelled = false;
+    void callDataProxy('partner.check', {}, {})
+      .then((res) => {
+        if (!cancelled) setIsPartner(Boolean(res?.registered));
+      })
+      .catch(() => {
+        if (!cancelled) setIsPartner(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -206,7 +228,7 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className="hidden md:flex flex-1 items-center justify-center gap-8">
+          <div className="hidden md:flex flex-1 items-center justify-center gap-7 lg:gap-9">
             {[
               { label: 'Properties', path: '/properties' },
               { label: 'Blog', path: '/blog' },
@@ -214,28 +236,34 @@ export default function Navbar() {
               { label: 'Team', path: '/team' },
               { label: 'Careers', path: '/careers' },
               { label: 'Contact', path: '/contact' },
-            ].map(({ label, path }) => (
-              <Link
-                key={path}
-                to={path}
-                className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.14em] transition-opacity hover:opacity-100"
-                style={{
-                  fontFamily: DM_SANS,
-                  color:
-                    location.pathname === path ||
-                    (path === '/properties' && location.pathname.startsWith('/properties'))
-                      ? iconColor
-                      : labelColor,
-                  opacity:
-                    location.pathname === path ||
-                    (path === '/properties' && location.pathname.startsWith('/properties'))
-                      ? 1
-                      : 0.85,
-                }}
-              >
-                {label}
-              </Link>
-            ))}
+            ].map(({ label, path }) => {
+              const active =
+                location.pathname === path ||
+                (path === '/properties' && location.pathname.startsWith('/properties'));
+              return (
+                <Link
+                  key={path}
+                  to={path}
+                  className="group relative inline-flex flex-col items-center py-1"
+                >
+                  <span
+                    className="text-[11px] font-semibold uppercase tracking-[0.13em] transition-colors duration-200 group-hover:text-[#0A1628]"
+                    style={{
+                      fontFamily: DM_SANS,
+                      color: active ? '#0A1628' : '#5A6472',
+                    }}
+                  >
+                    {label}
+                  </span>
+                  <span
+                    className={`mt-0.5 h-[2px] rounded-full transition-all duration-200 ${
+                      active ? 'w-5 bg-[#C9A646]' : 'w-0 bg-[#C9A646]/70 group-hover:w-5'
+                    }`}
+                    aria-hidden="true"
+                  />
+                </Link>
+              );
+            })}
           </div>
 
           <div
@@ -270,30 +298,77 @@ export default function Navbar() {
 
             <div className="w-px h-6 mx-1" style={{ background: dividerColor }} />
 
-            <NavIconAction
-              label="Account"
-              labelColor={labelColor}
+            {/* Partner Activity — genuine entry to the dashboard Activity tab;
+                only rendered for accounts the backend confirms as partners. */}
+            {isPartner && (
+              <NavIconAction
+                label="Activity"
+                labelColor={labelColor}
+                onClick={() => navigate('/partner-dashboard?view=activity')}
+                ariaLabel="Partner activity"
+              >
+                <Pulse size={18} weight={profileOpen ? 'fill' : 'regular'} color={profileOpen ? iconColor : iconMuted} />
+              </NavIconAction>
+            )}
+
+            {!user && !authLoading && (
+              <>
+                {/* Guest state: honest Login / Register entry — no fake avatar,
+                    no placeholder name, no dashboard shortcut. */}
+                <Link
+                  to={`/login${location.pathname !== '/login' ? `?next=${encodeURIComponent(location.pathname + location.search)}` : ''}`}
+                  onClick={() => setProfileOpen(false)}
+                  className="hidden lg:inline-flex min-h-[36px] cursor-pointer items-center rounded-full bg-[#0A1628] px-4 no-underline transition-colors hover:bg-[#14263A]"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <span className="text-[12px] font-semibold text-white">Login / Register</span>
+                </Link>
+              </>
+            )}
+
+            <div className="w-px h-6 mx-1" style={{ background: dividerColor }} />
+
+            <button
+              ref={profileRef}
+              type="button"
               onClick={() => {
                 clearError();
+                // Guests go straight to login; signed-in users get the menu.
+                if (!user && !authLoading) {
+                  navigate(`/login${location.pathname !== '/login' ? `?next=${encodeURIComponent(location.pathname + location.search)}` : ''}`);
+                  return;
+                }
                 setProfileOpen((o) => !o);
               }}
-              ariaLabel="Account menu"
-              buttonRef={profileRef}
+              aria-label="Account menu"
+              aria-expanded={profileOpen}
+              aria-haspopup="menu"
+              className={`group flex cursor-pointer items-center gap-2 rounded-full border px-2 py-1 transition-all duration-200 min-h-[36px] ${
+                profileOpen
+                  ? 'border-[#C9A646]/60 bg-[#FBF7EC]/70 shadow-sm'
+                  : 'border-transparent hover:border-[#e8e8e8] hover:bg-[#f8f8f8]'
+              }`}
             >
               {user?.photoURL ? (
                 <LazyImage
                   src={user.photoURL}
                   alt=""
-                  className="w-[18px] h-[18px] object-cover"
+                  className="h-6 w-6 rounded-full object-cover"
                 />
               ) : (
-                <User
-                  size={18}
-                  weight={profileOpen || user ? 'regular' : 'thin'}
-                  color={profileOpen || user ? iconColor : iconMuted}
-                />
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#0A1628] text-white">
+                  <User size={13} weight="fill" />
+                </span>
               )}
-            </NavIconAction>
+              <span className="hidden lg:block max-w-[96px] truncate text-[12px] font-semibold text-[#0A1628]" style={{ fontFamily: DM_SANS }}>
+                {user ? (user.displayName || user.email?.split('@')[0] || 'Account') : 'Account'}
+              </span>
+              <CaretDown
+                size={10}
+                weight="bold"
+                className={`text-[#8a8778] transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
           </div>
         </div>
       </nav>
@@ -307,7 +382,7 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.18, ease: 'easeOut' }}
-              className="bg-white border border-[#e8e8e8] shadow-[0_16px_48px_rgba(0,0,0,0.10)] w-[260px] max-w-[calc(100vw-32px)]"
+              className="max-h-[calc(100vh-96px)] overflow-y-auto bg-white border border-[#e8e8e8] shadow-[0_16px_48px_rgba(10,22,40,0.12)] w-[280px] max-w-[calc(100vw-32px)]"
               style={{
                 position: 'fixed',
                 top: profilePos.top,
@@ -323,29 +398,35 @@ export default function Navbar() {
                       <LazyImage
                         src={user.photoURL}
                         alt=""
-                        className="w-9 h-9 object-cover flex-shrink-0"
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
                       />
                     ) : (
-                      <div
-                        className="w-9 h-9 flex items-center justify-center bg-[#f0f0f0] flex-shrink-0"
-                        style={{ borderRadius: 0 }}
-                      >
-                        <User size={18} weight="thin" color="#888888" />
+                      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-[#0A1628] text-white flex-shrink-0">
+                        <User size={17} weight="fill" />
                       </div>
                     )}
                     <div className="min-w-0">
                       <p
-                        className="text-[13px] font-medium text-black truncate"
+                        className="text-[13px] font-semibold text-[#0A1628] truncate"
                         style={{ fontFamily: DM_SANS }}
                       >
                         {user.displayName || 'Account'}
                       </p>
                       <p
-                        className="text-[11px] text-[#aaaaaa] truncate"
+                        className="text-[11px] text-[#8a8778] truncate"
                         style={{ fontFamily: DM_SANS }}
                       >
                         {user.email}
                       </p>
+                      {isPartner && (
+                        <span
+                          className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#FBF7EC] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#8a6d1f] ring-1 ring-[#C9A646]/40"
+                          style={{ fontFamily: DM_SANS }}
+                        >
+                          <span className="h-1 w-1 rounded-full bg-[#C9A646]" aria-hidden="true" />
+                          VJR Estate Partner
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -358,18 +439,96 @@ export default function Navbar() {
                 </p>
               )}
 
+              {/* Personal shortcuts — never repeated website navigation. */}
               {profileLinks.map(({ label, path, Icon }) => (
                 <Link
                   key={path}
                   to={path}
                   onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
                   style={{ fontFamily: DM_SANS }}
                 >
-                  <Icon size={15} weight="thin" color="#aaaaaa" />
+                  <Icon size={15} weight="regular" color="#8a8778" />
                   {label}
                 </Link>
               ))}
+
+              {/* Guest state: a clearly separated authentication action. The
+                  Google button stays in the footer block below — this is the
+                  visible, primary path into /login. */}
+              {!user && !authLoading && (
+                <Link
+                  to={`/login${location.pathname !== '/login' ? `?next=${encodeURIComponent(location.pathname + location.search)}` : ''}`}
+                  onClick={() => setProfileOpen(false)}
+                  className="mx-3 my-2 flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#0A1628] px-3.5 no-underline transition-colors hover:bg-[#14263A]"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <User size={15} weight="fill" className="text-[#C9A646]" aria-hidden="true" />
+                  <span className="text-[13px] font-semibold text-white">Login / Register</span>
+                </Link>
+              )}
+
+              {/* Account actions — signed-in customers. Partner accounts get
+                  one dashboard entry instead: the workspace sidebar owns
+                  section-level navigation, so it is not duplicated here. */}
+              {user && !isPartner && (
+                <div className="px-5 pb-1 pt-3">
+                  <p
+                    className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#b0aca0]"
+                    style={{ fontFamily: DM_SANS }}
+                  >
+                    My Account
+                  </p>
+                </div>
+              )}
+              {/* My Profile / My Activity — functional account pages,
+                  distinct from the public header navigation. */}
+              {user && (
+                <Link
+                  to="/my-listings"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <User size={15} weight="regular" color="#8a8778" />
+                  My Profile &amp; Listings
+                </Link>
+              )}
+              {user && (
+                <Link
+                  to="/partner-dashboard?view=activity"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <Pulse size={15} weight="regular" color="#8a8778" />
+                  My Activity
+                </Link>
+              )}
+              {user && !isPartner && !canAddProperty && (
+                <Link
+                  to="/partner"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <PlusCircle size={15} weight="regular" color="#8a8778" />
+                  Become a Partner
+                </Link>
+              )}
+
+              {/* Partner workspace entry — backend-confirmed partners only. */}
+              {isPartner && (
+                <Link
+                  to="/partner-dashboard"
+                  onClick={() => setProfileOpen(false)}
+                  className="mx-3 mb-1 mt-2 flex items-center gap-2.5 rounded-lg bg-[#0A1628] px-3.5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#14263A] cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <Gauge size={15} weight="fill" className="text-[#C9A646]" />
+                  Partner Dashboard
+                </Link>
+              )}
 
               {/* Invite-only entry point: visible only to accounts the admin
                   has granted Add Property access. */}
@@ -377,33 +536,41 @@ export default function Navbar() {
                 <Link
                   to="/list-property"
                   onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
                   style={{ fontFamily: DM_SANS }}
                 >
-                  <PlusCircle size={15} weight="thin" color="#aaaaaa" />
+                  <PlusCircle size={15} weight="regular" color="#8a8778" />
                   List Property
                 </Link>
               )}
 
+              {/* Group 4 — administrative access (role-checked, server-enforced) */}
               {showAdminDashboard && (
                 <>
-                  <div className="border-t border-[#f0f0f0] mt-1" />
+                  <div className="px-5 pb-1 pt-3">
+                    <p
+                      className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#b0aca0]"
+                      style={{ fontFamily: DM_SANS }}
+                    >
+                      Administration
+                    </p>
+                  </div>
                   <Link
                     to="/admin/properties"
                     onClick={() => setProfileOpen(false)}
-                    className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                    className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                     style={{ fontFamily: DM_SANS }}
                   >
-                    <SquaresFour size={15} weight="thin" color="#000000" />
+                    <SquaresFour size={15} weight="regular" color="#5A6472" />
                     Admin Dashboard
                   </Link>
                   <Link
                     to="/crm"
                     onClick={() => setProfileOpen(false)}
-                    className="flex items-center gap-3 px-5 py-[11px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                    className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
                     style={{ fontFamily: DM_SANS }}
                   >
-                    <Buildings size={15} weight="thin" color="#000000" />
+                    <Buildings size={15} weight="regular" color="#5A6472" />
                     CRM
                   </Link>
                 </>

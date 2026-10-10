@@ -14,6 +14,11 @@ export function getPropertyShareUrl(propertyId: string | number): string {
   return `${origin}/properties/${id}`;
 }
 
+export function getBlogPostUrl(slug: string): string {
+  const origin = getSiteOrigin();
+  return `${origin}/blog/${encodeURIComponent(String(slug).trim())}`;
+}
+
 export function getJobShareUrl(jobId: string): string {
   const origin = getSiteOrigin();
   const id = encodeURIComponent(String(jobId).trim());

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { blogPosts as fallbackPosts } from '@/data/blogPosts';
 import type { BlogPost } from '@/data/blogPosts';
 import { getBlogPosts, getBlogPostBySlug } from '@/lib/strapi';
+import { setBlogPostShareMeta, setBlogPostJsonLd } from '@/lib/siteMeta';
 import SupabaseImage from '@/components/common/SupabaseImage';
 
 export default function BlogPostPage() {
@@ -29,6 +30,17 @@ export default function BlogPostPage() {
       .then(setAllPosts)
       .catch(() => {});
   }, []);
+
+  // Article meta + BlogPosting structured data (works for the fallback
+  // immediately, then updates when Strapi data arrives).
+  useEffect(() => {
+    if (!post) return;
+    setBlogPostShareMeta(post);
+    setBlogPostJsonLd(post);
+    return () => {
+      document.getElementById('jsonld-blog')?.remove();
+    };
+  }, [post]);
 
   if (!post && !loading) {
     return (

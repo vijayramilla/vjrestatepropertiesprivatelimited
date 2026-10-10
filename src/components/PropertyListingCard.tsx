@@ -18,6 +18,7 @@ import { getMonthlyRentalValue } from '@/lib/propertyFilters';
 import { shareProperty } from '@/utils/shareProperty';
 import { openWhatsAppPropertyEnquiry } from '@/utils/whatsappProperty';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
+import ListedByBadge from './ListedByBadge';
 import { useLocationPermission } from '@/hooks/useLocationPermission';
 
 const DM_SANS = "'DM Sans', system-ui, sans-serif";
@@ -214,6 +215,8 @@ const PropertyListingCard = memo(function PropertyListingCard({ property, index 
             <MapPin size={compact ? 9 : listing ? 11 : 13} weight="regular" color="#9ca3af" className="shrink-0" />
             <span className="truncate">{cityName}</span>
           </p>
+
+          <ListedByBadge listedBy={property.listed_by} size={compact ? 8 : 10} />
 
           <div className={`border-t border-[#F3F4F6] ${compact ? 'mt-1 pt-1' : listing ? 'mt-2 pt-2' : 'mt-3 pt-3'}`}>
             {!isPlotOrLand && (
