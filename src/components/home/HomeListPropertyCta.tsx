@@ -40,28 +40,28 @@ export default function HomeListPropertyCta() {
       transition={{ duration: 0.6, ease: EASE, delay: 0.45 }}
       className="relative z-10 w-full max-w-4xl"
     >
-      <div className="mt-4 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-5">
+      <div className="mt-3 flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-4">
         <Link
           to={partnerTarget}
-          className="group inline-flex h-[56px] items-center gap-3 self-start rounded-full bg-white pl-2.5 pr-7 text-[#0A1628] shadow-[0_18px_44px_rgba(3,8,16,0.42)] no-underline transition-[background-color,transform,box-shadow] duration-300 hover:-translate-y-[2px] hover:bg-[#FDFBF5] hover:shadow-[0_22px_52px_rgba(3,8,16,0.55)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E4C877]"
+          className="group inline-flex h-11 items-center gap-2.5 self-start rounded-full bg-white pl-1.5 pr-5 text-[#0A1628] shadow-[0_14px_34px_rgba(3,8,16,0.4)] no-underline transition-[background-color,transform,box-shadow] duration-300 hover:-translate-y-[2px] hover:bg-[#FDFBF5] hover:shadow-[0_18px_42px_rgba(3,8,16,0.52)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#E4C877]"
         >
-          <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C877] to-[#C9A84C] transition-shadow duration-300 group-hover:shadow-[0_4px_14px_rgba(201,168,76,0.5)]">
-            <HouseLine size={17} weight="duotone" className="text-[#0A1628]" aria-hidden="true" />
+          <span className="flex h-[32px] w-[32px] shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#E4C877] to-[#C9A84C] transition-shadow duration-300 group-hover:shadow-[0_4px_14px_rgba(201,168,76,0.5)]">
+            <HouseLine size={15} weight="duotone" className="text-[#0A1628]" aria-hidden="true" />
           </span>
-          <span className="whitespace-nowrap text-[14.5px] font-semibold tracking-[0.01em]">
+          <span className="whitespace-nowrap text-[13.5px] font-semibold tracking-[0.01em]">
             List Your Property
           </span>
-          <span className="rounded-full bg-[#C9A84C]/15 px-2 py-[3px] text-[9.5px] font-bold uppercase tracking-[0.14em] text-[#96782A]">
+          <span className="rounded-full bg-[#C9A84C]/15 px-1.5 py-[2px] text-[8.5px] font-bold uppercase tracking-[0.12em] text-[#96782A]">
             Free
           </span>
           <ArrowRight
-            size={15}
+            size={14}
             weight="bold"
             aria-hidden="true"
             className="opacity-70 transition-transform duration-300 group-hover:translate-x-1 group-hover:opacity-100"
           />
         </Link>
-        <span className="text-[10.5px] font-medium tracking-wide text-white/60 sm:border-l sm:border-white/20 sm:pl-5">
+        <span className="text-[10px] font-medium tracking-wide text-white/60 sm:border-l sm:border-white/20 sm:pl-4">
           Zero listing fee &middot; Owners, Builders &amp; Agents
         </span>
       </div>
