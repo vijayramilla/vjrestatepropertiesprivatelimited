@@ -440,9 +440,9 @@ export function DirectorsRegister({ directors, fy, incorporatedOn, items, loadin
   }, [directors, search, fy]);
 
   const openNew = () => { setEditing(null); setForm({ kyc_status: 'pending', dsc_status: 'na', kyc_due_date: deriveKyc({ fy }).dueDate }); setShowForm(true); };
-  const openEdit = ({ autoDue, override, state, ...rest }: DerivedDirector) => {
-    setEditing(rest);
+  const openEdit = ({ autoDue, ...rest }: DerivedDirector) => {
     setForm({ ...rest, kyc_due_date: rest.kyc_status === 'pending' ? autoDue : rest.kyc_due_date ?? null });
+    setEditing(rest);
     setShowForm(true);
   };
 
@@ -652,7 +652,8 @@ export function DirectorDetail({ detail, fy, incorporatedOn, filedForms, onClose
                   );
                 }
                 const left = daysUntil(du.dueDate);
-                const past = left < 0;
+                const past = left != null && left < 0;
+                const daysLabel = left == null ? '' : Math.abs(left);
                 return (
                   <div key={du.form} className={`rounded-2xl border p-3.5 ${past ? 'border-red-200 bg-red-50/40' : 'border-black/[0.06] bg-[#fafafa]'}`}>
                     <div className="flex items-start justify-between gap-3">
@@ -662,7 +663,7 @@ export function DirectorDetail({ detail, fy, incorporatedOn, filedForms, onClose
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="text-[12px] font-extrabold">{fmtDate(du.dueDate)}</p>
-                        <p className={`text-[10px] font-extrabold ${past ? 'text-red-600' : left <= 30 ? 'text-orange-600' : 'text-emerald-700'}`}>{past ? `${Math.abs(left)}d overdue` : `${left}d left`}</p>
+                        <p className={`text-[10px] font-extrabold ${past ? 'text-red-600' : (left ?? 0) <= 30 ? 'text-orange-600' : 'text-emerald-700'}`}>{past ? `${daysLabel}d overdue` : left == null ? '' : `${left}d left`}</p>
                       </div>
                     </div>
                   </div>

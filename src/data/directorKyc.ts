@@ -39,6 +39,9 @@ export function fiscalYearOf(iso: string): number {
 export const latestFyStart = (now = new Date()): number =>
   fiscalYearOf(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
 
+/** Risk tier of a director's KYC record: done/na override the clock; otherwise overdue/due/upcoming. */
+export type KycState = 'done' | 'na' | 'overdue' | 'due' | 'upcoming';
+
 export interface DerivedKyc {
   fyStartYear: number;
   dueDate: string; // ISO
@@ -51,7 +54,7 @@ export interface DerivedKyc {
  * appointment/resignation nuance belongs to the CA; 'na' status is the
  * human override.
  */
-export function deriveKyc(opts: { fy?: string | null; now?: Date }): DerivedKyc {
+export function deriveKyc(opts: { fy?: string | null; now?: Date } = {}): DerivedKyc {
   const fromLabel = parseFyStartYear(opts.fy ?? null);
   if (fromLabel !== null) return { fyStartYear: fromLabel, dueDate: dir3DueDate(fromLabel), source: 'fy' };
   const y = latestFyStart(opts.now);
@@ -67,7 +70,7 @@ export const DSC_RENEW_LEAD_DAYS = 30;
 
 export type DscState = 'active' | 'renew_due' | 'expiring' | 'expired';
 
-export function dscState(expiryIso: string | null | undefined, now = new Date()): DscState {
+export function dscState(expiryIso: string | null | undefined, _now = new Date()): DscState {
   if (!expiryIso) return 'active';
   const d = daysUntil(expiryIso);
   if (!Number.isFinite(d)) return 'active';
@@ -137,7 +140,7 @@ export function directorDuties(opts: {
 }
 
 /** Risk state of one director's KYC: status first, then the clock on the due date. */
-export function kycState(kycStatus: string | null | undefined, dueDate: string | null | undefined, now = new Date()): KycState {
+export function kycState(kycStatus: string | null | undefined, dueDate: string | null | undefined, _now = new Date()): KycState {
   if (kycStatus === 'done') return 'done';
   if (kycStatus === 'na') return 'na';
   if (!dueDate) return 'upcoming';

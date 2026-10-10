@@ -540,14 +540,21 @@ export interface LedgerDirector {
   name?: string;
   din?: string;
   designation?: string;
+  category?: string | null;
   appointment_date?: string | null;
   resignation_date?: string | null;
+  date_of_birth?: string | null;
+  father_name?: string | null;
+  nationality?: string | null;
+  occupation?: string | null;
   kyc_status?: string; // pending | done | na
   kyc_due_date?: string | null;
   dsc_status?: string; // active | expired | na
   dsc_expiry_date?: string | null;
   email?: string;
   phone?: string;
+  verification_status?: string | null;
+  source?: string | null;
   notes?: string;
 }
 
@@ -613,8 +620,19 @@ export const ledgerDocumentUrl = (path: string) =>
 /* ── LEDGERS: server-side rule engine + reminder engine ────────────────── */
 
 /** Runs the rule engine on the backend and inserts missing obligations. */
+export interface LedgerGenerateSummary {
+  rulesEvaluated: number;
+  applicable: number;
+  notApplicable: number;
+}
 export const generateLedgerCalendar = (fyStartYear: number) =>
-  callDataProxy('ledger.generate', { fyStartYear }) as Promise<{ generated: number; saved: number; ruleVersion: string }>;
+  callDataProxy('ledger.generate', { fyStartYear }) as Promise<{
+    generated: number;
+    saved: number;
+    ruleVersion: string;
+    skippedDuplicates?: number;
+    summary?: LedgerGenerateSummary;
+  }>;
 
 export interface LedgerNotification {
   id?: string;

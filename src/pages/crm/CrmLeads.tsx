@@ -4,7 +4,6 @@ import { leadSupabase } from '@/services/leadSupabase';
 import { getCrmClients, parseBudget, type SheetClient } from '@/data/crmClientsData';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -84,12 +83,6 @@ function formatLakhText(num: number): string {
   }
   if (num >= 1000) return (num / 1000).toFixed(2).replace(/\.00$/, '') + ' Thousand';
   return '\u20B9' + Math.round(num);
-}
-
-function parseToLakhs(val: string): string {
-  const num = parseFloat(val);
-  if (isNaN(num)) return val;
-  return String(parseFloat((num / 100000).toFixed(4)));
 }
 
 /* ── Salesforce-style pipeline path ──
@@ -433,12 +426,7 @@ export default function CrmLeads() {
     unassigned: filterCounts.unassigned,
   }), [clients, filterCounts]);
 
-  const statusVariant = (status: string) => {
-    const s = status.toLowerCase();
-    if (s.includes('closed') || s.includes('done')) return 'default' as const;
-    if (s.includes('visit') || s.includes('token')) return 'secondary' as const;
-    return 'outline' as const;
-  };
+
 
   const drawerOpen = !!selectedClient;
 

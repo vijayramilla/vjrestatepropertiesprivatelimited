@@ -15,10 +15,10 @@ import {
   fetchLedgerPayments, fetchLedgerNotices, fetchLedgerDirectors, fetchLedgerDocuments,
   generateLedgerCalendar, fetchLedgerNotifications, runLedgerReminders,
   markLedgerNotificationRead, markAllLedgerNotificationsRead,
-  fetchGstProfile, saveGstProfile, fetchGstTurnover, saveGstTurnover, evaluateGstThreshold,
-  fetchCompanyMaster, saveCompanyMasterRow, upsertLedgerRow,
-  type GstProfile, type GstTurnoverRecord, type GstEvaluation, type GstThresholdEvent, type GstStatus,
-  type CompanyMasterData, type LedgerShareholder, type LedgerMoaObject,
+  fetchGstProfile, saveGstProfile, saveGstTurnover, evaluateGstThreshold,
+  fetchCompanyMaster, upsertLedgerRow,
+  type GstProfile, type GstEvaluation, type GstThresholdEvent, type GstStatus,
+  type CompanyMasterData,
   type LedgerNotification,
   type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile,
   type LedgerPayment, type LedgerNotice, type LedgerDirector, type LedgerDocument,
@@ -80,6 +80,9 @@ export default function CrmLedgers() {
   const [seeding, setSeeding] = useState(false);
   const [seededCount, setSeededCount] = useState<number | null>(null);
   const [genError, setGenError] = useState('');
+  // Full evaluation summary shown for ~8s after every calendar generation
+  // (Spec §46). Read through the notification card below; the value itself
+  // is what the card renders — null after the timeout.
   const [genSummary, setGenSummary] = useState<{ rulesEvaluated: number; applicable: number; notApplicable: number; saved: number; skippedDuplicates: number } | null>(null);
   const [selectedFy, setSelectedFy] = useState('');
   // ── GST engine state (spec §66: status / monitoring / generation) ──
@@ -163,13 +166,13 @@ export default function CrmLedgers() {
       const result = await generateLedgerCalendar(fyStartYear);
       await loadItems();
       // Spec §46: show the full evaluation summary after every generation.
-      const s = (result as { summary?: { rulesEvaluated?: number; applicable?: number; notApplicable?: number } }).summary;
+      const s = result.summary;
       setGenSummary({
         rulesEvaluated: s?.rulesEvaluated ?? result.generated ?? 0,
         applicable: s?.applicable ?? result.generated ?? 0,
         notApplicable: s?.notApplicable ?? 0,
         saved: result.saved ?? 0,
-        skippedDuplicates: (result as { skippedDuplicates?: number }).skippedDuplicates ?? 0,
+        skippedDuplicates: result.skippedDuplicates ?? 0,
       });
       setTimeout(() => setGenSummary(null), 8000);
       void loadGst(); // thresholds may have been crossed by new turnover data
@@ -452,6 +455,11 @@ export default function CrmLedgers() {
                       <motion.p initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} role="alert" className="w-full rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-[12px] font-semibold text-red-700">
                         {genError}
                       </motion.p>
+                    )}
+                    {genSummary && (
+                      <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} role="status" className="inline-flex flex-wrap items-center gap-1.5 rounded-full bg-[#0A1628]/[0.06] px-3 py-1.5 text-[10.5px] font-bold text-[#0A1628]">
+                        {`${genSummary.saved} filed · ${genSummary.applicable} applicable · ${genSummary.notApplicable} not applicable · ${genSummary.skippedDuplicates} duplicates skipped`}
+                      </motion.span>
                     )}
                   </div>
                   <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
@@ -1385,7 +1393,7 @@ function PriorityQueue({ buckets, cases, notices, payments, directors, loading, 
     for (const d of directors) {
       if (d.resignation_date) continue;
       if (d.kyc_status === 'pending' && d.kyc_due_date) {
-        const s = kycState(d.kyc_status, d.kyc_due_date);
+        const s = kycState(d.kyc_status, d.kyc_due_date, new Date());
         if (s === 'overdue' || s === 'due') list.push({ key: `kyc-${d.id}`, title: `DIR-3 KYC — ${d.name ?? 'director'}`, date: d.kyc_due_date, meta: `Director KYC · DIN ${d.din || '—'} · ₹5,000 penalty` });
       } else if (d.kyc_status === 'pending' && !d.kyc_due_date) {
         void upsertLedgerRow('directors', { id: d.id, kyc_due_date: deriveKyc().dueDate }).catch(() => null);

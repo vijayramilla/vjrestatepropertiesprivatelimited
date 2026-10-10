@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
-import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from './ledger-rules.mjs';
+import { generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from './ledger-rules.mjs';
 import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './ledger-reminders.mjs';
 
 /**
@@ -1570,7 +1570,7 @@ async function executeAction(action: string, params: any): Promise<any> {
         .limit(100);
       const ids = (convs ?? []).map((c) => String(c.id));
       const lastByConv = new Map<string, { body: string; created_at: string }>();
-      let unreadByConv: Record<string, number> = {};
+      const unreadByConv: Record<string, number> = {};
       if (ids.length) {
         const { data: msgs } = await supabaseAdmin
           .from('partner_support_messages')
