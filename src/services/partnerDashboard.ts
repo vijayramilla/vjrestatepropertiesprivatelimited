@@ -14,7 +14,7 @@ export interface DashPartner {
   company_name: string | null;
   email: string;
   mobile: string | null;
-  status: 'pending' | 'active' | 'suspended' | 'terminated' | 'rejected';
+  status: 'pending' | 'needs_info' | 'active' | 'suspended' | 'terminated' | 'rejected';
   verification_status: string | null;
   commission_percent: number | null;
   areas: string[] | null;

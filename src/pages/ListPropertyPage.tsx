@@ -107,7 +107,7 @@ interface PartnerInfo {
   fullName: string;
   companyName: string;
   commissionPercent: number;
-  status: 'pending' | 'active' | 'suspended' | 'terminated' | 'rejected';
+  status: 'pending' | 'needs_info' | 'active' | 'suspended' | 'terminated' | 'rejected';
   partnerCode: string;
 }
 
@@ -196,6 +196,13 @@ export default function ListPropertyPage() {
       try {
         const result = await callDataProxy('partner.check');
         if (cancelled) return;
+        // A needs-info applicant is routed to resume the registration flow
+        // (the wizard collects the missing details); never to the listing
+        // wizard — listing stays blocked until approval.
+        if (result.registered && result.partner?.status === 'needs_info') {
+          navigate('/partner-register', { replace: true });
+          return;
+        }
         setPartner(
           result.registered
             ? {
@@ -527,7 +534,7 @@ export default function ListPropertyPage() {
         <h1 className="admin-heading mt-6 text-2xl font-medium text-black">Partnership under review</h1>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-gray-500">
           {partner.status === 'pending'
-            ? 'Thank you for registering as a VJR Estate partner. Your application is being reviewed and verified — you will be able to publish listings as soon as your partnership is approved.'
+            ? 'Thank you for registering as a VJR Estate partner. Your application is awaiting approval — you can list properties after your application has been approved.'
             : partner.status === 'suspended'
               ? 'Your partnership is currently suspended. Please contact VJR Estate for assistance.'
               : 'This partnership is no longer active. Please contact VJR Estate for assistance.'}

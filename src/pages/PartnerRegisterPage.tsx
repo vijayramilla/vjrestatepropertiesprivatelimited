@@ -147,6 +147,11 @@ export default function PartnerRegisterPage() {
   // confirms from the verified session and we send them to the dashboard
   // (covers logout/login returns and direct deep links).
   const [checkingExisting, setCheckingExisting] = useState(false);
+  // Information the reviewer asked for (needs-info application): shown as a
+  // banner so the applicant resumes with exactly the right details. The
+  // registration wizard doubles as the completion workflow — submitting it
+  // returns the application to the review queue server-side.
+  const [requestedInfo, setRequestedInfo] = useState('');
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -155,7 +160,13 @@ export default function PartnerRegisterPage() {
       .then((res) => {
         if (cancelled) return;
         if (res?.registered) {
-          navigate('/partner-dashboard', { replace: true });
+          if (res.partner?.status === 'needs_info') {
+            // Resume the application completion flow — do NOT bounce to the
+            // dashboard, listing stays blocked until approval anyway.
+            setRequestedInfo(String(res.partner.requestedInfo ?? res.partner.statusReason ?? ''));
+          } else {
+            navigate('/partner-dashboard', { replace: true });
+          }
         }
         setCheckingExisting(false);
       })
@@ -317,6 +328,16 @@ export default function PartnerRegisterPage() {
       {/* Pad below the fixed global header (3rem mobile / 3.5rem md+, shared layout var). */}
       <div className="pt-[calc(var(--vjr-header-h)+0.25rem)]">
       <div className="mx-auto w-full max-w-[1160px] px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
+        {requestedInfo && (
+          <div className="mb-6 max-w-2xl rounded-xl border border-sky-200 bg-sky-50 p-4 sm:p-5" role="status">
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-sky-700">Information requested</p>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed text-sky-900">
+              The review team has asked you to provide the following before your application can be approved. Update
+              your details below and resubmit — your application returns to the review queue automatically.
+            </p>
+            <p className="mt-2 whitespace-pre-wrap text-[13px] font-medium text-sky-900">{requestedInfo}</p>
+          </div>
+        )}
         {/* ── A. Introduction ─────────────────────────────────────────── */}
         <header className="max-w-2xl">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: GOLD }}>

@@ -674,8 +674,12 @@ DO $$ BEGIN
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS partner_code TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
   ALTER TABLE public.partners DROP CONSTRAINT IF EXISTS partners_status_check;
-  ALTER TABLE public.partners ADD CONSTRAINT partners_status_check CHECK (status IN ('pending','active','suspended','terminated','rejected'));
+  ALTER TABLE public.partners ADD CONSTRAINT partners_status_check CHECK (status IN ('pending','needs_info','active','suspended','terminated','rejected'));
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_reason TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS review_decision TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS review_notes TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_note TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_changed_by TEXT;
@@ -3261,11 +3265,14 @@ async function executeAction(action, params) {
       const existing = isAuthed
         ? await findPartner(params._auth.uid, params._auth.email)
         : (await supabaseFetch('GET', `partners?email=eq.${encodeURIComponent(email)}&limit=1`, null)).data?.[0] ?? null;
-      // CRM lifecycle: new registrations enter PENDING review. Existing
-      // partners re-registering (profile updates) keep their lifecycle status.
-      const crmStatus = existing?.status === 'pending' || existing?.status === 'suspended'
-        ? existing.status
-        : existing?.status ?? 'pending';
+      // CRM lifecycle: new registrations enter PENDING review. Resubmission
+      // policy: rejected or needs-info applicants resubmitting return to
+      // PENDING re-review; active/suspended partners keep their status.
+      const crmStatus = existing?.status === 'rejected' || existing?.status === 'needs_info'
+        ? 'pending'
+        : existing?.status === 'pending' || existing?.status === 'suspended'
+          ? existing.status
+          : existing?.status ?? 'pending';
       // Sequential partner ID: VJR-P-000001, never reused.
       let partnerCode = existing?.partner_code ?? '';
       if (!partnerCode) {
@@ -3309,7 +3316,8 @@ async function executeAction(action, params) {
       if (existing?.id) {
         await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(existing.id)}`, row);
         if (crmStatus !== existing.status) {
-          await logPartnerActivity({ partnerId: existing.id, action: 'PARTNER REGISTERED (UPDATED)', description: `${partnerType} re-registered; lifecycle status moved to ${crmStatus}`, actorType: 'partner', actor: email });
+          const resub = crmStatus === 'pending' && existing.status === 'needs_info';
+          await logPartnerActivity({ partnerId: existing.id, action: resub ? 'APPLICATION RESUBMITTED' : 'PARTNER REGISTERED (UPDATED)', description: resub ? `${partnerType} resubmitted the application with the requested information — returned to the review queue` : `${partnerType} re-registered; lifecycle status moved to ${crmStatus}`, actorType: 'partner', actor: email });
         }
       } else {
         const newId = crypto.randomUUID();
@@ -3325,7 +3333,7 @@ async function executeAction(action, params) {
       const partner = await findPartner(params._auth.uid, params._auth.email);
       const regStatus = partner?.status ?? '';
       return {
-        registered: !!partner && ['active', 'pending'].includes(regStatus),
+        registered: !!partner && ['active', 'pending', 'needs_info'].includes(regStatus),
         partner: partner
           ? {
               partnerType: partner.partner_type,
@@ -3334,6 +3342,8 @@ async function executeAction(action, params) {
               commissionPercent: Number(partner.commission_percent ?? (partner.partner_type === 'Owner' ? 1 : 50)),
               status: regStatus,
               partnerCode: partner.partner_code ?? '',
+              statusReason: partner.status_reason ?? '',
+              requestedInfo: regStatus === 'needs_info' ? partner.status_reason ?? '' : '',
             }
           : null,
       };
@@ -3420,9 +3430,9 @@ async function executeAction(action, params) {
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const nextStatus = String(params.status ?? '');
-      if (!['active', 'suspended', 'terminated', 'rejected'].includes(nextStatus)) throw new Error('Invalid partner status');
-      // Status machine: PENDING→ACTIVE|REJECTED, ACTIVE→SUSPENDED|TERMINATED, SUSPENDED→ACTIVE|TERMINATED.
-      const ALLOWED = { pending: ['active', 'rejected'], active: ['suspended', 'terminated'], suspended: ['active', 'terminated'], rejected: [], terminated: [] };
+      if (!['active', 'needs_info', 'suspended', 'terminated', 'rejected'].includes(nextStatus)) throw new Error('Invalid partner status');
+      // Status machine: PENDING→ACTIVE|REJECTED|NEEDS_INFO, NEEDS_INFO→PENDING|ACTIVE|REJECTED, ACTIVE→SUSPENDED|TERMINATED, SUSPENDED→ACTIVE|TERMINATED.
+      const ALLOWED = { pending: ['active', 'rejected', 'needs_info'], needs_info: ['pending', 'active', 'rejected'], active: ['suspended', 'terminated'], suspended: ['active', 'terminated'], rejected: [], terminated: [] };
       const { data: partnerRows } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&select=id,status,full_name,partner_code&limit=1`, null);
       const partner = partnerRows?.[0];
       if (!partner) throw new Error('Partner not found');
@@ -3437,16 +3447,22 @@ async function executeAction(action, params) {
         : nextStatus === 'terminated'
           ? { reason, note, effectiveDate: String(params.effectiveDate ?? nowIso.slice(0, 10)), settlement: String(params.settlement ?? ''), at: nowIso, by: params._auth.email }
           : { reason, note, at: nowIso, by: params._auth.email };
-      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, {
+      const statusPatch = {
         status: nextStatus,
         status_reason: reason,
         status_note: note || null,
         status_changed_at: nowIso,
         status_changed_by: params._auth.email,
-      });
+      };
+      if (nextStatus === 'active') {
+        statusPatch.review_decision = 'APPROVED';
+        statusPatch.reviewed_at = nowIso;
+        statusPatch.reviewed_by = params._auth.email;
+      }
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, statusPatch);
       await logPartnerActivity({
         partnerId: id,
-        action: nextStatus === 'suspended' ? 'PARTNER SUSPENDED' : nextStatus === 'terminated' ? 'PARTNER TERMINATED' : nextStatus === 'active' ? 'PARTNER REINSTATED' : 'PARTNER STATUS CHANGED',
+        action: nextStatus === 'suspended' ? 'PARTNER SUSPENDED' : nextStatus === 'terminated' ? 'PARTNER TERMINATED' : nextStatus === 'active' ? 'PARTNER REINSTATED' : nextStatus === 'needs_info' ? 'INFORMATION REQUESTED' : 'PARTNER STATUS CHANGED',
         description: `${partner.partner_code ?? id} (${partner.full_name}) — ${reason}${note ? ` · ${note}` : ''}`,
         actorType: 'admin',
         actor: params._auth.email,
@@ -3457,9 +3473,69 @@ async function executeAction(action, params) {
       return { ok: true, status: nextStatus };
     }
 
+    // ── Application review (approve / request-info / reject) — mirrors api/data-proxy.ts ──
+    case 'partner.admin.review': {
+      if (!hasPerm(params._auth, 'partners.approve')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const decision = String(params.decision ?? '');
+      if (!['APPROVE', 'REQUEST_INFO', 'REJECT'].includes(decision)) throw new Error('Invalid review decision');
+      const { data: reviewRows } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(id)}&select=*&limit=1`);
+      const partner = reviewRows?.[0];
+      if (!partner) throw new Error('Partner not found');
+      const prev = String(partner.status ?? 'pending');
+      if (!['pending', 'needs_info'].includes(prev)) throw new Error(`This application is not awaiting review (current status: ${prev.toUpperCase()})`);
+      const reason = String(params.reason ?? '').trim().slice(0, 1000);
+      const note = String(params.note ?? '').trim().slice(0, 1000);
+      const nowIso = new Date().toISOString();
+      const patch = {
+        status_changed_at: nowIso,
+        status_changed_by: params._auth.email,
+        review_decision: decision === 'REQUEST_INFO' ? 'INFO_REQUESTED' : decision,
+        reviewed_at: nowIso,
+        reviewed_by: params._auth.email,
+        review_notes: reason || note || null,
+      };
+      if (decision === 'APPROVE') {
+        const missing = [];
+        if (!String(partner.full_name ?? '').trim()) missing.push('Full name is missing');
+        if (!/^\d{10}$/.test(String(partner.mobile ?? '').replace(/\D/g, ''))) missing.push('A valid 10-digit mobile number is missing');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(partner.email ?? ''))) missing.push('A valid email address is missing');
+        if (partner.terms_accepted !== true) missing.push('Partnership terms have not been accepted');
+        if (String(partner.verification_status ?? '') === 'REJECTED') missing.push('Identity/document verification was rejected and must be re-verified first');
+        if (missing.length) throw new Error(`Approval blocked — complete these requirements first: ${missing.join('; ')}`);
+        patch.status = 'active';
+        patch.status_reason = reason || 'Application reviewed and approved';
+        patch.status_note = note || null;
+      } else if (decision === 'REQUEST_INFO') {
+        if (!reason) throw new Error('Describe the information or documents the applicant must provide');
+        patch.status = 'needs_info';
+        patch.status_reason = reason;
+        patch.status_note = note || null;
+      } else {
+        if (!reason) throw new Error('A rejection reason is required');
+        patch.status = 'rejected';
+        patch.status_reason = reason;
+        patch.status_note = note || null;
+      }
+      await supabaseFetch('PATCH', `partners?id=eq.${encodeURIComponent(id)}`, patch);
+      await logPartnerActivity({
+        partnerId: id,
+        action: decision === 'APPROVE' ? 'APPLICATION APPROVED' : decision === 'REQUEST_INFO' ? 'INFORMATION REQUESTED' : 'APPLICATION REJECTED',
+        description: `${partner.partner_code ?? id} (${partner.full_name}) — ${reason || patch.status_reason}${note ? ` · ${note}` : ''}`,
+        actorType: 'admin',
+        actor: params._auth.email,
+        relatedType: 'application_review',
+        relatedId: id,
+        prevValue: prev.toUpperCase(),
+        newValue: String(patch.status).toUpperCase(),
+        metadata: { decision, reason, note, termsVersion: partner.terms_version ?? null },
+      });
+      return { ok: true, status: patch.status, decision };
+    }
+
     // ── Permanent partner deletion — mirrors api/data-proxy.ts ──────
     case 'partner.admin.deleteDeps': {
-      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
       await ensurePartnersTable();
       const ddId = String(params.id ?? '');
       const { data: ddPartner } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(ddId)}&select=id,partner_code,full_name,partner_type,status&limit=1`);

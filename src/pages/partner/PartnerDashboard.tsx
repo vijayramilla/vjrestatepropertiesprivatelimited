@@ -153,8 +153,10 @@ export default function PartnerDashboard() {
     : isActive
       ? null
       : partner?.status === 'pending'
-        ? 'Your registration is under review — property listing unlocks once your partnership is approved.'
-        : 'Your partnership is currently restricted. Contact VJR Estate for assistance.';
+        ? 'Your partner application is awaiting approval. You can list properties after your application has been approved.'
+        : partner?.status === 'needs_info'
+          ? 'The review team has requested additional information — open the registration flow from the banner to provide it. Listing stays locked until your application is approved.'
+          : 'Your partnership is currently restricted. Contact VJR Estate for assistance.';
 
   const sideNav = (
     <>

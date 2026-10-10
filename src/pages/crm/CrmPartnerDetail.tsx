@@ -15,6 +15,7 @@ import {
   type PartnerDispute,
   type PartnerLifecycle,
   type PartnerTransaction,
+  type ReviewDecision,
 } from '@/services/partnerCrm';
 import { StatusBadge, TypeChip, VerificationBadge } from './CrmPartnership';
 import {
@@ -47,7 +48,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'disputes', label: 'Disputes' },
 ];
 
-type DialogKind = 'suspend' | 'terminate' | 'reinstate' | 'verify' | 'edit' | 'note' | 'txn' | 'dispute' | 'docRequest' | null;
+type DialogKind = 'review' | 'suspend' | 'terminate' | 'reinstate' | 'verify' | 'edit' | 'note' | 'txn' | 'dispute' | 'docRequest' | null;
 
 export default function CrmPartnerDetail() {
   const { partnerId } = useParams();
@@ -149,6 +150,7 @@ export default function CrmPartnerDetail() {
     );
   }
 
+  const canReview = p.status === 'pending' || p.status === 'needs_info';
   const canSuspend = p.status === 'active';
   const canReinstate = p.status === 'suspended' || p.status === 'pending';
   const canTerminate = p.status === 'active' || p.status === 'suspended';
@@ -166,9 +168,13 @@ export default function CrmPartnerDetail() {
         <CrmCard className="mb-5 p-5 sm:p-6">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex min-w-0 gap-4">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#0A1628] text-lg font-bold text-[#C9A84C]">
-                {p.full_name?.[0]?.toUpperCase() ?? '?'}
-              </span>
+              {p.photo_url ? (
+                <img src={p.photo_url} alt={`${p.full_name || 'Partner'} profile photo`} className="h-14 w-14 shrink-0 rounded-2xl object-cover ring-1 ring-black/[0.08]" />
+              ) : (
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#0A1628] text-lg font-bold text-[#C9A84C]">
+                  {p.full_name?.[0]?.toUpperCase() ?? '?'}
+                </span>
+              )}
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-bold tracking-tight text-[#0A1628] sm:text-2xl">{p.full_name}</h1>
@@ -186,11 +192,12 @@ export default function CrmPartnerDetail() {
                   <span>Commercial model: <strong className="text-[#0A1628]">{p.partner_type === 'Owner' ? '1% service charge' : '50:50 share'}</strong></span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <a href={`tel:${p.mobile}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-xs font-bold text-[#4b5563] transition-colors hover:bg-black/[0.03]"><Phone className="h-3.5 w-3.5" /> Call</a>
-              <a href={`mailto:${p.email}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-xs font-bold text-[#4b5563] transition-colors hover:bg-black/[0.03]"><Mail className="h-3.5 w-3.5" /> Email</a>
+            </div>            <div className="flex shrink-0 flex-wrap gap-2">
+              {canReview && (
+                <CrmBtn variant="primary" onClick={() => setDialog('review')}><FileWarning className="h-3.5 w-3.5" /> Review Application</CrmBtn>
+              )}
+              <a href={`tel:${p.mobile}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-xs font-bold text-[#4b5563] transition-colors hover:bg-black/[0.03]" ><Phone className="h-3.5 w-3.5" /> Call</a>
+              <a href={`mailto:${p.email}`} className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-xs font-bold text-[#4b5563] transition-colors hover:bg-black/[0.03]" ><Mail className="h-3.5 w-3.5" /> Email</a>
               <a href={`https://wa.me/91${p.mobile}`} target="_blank" rel="noreferrer" className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 text-xs font-bold text-[#4b5563] transition-colors hover:bg-black/[0.03]"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
               <CrmBtn variant="ghost" onClick={() => setDialog('edit')}><SquarePen className="h-3.5 w-3.5" /> Edit</CrmBtn>
               <CrmBtn variant="ghost" onClick={() => setDialog('verify')}><BadgeCheck className="h-3.5 w-3.5" /> Verify</CrmBtn>
@@ -200,6 +207,15 @@ export default function CrmPartnerDetail() {
               {canTerminate && <CrmBtn variant="danger" className="!bg-red-600 !text-white" onClick={() => setDialog('terminate')}><ShieldCheck className="h-3.5 w-3.5" /> Terminate</CrmBtn>}
             </div>
           </div>
+
+          {p.status === 'needs_info' && p.status_reason && (
+            <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-[12px] text-sky-800">
+              <strong>Information requested</strong> — {p.status_reason}
+              {p.reviewed_by ? ` · by ${p.reviewed_by}` : ''}
+              {p.reviewed_at ? ` · ${fmtDateTime(p.reviewed_at)}` : ''}
+              <span className="mt-1 block text-[11px] text-sky-600">The application returns to the review queue automatically when the partner resubmits.</span>
+            </div>
+          )}
 
           {(p.status === 'suspended' || p.status === 'terminated') && p.status_reason && (
             <div className={`mt-4 rounded-xl px-4 py-3 text-[12px] ${p.status === 'terminated' ? 'bg-red-50 text-red-700' : 'bg-orange-50 text-orange-700'}`}>
@@ -256,6 +272,24 @@ export default function CrmPartnerDetail() {
         {tab === 'disputes' && <DisputesTab detail={detail} onChanged={load} setDialog={setDialog} />}
 
         {/* ── Dialogs ── */}
+        {dialog === 'review' && (
+          <ReviewDialog
+            partner={p}
+            busy={busy}
+            error={dialogError}
+            onClose={() => setDialog(null)}
+            onSubmit={async (decision, reason, note) => {
+              if (!partnerId) return;
+              try {
+                await partnerCrm.review({ id: partnerId, decision, reason, note });
+                setDialog(null);
+                load();
+              } catch (e) {
+                setDialogError(e instanceof Error ? e.message : 'Review failed');
+              }
+            }}
+          />
+        )}
         {dialog === 'suspend' && (
           <SuspendDialog busy={busy} error={dialogError} onClose={() => setDialog(null)} onSubmit={(body) => runStatus('suspended', body)} />
         )}
@@ -411,6 +445,9 @@ function OverviewTab({ detail, stats }: { detail: PartnerDetail; stats: Overview
           <KV k="Status" v={<StatusBadge status={p.status} />} />
           <KV k="Status reason" v={p.status_reason || '—'} />
           <KV k="Changed by" v={p.status_changed_by ? `${p.status_changed_by} · ${fmtDateTime(p.status_changed_at)}` : '—'} />
+          <KV k="Review decision" v={p.review_decision ? p.review_decision.replace(/_/g, ' ') : 'Not yet reviewed'} />
+          <KV k="Reviewer" v={p.reviewed_by ? `${p.reviewed_by} · ${fmtDateTime(p.reviewed_at)}` : '—'} />
+          <KV k="Review notes" v={p.review_notes || '—'} />
           <KV k="Terms version" v={p.terms_version ?? '—'} />
           <KV k="Terms accepted" v={fmtDateTime(p.terms_accepted_at)} />
         </Section>
@@ -916,6 +953,93 @@ function DisputesTab({ detail, onChanged, setDialog }: { detail: PartnerDetail; 
 /* ── Action dialogs ──────────────────────────────────────────────────────── */
 
 const inputCls = `${CRM_INPUT} !h-auto py-2.5`;
+
+function ReviewDialog({ partner, busy, error, onClose, onSubmit }: {
+  partner: PartnerDetail['partner'];
+  busy: boolean;
+  error: string;
+  onClose: () => void;
+  onSubmit: (decision: ReviewDecision, reason: string, note: string) => Promise<void>;
+}) {
+  const [decision, setDecision] = useState<ReviewDecision | ''>('');
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+  const canSubmit = decision !== '' && (decision === 'APPROVE' || reason.trim().length > 0);
+  const meta: [string, string][] = [
+    ['Partner Type', partner.partner_type],
+    ['Mobile', partner.mobile || 'Not provided'],
+    ['Email', partner.email],
+    ['Company', partner.company_name || 'Not applicable'],
+    ['RERA number', partner.rera_number || 'Not provided (optional)'],
+    ['City / Areas', [partner.city, ...(partner.areas ?? [])].filter(Boolean).join(' · ') || 'Not provided'],
+    ['Experience', partner.experience_years ? `${partner.experience_years} years` : 'Not provided'],
+    ['Terms version', partner.terms_version ? `v${partner.terms_version}` : 'Not recorded'],
+    ['Verification', (partner.verification_status ?? '').replace(/_/g, ' ')],
+  ];
+  return (
+    <Modal title="Review Application" onClose={onClose} wide>
+      {partner.status === 'needs_info' && partner.status_reason && (
+        <div className="mb-4 rounded-xl bg-sky-50 px-3.5 py-3 text-[11.5px] text-sky-800">
+          <strong>Information requested earlier</strong> — {partner.status_reason}
+        </div>
+      )}
+      <dl className="mb-4 divide-y divide-black/[0.05] rounded-xl border border-black/[0.06]">
+        {meta.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-3 px-3.5 py-2">
+            <dt className="shrink-0 text-[11.5px] text-gray-500">{k}</dt>
+            <dd className="min-w-0 break-words text-right text-[12.5px] font-semibold text-[#0A1628]">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <label className="mb-1.5 block text-[11px] font-semibold text-gray-600">Decision *</label>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {([
+          { d: 'APPROVE' as const, label: 'Approve Partner', cls: 'border-emerald-300 bg-emerald-50 text-emerald-800' },
+          { d: 'REQUEST_INFO' as const, label: 'Request Info', cls: 'border-sky-300 bg-sky-50 text-sky-800' },
+          { d: 'REJECT' as const, label: 'Reject Application', cls: 'border-red-300 bg-red-50 text-red-700' },
+        ]).map((o) => (
+          <button
+            key={o.d}
+            type="button"
+            aria-pressed={decision === o.d}
+            onClick={() => setDecision(o.d)}
+            className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[12px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A84C] ${
+              decision === o.d ? o.cls : 'border-black/10 text-gray-500 hover:bg-black/[0.03]'
+            }`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <label className="mb-1.5 mt-3 block text-[11px] font-semibold text-gray-600">
+        {decision === 'REJECT' ? 'Rejection reason *' : decision === 'REQUEST_INFO' ? 'Information requested *' : 'Decision note'}
+      </label>
+      <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} className={inputCls}
+        placeholder={decision === 'REJECT' ? 'Why this application is declined (recorded in history)' : decision === 'REQUEST_INFO' ? 'Exactly what the applicant must provide — shown when they resume' : 'Optional context'} />
+      <label className="mb-1.5 mt-3 block text-[11px] font-semibold text-gray-600">Internal note</label>
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} className={inputCls} placeholder="Internal only — never visible to the partner" />
+      {decision === 'APPROVE' && (
+        <p className="mt-3 rounded-xl bg-emerald-50 px-3.5 py-3 text-[11.5px] leading-relaxed text-emerald-800">
+          Approval activates listing eligibility. The backend validates mandatory requirements (name, mobile, email,
+          accepted terms) before persisting — approval fails with an explicit message if anything mandatory is
+          missing. RERA is optional and never blocks approval.
+        </p>
+      )}
+      <DialogError error={error} />
+      <div className="mt-5 flex gap-2">
+        <CrmBtn variant="ghost" className="flex-1" onClick={onClose}>Cancel</CrmBtn>
+        <CrmBtn
+          variant={decision === 'REJECT' ? 'danger' : 'primary'}
+          className={`flex-1 ${decision === 'APPROVE' ? '!bg-emerald-600 !text-white' : decision === 'REJECT' ? '!bg-red-600 !text-white' : ''}`}
+          disabled={busy || !canSubmit}
+          onClick={() => onSubmit(decision as ReviewDecision, reason.trim(), note.trim())}
+        >
+          {busy ? 'Recording decision…' : decision === 'APPROVE' ? 'Approve Partner' : decision === 'REJECT' ? 'Reject Application' : decision === 'REQUEST_INFO' ? 'Request Information' : 'Select a decision'}
+        </CrmBtn>
+      </div>
+    </Modal>
+  );
+}
 
 function SuspendDialog({ busy, error, onClose, onSubmit }: {
   busy: boolean;

@@ -6,7 +6,8 @@ import { callDataProxy } from '@/lib/supabaseData';
  * All actions are admin-gated server-side via the data-proxy.
  */
 
-export type PartnerLifecycle = 'pending' | 'active' | 'suspended' | 'terminated' | 'rejected';
+export type PartnerLifecycle = 'pending' | 'needs_info' | 'active' | 'suspended' | 'terminated' | 'rejected';
+export type ReviewDecision = 'APPROVE' | 'REQUEST_INFO' | 'REJECT';
 export type PartnerType = 'Owner' | 'Builder' | 'Agent';
 export type VerificationStatus = 'UNVERIFIED' | 'PARTIALLY VERIFIED' | 'VERIFIED' | 'VERIFICATION REQUIRED' | 'REJECTED';
 
@@ -29,6 +30,10 @@ export interface PartnerRow {
   status_note: string | null;
   status_changed_at: string | null;
   status_changed_by: string | null;
+  review_decision: 'APPROVED' | 'REJECTED' | 'INFO_REQUESTED' | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  review_notes: string | null;
   verification_status: VerificationStatus;
   verification_items: Record<string, { status: string; at: string; by: string; notes?: string }> | null;
   terms_version: string | null;
@@ -36,6 +41,7 @@ export interface PartnerRow {
   privacy_accepted_at: string | null;
   consents: Record<string, unknown> | null;
   last_activity_at: string | null;
+  photo_url: string | null;
   // Device-reported registration location (server-validated at submit).
   latitude: number | null;
   longitude: number | null;
@@ -218,6 +224,9 @@ export const partnerCrm = {
     effectiveDate?: string;
     settlement?: string;
   }) => call<{ ok: true; status: PartnerLifecycle }>('partner.admin.status', body),
+  /** Structured application review decision (Super Admin / authorised reviewer). */
+  review: (body: { id: string; decision: ReviewDecision; reason?: string; note?: string }) =>
+    call<{ ok: true; status: PartnerLifecycle; decision: ReviewDecision }>('partner.admin.review', body),
   setVerification: (body: { id: string; item: string; verificationStatus: VerificationStatus; notes?: string }) =>
     call<{ ok: true }>('partner.admin.verify', body),
   update: (body: { id: string } & Partial<Pick<PartnerRow, 'full_name' | 'mobile' | 'company_name' | 'rera_number' | 'experience_years' | 'areas' | 'city' | 'partner_type'>>) =>
@@ -236,7 +245,8 @@ export const partnerCrm = {
 };
 
 export const STATUS_BADGE: Record<PartnerLifecycle, { label: string; cls: string }> = {
-  pending: { label: 'PENDING', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  pending: { label: 'PENDING REVIEW', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
+  needs_info: { label: 'NEEDS INFO', cls: 'bg-sky-50 text-sky-700 ring-sky-200' },
   active: { label: 'ACTIVE', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
   suspended: { label: 'SUSPENDED', cls: 'bg-orange-50 text-orange-700 ring-orange-200' },
   terminated: { label: 'TERMINATED', cls: 'bg-red-50 text-red-700 ring-red-200' },

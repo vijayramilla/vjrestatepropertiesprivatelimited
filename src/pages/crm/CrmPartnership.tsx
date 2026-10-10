@@ -20,7 +20,7 @@ import {
   type PartnerType,
   type VerificationStatus,
 } from '@/services/partnerCrm';
-import { Loader2, Search, Handshake, ArrowUpRight, MoreVertical, Eye, Ban, Trash2 } from 'lucide-react';
+import { Loader2, Search, Handshake, ArrowUpRight, MoreVertical, Eye, Ban, Trash2, ClipboardCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
 import { isSuperAdminEmail } from '@/lib/crmAdminConfig';
@@ -66,9 +66,10 @@ export default function CrmPartnership() {
   const [statusFilter, setStatusFilter] = useState<'all' | PartnerLifecycle>('all');
   const [verFilter, setVerFilter] = useState<'all' | VerificationStatus>('all');
   const [sort, setSort] = useState<SortKey>('newest');
-  // Row action menu (keyboard-accessible, click-outside closes) + delete flow.
+  // Row action menu (keyboard-accessible, click-outside closes) + delete/review flows.
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const [deleteFor, setDeleteFor] = useState<PartnerRow | null>(null);
+  const [reviewFor, setReviewFor] = useState<PartnerRow | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,11 +86,12 @@ export default function CrmPartnership() {
     else if (view === 'builders') rows = rows.filter((p) => p.partner_type === 'Builder');
     else if (view === 'agents') rows = rows.filter((p) => p.partner_type === 'Agent');
     else if (view === 'active') rows = rows.filter((p) => p.status === 'active');
+    else if (view === 'needs-info') rows = rows.filter((p) => p.status === 'needs_info');
     else if (view === 'suspended') rows = rows.filter((p) => p.status === 'suspended');
     else if (view === 'terminated') rows = rows.filter((p) => p.status === 'terminated');
-    else if (view === 'applications' || view === 'pending') rows = rows.filter((p) => p.status === 'pending' || p.status === 'rejected');
+    else if (view === 'applications' || view === 'pending') rows = rows.filter((p) => ['pending', 'needs_info', 'rejected'].includes(p.status));
     else if (view === 'pending-verification') rows = rows.filter((p) => p.verification_status !== 'VERIFIED');
-    if (view === 'all' || view.startsWith('owners') || ['owners', 'builders', 'agents', 'active', 'suspended', 'terminated', 'applications', 'pending-verification', 'all'].includes(view)) {
+    if (view === 'all' || view.startsWith('owners') || ['owners', 'builders', 'agents', 'active', 'needs-info', 'suspended', 'terminated', 'applications', 'pending-verification', 'all'].includes(view)) {
       if (typeFilter !== 'all') rows = rows.filter((p) => p.partner_type === typeFilter);
       if (statusFilter !== 'all') rows = rows.filter((p) => p.status === statusFilter);
       if (verFilter !== 'all') rows = rows.filter((p) => p.verification_status === verFilter);
@@ -120,7 +122,8 @@ export default function CrmPartnership() {
     return [
       { key: 'all', label: 'Total Partners', value: rows.length, tone: 'navy' as const },
       { key: 'active', label: 'Active Partners', value: rows.filter((p) => p.status === 'active').length, tone: 'emerald' as const },
-      { key: 'applications', label: 'Pending Applications', value: rows.filter((p) => p.status === 'pending').length, tone: 'amber' as const },
+      { key: 'applications', label: 'Pending Applications', value: rows.filter((p) => p.status === 'pending' || p.status === 'needs_info').length, tone: 'amber' as const },
+      { key: 'needs-info', label: 'Needs Information', value: rows.filter((p) => p.status === 'needs_info').length, tone: 'blue' as const },
       { key: 'pending-verification', label: 'Pending Verification', value: rows.filter((p) => p.verification_status !== 'VERIFIED').length, tone: 'amber' as const },
       { key: 'owners', label: 'Owners', value: rows.filter((p) => p.partner_type === 'Owner').length, tone: 'navy' as const },
       { key: 'builders', label: 'Builders', value: rows.filter((p) => p.partner_type === 'Builder').length, tone: 'navy' as const },
@@ -141,7 +144,8 @@ export default function CrmPartnership() {
     owners: { title: 'Owner Partners', desc: 'Partners listing property they own or are authorised to market.' },
     builders: { title: 'Builder / Developer Partners', desc: 'Partners listing projects and inventory.' },
     agents: { title: 'Agent / Broker Partners', desc: 'Partners listing properties backed by valid client mandates.' },
-    applications: { title: 'Partner Applications', desc: 'New registrations awaiting review. Approve to activate the partnership.' },
+    applications: { title: 'Partner Applications', desc: 'Registrations awaiting a review decision — approve, request information or reject. Decision authority is enforced server-side.' },
+    'needs-info': { title: 'Needs Information', desc: 'Applications the review team has sent back for additional information. They re-enter the queue automatically when resubmitted.' },
     'pending-verification': { title: 'Pending Verification', desc: 'Partners whose verification is not yet complete.' },
     active: { title: 'Active Partners', desc: 'Partners currently approved and able to list.' },
     suspended: { title: 'Suspended Partners', desc: 'Partners temporarily suspended. Reinstate or terminate from the Partner 360° page.' },
@@ -163,6 +167,7 @@ export default function CrmPartnership() {
     { key: 'builders', label: 'Builders' },
     { key: 'agents', label: 'Agents' },
     { key: 'applications', label: 'Applications' },
+    { key: 'needs-info', label: 'Needs Info' },
     { key: 'pending-verification', label: 'Verification' },
     { key: 'active', label: 'Active' },
     { key: 'suspended', label: 'Suspended' },
@@ -255,6 +260,7 @@ export default function CrmPartnership() {
                 <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} className={`${CRM_INPUT} !h-10 w-auto min-w-[120px]`}>
                   <option value="all">All Statuses</option>
                   <option value="pending">Pending</option>
+                  <option value="needs_info">Needs Info</option>
                   <option value="active">Active</option>
                   <option value="suspended">Suspended</option>
                   <option value="terminated">Terminated</option>
@@ -274,6 +280,15 @@ export default function CrmPartnership() {
                 </select>
               </div>
             </CrmCard>
+
+            {/* Record count — live truth for the current filter set */}
+            {view !== 'activity' && partners.length > 0 && (
+              <p className="mb-3 text-[11.5px] font-medium text-gray-500" aria-live="polite">
+                {filtered.length === partners.length
+                  ? `${partners.length} partner${partners.length === 1 ? '' : 's'}`
+                  : `${filtered.length} of ${partners.length} partners match the current filters`}
+              </p>
+            )}
 
             {view === 'activity' ? (
               <ActivityView partners={partners} />
@@ -337,6 +352,7 @@ export default function CrmPartnership() {
                                 open={menuFor === p.id}
                                 onToggle={(e) => { e.stopPropagation(); setMenuFor(menuFor === p.id ? null : p.id); }}
                                 onView={() => navigate(`/crm/partnership/partners/${p.id}`)}
+                                onReview={['pending', 'needs_info'].includes(p.status) ? () => setReviewFor(p) : undefined}
                                 onSuspend={p.status === 'active' ? () => navigate(`/crm/partnership/partners/${p.id}?openDialog=suspend`) : undefined}
                                 onDelete={canDelete ? () => setDeleteFor(p) : undefined}
                               />
@@ -383,6 +399,7 @@ export default function CrmPartnership() {
                             open={menuFor === p.id}
                             onToggle={(e) => { e.stopPropagation(); setMenuFor(menuFor === p.id ? null : p.id); }}
                             onView={() => navigate(`/crm/partnership/partners/${p.id}`)}
+                            onReview={['pending', 'needs_info'].includes(p.status) ? () => setReviewFor(p) : undefined}
                             onSuspend={p.status === 'active' ? () => navigate(`/crm/partnership/partners/${p.id}?openDialog=suspend`) : undefined}
                             onDelete={canDelete ? () => setDeleteFor(p) : undefined}
                           />
@@ -398,6 +415,20 @@ export default function CrmPartnership() {
             )}
           </>
         ))}
+
+        {/* Application review flow */}
+        {reviewFor && (
+          <ReviewApplicationDialog
+            partner={reviewFor}
+            onClose={() => setReviewFor(null)}
+            onDone={() => {
+              setReviewFor(null);
+              setMenuFor(null);
+              setPartners(null);
+              partnerCrm.list().then((r) => setPartners(r.partners)).catch(() => {});
+            }}
+          />
+        )}
 
         {/* Permanent deletion flow */}
         {deleteFor && (
@@ -453,11 +484,12 @@ export default function CrmPartnership() {
 }
 
 /* ── Row action menu — keyboard accessible, click-outside closes ── */
-function RowMenu({ partner, open, onToggle, onView, onSuspend, onDelete }: {
+function RowMenu({ partner, open, onToggle, onView, onReview, onSuspend, onDelete }: {
   partner: PartnerRow;
   open: boolean;
   onToggle: (e: React.MouseEvent) => void;
   onView: () => void;
+  onReview?: () => void;
   onSuspend?: () => void;
   onDelete?: () => void;
 }) {
@@ -495,6 +527,11 @@ function RowMenu({ partner, open, onToggle, onView, onSuspend, onDelete }: {
           <button type="button" role="menuitem" onClick={() => { onView(); }} className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-medium text-[#0A1628] hover:bg-[#FBF9F3]">
             <Eye size={14} strokeWidth={1.8} className="text-gray-400" /> View Details
           </button>
+          {onReview && (
+            <button type="button" role="menuitem" onClick={() => { onReview(); }} className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-medium text-[#0A1628] hover:bg-[#FBF9F3]">
+              <ClipboardCheck size={15} strokeWidth={1.8} className="text-[#96782A]" /> Review Application
+            </button>
+          )}
           {onSuspend && (
             <button type="button" role="menuitem" onClick={() => { onSuspend(); }} className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left text-[12.5px] font-medium text-[#0A1628] hover:bg-[#FBF9F3]">
               <Ban size={14} strokeWidth={1.8} className="text-amber-500" /> Suspend Partner
@@ -622,6 +659,165 @@ function DeletePartnerDialog({ partner, onClose, onDeleted }: { partner: Partner
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
             {busy ? 'Deleting permanently…' : 'Delete Partner Permanently'}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Structured application review — approve / request info / reject ──
+ * Permission note: the menu entry is hidden without partnership.approve,
+ * but the backend re-validates everything (decision authority, current
+ * status, mandatory fields) — the UI can never overstep it.
+ */
+function ReviewApplicationDialog({ partner, onClose, onDone }: { partner: PartnerRow; onClose: () => void; onDone: () => void }) {
+  const [decision, setDecision] = useState<'APPROVE' | 'REQUEST_INFO' | 'REJECT' | ''>('');
+  const [reason, setReason] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  // Approve: reason optional (server validates requirements). Request-info and
+  // reject: the reason/message itself is mandatory — it is what the applicant
+  // sees or what the record shows.
+  const canSubmit = decision !== '' && (decision === 'APPROVE' || reason.trim().length > 0);
+  const meta = [
+    { label: 'Partner Type', value: partner.partner_type },
+    { label: 'Mobile', value: partner.mobile || 'Not provided' },
+    { label: 'Email', value: partner.email },
+    { label: 'Company', value: partner.company_name || 'Not applicable' },
+    { label: 'RERA', value: partner.rera_number || 'Not provided (optional)' },
+    { label: 'City / Areas', value: [partner.city, ...(partner.areas ?? [])].filter(Boolean).join(' · ') || 'Not provided' },
+    { label: 'Terms version', value: partner.terms_version ? `v${partner.terms_version}` : 'Not recorded' },
+    { label: 'Verification', value: partner.verification_status.replace(/_/g, ' ') },
+  ];
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg" aria-describedby="rev-desc">
+        <DialogHeader>
+          <DialogTitle className="text-left text-[17px] font-bold text-[#0A1628]">Review Application</DialogTitle>
+        </DialogHeader>
+        <div id="rev-desc" className="-mt-1 space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-black/[0.06] bg-[#FBF9F3] p-3.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0A1628] text-[11px] font-bold text-[#D6B85D]">
+              {partner.full_name?.[0]?.toUpperCase() ?? '?'}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-[13.5px] font-bold text-[#0A1628]">{partner.full_name}</p>
+              <p className="font-mono text-[11px] text-gray-500">{partner.partner_code ?? '—'} · Submitted {fmtDate(partner.created_at)}</p>
+            </div>
+          </div>
+          {partner.status === 'needs_info' && partner.status_reason && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-[12px] text-sky-800">
+              <p className="font-bold">Information requested earlier</p>
+              <p className="mt-1 leading-relaxed">{partner.status_reason}</p>
+            </div>
+          )}
+          {partner.status_reason && partner.status !== 'needs_info' && (
+            <div className="rounded-lg border border-black/[0.06] bg-gray-50 p-3 text-[12px] text-gray-700">
+              <p className="font-bold">Previous status note</p>
+              <p className="mt-1 leading-relaxed">{partner.status_reason}</p>
+            </div>
+          )}
+          <dl className="divide-y divide-black/[0.05] rounded-lg border border-black/[0.07]">
+            {meta.map((m) => (
+              <div key={m.label} className="flex items-baseline justify-between gap-3 px-3 py-2">
+                <dt className="shrink-0 text-[11px] text-gray-500">{m.label}</dt>
+                <dd className="min-w-0 break-words text-right text-[12px] font-semibold text-[#0A1628]">{m.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div>
+            <p className="mb-1.5 text-[10.5px] font-bold uppercase tracking-[0.12em] text-gray-500">Decision</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {([
+                { d: 'APPROVE' as const, label: 'Approve Partner', cls: 'border-emerald-300 bg-emerald-50 text-emerald-800' },
+                { d: 'REQUEST_INFO' as const, label: 'Request Info', cls: 'border-sky-300 bg-sky-50 text-sky-800' },
+                { d: 'REJECT' as const, label: 'Reject', cls: 'border-red-300 bg-red-50 text-red-700' },
+              ]).map((o) => (
+                <button
+                  key={o.d}
+                  type="button"
+                  aria-pressed={decision === o.d}
+                  onClick={() => { setDecision(o.d); setError(''); }}
+                  className={`cursor-pointer rounded-xl border px-3 py-2.5 text-[12px] font-bold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#C9A84C] ${
+                    decision === o.d ? o.cls : 'border-black/10 text-gray-500 hover:bg-black/[0.03]'
+                  }`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label htmlFor="rev-reason" className="mb-1 block text-[12px] font-semibold text-[#374151]">
+              {decision === 'REJECT' ? 'Rejection reason *' : decision === 'REQUEST_INFO' ? 'Information requested *' : 'Decision note'}
+            </label>
+            <textarea
+              id="rev-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-input bg-white px-3 py-2 text-[13px] outline-none focus:border-[#0A1628] focus:ring-2 focus:ring-[#0A1628]/10"
+              placeholder={
+                decision === 'REJECT'
+                  ? 'Why this application is being declined (recorded in history)'
+                  : decision === 'REQUEST_INFO'
+                    ? 'Exactly what the applicant must provide — shown when they resume the application'
+                    : 'Optional context, e.g. based on verification review'
+              }
+            />
+            <label htmlFor="rev-note" className="mb-1 mt-3 block text-[12px] font-semibold text-[#374151]">Internal note</label>
+            <textarea
+              id="rev-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              rows={2}
+              className="w-full rounded-lg border border-input bg-white px-3 py-2 text-[13px] outline-none focus:border-[#0A1628] focus:ring-2 focus:ring-[#0A1628]/10"
+              placeholder="Internal only — never visible to the partner"
+            />
+          </div>
+          {decision === 'APPROVE' && (
+            <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-[11.5px] leading-relaxed text-emerald-800">
+              Approving activates listing eligibility. The backend validates mandatory fields (name, mobile, email,
+              accepted terms) before the approval is persisted — approval will fail with an explicit message if
+              anything mandatory is missing. RERA is optional and never blocks approval.
+            </p>
+          )}
+          {decision === 'REJECT' && (
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-[11.5px] leading-relaxed text-red-700">
+              Rejected applications cannot list properties. The applicant may correct and resubmit — resubmission
+              re-enters the review queue as a fresh decision.
+            </p>
+          )}
+          {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">{error}</p>}
+        </div>
+        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={busy} className="inline-flex h-11 cursor-pointer items-center justify-center rounded-lg border border-border px-4 text-[13px] font-semibold text-[#374151] hover:bg-accent disabled:opacity-50">
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={busy || !canSubmit}
+            onClick={async () => {
+              if (!canSubmit) return;
+              setBusy(true);
+              setError('');
+              try {
+                await partnerCrm.review({ id: partner.id, decision, reason: reason.trim(), note: note.trim() });
+                onDone();
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Review failed — nothing was changed. Please try again.');
+              } finally {
+                setBusy(false);
+              }
+            }}
+            className={`inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg px-4 text-[13px] font-bold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              decision === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : decision === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-[#0A1628] hover:bg-[#1E3852]'
+            }`}
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {busy ? 'Recording decision…' : decision === 'APPROVE' ? 'Approve Partner' : decision === 'REJECT' ? 'Reject Application' : decision === 'REQUEST_INFO' ? 'Request Information' : 'Select a decision'}
           </button>
         </div>
       </DialogContent>

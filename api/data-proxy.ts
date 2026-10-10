@@ -104,6 +104,54 @@ function isAdmin(auth: AuthInfo | null): boolean {
   return auth?.role === 'super_admin' || (auth?.role ?? '') !== 'user';
 }
 
+/* ── Partnership server-side authorization ────────────────────────────
+ * Every partner.admin.* action re-checks the caller's granted permission
+ * against the central CRM access-control system (employee_crm_grants,
+ * same default-deny model as crm-proxy). Super Admin bypasses; employees
+ * must hold the exact partnership action on an ACTIVE, non-expired grant;
+ * legacy admin_users administrators keep their historical access; plain
+ * site users (role 'user') are always denied. Hiding buttons in the UI is
+ * never the security boundary — this is.
+ */
+interface PartnerActionEntry { module: string; action: string }
+const PARTNER_PROXY_ACTION_MAP: Record<string, PartnerActionEntry> = {
+  'partner.admin.list': { module: 'partnership', action: 'view' },
+  'partner.admin.detail': { module: 'partnership', action: 'view' },
+  'partner.admin.verify': { module: 'partnership', action: 'edit' },
+  'partner.admin.update': { module: 'partnership', action: 'edit' },
+  'partner.admin.status': { module: 'partnership', action: 'edit' },
+  'partner.admin.note.add': { module: 'partnership', action: 'edit' },
+  'partner.admin.transaction.create': { module: 'partnership', action: 'edit' },
+  'partner.admin.transaction.update': { module: 'partnership', action: 'edit' },
+  'partner.admin.dispute.create': { module: 'partnership', action: 'edit' },
+  'partner.admin.dispute.update': { module: 'partnership', action: 'edit' },
+  'partner.admin.review': { module: 'partnership', action: 'approve' },
+  'partner.admin.deleteDeps': { module: 'partnership', action: 'delete' },
+  'partner.admin.delete': { module: 'partnership', action: 'delete' },
+};
+
+async function canPartnerAction(auth: AuthInfo | null, action: string): Promise<boolean> {
+  if (!auth?.authorized) return false;
+  if (auth.role === 'super_admin') return true;
+  if (auth.role === 'user') return false;
+  if (!PARTNER_PROXY_ACTION_MAP[action]) return false; // unknown = deny
+  try {
+    const { data: grant } = await supabaseAdmin
+      .from('employee_crm_grants')
+      .select('status,modules,expires_at')
+      .eq('email', auth.email)
+      .maybeSingle();
+    if (!grant) return isAdmin(auth); // legacy admin without a CRM grant keeps historical access
+    if (grant.status !== 'active') return false;
+    if (grant.expires_at && new Date(grant.expires_at).getTime() < Date.now()) return false;
+    const entry = PARTNER_PROXY_ACTION_MAP[action];
+    const mod = (grant.modules ?? {}).partnership;
+    return mod?.actions?.includes(entry.action) === true;
+  } catch {
+    return isAdmin(auth); // grant lookup failed — legacy admins keep old behaviour
+  }
+}
+
 const PROPERTY_COLUMNS = new Set([
   'id', 'property_code', 'title', 'type', 'commercial_subtype', 'plot_subtype',
   'area', 'location', 'price', 'price_label', 'monthly_rental', 'monthly_rental_label',
@@ -264,7 +312,12 @@ DO $$ BEGIN
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS partner_code TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
   ALTER TABLE public.partners DROP CONSTRAINT IF EXISTS partners_status_check;
-  ALTER TABLE public.partners ADD CONSTRAINT partners_status_check CHECK (status IN ('pending','active','suspended','terminated','rejected'));
+  ALTER TABLE public.partners ADD CONSTRAINT partners_status_check CHECK (status IN ('pending','needs_info','active','suspended','terminated','rejected'));
+  -- Application review decision record (Super Admin / authorised reviewer).
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS review_decision TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+  ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS review_notes TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_reason TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_note TEXT;
   ALTER TABLE public.partners ADD COLUMN IF NOT EXISTS status_changed_at TIMESTAMPTZ;
@@ -1120,11 +1173,16 @@ async function executeAction(action: string, params: any): Promise<any> {
             const { data } = await supabaseAdmin.from('partners').select('*').eq('email', email).maybeSingle();
             return data ?? null;
           })();
-      // CRM lifecycle: new registrations enter PENDING review. Existing
-      // partners re-registering (profile updates) keep their lifecycle status.
-      const crmStatus = existing?.status === 'pending' || existing?.status === 'suspended'
-        ? existing.status
-        : existing?.status ?? 'pending';
+      // CRM lifecycle: new registrations enter PENDING review. Resubmission
+      // policy: a rejected applicant may resubmit (fresh review of the same
+      // row → back to PENDING); a needs-info applicant resubmitting WITH the
+      // requested details also returns to PENDING re-review. Once approved,
+      // active/suspended partners re-registering keep their lifecycle status.
+      const crmStatus = existing?.status === 'rejected' || existing?.status === 'needs_info'
+        ? 'pending'
+        : existing?.status === 'pending' || existing?.status === 'suspended'
+          ? existing.status
+          : existing?.status ?? 'pending';
       // Sequential partner ID: VJR-P-000001, never reused.
       let partnerCode: string = existing?.partner_code ?? '';
       if (!partnerCode) {
@@ -1175,7 +1233,7 @@ async function executeAction(action: string, params: any): Promise<any> {
         const { error } = await supabaseAdmin.from('partners').update(row).eq('id', existing.id);
         if (error) throw new Error(error.message);
         if (crmStatus !== existing.status) {
-          await logPartnerActivity({ partnerId: existing.id, action: 'PARTNER REGISTERED (UPDATED)', description: `${partnerType} re-registered; lifecycle status moved to ${crmStatus}`, actorType: 'partner', actor: email });
+          await logPartnerActivity({ partnerId: existing.id, action: crmStatus === 'pending' && existing.status === 'needs_info' ? 'APPLICATION RESUBMITTED' : 'PARTNER REGISTERED (UPDATED)', description: crmStatus === 'pending' && existing.status === 'needs_info' ? `${partnerType} resubmitted the application with the requested information — returned to the review queue` : `${partnerType} re-registered; lifecycle status moved to ${crmStatus}`, actorType: 'partner', actor: email });
         }
       } else {
         const { error } = await supabaseAdmin.from('partners').insert({ ...row, created_at: now });
@@ -1197,7 +1255,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       const partner = await findPartner(auth.uid, auth.email);
       const regStatus = partner?.status ?? '';
       return {
-        registered: !!partner && ['active', 'pending'].includes(regStatus),
+        registered: !!partner && ['active', 'pending', 'needs_info'].includes(regStatus),
         partner: partner
           ? {
               partnerType: partner.partner_type,
@@ -1206,6 +1264,10 @@ async function executeAction(action: string, params: any): Promise<any> {
               commissionPercent: Number(partner.commission_percent ?? (partner.partner_type === 'Owner' ? 1 : 50)),
               status: regStatus,
               partnerCode: partner.partner_code ?? '',
+              // What the reviewer asked for — shown on the applicant's status
+              // screens so they can resume with exactly the right details.
+              statusReason: partner.status_reason ?? '',
+              requestedInfo: regStatus === 'needs_info' ? partner.status_reason ?? '' : '',
             }
           : null,
       };
@@ -1364,7 +1426,7 @@ async function executeAction(action: string, params: any): Promise<any> {
 
     // ── Partner CRM (admin) — lifecycle, verification, notes, activity, transactions, disputes ──
     case 'partner.admin.list': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.list'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const { data: partners } = await supabaseAdmin
         .from('partners')
@@ -1426,7 +1488,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.detail': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.detail'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const { data: partner } = await supabaseAdmin.from('partners').select('*').eq('id', String(params.id ?? '')).maybeSingle();
       if (!partner) throw new Error('Partner not found');
@@ -1468,16 +1530,21 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.status': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.status'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const nextStatus = String(params.status ?? '');
-      if (!['active', 'suspended', 'terminated', 'rejected'].includes(nextStatus)) {
+      if (!['active', 'needs_info', 'suspended', 'terminated', 'rejected'].includes(nextStatus)) {
         throw new Error('Invalid partner status');
       }
-      // Status machine: PENDING→ACTIVE|REJECTED, ACTIVE→SUSPENDED|TERMINATED, SUSPENDED→ACTIVE|TERMINATED.
+      // Lifecycle state machine — the single source of truth for transitions.
+      // Applicant states: pending (awaiting review) ↔ needs_info (info
+      // requested). approved states: active. restricted: suspended /
+      // terminated are terminal for eligibility; rejected is terminal for
+      // the application (resubmission = a fresh review of the same row).
       const ALLOWED: Record<string, string[]> = {
-        pending: ['active', 'rejected'],
+        pending: ['active', 'rejected', 'needs_info'],
+        needs_info: ['pending', 'active', 'rejected'],
         active: ['suspended', 'terminated'],
         suspended: ['active', 'terminated'],
         rejected: [],
@@ -1498,17 +1565,25 @@ async function executeAction(action: string, params: any): Promise<any> {
         : nextStatus === 'terminated'
           ? { reason, note, effectiveDate: String(params.effectiveDate ?? nowIso.slice(0, 10)), settlement: String(params.settlement ?? ''), at: nowIso, by: auth!.email }
           : { reason, note, at: nowIso, by: auth!.email };
-      const { error } = await supabaseAdmin.from('partners').update({
+      const patch: Record<string, unknown> = {
         status: nextStatus,
         status_reason: reason,
         status_note: note || null,
         status_changed_at: nowIso,
         status_changed_by: auth!.email,
-      }).eq('id', id);
+      };
+      // Approvals (from either the status machine or partner.admin.review)
+      // persist the decision record once, at the moment approval happens.
+      if (nextStatus === 'active') {
+        patch.review_decision = 'APPROVED';
+        patch.reviewed_at = nowIso;
+        patch.reviewed_by = auth!.email;
+      }
+      const { error } = await supabaseAdmin.from('partners').update(patch).eq('id', id);
       if (error) throw new Error(error.message);
       await logPartnerActivity({
         partnerId: id,
-        action: nextStatus === 'suspended' ? 'PARTNER SUSPENDED' : nextStatus === 'terminated' ? 'PARTNER TERMINATED' : nextStatus === 'active' ? 'PARTNER REINSTATED' : 'PARTNER STATUS CHANGED',
+        action: nextStatus === 'suspended' ? 'PARTNER SUSPENDED' : nextStatus === 'terminated' ? 'PARTNER TERMINATED' : nextStatus === 'active' ? 'PARTNER REINSTATED' : nextStatus === 'needs_info' ? 'INFORMATION REQUESTED' : 'PARTNER STATUS CHANGED',
         description: `${partner.partner_code ?? id} (${partner.full_name}) — ${reason}${note ? ` · ${note}` : ''}`,
         actorType: 'admin',
         actor: auth!.email,
@@ -1519,8 +1594,87 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { ok: true, status: nextStatus };
     }
 
+    /* ── Super Admin application review ─────────────────────────────
+     * Structured application decisions for the review queue. Only callers
+     * holding partnership.approve (or Super Admin) reach this code — see
+     * canPartnerAction. Server-side validation below is the approval
+     * gate: the UI confirmation dialog alone is never sufficient.
+     */
+    case 'partner.admin.review': {
+      if (!(await canPartnerAction(auth, 'partner.admin.review'))) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const decision = String(params.decision ?? '');
+      if (!['APPROVE', 'REQUEST_INFO', 'REJECT'].includes(decision)) {
+        throw new Error('Invalid review decision');
+      }
+      const { data: partner } = await supabaseAdmin.from('partners').select('*').eq('id', id).maybeSingle();
+      if (!partner) throw new Error('Partner not found');
+      const prev = String(partner.status ?? 'pending');
+      if (!['pending', 'needs_info'].includes(prev)) {
+        throw new Error(`This application is not awaiting review (current status: ${prev.toUpperCase()})`);
+      }
+      const reason = String(params.reason ?? '').trim().slice(0, 1000);
+      const note = String(params.note ?? '').trim().slice(0, 1000);
+      const nowIso = new Date().toISOString();
+      const patch: Record<string, unknown> = {
+        status_changed_at: nowIso,
+        status_changed_by: auth!.email,
+        review_decision: decision === 'REQUEST_INFO' ? 'INFO_REQUESTED' : decision,
+        reviewed_at: nowIso,
+        reviewed_by: auth!.email,
+        review_notes: reason || note || null,
+      };
+
+      if (decision === 'APPROVE') {
+        // Server-side approval validation: mandatory gates only. RERA stays
+        // optional (recommendation only, per the registration rules) — a
+        // missing RERA number must never block an otherwise-complete Owner,
+        // Builder or Agent application.
+        const missing: string[] = [];
+        if (!String(partner.full_name ?? '').trim()) missing.push('Full name is missing');
+        if (!/^\d{10}$/.test(String(partner.mobile ?? '').replace(/\D/g, ''))) missing.push('A valid 10-digit mobile number is missing');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(partner.email ?? ''))) missing.push('A valid email address is missing');
+        if (partner.terms_accepted !== true) missing.push('Partnership terms have not been accepted');
+        if (String(partner.verification_status ?? '') === 'REJECTED') missing.push('Identity/document verification was rejected and must be re-verified first');
+        if (missing.length) {
+          throw new Error(`Approval blocked — complete these requirements first: ${missing.join('; ')}`);
+        }
+        patch.status = 'active';
+        patch.status_reason = reason || 'Application reviewed and approved';
+        patch.status_note = note || null;
+      } else if (decision === 'REQUEST_INFO') {
+        if (!reason) throw new Error('Describe the information or documents the applicant must provide');
+        patch.status = 'needs_info';
+        patch.status_reason = reason;
+        patch.status_note = note || null;
+      } else {
+        if (!reason) throw new Error('A rejection reason is required');
+        patch.status = 'rejected';
+        patch.status_reason = reason;
+        patch.status_note = note || null;
+      }
+
+      const { error } = await supabaseAdmin.from('partners').update(patch).eq('id', id);
+      if (error) throw new Error(error.message);
+      const action = decision === 'APPROVE' ? 'APPLICATION APPROVED' : decision === 'REQUEST_INFO' ? 'INFORMATION REQUESTED' : 'APPLICATION REJECTED';
+      await logPartnerActivity({
+        partnerId: id,
+        action,
+        description: `${partner.partner_code ?? id} (${partner.full_name}) — ${reason || patch.status_reason as string}${note ? ` · ${note}` : ''}`,
+        actorType: 'admin',
+        actor: auth!.email,
+        relatedType: 'application_review',
+        relatedId: id,
+        prevValue: prev.toUpperCase(),
+        newValue: String(patch.status).toUpperCase(),
+        metadata: { decision, reason, note, termsVersion: partner.terms_version ?? null } as Record<string, unknown>,
+      });
+      return { ok: true, status: patch.status, decision };
+    }
+
     case 'partner.admin.deleteDeps': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.deleteDeps'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const { data: partner } = await supabaseAdmin.from('partners').select('id,partner_code,full_name,partner_type,status').eq('id', id).maybeSingle();
@@ -1552,7 +1706,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.delete': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.delete'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const confirmCode = String(params.confirmCode ?? '').trim().toUpperCase();
@@ -1629,7 +1783,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.verify': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.verify'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const verificationStatus = String(params.verificationStatus ?? '');
@@ -1656,7 +1810,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.update': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.update'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const { data: partner } = await supabaseAdmin.from('partners').select('*').eq('id', id).maybeSingle();
@@ -2011,7 +2165,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.note.add': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.note.add'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const body = String(params.body ?? '').trim().slice(0, 2000);
@@ -2032,7 +2186,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.transaction.create': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.transaction.create'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const partnerId = String(params.partnerId ?? '');
       const transactionValue = Math.max(0, Number(params.transactionValue) || 0);
@@ -2074,7 +2228,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.transaction.update': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.transaction.update'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const { data: prevTxn } = await supabaseAdmin.from('partner_transactions').select('*').eq('id', id).maybeSingle();
@@ -2107,7 +2261,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.dispute.create': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.dispute.create'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const partnerId = String(params.partnerId ?? '');
       const description = String(params.description ?? '').trim().slice(0, 2000);
@@ -2130,7 +2284,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.admin.dispute.update': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!(await canPartnerAction(auth, 'partner.admin.dispute.update'))) throw new Error('Forbidden');
       await ensurePartnersTable();
       const id = String(params.id ?? '');
       const { data: prevDisp } = await supabaseAdmin.from('partner_disputes').select('*').eq('id', id).maybeSingle();
