@@ -4,7 +4,7 @@
  */
 import {
   generateComplianceCalendarWithSummary, evaluateGst, isGstRegistered, gstProfileFromLegacy,
-} from '../../api/ledger-rules.mjs';
+} from '../../api/_lib/ledger-rules.mjs';
 
 let passed = 0;
 let failed = 0;

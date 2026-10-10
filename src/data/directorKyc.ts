@@ -1,7 +1,7 @@
 /**
  * DIRECTOR KYC — auto due-date derivation (DIR-3 KYC web, Rule 12A).
  *
- * The statutory rule lives server-side in api/ledger-rules.mjs (case 'dir3':
+ * The statutory rule lives server-side in api/_lib/ledger-rules.mjs (case 'dir3':
  * due 30 September of FY start + 1, ₹5,000/director penalty, DIN deactivation).
  * This module mirrors that ONE date rule for the browser so every director row
  * derives its own due date from the selected FY — no manual date entry, no

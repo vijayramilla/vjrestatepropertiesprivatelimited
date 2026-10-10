@@ -5,7 +5,7 @@
  */
 import {
   generateComplianceCalendar, rulesForProfile,
-} from '../../api/ledger-rules.mjs';
+} from '../../api/_lib/ledger-rules.mjs';
 import {
   daysUntil, riskBand, complianceToIcs, REMINDER_SCHEDULE,
 } from './ledgerComplianceRules';

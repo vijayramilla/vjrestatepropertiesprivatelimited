@@ -5,8 +5,8 @@
  * behaves like production. Used by the Vite plugin and dev-crm-proxy.mjs.
  */
 import { createClient } from '@supabase/supabase-js';
-import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from '../api/ledger-rules.mjs';
-import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from '../api/ledger-reminders.mjs';
+import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from '../api/_lib/ledger-rules.mjs';
+import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from '../api/_lib/ledger-reminders.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 

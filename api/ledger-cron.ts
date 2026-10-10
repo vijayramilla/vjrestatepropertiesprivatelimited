@@ -1,4 +1,4 @@
-import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './ledger-reminders.mjs';
+import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './_lib/ledger-reminders.mjs';
 
 /**
  * Daily cron endpoint — creates the notifications table on first use and

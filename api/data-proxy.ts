@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
-import { generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from './ledger-rules.mjs';
-import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './ledger-reminders.mjs';
+import { generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from './_lib/ledger-rules.mjs';
+import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './_lib/ledger-reminders.mjs';
 
 /**
  * Site-data write proxy (Firebase Auth → Supabase).

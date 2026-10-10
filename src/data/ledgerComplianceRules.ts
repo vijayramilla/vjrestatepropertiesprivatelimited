@@ -2,7 +2,7 @@
  * LEDGERS — UI-side helpers for the compliance module.
  *
  * The statutory RULES + obligation GENERATION live server-side in
- * api/ledger-rules.mjs (imported by the data proxy and run behind
+ * api/_lib/ledger-rules.mjs (imported by the data proxy and run behind
  * authentication) — the browser never computes statutory data. This file
  * keeps only presentational helpers: entity/registration options for the
  * onboarding wizard, FY labels, risk bands, and ICS export.
