@@ -1797,7 +1797,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.support.adminReply': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!isAdmin(auth) || !auth) throw new Error('Forbidden');
       await ensurePartnersTable();
       const conversationId = String(params.id ?? '');
       const body = String(params.body ?? '').trim().slice(0, 4000);
@@ -1833,7 +1833,7 @@ async function executeAction(action: string, params: any): Promise<any> {
     }
 
     case 'partner.support.adminUpdate': {
-      if (!isAdmin(auth)) throw new Error('Forbidden');
+      if (!isAdmin(auth) || !auth) throw new Error('Forbidden');
       await ensurePartnersTable();
       const conversationId = String(params.id ?? '');
       const { data: conv } = await supabaseAdmin
