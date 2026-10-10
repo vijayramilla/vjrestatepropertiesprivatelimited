@@ -1013,7 +1013,8 @@ async function executeAction(action: string, params: any): Promise<any> {
         // stays locked until the employee's documents are verified. Admins who
         // switch kyc_required off let the employee proceed without it.
         if (me.kyc_required !== false) {
-          const { data: kycRow } = await supabaseCli.from('employee_kyc').select('status').eq('employee_id', empId).maybeSingle().catch(() => ({ data: null }));
+          const { data: kycRow } = await (supabaseCli.from('employee_kyc').select('status').eq('employee_id', empId).maybeSingle() as unknown as Promise<{ data: { status: string } | null }>)
+            .catch(() => ({ data: null }));
           if (!kycRow || kycRow.status !== 'verified') {
             return { data: { employee: { id: empId }, locked: true, reason: 'kyc', clients: [] } };
           }

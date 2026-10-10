@@ -1,5 +1,5 @@
-import type { BlogPost } from '../src/data/blogPosts';
-import { blogPosts as fallbackPosts } from '../src/data/blogPosts';
+import type { BlogPost } from '../src/data/blogPosts.js';
+import { blogPosts as fallbackPosts } from '../src/data/blogPosts.js';
 
 /**
  * Blog RSS feed (`/api/blog-feed`).

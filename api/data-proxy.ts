@@ -2837,7 +2837,8 @@ async function executeAction(action: string, params: any): Promise<any> {
       let r = await supabaseAdmin.from('gst_turnover_records').upsert(clean, { onConflict: clean.id ? 'id' : undefined });
       if (r.error && isMissingRelation(r.error.message)) { await ensureLedgerSchema(); r = await supabaseAdmin.from('gst_turnover_records').upsert(clean as any, { onConflict: clean.id ? 'id' : undefined }); }
       if (r.error) throw new Error(r.error.message);
-      const savedRow = Array.isArray(r.data) ? r.data[0] : r.data;
+      const saved = r.data as { id: string } | { id: string }[] | null;
+      const savedRow = Array.isArray(saved) ? saved[0] : saved;
       return { id: savedRow?.id ?? null };
     }
 
