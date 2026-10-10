@@ -301,12 +301,18 @@ export async function supabaseGetProperty(id: string): Promise<Record<string, un
  * Live site-visit slot availability for TODAY (public — no auth).
  * `remaining` is null when the property has no cap configured.
  */
-export async function fetchSlotAvailability(propertyId: string): Promise<{
+export async function fetchSlotAvailability(propertyId: string, date?: string): Promise<{
   visitSlots: number | null;
   bookedToday: number;
   remaining: number | null;
+  /** echo of the queried date (IST today when omitted) */
+  date?: string;
+  /** earliest bookable date, YYYY-MM-DD (tomorrow in Asia/Kolkata) */
+  minDate?: string;
+  /** with a date param: whether that date accepts bookings */
+  bookable?: boolean;
 }> {
-  return callDataProxy('slots.availability', { propertyId }, { isPublic: true });
+  return callDataProxy('slots.availability', date ? { propertyId, date } : { propertyId }, { isPublic: true });
 }
 
 /* ── LEDGERS: compliance calendar + legal cases ───────────────────────── */

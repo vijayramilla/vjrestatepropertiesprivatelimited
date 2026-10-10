@@ -2191,16 +2191,27 @@ async function executeAction(action, params) {
       if (!params._public) throw new Error('Forbidden');
       const propertyId = String(params.propertyId ?? '');
       if (!propertyId) throw new Error('Property id is required');
-      const todayIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      const istToday = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(params.date ?? '').trim());
+      const dateParam = m ? params.date : null;
+      const targetIso = dateParam ?? istToday;
       const [propRes, leadsRes] = await Promise.all([
         supabaseFetch('GET', `properties?select=visit_slots&id=eq.${encodeURIComponent(propertyId)}`),
-        supabaseFetch('GET', `property_leads?select=id&property_id=eq.${encodeURIComponent(propertyId)}&visit_date=eq.${todayIso}&status=neq.cancelled`),
+        supabaseFetch('GET', `property_leads?select=id&property_id=eq.${encodeURIComponent(propertyId)}&visit_date=eq.${targetIso}&status=neq.cancelled`),
       ]);
       // supabaseFetch resolves to { data: [...], count } — unwrap .data.
       const limit = propRes?.data?.[0]?.visit_slots ?? null;
       const booked = Array.isArray(leadsRes?.data) ? leadsRes.data.length : 0;
       const remaining = limit === null ? null : Math.max(0, limit - booked);
-      return { visitSlots: limit, bookedToday: booked, remaining };
+      const minIso = new Date(Date.now() + 5.5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+      return {
+        visitSlots: limit,
+        bookedToday: booked,
+        remaining,
+        date: targetIso,
+        minDate: minIso,
+        bookable: dateParam ? dateParam >= minIso && (limit === null || booked < limit) : undefined,
+      };
     }
 
     // ── LEDGERS: compliance calendar + legal cases ── mirrors api/data-proxy.ts ──
@@ -2802,6 +2813,31 @@ async function executeAction(action, params) {
       if (rateLimited(`lead:${params._ip}`, 10, 60000)) throw new Error('Too many requests');
       const { propertyId, propertyTitle, leadType, message, propertyType, propertyArea, propertyPrice, propertyMonthlyRental, propertyUrl, visitDate, visitTime, buyerName, buyerPhone, buyerLat, buyerLng, source, listedBy } = params;
       if (!propertyId || !propertyTitle || !message || !leadType) throw new Error('Invalid lead');
+      if (!buyerName || !buyerPhone) throw new Error('Name and mobile number are required');
+      const cleanPhone = String(buyerPhone).replace(/\D/g, '').slice(0, 10);
+      if (cleanPhone.length !== 10) throw new Error('A valid 10-digit mobile number is required');
+      let visitDateIso = null;
+      let visitTimeClean = null;
+      if (leadType === 'book_visit') {
+        const vm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(visitDate ?? '').trim());
+        visitDateIso = vm ? visitDate : null;
+        if (!visitDateIso) throw new Error('A valid visit date (YYYY-MM-DD) is required');
+        // Mandatory one-day-advance rule (Asia/Kolkata): earliest = tomorrow IST.
+        const minIso = new Date(Date.now() + 5.5 * 3600_000 + 86400_000).toISOString().slice(0, 10);
+        if (visitDateIso < minIso) throw new Error(`Site visits must be booked at least one day in advance. The earliest available date is ${minIso}.`);
+        if (visitTime) {
+          visitTimeClean = String(visitTime).trim().slice(0, 16);
+          if (!/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.test(visitTimeClean)) throw new Error('A valid visit time slot is required');
+        }
+        const capRes = await supabaseFetch('GET', `properties?select=visit_slots&id=eq.${encodeURIComponent(String(propertyId))}`);
+        const cap = capRes?.data?.[0]?.visit_slots ?? null;
+        if (cap !== null) {
+          const sameDay = await supabaseFetch('GET', `property_leads?select=id&property_id=eq.${encodeURIComponent(String(propertyId))}&visit_date=eq.${visitDateIso}&status=neq.cancelled`);
+          if (Array.isArray(sameDay?.data) && sameDay.data.length >= cap) {
+            throw new Error(`All visit slots for ${visitDateIso} are booked. Please choose another date.`);
+          }
+        }
+      }
       // Booking source is derived server-side from the property's owning
       // partner (properties.uid) — never from a client-supplied label.
       const { data: listingOwner } = await supabaseFetch('GET', `properties?id=eq.${encodeURIComponent(String(propertyId))}&select=uid&limit=1`);
@@ -2810,7 +2846,7 @@ async function executeAction(action, params) {
         id: leadId, property_id: propertyId, property_title: propertyTitle, property_type: propertyType ?? '', property_area: propertyArea ?? '',
         property_price: propertyPrice ?? '', property_monthly_rental: propertyMonthlyRental ?? null, property_url: propertyUrl ?? '',
         lead_type: leadType, visit_date: visitDate ?? null, visit_time: visitTime ?? null,
-        buyer_name: buyerName ?? null, buyer_phone: buyerPhone ?? null, buyer_lat: buyerLat ?? null, buyer_lng: buyerLng ?? null,
+        buyer_name: buyerName ?? null, buyer_phone: cleanPhone, buyer_lat: buyerLat ?? null, buyer_lng: buyerLng ?? null,
         message, source: source ?? 'card', owner_uid: listingOwner?.[0]?.uid ?? null, listed_by: listedBy ?? null, ip_address: params._ip, status: 'new',
         created_at: new Date().toISOString(),
       });

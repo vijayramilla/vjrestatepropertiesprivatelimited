@@ -117,6 +117,28 @@ const PROPERTY_COLUMNS = new Set([
   'user_email', 'user_display_name', 'city', 'state', 'pincode',
   'full_address', 'created_at', 'updated_at',
 ]);
+
+/* ── Site-visit booking date rules (Asia/Kolkata) ─────────────────────
+ * Visits cannot be booked for today or the past: the earliest eligible
+ * date is the NEXT calendar day in IST. All comparisons use that single
+ * date string; never local/UTC dates of the server, which can drift.
+ */
+function istDateString(nowMs: number = Date.now()): string {
+  return new Date(nowMs + 5.5 * 3600_000).toISOString().slice(0, 10);
+}
+function istTomorrowString(nowMs: number = Date.now()): string {
+  return new Date(nowMs + 5.5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+}
+/** YYYY-MM-DD without timezone drift — returns null for malformed input. */
+function parseVisitDate(raw: unknown): string | null {
+  const s = String(raw ?? '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const dt = new Date(`${s}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime()) || dt.toISOString().slice(0, 10) !== s) return null;
+  return s;
+}
+
 function pickPropertyColumns(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
@@ -2221,15 +2243,61 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!buyerName || !buyerPhone) {
         throw new Error('Name and mobile number are required');
       }
-      if (leadType === 'book_visit' && !visitDate) {
-        throw new Error('Visit date is required');
-      }
       const cleanName = String(buyerName).trim().slice(0, 80);
       const cleanPhone = String(buyerPhone).replace(/\D/g, '').slice(0, 10);
       if (cleanPhone.length !== 10) {
         throw new Error('A valid 10-digit mobile number is required');
       }
-      const message = `Site visit booking — ${propertyTitle}${visitDate ? ` on ${visitDate}` : ''}${visitTime ? ` at ${visitTime}` : ''}`;
+      const isVisit = leadType === 'book_visit';
+      let visitDateIso: string | null = null;
+      let visitTimeClean: string | null = null;
+      if (isVisit) {
+        // ── Mandatory one-day-advance booking rule (Asia/Kolkata) ──
+        visitDateIso = parseVisitDate(visitDate);
+        if (!visitDateIso) {
+          throw new Error('A valid visit date (YYYY-MM-DD) is required');
+        }
+        const minIso = istTomorrowString();
+        if (visitDateIso < minIso) {
+          throw new Error(`Site visits must be booked at least one day in advance. The earliest available date is ${minIso}.`);
+        }
+        if (visitDateIso > istTomorrowString(Date.now() + 120 * 86_400_000)) {
+          throw new Error('Visit date is too far in the future (maximum 120 days ahead).');
+        }
+        if (visitTime) {
+          visitTimeClean = String(visitTime).trim().slice(0, 16);
+          if (!/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.test(visitTimeClean)) {
+            throw new Error('A valid visit time slot is required');
+          }
+        }
+        // Daily cap from the property row (null = uncapped).
+        let capRes = await supabaseAdmin
+          .from('properties')
+          .select('visit_slots')
+          .eq('id', String(propertyId))
+          .maybeSingle();
+        if (capRes.error && isMissingRelation(capRes.error.message)) {
+          await ensureVisitSlotsColumn();
+          capRes = await supabaseAdmin
+            .from('properties')
+            .select('visit_slots')
+            .eq('id', String(propertyId))
+            .maybeSingle();
+        }
+        const cap = (capRes.data as { visit_slots?: number | null } | null)?.visit_slots ?? null;
+        if (cap !== null) {
+          const sameDayRes = await supabaseAdmin
+            .from('property_leads')
+            .select('id')
+            .eq('property_id', String(propertyId))
+            .eq('visit_date', visitDateIso)
+            .neq('status', 'cancelled');
+          if (!sameDayRes.error && (sameDayRes.data ?? []).length >= cap) {
+            throw new Error(`All visit slots for ${visitDateIso} are booked. Please choose another date.`);
+          }
+        }
+      }
+      const message = (params.message ? String(params.message).slice(0, 500) : '') || `Site visit booking — ${propertyTitle}${visitDateIso ? ` on ${visitDateIso}` : ''}${visitTimeClean ? ` at ${visitTimeClean}` : ''}`;
       // Booking source is derived server-side from the property's owning
       // partner (properties.uid) — never from a client-supplied label.
       const { data: listingOwner } = await supabaseAdmin
@@ -2248,8 +2316,8 @@ async function executeAction(action: string, params: any): Promise<any> {
           property_monthly_rental: propertyMonthlyRental ?? null,
           property_url: propertyUrl ?? '',
           lead_type: leadType === 'book_visit' ? 'book_visit' : 'whatsapp',
-          visit_date: visitDate ?? null,
-          visit_time: visitTime ?? null,
+          visit_date: visitDateIso,
+          visit_time: visitTimeClean,
           buyer_name: cleanName,
           buyer_phone: cleanPhone,
           message,
@@ -2538,7 +2606,9 @@ async function executeAction(action: string, params: any): Promise<any> {
       const propertyId = String(params.propertyId ?? '');
       if (!propertyId) throw new Error('Property id is required');
       // Today in IST (site operates in India regardless of server timezone).
-      const todayIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      // Optional `date` param: per-date availability for the booking calendar.
+      const dateParam = parseVisitDate(params.date);
+      const targetIso = dateParam ?? istDateString();
       let propRes = await supabaseAdmin
         .from('properties')
         .select('visit_slots')
@@ -2556,12 +2626,22 @@ async function executeAction(action: string, params: any): Promise<any> {
         .from('property_leads')
         .select('id')
         .eq('property_id', propertyId)
-        .eq('visit_date', todayIso)
+        .eq('visit_date', targetIso)
         .neq('status', 'cancelled');
+      if (leadsRes.error) throw new Error(leadsRes.error.message);
       const limit = propRes.data?.visit_slots ?? null;
       const booked = (leadsRes.data ?? []).length;
       const remaining = limit === null ? null : Math.max(0, limit - booked);
-      return { visitSlots: limit, bookedToday: booked, remaining };
+      const minIso = istTomorrowString();
+      return {
+        visitSlots: limit,
+        bookedToday: booked,
+        remaining,
+        date: targetIso,
+        minDate: minIso,
+        // Fully booked (or past/today = not eligible at all).
+        bookable: dateParam ? dateParam >= minIso && (limit === null || booked < limit) : undefined,
+      };
     }
 
     // ── LEDGERS: compliance calendar + legal cases ──────────────────────

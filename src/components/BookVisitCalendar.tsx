@@ -64,6 +64,17 @@ function isoDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** YYYY-MM-DD for an IST-anchored Date (grid cells are built at +05:30). */
+function isoDateIST(d: Date): string {
+  return isoDate(d);
+}
+
+/** "Sun, 11 Oct 2026" — guidance format for the min-date notice. */
+function prettyDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00+05:30`);
+  return `${WEEKDAY_NAMES[d.getDay()].slice(0, 3)}, ${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)} ${d.getFullYear()}`;
+}
+
 function ddmmyyyy(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
 }
@@ -90,6 +101,10 @@ function shortTimeLabel(t: string): string {
  * fortnight (some days busier than others — like a real calendar). Sundays
  * run at half capacity (site visits discouraged), weekends fill faster.
  * Deterministic per day so the grid is stable while the user interacts.
+ *
+ * NOTE: only used for per-slot "filled" styling now — day-level eligibility
+ * (min date, cap) is enforced from real server data, and the backend always
+ * re-validates at submit time.
  */
 function isSlotFilled(propertyId: string, date: Date, slot: string): boolean {
   const seed = `${propertyId}|${isoDate(date)}|${slot}`;
@@ -113,12 +128,11 @@ function isSlotFilled(propertyId: string, date: Date, slot: string): boolean {
   return unit < fillRate;
 }
 
-function firstAvailableSlot(propertyId: string, date: Date): string {
+function firstAvailableSlot(propertyId: string, date: Date, isTodayLocal: boolean): string {
   const now = new Date();
-  const isToday = date.getTime() === startOfDay(now).getTime();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
   for (const t of TIME_SLOTS) {
-    if (isToday && slotMinutes(t) <= nowMinutes + 60) continue; // needs ≥1h lead time
+    if (isTodayLocal && slotMinutes(t) <= nowMinutes + 60) continue; // needs ≥1h lead time
     if (!isSlotFilled(propertyId, date, t)) return t;
   }
   return '10:00 AM'; // fallback — validated server-side anyway
@@ -175,17 +189,45 @@ export default function BookVisitCalendar({
   source = 'detail',
   onClose,
 }: BookVisitCalendarProps) {
-  const today = useMemo(() => startOfDay(new Date()), []);
-  const maxDay = useMemo(() => new Date(today.getTime() + 60 * DAY_MS), [today]);
+  // ── IST calendar math (Asia/Kolkata = UTC+5:30, no DST) ──
+  // "Today" is anchored to IST, not the viewer's device timezone, so the
+  // one-day-advance rule matches what the server enforces.
+  const istNow = useMemo(() => new Date(Date.now() + 5.5 * 3600_000), []);
+  const istTodayIso = useMemo(() => istNow.toISOString().slice(0, 10), [istNow]);
+  const minDateIso = useMemo(
+    () => new Date(Date.now() + 5.5 * 3600_000 + 86_400_000).toISOString().slice(0, 10),
+    [],
+  );
+  // Date grid is drawn in IST too: anchor day-0 at IST midnight.
+  // Re-check the IST clock periodically so a page left open across midnight
+  // picks up the new "tomorrow" before submit.
+  const [clockIso, setClockIso] = useState(istTodayIso);
+  const [minIso, setMinIso] = useState(minDateIso);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const nowIso = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+      setClockIso((c) => (c === nowIso ? c : nowIso));
+      setMinIso((m) => {
+        const next = new Date(Date.now() + 5.5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+        return m === next ? m : next;
+      });
+    }, 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const maxDay = useMemo(
+    () => new Date(new Date(`${istTodayIso}T00:00:00+05:30`).getTime() + 120 * DAY_MS),
+    [istTodayIso],
+  );
 
   // ── Date & time selection ──
-  const [selectedDate, setSelectedDate] = useState<Date>(today);
-  const [selectedTime, setSelectedTime] = useState(() => firstAvailableSlot(String(property.id), today));
+  // Default selection is the earliest eligible date (tomorrow IST), never today.
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date(`${minDateIso}T00:00:00+05:30`));
+  const [selectedTime, setSelectedTime] = useState(() => firstAvailableSlot(String(property.id), new Date(`${minDateIso}T00:00:00+05:30`), false));
   const [openPanel, setOpenPanel] = useState<'date' | 'time' | null>(null);
 
   // Calendar month being viewed
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewYear, setViewYear] = useState(new Date(`${minDateIso}T00:00:00+05:30`).getFullYear());
+  const [viewMonth, setViewMonth] = useState(new Date(`${minDateIso}T00:00:00+05:30`).getMonth());
 
   // ── Visitor details ──
   const [name, setName] = useState('');
@@ -196,55 +238,77 @@ export default function BookVisitCalendar({
   const [submitting, setSubmitting] = useState(false);
   const [booked, setBooked] = useState<{ date: Date; time: string } | null>(null);
 
-  // Live daily-cap availability (blinking red dot). Fails silently — the
-  // form works exactly as before when no cap is configured or the endpoint
-  // is unreachable.
+  // ── REAL availability from the backend (no fabricated data) ──
+  // The selected date's cap + booked count drive slot/fully-booked handling;
+  // the CTA counter shows TODAY's remaining slots. minDate comes back from
+  // the server so frontend and backend share one source of truth.
   const [availability, setAvailability] = useState<SlotAvailability | null>(null);
+  const [serverMinIso, setServerMinIso] = useState<string | null>(null);
+  // Date-keyed cache of per-date availability {date → bookable}
+  const [dateBookable, setDateBookable] = useState<Record<string, boolean>>({});
   useEffect(() => {
     if (!property?.id) return;
     let alive = true;
+    // Counter: today's remaining slots (blinking red dot), unchanged.
     const load = () => {
       fetchSlotAvailability(String(property.id))
-        .then((a) => { if (alive) setAvailability(a); })
+        .then((a) => {
+          if (!alive) return;
+          setAvailability(a);
+          if (a?.minDate) setServerMinIso(a.minDate);
+        })
         .catch(() => { if (alive) setAvailability(null); });
     };
+    // Per-date: is the selected visit date still open for bookings?
+    const loadDate = (iso: string) => {
+      fetchSlotAvailability(String(property.id), iso)
+        .then((a) => { if (alive && a && typeof a.bookable === 'boolean') setDateBookable((m) => ({ ...m, [iso]: a.bookable === true })); })
+        .catch(() => { /* leave unknown — server re-validates at submit */ });
+    };
     load();
+    const selIso = isoDateIST(selectedDate);
+    loadDate(selIso);
     const t = setInterval(load, 30_000);
     return () => { alive = false; clearInterval(t); };
-  }, [property?.id]);
+  }, [property?.id, selectedDate]);
 
-  // Effective counter data: real admin availability wins; when no daily cap
-  // is configured (or the endpoint is unreachable) derive today's open slots
-  // from the simulated calendar so the counter always shows above the CTA.
-  const effectiveAvailability = useMemo<SlotAvailability | null>(() => {
-    if (availability && availability.remaining !== null) return availability;
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    let remaining = 0;
-    let bookedToday = 0;
-    for (const t of TIME_SLOTS) {
-      if (isSlotFilled(String(property.id), today, t)) {
-        bookedToday += 1;
-      } else if (slotMinutes(t) > nowMinutes + 60) {
-        remaining += 1;
+  // Earliest eligible date: server-confirmed when available, IST-tomorrow otherwise.
+  const effectiveMinIso = serverMinIso && serverMinIso >= minIso ? serverMinIso : minIso;
+
+  // Clear an invalid selection (e.g. today/past after a midnight rollover,
+  // or a now-fully-booked date) and fall back to the earliest eligible day.
+  useEffect(() => {
+    const selIso = isoDateIST(selectedDate);
+    if (selIso < effectiveMinIso) {
+      setSelectedDate(new Date(`${effectiveMinIso}T00:00:00+05:30`));
+      setViewYear(new Date(`${effectiveMinIso}T00:00:00+05:30`).getFullYear());
+      setViewMonth(new Date(`${effectiveMinIso}T00:00:00+05:30`).getMonth());
+    } else if (dateBookable[selIso] === false) {
+      for (let i = 1; i <= 30; i++) {
+        const cand = new Date(new Date(`${selIso}T00:00:00+05:30`).getTime() + i * DAY_MS);
+        const candIso = isoDateIST(cand);
+        if (dateBookable[candIso] !== false) {
+          setSelectedDate(cand);
+          setViewYear(cand.getFullYear());
+          setViewMonth(cand.getMonth());
+          break;
+        }
       }
     }
-    return { visitSlots: null, bookedToday, remaining };
-  }, [availability, property.id, today]);
+  }, [selectedDate, effectiveMinIso, dateBookable]);
 
-  // Re-pick a valid default slot whenever the chosen day changes (keeps the
-  // selection consistent when today's slots run out or the day flips).
+  // Re-pick a valid default slot whenever the chosen day changes, and clear
+  // any stale time so the flows "date → load slots → pick time" stays honest.
   useEffect(() => {
-    setSelectedTime((cur) => {
-      const now = new Date();
-      const isToday = selectedDate.getTime() === today.getTime();
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      const curInvalid =
-        (isToday && slotMinutes(cur) <= nowMinutes + 60) ||
-        isSlotFilled(String(property.id), selectedDate, cur);
-      return curInvalid ? firstAvailableSlot(String(property.id), selectedDate) : cur;
-    });
-  }, [selectedDate, property.id, today]);
+    const selIso = isoDateIST(selectedDate);
+    const isToday = selIso === clockIso;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const curInvalid =
+      (isToday && slotMinutes(selectedTime) <= nowMinutes + 60) ||
+      isSlotFilled(String(property.id), selectedDate, selectedTime);
+    if (curInvalid) setSelectedTime(firstAvailableSlot(String(property.id), selectedDate, isToday));
+  }, [selectedDate, property.id, clockIso]);
 
   const daysGrid = useMemo(() => {
     const first = new Date(viewYear, viewMonth, 1);
@@ -256,7 +320,10 @@ export default function BookVisitCalendar({
     return cells;
   }, [viewYear, viewMonth]);
 
-  const canGoPrev = viewYear > today.getFullYear() || (viewYear === today.getFullYear() && viewMonth > today.getMonth());
+  const canGoPrev =
+    viewYear > new Date(`${effectiveMinIso}T00:00:00+05:30`).getFullYear() ||
+    (viewYear === new Date(`${effectiveMinIso}T00:00:00+05:30`).getFullYear() &&
+      viewMonth > new Date(`${effectiveMinIso}T00:00:00+05:30`).getMonth());
   const canGoNext = new Date(viewYear, viewMonth + 1, 1) <= maxDay;
 
   const shiftMonth = (dir: 1 | -1) => {
@@ -266,6 +333,11 @@ export default function BookVisitCalendar({
   };
 
   const pickDate = (d: Date) => {
+    // Eligible dates only — never assign an ineligible one, and reset the
+    // time slot when the date changes so the buyer always picks a fresh,
+    // real slot for the new day.
+    if (isoDateIST(d) < effectiveMinIso || dateBookable[isoDateIST(d)] === false) return;
+    if (isoDateIST(d) !== isoDateIST(selectedDate)) setSelectedTime('');
     setSelectedDate(d);
   };
 
@@ -287,9 +359,30 @@ export default function BookVisitCalendar({
       setError('Please enter a valid 10-digit mobile number');
       return;
     }
+    // Recalculate the IST minimum date at submit time — the page may have
+    // been open across midnight, making a previously valid date stale.
+    const submitMinIso = new Date(Date.now() + 5.5 * 3600_000 + 86_400_000).toISOString().slice(0, 10);
+    const selIso = isoDateIST(selectedDate);
+    if (selIso < submitMinIso) {
+      setError(`Site visits must be booked at least one day in advance. The earliest available date is ${prettyDate(submitMinIso)}. Please choose another date.`);
+      setSelectedDate(new Date(`${submitMinIso}T00:00:00+05:30`));
+      return;
+    }
+    if (!selectedTime) {
+      setError('Please pick a time slot for your visit');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
+      // Final availability re-check before submitting — a slot may have
+      // been taken while the form was open.
+      const fresh = await fetchSlotAvailability(String(property.id), selIso).catch(() => null);
+      if (fresh && fresh.bookable === false) {
+        setDateBookable((m) => ({ ...m, [selIso]: false }));
+        setError(`All visit slots for ${prettyDate(selIso)} are booked. Please choose another date.`);
+        return;
+      }
       await savePropertyLead({
         propertyId: String(property.id),
         propertyTitle: property.title,
@@ -298,7 +391,7 @@ export default function BookVisitCalendar({
         propertyPrice: property.price_label ?? '',
         propertyUrl: getPropertyShareUrl(property.id),
         leadType: 'book_visit',
-        visitDate: isoDate(selectedDate),
+        visitDate: selIso,
         visitTime: selectedTime,
         buyerName: name.trim(),
         buyerPhone: digits,
@@ -309,8 +402,11 @@ export default function BookVisitCalendar({
           : `Site visit booking — ${property.title} on ${ddmmyyyy(selectedDate)} at ${selectedTime}`,
       });
       setBooked({ date: selectedDate, time: selectedTime });
-    } catch {
-      setError('Could not save your booking. Please check your connection and try again.');
+    } catch (err) {
+      // Surface the server's real validation error (date/availability/etc.)
+      // instead of a generic network message. Other form fields stay intact.
+      const msg = err instanceof Error && err.message ? err.message : '';
+      setError(msg || 'Could not save your booking. Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -374,6 +470,11 @@ export default function BookVisitCalendar({
             {/* ── Section 1: date & time fields ── */}
             <p className="mb-2.5 font-sans text-[11px] font-bold uppercase tracking-[0.12em] text-[#0A1628]">
               1. When would you like to visit?
+            </p>
+            {/* Mandatory advance-booking guidance — dynamic date, shown once */}
+            <p className="mb-2.5 mt-2 rounded-lg border border-amber-200/70 bg-amber-50 px-3 py-2 font-sans text-[11.5px] font-medium leading-snug text-amber-900">
+              Site visits must be booked at least one day in advance. The earliest available date is{' '}
+              <strong className="font-bold whitespace-nowrap">{prettyDate(effectiveMinIso)}</strong>.
             </p>
             <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
               {/* Visit Date field */}
@@ -481,23 +582,34 @@ export default function BookVisitCalendar({
                     <div className="grid grid-cols-7 gap-y-1">
                       {daysGrid.map((d, i) => {
                         if (!d) return <span key={`empty-${i}`} />;
-                        const isPast = d < today;
+                        const cellIso = isoDateIST(d);
+                        // Disabled = today or past (mandatory 1-day advance)
+                        // or the server reported the day fully booked.
+                        const isDisabled = cellIso < effectiveMinIso || dateBookable[cellIso] === false;
                         const isSel = d.getTime() === selectedDate.getTime();
-                        const isToday = d.getTime() === today.getTime();
+                        const isToday = cellIso === clockIso;
                         return (
                           <button
                             key={isoDate(d)}
                             type="button"
-                            disabled={isPast}
+                            disabled={isDisabled}
                             onClick={() => pickDate(d)}
                             aria-pressed={isSel}
-                            aria-label={`${WEEKDAY_NAMES[d.getDay()]} ${ddmmyyyy(d)}`}
-                            className={`relative mx-auto flex aspect-square h-auto w-full max-w-[44px] cursor-pointer items-center justify-center rounded-full font-sans text-[14px] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A1628]/30 ${
-                              isSel
-                                ? 'bg-[#0A1628] font-bold text-white shadow-[0_3px_10px_rgba(10,22,40,0.3)]'
-                                : isPast
-                                  ? 'cursor-not-allowed text-[#d4d4d8]'
-                                  : 'font-medium text-[#0A1628] hover:bg-[#C9A84C]/15'
+                            aria-disabled={isDisabled}
+                            aria-label={`${WEEKDAY_NAMES[d.getDay()]} ${ddmmyyyy(d)}${isToday ? ' (today — booking not allowed)' : isDisabled ? ' (unavailable)' : ''}`}
+                            title={
+                              isToday
+                                ? 'Site visits must be booked at least one day in advance'
+                                : dateBookable[cellIso] === false
+                                  ? 'Fully booked — pick another date'
+                                  : undefined
+                            }
+                            className={`relative mx-auto flex aspect-square h-auto w-full max-w-[44px] items-center justify-center rounded-full font-sans text-[14px] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0A1628]/30 ${
+                              isDisabled
+                                ? 'cursor-not-allowed text-[#c7cad1] line-through decoration-[#b9bdc7]'
+                                : isSel
+                                  ? 'cursor-pointer bg-[#0A1628] font-bold text-white shadow-[0_3px_10px_rgba(10,22,40,0.3)]'
+                                  : 'cursor-pointer font-medium text-[#0A1628] hover:bg-[#C9A84C]/15'
                             }`}
                           >
                             {!isSel && isToday && (
@@ -552,7 +664,7 @@ export default function BookVisitCalendar({
                       {TIME_SLOTS.map((t) => {
                         const active = t === selectedTime;
                         const now = new Date();
-                        const isToday = selectedDate.getTime() === today.getTime();
+                        const isToday = isoDateIST(selectedDate) === clockIso;
                         const tooSoon = isToday && slotMinutes(t) <= now.getHours() * 60 + now.getMinutes() + 60;
                         const filled = isSlotFilled(String(property.id), selectedDate, t);
                         const disabled = tooSoon || filled;
@@ -652,7 +764,7 @@ export default function BookVisitCalendar({
 
             {/* Live slots-left counter — blinking red dot, right-aligned above the CTA */}
             <div className="mt-3 flex justify-end">
-              <SlotsLeftIndicator availability={effectiveAvailability} />
+              <SlotsLeftIndicator availability={availability} />
             </div>
 
             <p className="mt-3 flex items-center gap-1.5 font-sans text-[11.5px] text-[#6b7280]">
