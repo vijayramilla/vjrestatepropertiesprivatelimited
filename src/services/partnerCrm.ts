@@ -227,6 +227,12 @@ export const partnerCrm = {
   updateTransaction: (body: Record<string, unknown>) => call<{ transaction: PartnerTransaction }>('partner.admin.transaction.update', body),
   createDispute: (body: Record<string, unknown>) => call<{ dispute: PartnerDispute }>('partner.admin.dispute.create', body),
   updateDispute: (body: Record<string, unknown>) => call<{ dispute: PartnerDispute }>('partner.admin.dispute.update', body),
+  deleteDeps: (id: string) => call<{
+    partner: { id: string; code: string; name: string; type: string; status: string };
+    deps: { listingsTotal: number; listingsActive: number; leadsTotal: number; transactionsTotal: number; docsTotal: number; supportTotal: number; activityTotal: number };
+  }>('partner.admin.deleteDeps', { id }),
+  deletePartner: (id: string, confirmCode: string) =>
+    call<{ ok: true; deleted: boolean; alreadyDeleted?: boolean; summary?: Record<string, number> }>('partner.admin.delete', { id, confirmCode }),
 };
 
 export const STATUS_BADGE: Record<PartnerLifecycle, { label: string; cls: string }> = {

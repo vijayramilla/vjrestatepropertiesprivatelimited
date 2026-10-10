@@ -3457,6 +3457,99 @@ async function executeAction(action, params) {
       return { ok: true, status: nextStatus };
     }
 
+    // ── Permanent partner deletion — mirrors api/data-proxy.ts ──────
+    case 'partner.admin.deleteDeps': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const ddId = String(params.id ?? '');
+      const { data: ddPartner } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(ddId)}&select=id,partner_code,full_name,partner_type,status&limit=1`);
+      if (!ddPartner?.[0]) throw new Error('Partner not found');
+      const ddp = ddPartner[0];
+      const propsRes = await supabaseFetch('GET', `properties?uid=eq.${encodeURIComponent(String(ddp.id))}&select=id,status,featured`);
+      const propRows = Array.isArray(propsRes?.data) ? propsRes.data : [];
+      const propRowIds = propRows.length > 0 ? propRows.map((p) => String(p.id)) : ['none'];
+      const [leadsRes, txnsRes, convsRes] = await Promise.all([
+        supabaseFetch('GET', `property_leads?select=id&property_id=in.(${propRowIds.map(encodeURIComponent).join(',')})`),
+        supabaseFetch('GET', `partner_transactions?select=id&partner_id=eq.${encodeURIComponent(String(ddp.id))}`),
+        supabaseFetch('GET', `partner_support_conversations?select=id&partner_id=eq.${encodeURIComponent(String(ddp.id))}`),
+      ]);
+      let docsTotal = 0;
+      try {
+        const docsRes = await supabaseFetch('GET', `partner_verification_docs?select=id&partner_id=eq.${encodeURIComponent(String(ddp.id))}`);
+        docsTotal = Array.isArray(docsRes?.data) ? docsRes.data.length : 0;
+      } catch { /* table may not exist yet */ }
+      return {
+        partner: { id: ddp.id, code: ddp.partner_code ?? '', name: ddp.full_name ?? '', type: ddp.partner_type ?? '', status: ddp.status },
+        deps: {
+          listingsTotal: propRows.length,
+          listingsActive: propRows.filter((p) => (p.status ?? 'Active') !== 'Rejected' && (p.status ?? '') !== 'Sold').length,
+          leadsTotal: Array.isArray(leadsRes?.data) ? leadsRes.data.length : 0,
+          transactionsTotal: Array.isArray(txnsRes?.data) ? txnsRes.data.length : 0,
+          docsTotal,
+          supportTotal: Array.isArray(convsRes?.data) ? convsRes.data.length : 0,
+          activityTotal: 0,
+        },
+      };
+    }
+
+    case 'partner.admin.delete': {
+      if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const dlId = String(params.id ?? '');
+      const confirmCode = String(params.confirmCode ?? '').trim().toUpperCase();
+      const { data: dlPartner } = await supabaseFetch('GET', `partners?id=eq.${encodeURIComponent(dlId)}&select=id,partner_code,full_name,partner_type,status,uid,email&limit=1`);
+      const dlp = dlPartner?.[0];
+      if (!dlp) throw new Error('Partner not found');
+      const dlCode = String(dlp.partner_code ?? '').toUpperCase();
+      if (!dlCode || confirmCode !== dlCode) {
+        throw new Error(`Type the partner ID ${dlCode || '(assigned at registration)'} exactly to confirm deletion`);
+      }
+      if (String(dlp.status ?? '') === 'deleted') return { ok: true, alreadyDeleted: true };
+      const deletedAt = new Date().toISOString();
+      const summary = {};
+
+      const propsRes = await supabaseFetch('GET', `properties?uid=eq.${encodeURIComponent(String(dlp.id))}&select=id`);
+      const propIds = (Array.isArray(propsRes?.data) ? propsRes.data : []).map((p) => String(p.id));
+      for (let i = 0; i < propIds.length; i += 100) {
+        const chunk = propIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        await supabaseFetch('PATCH', `properties?id=in.(${chunk.map(encodeURIComponent).join(',')})`, {
+          status: 'Removed', featured: false, updated_at: deletedAt, listed_by: 'VJR Estate (partner removed)',
+        });
+        summary.listingsUnlisted = (summary.listingsUnlisted ?? 0) + chunk.length;
+      }
+
+      const convsRes = await supabaseFetch('GET', `partner_support_conversations?select=id&partner_id=eq.${encodeURIComponent(String(dlp.id))}&status=neq.Resolved`);
+      const convIds = (Array.isArray(convsRes?.data) ? convsRes.data : []).map((c) => String(c.id));
+      for (let i = 0; i < convIds.length; i += 100) {
+        const chunk = convIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        await supabaseFetch('PATCH', `partner_support_conversations?id=in.(${chunk.map(encodeURIComponent).join(',')})`, {
+          status: 'Resolved', resolved_at: deletedAt, resolved_by: params._auth.email,
+        });
+        summary.supportClosed = (summary.supportClosed ?? 0) + chunk.length;
+      }
+
+      await supabaseFetch('PATCH', `partner_transactions?partner_id=eq.${encodeURIComponent(String(dlp.id))}`, { notes: null });
+      await supabaseFetch('DELETE', `partner_notes?partner_id=eq.${encodeURIComponent(String(dlp.id))}`);
+      await supabaseFetch('DELETE', `partners?id=eq.${encodeURIComponent(String(dlp.id))}`);
+      summary.partnerDeleted = 1;
+
+      try {
+        await logPartnerActivity({
+          partnerId: String(dlp.id),
+          action: 'PARTNER PERMANENTLY DELETED',
+          description: `Partner ${dlp.full_name ?? dlp.id} (${dlp.partner_code ?? 'no code'}) was permanently removed by super admin. Listings unlisted, access revoked, support conversations closed. Perpetual references retained: property_leads + partner_transactions rows only.`,
+          actorType: 'admin',
+          actor: params._auth.email,
+          relatedType: 'partner_deletion',
+          relatedId: String(dlp.id),
+        });
+      } catch { /* activity log may be unavailable */ }
+
+      return { ok: true, deleted: true, summary };
+    }
+
     case 'partner.admin.verify': {
       if (!hasPerm(params._auth, 'partners.edit')) throw new Error('Forbidden');
       await ensurePartnersTable();

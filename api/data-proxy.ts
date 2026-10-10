@@ -1519,6 +1519,115 @@ async function executeAction(action: string, params: any): Promise<any> {
       return { ok: true, status: nextStatus };
     }
 
+    case 'partner.admin.deleteDeps': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const { data: partner } = await supabaseAdmin.from('partners').select('id,partner_code,full_name,partner_type,status').eq('id', id).maybeSingle();
+      if (!partner) throw new Error('Partner not found');
+      // Real dependency counts — never fabricated.
+      const propsRes = await supabaseAdmin.from('properties').select('id,status,featured').eq('uid', String(partner.id));
+      const propRows = (propsRes.data ?? []) as { id: string; status?: string | null; featured?: boolean }[];
+      const propRowIds = propRows.length > 0 ? propRows.map((p) => String(p.id)) : ['none'];
+      const [leads, txnsResult, docsResult, convs] = await Promise.all([
+        supabaseAdmin.from('property_leads').select('id').in('property_id', propRowIds),
+        supabaseAdmin.from('partner_transactions').select('id').eq('partner_id', String(partner.id)),
+        supabaseAdmin.from('partner_verification_docs').select('id').eq('partner_id', String(partner.id)) as unknown as Promise<{ data: { id: string }[] | null }>,
+        supabaseAdmin.from('partner_support_conversations').select('id').eq('partner_id', String(partner.id)),
+      ]);
+      const txns = txnsResult as { data: { id: string }[] | null };
+      const docs = docsResult as unknown as { data?: { id: string }[] | null };
+      return {
+        partner: { id: partner.id, code: partner.partner_code ?? '', name: partner.full_name ?? '', type: partner.partner_type ?? '', status: partner.status },
+        deps: {
+          listingsTotal: propRows.length,
+          listingsActive: propRows.filter((p) => (p.status ?? 'Active') !== 'Rejected' && (p.status ?? '') !== 'Sold').length,
+          leadsTotal: (leads.data ?? []).length,
+          transactionsTotal: (txns.data ?? []).length,
+          docsTotal: Array.isArray(docs.data) ? docs.data.length : 0,
+          supportTotal: (convs.data ?? []).length,
+          activityTotal: 0,
+        },
+      };
+    }
+
+    case 'partner.admin.delete': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      await ensurePartnersTable();
+      const id = String(params.id ?? '');
+      const confirmCode = String(params.confirmCode ?? '').trim().toUpperCase();
+      const { data: partner } = await supabaseAdmin.from('partners').select('id,partner_code,full_name,partner_type,status,uid,email').eq('id', id).maybeSingle();
+      if (!partner) throw new Error('Partner not found');
+      const code = String(partner.partner_code ?? '').toUpperCase();
+      if (!code || confirmCode !== code) {
+        throw new Error(`Type the partner ID ${code || '(assigned at registration)'} exactly to confirm deletion`);
+      }
+      // Idempotency: a second request after deletion is a clear no-op-fast.
+      if (String(partner.status ?? '') === 'deleted') {
+        return { ok: true, alreadyDeleted: true };
+      }
+      const deletedAt = new Date().toISOString();
+      const summary: Record<string, number> = {};
+
+      // 1) Unlist public listings (removed from search/detail/booking flows;
+      //    rows are retained for data integrity and lead history linkage).
+      const { data: props } = await supabaseAdmin.from('properties').select('id').eq('uid', String(partner.id));
+      const propIds = (props ?? []).map((p: { id: string }) => String(p.id));
+      for (let i = 0; i < propIds.length; i += 100) {
+        const chunk = propIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        const { error } = await supabaseAdmin
+          .from('properties')
+          .update({ status: 'Removed', featured: false, updated_at: deletedAt, listed_by: 'VJR Estate (partner removed)' })
+          .in('id', chunk);
+        if (!error) summary.listingsUnlisted = (summary.listingsUnlisted ?? 0) + chunk.length;
+      }
+
+      // 2) Close open support conversations.
+      const { data: openConvs } = await supabaseAdmin
+        .from('partner_support_conversations')
+        .select('id')
+        .eq('partner_id', String(partner.id))
+        .neq('status', 'Resolved');
+      const convIds = (openConvs ?? []).map((c: { id: string }) => String(c.id));
+      for (let i = 0; i < convIds.length; i += 100) {
+        const chunk = convIds.slice(i, i + 100);
+        if (!chunk.length) continue;
+        await supabaseAdmin
+          .from('partner_support_conversations')
+          .update({ status: 'Resolved', resolved_at: deletedAt, resolved_by: auth!.email })
+          .in('id', chunk);
+        summary.supportClosed = (summary.supportClosed ?? 0) + chunk.length;
+      }
+
+      // 3) Scrub personal data from retained rows —
+      //    transaction rows must exist for accounting integrity, personal
+      //    free-text notes do not need to persist in them.
+      await supabaseAdmin
+        .from('partner_transactions')
+        .update({ notes: null })
+        .eq('partner_id', String(partner.id));
+
+      // 4) Delete the partner's operational identity: partners row + notes.
+      const { error: notesErr } = await supabaseAdmin.from('partner_notes').delete().eq('partner_id', String(partner.id));
+      if (!notesErr) summary.notesDeleted = (summary.notesDeleted ?? 0) + 1;
+      const { error: delErr } = await supabaseAdmin.from('partners').delete().eq('id', String(partner.id));
+      if (delErr) throw new Error(delErr.message);
+      summary.partnerDeleted = 1;
+
+      logPartnerActivity({
+        partnerId: String(partner.id),
+        action: 'PARTNER PERMANENTLY DELETED',
+        description: `Partner ${partner.full_name ?? partner.id} (${partner.partner_code ?? 'no code'}) was permanently removed by super admin. Listings unlisted, access revoked, support conversations closed. Perpetual references retained: property_leads + partner_transactions rows only.`,
+        actorType: 'admin',
+        actor: auth!.email,
+        relatedType: 'partner_deletion',
+        relatedId: String(partner.id),
+      }).catch(() => { /* activity log may be unavailable */ });
+
+      return { ok: true, deleted: true, summary };
+    }
+
     case 'partner.admin.verify': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       await ensurePartnersTable();

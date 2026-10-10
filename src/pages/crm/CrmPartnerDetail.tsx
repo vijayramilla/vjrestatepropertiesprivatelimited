@@ -55,7 +55,11 @@ export default function CrmPartnerDetail() {
   const [detail, setDetail] = useState<PartnerDetail | null>(null);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<TabKey>('overview');
-  const [dialog, setDialog] = useState<DialogKind>(null);
+  // Deep link: ?openDialog=suspend opens the lifecycle dialog directly
+  // (row-menu shortcut from the Partnership list).
+  const [dialog, setDialog] = useState<DialogKind>(
+    () => (new URLSearchParams(window.location.search).get('openDialog') as DialogKind) ?? null,
+  );
   const [busy, setBusy] = useState(false);
   const [dialogError, setDialogError] = useState('');
 
