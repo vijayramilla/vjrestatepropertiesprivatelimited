@@ -10,7 +10,7 @@ import { PG_MANAGEMENT_ENABLED } from './lib/featureFlags';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import AnyAdminRoute from './components/AnyAdminRoute';
-import CrmRoute from './components/CrmRoute';
+import CrmModuleRoute from './components/CrmModuleRoute';
 import EmployeeRoute from './components/EmployeeRoute';
 import PageLoader from './components/PageLoader';
 
@@ -292,129 +292,129 @@ function AppRoutes() {
       <Route
         path="/crm"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmHome /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/partnership"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmPartnership /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/partnership/partners/:partnerId"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmPartnerDetail /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/leads"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmLeads /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/assigned-clients"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmAssignedClients /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/bookings"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmBookings /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/ledgers"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmLedgers /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/earnings"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEarnings /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/requirements"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><AdminLeads /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/requirements/:id"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><LeadDetail /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/agents"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><AdminAgents /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/employees"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEmployees /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/employees/new"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEmployeeForm /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/employees/:id"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEmployeeDetail /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/employees/:id/dashboard"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEmployeeDashboard /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/employees/:id/edit"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEmployeeForm /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
@@ -436,33 +436,33 @@ function AppRoutes() {
       <Route
         path="/crm/storage"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmStorage /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/attendance"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmAttendance /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/geofences"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmGeofences /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/payroll"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmPayroll /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
@@ -476,17 +476,17 @@ function AppRoutes() {
       <Route
         path="/crm/events"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><CrmEvents /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
       <Route
         path="/crm/profile"
         element={
-          <CrmRoute>
+          <CrmModuleRoute>
             <LazyPage><AdminProfile /></LazyPage>
-          </CrmRoute>
+          </CrmModuleRoute>
         }
       />
     </Routes>

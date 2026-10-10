@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useEffect, useRef, useState, type WheelEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type WheelEvent } from 'react';
 import { auth } from '@/lib/firebase';
 import { leadSupabase } from '@/services/leadSupabase';
 import {
@@ -23,10 +23,34 @@ import {
   Users,
   BookLock,
   Handshake,
+  ShieldCheck,
 } from 'lucide-react';
 import { premiumDisplayName, isSuperAdminEmail } from '@/lib/crmAdminConfig';
 import { useEmployeeSession } from '@/hooks/useEmployeeSession';
 import VJRAIButton from '@/components/ai/VJRAIButton';
+import { CRM_MODULE_REGISTRY } from '@/lib/crmAccessRegistry';
+
+/** Registry module key → lucide icon (visual only; permissions come from grants). */
+const MODULE_ICONS: Record<string, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard,
+  leads: ListChecks,
+  requirements: ClipboardList,
+  assignedClients: Users,
+  bookings: CalendarDays,
+  agents: UserCog,
+  siteVisits: MapPin,
+  ledgers: BookLock,
+  partnership: Handshake,
+  employees: Briefcase,
+  attendance: Clock,
+  geofences: MapPin,
+  payroll: Wallet,
+  events: Megaphone,
+  storage: HardDrive,
+  earnings: IndianRupee,
+  adminUsers: ShieldCheck,
+  crmAccess: ShieldCheck,
+};
 
 type NavItem = {
   id: string;
@@ -92,6 +116,9 @@ export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { col
   const [userInitial, setUserInitial] = useState('V');
   const [userRole, setUserRole] = useState('CRM Admin');
   const [perms, setPerms] = useState<string[] | null>(null);
+  // Trusted CRM grant modules (from admin.verify → server evaluator). null
+  // = super admin/full; {} = no grant (empty custom nav for grantees).
+  const [crmModules, setCrmModules] = useState<Record<string, { actions?: string[] }> | null | undefined>(undefined);
   // Default from the URL so employees never flash the admin nav while the
   // async role check resolves (fixes the "full CRM dashboard flicker" on load).
   const [isEmployee, setIsEmployee] = useState(
@@ -141,6 +168,7 @@ export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { col
       applyRole({ email: u.email, role: undefined });
       leadSupabase.admin.verify().then(p => {
         setPerms(p.permissions ?? null);
+        setCrmModules((p as { crmModules?: Record<string, { actions?: string[] }> | null }).crmModules ?? null);
         applyRole({ email: u.email, role: p.role, data: p.data });
         if (p.data?.display_name) apply(p.data.display_name, p.data.display_name[0].toUpperCase());
       }).catch(() => {});
@@ -151,6 +179,7 @@ export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { col
         applyRole({ email: user.email, role: undefined });
         leadSupabase.admin.verify().then(p => {
           setPerms(p.permissions ?? null);
+          setCrmModules((p as { crmModules?: Record<string, { actions?: string[] }> | null }).crmModules ?? null);
           applyRole({ email: user.email, role: p.role, data: p.data });
           if (p.data?.display_name) apply(p.data.display_name, p.data.display_name[0].toUpperCase());
         }).catch(() => {});
@@ -171,6 +200,28 @@ export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { col
     if (perm.endsWith('.view') && perms.includes(editPerm)) return true;
     return false;
   }
+
+  // ── Registry-driven, grant-aware nav (employees with CRM grants) ──
+  // The Super Admin sees the full classic sidebar; a granted employee sees
+  // only the modules their server-verified grant contains (default-deny).
+  const grantModules = useMemo(() => crmModules ?? null, [crmModules]);
+
+  /** Registry-filtered sections for a granted employee (default-deny). */
+  const registrySections = useMemo(() => {
+    if (!grantModules) return null; // super admin / legacy admins
+    const groups: { key: string; label: string; items: NavItem[] }[] = [];
+    const byGroup: Record<string, NavItem[]> = {};
+    for (const m of CRM_MODULE_REGISTRY) {
+      const acts = grantModules[m.key]?.actions ?? [];
+      if (!acts.includes('view')) continue; // default-deny: no view = hidden
+      const item: NavItem = { id: m.key, title: m.label, icon: MODULE_ICONS[m.key] ?? LayoutDashboard, path: m.route, perm: null };
+      (byGroup[m.group] ??= []).push(item);
+    }
+    for (const [label, items] of Object.entries(byGroup)) {
+      groups.push({ key: label.toLowerCase(), label, items });
+    }
+    return groups.length > 0 ? groups : null;
+  }, [grantModules]);
 
   const isActive = (path: string) => {
     if (path === '/crm') return location.pathname === '/crm';
@@ -289,7 +340,7 @@ export default function CrmSidebar({ collapsed: collapsedProp, onToggle }: { col
           </div>
         ) : (
           <>
-            {SECTIONS.map(section => {
+            {((registrySections ?? SECTIONS) as { key: string; label: string; items: NavItem[] }[]).map((section: { key: string; label: string; items: NavItem[] }) => {
               const visible = section.items.filter(i => canSee(i.perm));
               if (visible.length === 0) return null;
               return (

@@ -17,7 +17,7 @@ import {
 } from '@phosphor-icons/react';
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
-import { isAuthorizedAdmin } from '@/lib/adminAuth';
+import { isAuthorizedAdmin, getCrmGrantModules } from '@/lib/adminAuth';
 import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
 import { usePropertyAccess } from '@/lib/propertyAccess';
 import { callDataProxy, isSupabaseDataEnabled } from '@/lib/supabaseData';
@@ -92,6 +92,20 @@ export default function Navbar() {
   const { canAdd: canAddProperty } = usePropertyAccess();
   const [isPartner, setIsPartner] = useState(false);
   const showAdminDashboard = !!user && isAuthorizedAdmin(user);
+  // Employee CRM entry: shows a CRM link to any signed-in user who has at
+  // least one granted CRM module (or is the Super Admin). The server still
+  // enforces every module; this only determines whether the menu item shows.
+  const [showCrmEntry, setShowCrmEntry] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!user) { setShowCrmEntry(false); return; }
+      const modules = await getCrmGrantModules(user);
+      if (!alive) return;
+      setShowCrmEntry(modules === null || Object.keys(modules).length > 0);
+    })();
+    return () => { alive = false; };
+  }, [user]);
   const isProperties = location.pathname === '/properties';
   const shortlistCount = shortlistedIds.length;
   const hasShortlist = shortlistCount > 0;
@@ -574,6 +588,18 @@ export default function Navbar() {
                     CRM
                   </Link>
                 </>
+              )}
+
+              {showCrmEntry && !showAdminDashboard && (
+                <Link
+                  to="/crm/dashboard"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-black font-medium hover:bg-[#f8f8f8] transition-colors cursor-pointer"
+                  style={{ fontFamily: DM_SANS }}
+                >
+                  <Buildings size={15} weight="regular" color="#5A6472" />
+                  CRM
+                </Link>
               )}
 
               <div className="border-t border-[#f0f0f0] mt-1 px-5 py-4">

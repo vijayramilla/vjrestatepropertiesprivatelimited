@@ -4,6 +4,7 @@ import { leadSupabase } from '@/services/leadSupabase';
 import { auth } from '@/lib/firebase';
 import { supabase } from '@/lib/supabase';
 import CrmSidebar from '@/components/crm/CrmSidebar';
+import CrmAccessManager from '@/components/crm/CrmAccessManager';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Mail, Shield, Trash2, Plus, RefreshCw, UserCog, Pencil, Camera, Calendar } from 'lucide-react';
 import {
@@ -339,6 +340,9 @@ export default function AdminProfile() {
           {profileError && (
             <p className="text-xs text-red-500">{profileError}</p>
           )}
+
+          {/* ── CRM Access Management (Super Admin): directory, grant, manage, audit ── */}
+          <CrmAccessManager />
           {effectiveProfile && (
             <section className="bg-card border border-border rounded-lg p-5">
               <h2 className="text-sm font-semibold text-foreground mb-4">Your Profile</h2>

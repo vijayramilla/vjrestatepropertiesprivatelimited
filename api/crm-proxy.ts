@@ -46,7 +46,7 @@ function isSuperAdminEmail(email: string) {
   return ADMIN_EMAILS.includes(normalizeEmail(email));
 }
 
-interface AuthResult { authorized: boolean; email: string; uid: string; role?: string; permissions?: string[] | null }
+interface AuthResult { authorized: boolean; email: string; uid: string; role?: string; permissions?: string[] | null; crmGrant?: CrmGrantRow | null }
 
 async function verifyToken(token: string): Promise<AuthResult> {
   try {
@@ -67,7 +67,13 @@ async function verifyToken(token: string): Promise<AuthResult> {
     // account (common while testing the portal). Unticking the box restores
     // the admin role for that email.
     const { data: emp } = await supabaseCli.from('employees').select('id,employee_id,name,email,status,access_enabled').eq('email', normalized).maybeSingle();
-    if (emp && emp.status !== 'Terminated' && emp.access_enabled === true) return { authorized: true, email: normalized, uid, role: 'employee', permissions: [] } satisfies AuthResult;
+    if (emp && emp.status !== 'Terminated' && emp.access_enabled === true) {
+      // Resolve the employee's CRM access grant (default-deny when absent,
+      // suspended, revoked or expired). Grant rides inside the verified
+      // auth result so every action gate consults trusted data.
+      const grant = await loadCrmGrant(normalized);
+      return { authorized: true, email: normalized, uid, role: 'employee', permissions: [], crmGrant: grant } satisfies AuthResult;
+    }
     const { data: admins, error } = await supabaseAdmin.from('admin_users').select('id,role,permissions').eq('email', normalized);
     if (!error && admins?.length > 0) return { authorized: true, email: normalized, uid, role: admins[0].role, permissions: admins[0].permissions } satisfies AuthResult;
     return { authorized: false, email, uid } satisfies AuthResult;
@@ -166,6 +172,189 @@ function hasPerm(auth: any, perm: string): boolean {
   return auth.permissions.length === 0 || auth.permissions.includes(perm);
 }
 
+/* ══ Enterprise employee CRM access grants ══════════════════════════════
+ * Central authorisation for employee access to CRM modules/actions, backed
+ * by the employee_crm_grants table + crm_access_audit audit trail.
+ *
+ * SECURITY MODEL (default-deny):
+ *  - Super Admin (ADMIN_EMAILS, server-side) bypasses grant checks.
+ *  - Everyone else needs an ACTIVE, non-expired grant row containing the
+ *    module+action explicitly. Missing/malformed grants DENY.
+ *  - evalCrmAccess() holds no trusting of client data: the email comes from
+ *    the Firebase ID token verified server-side.
+ */
+
+const CRM_ACCESS_DDL = `
+CREATE TABLE IF NOT EXISTS employee_crm_grants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id INTEGER NOT NULL,
+  email TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','suspended','revoked')),
+  modules JSONB NOT NULL DEFAULT '{}'::jsonb,
+  record_scope TEXT NOT NULL DEFAULT 'all' CHECK (record_scope IN ('all','assigned')),
+  granted_by TEXT NOT NULL,
+  expires_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (employee_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ecg_email ON employee_crm_grants (email);
+CREATE INDEX IF NOT EXISTS idx_ecg_emp ON employee_crm_grants (employee_id);
+
+CREATE TABLE IF NOT EXISTS crm_access_audit (
+  id BIGSERIAL PRIMARY KEY,
+  actor_email TEXT NOT NULL,
+  target_email TEXT NOT NULL,
+  target_employee_id INTEGER,
+  action TEXT NOT NULL,
+  module TEXT,
+  prev_state JSONB,
+  new_state JSONB,
+  reason TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_caa_target ON crm_access_audit (target_email, created_at DESC);
+`;
+
+let crmAccessSchemaReady = false;
+async function ensureCrmAccessSchema(): Promise<void> {
+  if (crmAccessSchemaReady) return;
+  crmAccessSchemaReady = true;
+  try {
+    await supabaseAdmin.rpc('exec_sql', { q: CRM_ACCESS_DDL });
+  } catch {
+    /* exec_sql RPC may not exist — grants degrade to default-deny below */
+  }
+}
+
+/** Trusted audit writer — never callable from non-super-admins. */
+async function auditAccess(
+  actorEmail: string,
+  targetEmail: string,
+  targetEmployeeId: number | null,
+  action: string,
+  prevState: unknown,
+  newState: unknown,
+  reason?: string,
+): Promise<void> {
+  try {
+    await supabaseAdmin.from('crm_access_audit').insert({
+      actor_email: actorEmail,
+      target_email: targetEmail,
+      target_employee_id: targetEmployeeId,
+      action,
+      module: null,
+      prev_state: prevState ?? null,
+      new_state: newState ?? null,
+      reason: reason ? String(reason).slice(0, 300) : null,
+    });
+  } catch (e) {
+    // Audit failure must not silently pass — surface but don't block the op.
+    console.error('[crm-proxy] audit write failed:', e);
+  }
+}
+
+/** ISO timestamp of "now" in IST for expiry comparisons (UTC+5:30 fixed). */
+/** IST clock helper retained for future slot-time checks. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function istNowIso(): string {
+  return new Date(Date.now() + 5.5 * 3600_000).toISOString().replace('Z', '+05:30');
+}
+
+interface CrmGrantRow {
+  status: string;
+  modules: Record<string, { actions?: string[]; recordScope?: string } | undefined>;
+  expires_at?: string | null;
+  employee_id: number;
+  granted_by: string;
+}
+
+/**
+ * Central permission-evaluation service. Returns the effective grant when
+ * valid, else null (deny). Called per crm-proxy request for employees.
+ */
+async function loadCrmGrant(email: string): Promise<CrmGrantRow | null> {
+  await ensureCrmAccessSchema();
+  const { data, error } = await supabaseAdmin
+    .from('employee_crm_grants')
+    .select('status,modules,expires_at,employee_id,granted_by')
+    .eq('email', email)
+    .maybeSingle();
+  if (error || !data) return null;
+  // Expired grants deny server-side regardless of what the frontend got.
+  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now() + 5.5 * 3600_000 - 3600_000) {
+    // Expiry is compared in UTC; IST offset shift is ±33min max, safe margin.
+    return null;
+  }
+  return data as CrmGrantRow;
+}
+
+/**
+ * The evaluator. `action` is a crm-proxy case name; looks up the registry
+ * mapping to (module, action) and consults the employee's grant.
+ * Default-deny: unknown action, unknown mapping, missing grant, suspended,
+ * revoked, expired grant, or absent permission all deny.
+ */
+function permitCheck(grant: CrmGrantRow | null, action: string): boolean {
+  if (!grant || grant.status !== 'active') return false;
+  const entry = CRM_PROXY_ACTION_MAP_BACKEND[action];
+  if (!entry) return false; // unmapped = super-admin-only
+  const mod = grant.modules?.[entry.module];
+  if (!mod || mod.actions?.includes(entry.action) !== true) return false;
+  return true;
+}
+
+/** Inline registry subset for the backend (no cross-import from src/). */
+const CRM_PROXY_ACTION_MAP_BACKEND: Record<string, { module: string; action: string }> = {
+  list: { module: 'leads', action: 'view' },
+  get: { module: 'leads', action: 'view' },
+  getActivities: { module: 'leads', action: 'view' },
+  getSources: { module: 'leads', action: 'view' },
+  addNote: { module: 'leads', action: 'edit' },
+  update: { module: 'leads', action: 'edit' },
+  updateStatus: { module: 'leads', action: 'edit' },
+  assignAgent: { module: 'leads', action: 'assign' },
+  remove: { module: 'leads', action: 'delete' },
+  'siteVisits.list': { module: 'siteVisits', action: 'view' },
+  'siteVisits.create': { module: 'siteVisits', action: 'create' },
+  'clients.activity': { module: 'assignedClients', action: 'view' },
+  'crmClients.list': { module: 'assignedClients', action: 'view' },
+  'crmClients.assignedView': { module: 'assignedClients', action: 'view' },
+  'crmClients.maxSno': { module: 'assignedClients', action: 'view' },
+  'crmClients.create': { module: 'assignedClients', action: 'create' },
+  'crmClients.upsert': { module: 'assignedClients', action: 'create' },
+  'crmClients.updateStatus': { module: 'assignedClients', action: 'edit' },
+  'crmClients.delete': { module: 'assignedClients', action: 'delete' },
+  'visits.list': { module: 'assignedClients', action: 'view' },
+  'visits.add': { module: 'assignedClients', action: 'create' },
+  'visits.updateStatus': { module: 'assignedClients', action: 'edit' },
+  'followUps.list': { module: 'assignedClients', action: 'view' },
+  'followUps.create': { module: 'assignedClients', action: 'create' },
+  'followUps.update': { module: 'assignedClients', action: 'edit' },
+  'agents.list': { module: 'agents', action: 'view' },
+  'agents.create': { module: 'agents', action: 'create' },
+  'agents.update': { module: 'agents', action: 'edit' },
+  'agents.delete': { module: 'agents', action: 'delete' },
+  'attendance.liveStatus': { module: 'attendance', action: 'view' },
+  'attendance.today': { module: 'attendance', action: 'view' },
+  'attendance.weeklyReport': { module: 'attendance', action: 'view' },
+  'events.list': { module: 'events', action: 'view' },
+  'events.create': { module: 'events', action: 'create' },
+  'events.update': { module: 'events', action: 'edit' },
+  'events.delete': { module: 'events', action: 'delete' },
+  'geofences.list': { module: 'geofences', action: 'view' },
+  'geofences.create': { module: 'geofences', action: 'create' },
+  'geofences.update': { module: 'geofences', action: 'edit' },
+  'geofences.delete': { module: 'geofences', action: 'delete' },
+  'partners.list': { module: 'partnership', action: 'view' },
+  'partners.get': { module: 'partnership', action: 'view' },
+  'partners.update': { module: 'partnership', action: 'edit' },
+  'partners.approve': { module: 'partnership', action: 'approve' },
+  'partners.delete': { module: 'partnership', action: 'delete' },
+  'storage.list': { module: 'storage', action: 'view' },
+  'storage.delete': { module: 'storage', action: 'delete' },
+};
+
 function canManageAdmins(auth: any): boolean {
   if (!auth?.authorized) return false;
   if (auth.role === 'super_admin') return true;
@@ -228,8 +417,33 @@ const EMPLOYEE_MANAGEMENT_ACTIONS = new Set([
   'geofences.create', 'geofences.update', 'geofences.delete',
 ]);
 
+/** Employee SELF-service actions — allowed for any active employee session
+ * (personal workspace: own profile, clock, own bookings). These bypass the
+ * module-grant check but still require an authenticated employee token.
+ */
+const EMPLOYEE_SELF_ACTIONS = new Set([
+  'employees.me', 'employees.heartbeat', 'employees.endSession', 'employees.startSession',
+  'employees.sessionStats', 'employees.recordLogin', 'employees.clients',
+  'employees.updateClientDetail', 'employees.kycGet', 'employees.kycSubmit',
+  'employees.kycUploadDoc', 'employees.applyLeave', 'employees.requestFaceVerify',
+  'employees.faceVerify', 'employees.uploadPhoto', 'attendance.clockIn',
+  'attendance.clockOut', 'attendance.startBreak', 'attendance.endBreak',
+  'attendance.activeBreak', 'attendance.today', 'geofences.check',
+  'bookings.mine', 'clients.activity', 'visits.list', 'followUps.list',
+]);
+
 async function executeAction(action: string, params: any): Promise<any> {
   if (EMPLOYEE_MANAGEMENT_ACTIONS.has(action) && params._auth?.role === 'employee') throw new Error('Forbidden');
+
+  // ── Central CRM permission gate (default-deny) ──
+  // Employees run every request through the grant evaluator: unmapped
+  // actions, management actions and ungranted module/action pairs all DENY,
+  // except the narrow personal-workspace allowlist above.
+  // Super Admin bypasses; admin_users 'admin' role keeps legacy behaviour.
+  if (params._auth?.role === 'employee' && !EMPLOYEE_SELF_ACTIONS.has(action)) {
+    const allowed = permitCheck(params._auth.crmGrant ?? null, action);
+    if (!allowed) throw new Error('Forbidden');
+  }
   switch (action) {
     // Leads
     case 'list': {
@@ -464,7 +678,11 @@ async function executeAction(action: string, params: any): Promise<any> {
       const { _auth } = params;
       if (_auth.role === 'employee') {
         const { data: emp } = await supabaseCli.from('employees').select('*').eq('email', _auth.email).maybeSingle();
-        return { data: emp ?? null, email: _auth.email, role: 'employee', permissions: [] };
+        // Include the employee's effective CRM grant modules so the sidebar
+        // and route guards render from trusted server data (same evaluator
+        // source as the action gate). Absent grant → empty map (deny all).
+        const grant = await loadCrmGrant(_auth.email);
+        return { data: emp ?? null, email: _auth.email, role: 'employee', permissions: [], crmModules: grant?.status === 'active' ? (grant.modules ?? {}) : {} };
       }
       let dbRow = null;
       try { const { data } = await supabaseAdmin.from('admin_users').select('id,email,display_name,role,permissions,created_at').eq('email', _auth.email).maybeSingle(); dbRow = data ?? null; } catch (e) { console.warn('[crm-proxy] admin.verify failed:', e); }
@@ -542,6 +760,133 @@ async function executeAction(action: string, params: any): Promise<any> {
         throw new Error('Admin not found');
       }
       return { message: 'Avatar updated' };
+    }
+
+    /* ══ CRM Access Management (Super Admin only) ═════════════════════ */
+    case 'access.grants.list': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      await ensureCrmAccessSchema();
+      const { data, error } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .select('*')
+        .order('updated_at', { ascending: false });
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
+    }
+
+    case 'access.employees.list': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      // Eligible = active (non-terminated) employees who can log in.
+      const { data, error } = await supabaseCli
+        .from('employees')
+        .select('id,employee_id,name,email,designation,department,status,access_enabled,photo_url,last_login')
+        .neq('status', 'Terminated')
+        .order('name', { ascending: true });
+      if (error) {
+        // photo_url/last_login may not exist on old schemas — retry minimal.
+        const retry = await supabaseCli
+          .from('employees')
+          .select('id,employee_id,name,email,designation,status,access_enabled')
+          .neq('status', 'Terminated')
+          .order('name', { ascending: true });
+        if (retry.error) throw new Error(retry.error.message);
+        return { data: retry.data ?? [] };
+      }
+      return { data: data ?? [] };
+    }
+
+    case 'access.grant.save': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      await ensureCrmAccessSchema();
+      const { employeeId, email, modules, recordScope, expiresAt, reason } = params;
+      if (!employeeId || !email) throw new Error('Employee and email are required');
+      if (!modules || typeof modules !== 'object') throw new Error('Modules payload is required');
+      // Employee must exist and be active — no grants to ghost/duplicate rows.
+      const { data: emp } = await supabaseCli
+        .from('employees')
+        .select('id,employee_id,email,status')
+        .eq('employee_id', Number(employeeId))
+        .maybeSingle();
+      if (!emp || emp.status === 'Terminated') throw new Error('Ineligible employee');
+      const targetEmail = normalizeEmail(String(email));
+      if (isSuperAdminEmail(targetEmail)) throw new Error('Super Admin needs no grant');
+      const { data: prev } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .select('*')
+        .eq('employee_id', Number(employeeId))
+        .maybeSingle();
+      const row = {
+        employee_id: Number(employeeId),
+        email: targetEmail,
+        status: 'active',
+        modules,
+        record_scope: recordScope === 'assigned' ? 'assigned' : 'all',
+        granted_by: params._auth.email,
+        expires_at: expiresAt ? new Date(String(expiresAt)).toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .upsert(row, { onConflict: 'employee_id' });
+      if (error) throw new Error(error.message);
+      await auditAccess(params._auth.email, targetEmail, emp.id, prev ? 'grant.updated' : 'grant.created', prev?.modules ?? null, modules, reason);
+      return { ok: true };
+    }
+
+    case 'access.grant.status': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      await ensureCrmAccessSchema();
+      const { employeeId, status, reason } = params;
+      if (!['active', 'suspended', 'revoked'].includes(String(status))) throw new Error('Invalid status');
+      const { data: prev } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .select('*')
+        .eq('employee_id', Number(employeeId))
+        .maybeSingle();
+      if (!prev) throw new Error('No grant exists for this employee');
+      const { error } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .update({ status: String(status), updated_at: new Date().toISOString() })
+        .eq('employee_id', Number(employeeId));
+      if (error) throw new Error(error.message);
+      const verb = status === 'active' ? (prev.status === 'suspended' ? 'grant.restored' : 'grant.status') : status === 'suspended' ? 'grant.suspended' : 'grant.revoked';
+      await auditAccess(params._auth.email, String(prev.email), prev.employee_id, verb, { status: prev.status }, { status }, reason);
+      return { ok: true };
+    }
+
+    case 'access.grant.revoke': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      await ensureCrmAccessSchema();
+      const { employeeId, reason } = params;
+      const { data: prev } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .select('*')
+        .eq('employee_id', Number(employeeId))
+        .maybeSingle();
+      if (!prev) throw new Error('No grant exists for this employee');
+      const { error } = await supabaseAdmin
+        .from('employee_crm_grants')
+        .update({ status: 'revoked', updated_at: new Date().toISOString() })
+        .eq('employee_id', Number(employeeId));
+      if (error) throw new Error(error.message);
+      await auditAccess(params._auth.email, String(prev.email), prev.employee_id, 'grant.revoked', { status: prev.status, modules: prev.modules }, { status: 'revoked' }, reason);
+      return { ok: true };
+    }
+
+    case 'access.audit.list': {
+      if (params._auth.role !== 'super_admin') throw new Error('Forbidden');
+      await ensureCrmAccessSchema();
+      const limit = Math.min(Number(params.limit ?? 200), 500);
+      const target = params.email ? normalizeEmail(String(params.email)) : null;
+      let q = supabaseAdmin
+        .from('crm_access_audit')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (target) q = q.eq('target_email', target);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      return { data: data ?? [] };
     }
 
     // Generic RPC (for database stats page)

@@ -465,4 +465,29 @@ export const leadSupabase = {
       return { data: mapSiteVisit(res.data) };
     },
   },
+
+  /* ── CRM Access Management (Super Admin only, server-enforced) ─────── */
+  access: {
+    async employees(): Promise<{ data: any[] }> {
+      return callProxy('access.employees.list', {});
+    },
+    async grants(): Promise<{ data: any[] }> {
+      return callProxy('access.grants.list', {});
+    },
+    async saveGrant(payload: {
+      employeeId: number; email: string; modules: Record<string, { actions: string[]; recordScope: string }>;
+      recordScope: string; expiresAt?: string | null; reason?: string;
+    }): Promise<{ ok: boolean }> {
+      return callProxy('access.grant.save', payload);
+    },
+    async setStatus(employeeId: number, status: 'active' | 'suspended' | 'revoked', reason?: string): Promise<{ ok: boolean }> {
+      return callProxy('access.grant.status', { employeeId, status, reason });
+    },
+    async revoke(employeeId: number, reason?: string): Promise<{ ok: boolean }> {
+      return callProxy('access.grant.revoke', { employeeId, reason });
+    },
+    async audit(email?: string): Promise<{ data: any[] }> {
+      return callProxy('access.audit.list', email ? { email } : {});
+    },
+  },
 };

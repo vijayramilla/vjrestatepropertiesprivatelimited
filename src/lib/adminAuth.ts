@@ -18,7 +18,59 @@ async function fetchCrmVerify(user: User) {
     body: JSON.stringify({ action: 'admin.verify', params: {} }),
   });
   if (!res.ok) return null;
-  return res.json() as Promise<{ role?: string; data?: { id?: string } | null }>;
+  return res.json() as Promise<{ role?: string; data?: { id?: string } | null; crmModules?: Record<string, { actions?: string[]; recordScope?: string }> | null }>;
+}
+
+/* ── Employee CRM grant (route-level, registry-driven) ───────────────────
+ * Session-cached copy of the employee's trusted grant (from admin.verify →
+ * server evaluator) used by the CRM route guard and sidebar. The backend
+ * remains the authority: this cache only decides what renders.
+ */
+export interface CrmGrantModules {
+  [moduleKey: string]: { actions?: string[]; recordScope?: string } | undefined;
+}
+
+let cachedCrmModules: CrmGrantModules | null = null;
+let cachedModulesEmail: string | null = null;
+
+export function invalidateCrmModulesCache(): void {
+  cachedCrmModules = null;
+  cachedModulesEmail = null;
+}
+
+/**
+ * Trusted module map for the signed-in employee. Super Admins get null
+ * (= full access); employees get their grant or {} when none. Guests and
+ * unauthorized users always get {} (deny).
+ */
+export async function getCrmGrantModules(user: User | null | undefined): Promise<CrmGrantModules | null> {
+  if (!user?.email) return {};
+  if (isSuperAdminEmail(user.email)) return null;
+  if (cachedCrmModules !== null && cachedModulesEmail === user.email) return cachedCrmModules;
+  try {
+    const body = await fetchCrmVerify(user);
+    if (!body) return {};
+    cachedModulesEmail = user.email;
+    cachedCrmModules = body.crmModules ?? {};
+    return cachedCrmModules;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Can the current user open `moduleKey`? null modules (super admin) = yes;
+ * {} or missing module = no (default-deny); module needs at least 'view'.
+ */
+export function crmModulesAllow(
+  modules: CrmGrantModules | null,
+  moduleKey: string,
+  action: 'view' | 'create' | 'edit' | 'delete' | 'assign' | 'approve' | 'export' = 'view',
+): boolean {
+  if (modules === null) return true; // super admin
+  const mod = modules?.[moduleKey];
+  if (!mod?.actions) return false;
+  return mod.actions.includes(action);
 }
 
 /**
