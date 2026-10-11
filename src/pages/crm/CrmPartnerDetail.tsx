@@ -407,35 +407,40 @@ function OverviewTab({ detail, stats }: { detail: PartnerDetail; stats: Overview
         </Section>
         {/* Device-reported registration location — aid for verification only,
             NEVER proof of the partner's address. Coordinates and map stay
-            internal to CRM. */}
-        {p.latitude != null && p.longitude != null && (
-          <Section title="Registration Location (Device-Reported)">
-            <KV k="Coordinates" v={<span className="font-mono text-[12px]">{p.latitude}, {p.longitude}</span>} />
-            <KV k="Resolved address" v={p.resolved_address || 'Could not be resolved'} />
-            <KV k="Reported accuracy" v={p.accuracy_meters != null ? `± ${Math.round(Number(p.accuracy_meters))} m` : 'Not reported'} />
-            <KV k="Captured at" v={p.captured_at ? fmtDateTime(p.captured_at) : '—'} />
-            <KV k="Capture status" v={p.location_capture_status ?? '—'} />
-            {p.captured_at && (
-              <a
-                className="mt-2 block overflow-hidden rounded-lg ring-1 ring-black/[0.06]"
-                href={`https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Open location in Google Maps"
-              >
-                <img
-                  src={`https://maps.googleapis.com/maps/api/staticmap?center=${p.latitude},${p.longitude}&zoom=16&size=640x280&scale=2&markers=color:0xC9A84C%7C${p.latitude},${p.longitude}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''}`}
-                  alt="Map of the partner's captured registration location"
-                  className="h-[180px] w-full object-cover"
-                  loading="lazy"
-                />
-              </a>
-            )}
-            <p className="mt-2 text-[10.5px] text-gray-400">
-              Captured from the partner's device browser during registration ({p.capture_method === 'browser_geolocation_gps' ? 'device GPS' : p.capture_method ?? 'device'}). This is a device-reported location, not independently verified proof of the partner's residential address.
-            </p>
-          </Section>
-        )}
+            internal to CRM. Shown even when absent as an explicit status so
+            reviewers never mistake a missing capture for an oversight. */}
+        <Section title="Registration Location (Device-Reported)">
+          {p.latitude != null && p.longitude != null ? (
+            <>
+              <KV k="Coordinates" v={<span className="font-mono text-[12px]">{p.latitude}, {p.longitude}</span>} />
+              <KV k="Resolved address" v={p.resolved_address || 'Could not be resolved'} />
+              <KV k="Reported accuracy" v={p.accuracy_meters != null ? `± ${Math.round(Number(p.accuracy_meters))} m${Number(p.accuracy_meters) > 20 ? ' (below target — treat as approximate)' : ''}` : 'Not reported'} />
+              <KV k="Captured at" v={p.captured_at ? fmtDateTime(p.captured_at) : '—'} />
+              <KV k="Capture status" v={p.location_capture_status ?? '—'} />
+              {p.captured_at && (
+                <a
+                  className="mt-2 block overflow-hidden rounded-lg ring-1 ring-black/[0.06]"
+                  href={`https://www.google.com/maps/search/?api=1&query=${p.latitude},${p.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open location in Google Maps"
+                >
+                  <img
+                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${p.latitude},${p.longitude}&zoom=16&size=640x280&scale=2&markers=color:0xC9A84C%7C${p.latitude},${p.longitude}&key=${import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? ''}`}
+                    alt="Map of the partner's captured registration location"
+                    className="h-[180px] w-full object-cover"
+                    loading="lazy"
+                  />
+                </a>
+              )}
+            </>
+          ) : (
+            <p className="text-[12.5px] font-medium text-gray-500">Location not captured — the partner's device did not report a position during registration, or permission was denied.</p>
+          )}
+          <p className="mt-2 text-[10.5px] text-gray-400">
+            Captured from the partner's device browser during registration ({p.capture_method === 'browser_geolocation_gps' ? 'device GPS' : p.capture_method ?? 'device'}). This is a device-reported location, not independently verified proof of the partner's residential address.
+          </p>
+        </Section>
         <Section title="RERA Information">
           <KV k="RERA Number" v={p.rera_number ? <span className="font-mono">{p.rera_number}</span> : 'Not provided (optional)'} />
           <KV k="RERA Verification" v={(p.verification_items ?? {})['RERA Verification']?.status ?? 'Not verified'} />

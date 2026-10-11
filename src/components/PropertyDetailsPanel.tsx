@@ -6,12 +6,48 @@ import {
   getPlotSubtype,
 } from '@/data/properties';
 import { getAreaSizeLabel } from '@/lib/propertyAreaLabel';
-import { formatCardPricePerSqft } from '@/lib/formatPrice';
+import { formatCardPricePerSqft, formatCardTotalPrice } from '@/lib/formatPrice';
 import { formatArea, formatPlotSizeSqft, formatDimensionsDisplay } from '@/lib/plotLandForm';
 
 const fontUI: CSSProperties = { fontFamily: "'DM Sans', system-ui, sans-serif" };
 
 type DetailRow = { label: string; value: string };
+
+/** Parse the structured furnishing entries written by the listing wizard's
+ * "Flat Furnishings" key: entries are "name=yes" or "name=qty" (qty >=1). */
+export function parseFlatFurnishings(extra: Record<string, string | number> | undefined): { name: string; qty: number | null }[] {
+  const out: { name: string; qty: number | null }[] = [];
+  for (const entry of String(extra?.['Flat Furnishings'] ?? '').split('|').filter(Boolean)) {
+    const eq = entry.lastIndexOf('=');
+    if (eq < 1) continue;
+    const name = entry.slice(0, eq);
+    const raw = entry.slice(eq + 1);
+    if (raw === 'yes') out.push({ name, qty: null });
+    else {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) out.push({ name, qty: n });
+    }
+  }
+  return out;
+}
+
+/** Society amenities saved by the wizard as a pipe-joined label list. */
+export function parseSocietyAmenities(extra: Record<string, string | number> | undefined): string[] {
+  return String(extra?.['Society Amenities'] ?? '').split('|').filter(Boolean);
+}
+
+/**
+ * Gross annual rental yield — a CALCULATION, not a guaranteed return.
+ * Only computed when both annual income and sale price are valid numbers.
+ */
+export function computeGrossAnnualYield(property: Property): number | null {
+  const price = Number(property.price);
+  if (!(price > 0)) return null;
+  const monthly = Number(property.monthlyRentalIncome);
+  if (!(monthly > 0)) return null;
+  const annual = monthly * 12;
+  return (annual / price) * 100;
+}
 
 function str(extra: Record<string, string | number> | undefined, key: string, fallback = '—'): string {
   const v = extra?.[key];
@@ -28,17 +64,37 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
       { label: 'Plot Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Dimensions', value: property.dimensions },
+      { label: 'Building Age', value: str(extra, 'Property Age (Years)') !== '—' ? `${str(extra, 'Property Age (Years)')} years` : property.age },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Rooms', value: String(property.total_units) },
-      { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
+      { label: 'Total Beds', value: str(extra, 'Total Beds') },
+      { label: 'PG Is For', value: str(extra, 'PG Is For') },
+      { label: 'Best Suited For', value: str(extra, 'Best Suited For').replace(/\|/g, ', ') },
+      { label: 'Meals Available', value: str(extra, 'Meals Available') },
+      { label: 'Common Areas', value: str(extra, 'Common Areas').replace(/\|/g, ', ') },
+      { label: 'Occupancy Status', value: property.total_units > 0 && property.occupancy_percent > 0 ? `${property.occupancy_percent}% occupied` : '—' },
+      { label: 'Managed By', value: str(extra, 'Property Managed By') },
+      { label: 'Manager Stays at Property', value: str(extra, 'Manager Stays at Property') },
+      { label: 'Notice Period (Days)', value: str(extra, 'Notice Period (Days)') },
+      { label: 'Lock-in Period (Days)', value: str(extra, 'Lock-in Period (Days)') },
+      { label: 'Sale Price', value: formatCardTotalPrice(property.price) },
+      { label: 'Current Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
       { label: 'Facing', value: property.facing },
-      { label: 'Age', value: property.age },
       { label: 'Amenities', value: property.amenities.join(', ') || '—' },
     ];
   }
 
   if (property.type === 'Residential Rental Income') {
+    const furnishingRows: DetailRow[] = [];
+    const bhk = str(extra, 'BHK Configuration');
+    const bath = str(extra, 'Bathrooms');
+    const balc = str(extra, 'Balconies');
+    if (bhk !== '—') furnishingRows.push({ label: 'Configuration', value: bhk });
+    if (bath !== '—') furnishingRows.push({ label: 'Bathrooms', value: bath });
+    if (balc !== '—') furnishingRows.push({ label: 'Balconies', value: balc });
+    if (str(extra, 'Furnish Type') !== '—') furnishingRows.push({ label: 'Furnish Type', value: str(extra, 'Furnish Type') });
+    if (str(extra, 'Carpet Area (sq.ft)') !== '—') furnishingRows.push({ label: 'Carpet Area', value: `${str(extra, 'Carpet Area (sq.ft)')} sq.ft` });
     return [
       { label: 'Total Area', value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Built-up Area', value: `${property.builtUpAreaSqFt.toLocaleString('en-IN')} sq.ft` },
@@ -46,9 +102,11 @@ function buildDetailRows(property: Property): DetailRow[] {
       { label: 'Dimensions', value: property.dimensions },
       { label: 'Total Floors', value: String(property.floor_count) },
       { label: 'Total Units', value: String(property.total_units) },
+      { label: 'Occupancy Status', value: property.total_units > 0 && property.occupancy_percent > 0 ? `${property.occupancy_percent}% occupied` : '—' },
+      ...furnishingRows,
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
-      { label: 'Rental Yield', value: property.rental_yield ? `${property.rental_yield}%` : '—' },
+      { label: 'Sale Price', value: formatCardTotalPrice(property.price) },
       { label: 'Facing', value: property.facing },
       { label: 'Age', value: property.age },
       { label: 'Loan Eligible', value: str(extra, 'Loan Eligible', 'Yes') },
@@ -57,11 +115,30 @@ function buildDetailRows(property: Property): DetailRow[] {
 
   if (isCommercialProperty(property.type)) {
     const sub = property.commercial_subtype ?? 'Office Space';
+    // Wizard-saved commercial fields — shown only when recorded.
+    const wizardRows: DetailRow[] = [];
+    if (str(extra, 'Possession Status') !== '—') wizardRows.push({ label: 'Possession Status', value: str(extra, 'Possession Status') });
+    if (str(extra, 'Available From') !== '—') wizardRows.push({ label: 'Available From', value: str(extra, 'Available From') });
+    if (str(extra, 'Ownership') !== '—') wizardRows.push({ label: 'Ownership', value: str(extra, 'Ownership') });
+    if (str(extra, 'Suitable For') !== '—') wizardRows.push({ label: 'Suitable For', value: str(extra, 'Suitable For').replace(/\|/g, ', ') });
+    if (str(extra, 'Location Hub') !== '—') wizardRows.push({ label: 'Location Hub', value: str(extra, 'Location Hub') });
+    if (str(extra, 'Carpet Area (sq.ft)') !== '—') wizardRows.push({ label: 'Carpet Area', value: `${str(extra, 'Carpet Area (sq.ft)')} sq.ft` });
+    if (str(extra, 'Entrance Width (ft)') !== '—') wizardRows.push({ label: 'Entrance Width', value: `${str(extra, 'Entrance Width (ft)')} ft` });
+    if (str(extra, 'Ceiling Height (ft)') !== '—') wizardRows.push({ label: 'Ceiling Height', value: `${str(extra, 'Ceiling Height (ft)')} ft` });
+    if (str(extra, 'Located Near') !== '—') wizardRows.push({ label: 'Located Near', value: str(extra, 'Located Near').replace(/\|/g, ', ') });
+    if (str(extra, 'Your Floor') !== '—') wizardRows.push({ label: 'Your Floor', value: str(extra, 'Your Floor') });
+    if (str(extra, 'Parking') !== '—') wizardRows.push({ label: 'Parking', value: str(extra, 'Parking') });
+    if (str(extra, 'Private Washrooms') !== '—') wizardRows.push({ label: 'Private Washrooms', value: str(extra, 'Private Washrooms') });
+    if (str(extra, 'Public Washrooms') !== '—') wizardRows.push({ label: 'Public Washrooms', value: str(extra, 'Public Washrooms') });
+    if (str(extra, 'Property Age (Years)') !== '—') wizardRows.push({ label: 'Age of Property', value: `${str(extra, 'Property Age (Years)')} years` });
     const base: DetailRow[] = [
       { label: 'Monthly Income', value: property.monthly_rental ?? '—' },
       { label: 'Annual Income', value: property.annual_income ?? '—' },
+      { label: 'Sale Price', value: formatCardTotalPrice(property.price) },
+      { label: 'Occupancy Status', value: property.total_units > 0 && property.occupancy_percent > 0 ? `${property.occupancy_percent}% occupied` : '—' },
       { label: getAreaSizeLabel(property.type), value: `${property.area_sqft.toLocaleString('en-IN')} sq.ft` },
       { label: 'Total Floors', value: String(property.floor_count) },
+      ...wizardRows,
       { label: 'Facing', value: property.facing },
       { label: 'Age', value: property.age },
     ];
@@ -234,7 +311,7 @@ function getTypeLabel(property: Property): string {
 }
 
 function groupRows(rows: DetailRow[]): { title: string; rows: DetailRow[] }[] {
-  const incomeLabels = new Set(['Monthly Income', 'Annual Income', 'Rental Yield']);
+  const incomeLabels = new Set(['Monthly Income', 'Annual Income', 'Rental Yield', 'Current Monthly Income', 'Sale Price', 'Price Negotiable', 'Gross Annual Yield', 'Occupancy Status', 'Number of Units']);
   const dimensionLabels = new Set([
     'Built-up Area',
     'Plot Dimensions',
@@ -257,6 +334,10 @@ function groupRows(rows: DetailRow[]): { title: string; rows: DetailRow[] }[] {
 
   for (const row of rows) {
     if (incomeLabels.has(row.label)) {
+      income.push(row);
+    } else if (
+      /Integration|Investment Details/.test(row.label)
+    ) {
       income.push(row);
     } else if (
       dimensionLabels.has(row.label) ||

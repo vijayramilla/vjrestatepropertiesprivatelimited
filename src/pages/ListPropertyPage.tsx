@@ -18,6 +18,7 @@ import {
   Ruler,
   RocketLaunch,
   Star,
+  Plus,
 } from '@phosphor-icons/react';
 import { useAuth } from '@/context/AuthContext';
 import { formatPrice, formatRental, formatYield, formatINR } from '@/lib/formatPrice';
@@ -32,6 +33,7 @@ import {
   getSuggestedKathaGroupId,
 } from '@/data/karnatakaKathas';
 import { enhanceDescription } from '@/utils/aiDescription';
+import FurnishingAmenitiesModal, { type FurnishingSelection } from '@/components/partner/FurnishingAmenitiesModal';
 
 /**
  * Partner listing flow (Agents / Builders / Owners).
@@ -75,6 +77,35 @@ const COMMERCIAL_SUBTYPES = [
 const FACINGS = ['East', 'West', 'North', 'South', 'North-East', 'South-East', 'North-West', 'South-West'];
 
 const AGES = ['New', 'Less than 1 Year', '1-3 Years', '3-5 Years', '5-10 Years', '10+ Years'];
+
+/* ── Residential (Residential Rental Income) configuration options ── */
+const BHK_OPTIONS = ['1 RK', '1 BHK', '1.5 BHK', '2 BHK', '2.5 BHK', '3 BHK', '3.5 BHK', '4 BHK', '4.5 BHK', '5 BHK', '5+ BHK'] as const;
+const BATHROOM_OPTIONS = ['1', '2', '3', '4'] as const;
+const BALCONY_OPTIONS = ['0', '1', '2', '3', '4'] as const;
+const FURNISH_OPTIONS = ['Fully Furnished', 'Semi Furnished', 'Unfurnished'] as const;
+
+/* ── PG (PG Buildings) options ── */
+const PG_GENDER_OPTIONS = ['Girls', 'Boys'] as const;
+const PG_SUITED_FOR_OPTIONS = ['Students', 'Professionals'] as const;
+const PG_COMMON_AREAS = ['Living Room', 'Kitchen', 'Dining Hall', 'Study Room / Library', 'Breakout Room'] as const;
+const PG_MANAGED_BY_OPTIONS = ['Landlord', 'Caretaker', 'Dedicated Professional'] as const;
+const PG_RULE_FIELDS = [
+  'Non Veg Allowed',
+  'Opposite Sex Allowed',
+  'Any Time Allowed',
+  'Visitors Allowed',
+  'Guardian Allowed',
+  'Drinking Allowed',
+  'Smoking Allowed',
+] as const;
+
+/* ── Commercial (Commercial Properties) options ── */
+const COMMERCIAL_SUITABLE_FOR = ['Jewellery', 'Gym', 'Grocery', 'Clinic', 'Footwear', 'Electronics', 'Clothing', 'Others'] as const;
+const COMMERCIAL_LOCATION_HUBS = ['Mall', 'Commercial Project', 'Residential Project', 'Retail Complex/Building', 'Market/High Street', 'Others'] as const;
+const COMMERCIAL_LOCATED_NEAR = ['Entrance', 'Elevator', 'Stairs'] as const;
+const COMMERCIAL_OWNERSHIP_OPTIONS = ['Freehold', 'Leasehold', 'Cooperative Society', 'Power of Attorney'] as const;
+const COMMERCIAL_POSSESSION_OPTIONS = ['Ready to Move', 'Under Construction'] as const;
+const COMMERCIAL_PARKING_OPTIONS = ['Private Parking', 'Public Parking'] as const;
 
 const HIGHLIGHTS = [
   'Bank Loan Eligible',
@@ -131,6 +162,12 @@ interface FormData {
   highlights: string[];
   amenities: string[];
   description: string;
+  /* Existing structured columns, shown per category. */
+  floor_count: number;
+  total_units: number;
+  /* Category-specific attributes, stored in the established extra_details
+   * JSONB column (same pattern the admin form and land cards already use). */
+  extra_details: Record<string, string>;
 }
 
 const INITIAL_FORM: FormData = {
@@ -153,9 +190,12 @@ const INITIAL_FORM: FormData = {
   highlights: [],
   amenities: [],
   description: '',
+  floor_count: 0,
+  total_units: 0,
+  extra_details: {},
 };
 
-type StepErrors = Partial<Record<'title' | 'area' | 'price' | 'photos', string>>;
+type StepErrors = Partial<Record<'title' | 'area' | 'price' | 'photos' | 'extra', string>>;
 
 export default function ListPropertyPage() {
   const navigate = useNavigate();
@@ -186,6 +226,9 @@ export default function ListPropertyPage() {
   const [aiDescLoading, setAiDescLoading] = useState(false);
   const [aiDescError, setAiDescError] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  // Furnishings & society amenities selector (Residential only)
+  const [furnishingModalOpen, setFurnishingModalOpen] = useState(false);
+  const [furnishingsSavedFlash, setFurnishingsSavedFlash] = useState(false);
 
   // Check partner registration whenever a signed-in user lands here.
   useEffect(() => {
@@ -252,6 +295,46 @@ export default function ListPropertyPage() {
     }
     if (s === 1 && !formData.area.trim()) e.area = 'Select the area / locality';
     if (s === 2 && formData.price <= 0) e.price = 'Asking price is required';
+    if (s === 3) {
+      // Category-specific required fields — only validated for the selected
+      // category, exactly as each form presents them.
+      const missing: string[] = [];
+      if (isResidentialType) {
+        if (!formData.extra_details['BHK Configuration']) missing.push('BHK Configuration');
+        if (!formData.extra_details['Bathrooms']) missing.push('Bathrooms');
+        if (!formData.extra_details['Balconies']) missing.push('Balconies');
+        if (!formData.extra_details['Furnish Type']) missing.push('Furnish Type');
+      }
+      if (isPgType) {
+        if (!Number(formData.extra_details['Total Beds'])) missing.push('Total Beds');
+        if (!formData.total_units) missing.push('Units / Rooms');
+        if (!formData.extra_details['PG Is For']) missing.push('PG Is For');
+        if (!extraMulti('Best Suited For').length) missing.push('Best Suited For');
+        if (!formData.extra_details['Meals Available']) missing.push('Meals Available');
+        if (formData.extra_details['Notice Period (Days)'] === undefined) missing.push('Notice Period (Days)');
+        if (formData.extra_details['Lock-in Period (Days)'] === undefined) missing.push('Lock-in Period (Days)');
+        if (!formData.extra_details['Property Managed By']) missing.push('Property Managed By');
+        if (!formData.extra_details['Manager Stays at Property']) missing.push('Manager Stays at Property');
+        missing.push(...PG_RULE_FIELDS.filter((k) => !formData.extra_details[k]));
+      }
+      if (isCommercialType) {
+        if (!formData.extra_details['Possession Status']) missing.push('Possession Status');
+        if (!formData.extra_details['Available From']) missing.push('Available From');
+        if (!formData.extra_details['Ownership']) missing.push('Ownership');
+        if (!extraMulti('Suitable For').length) missing.push('Suitable For');
+        if (!formData.extra_details['Location Hub']) missing.push('Location Hub');
+        if (!formData.extra_details['Carpet Area (sq.ft)'] || Number(formData.extra_details['Carpet Area (sq.ft)']) <= 0) missing.push('Carpet Area (sq.ft)');
+        if (!formData.extra_details['Entrance Width (ft)'] || Number(formData.extra_details['Entrance Width (ft)']) <= 0) missing.push('Entrance Width (ft)');
+        if (!formData.extra_details['Ceiling Height (ft)'] || Number(formData.extra_details['Ceiling Height (ft)']) <= 0) missing.push('Ceiling Height (ft)');
+        if (!extraMulti('Located Near').length) missing.push('Located Near');
+        if (!formData.floor_count) missing.push('Total Floors');
+        if (!formData.extra_details['Your Floor']) missing.push('Your Floor');
+        if (!formData.extra_details['Parking']) missing.push('Parking');
+        if (formData.extra_details['Private Washrooms'] === undefined) missing.push('Private Washrooms');
+        if (formData.extra_details['Public Washrooms'] === undefined) missing.push('Public Washrooms');
+      }
+      if (missing.length) e.extra = `Complete before continuing: ${missing.slice(0, 4).join(', ')}${missing.length > 4 ? ` and ${missing.length - 4} more` : ''}`;
+    }
     if (s === 4) {
       if (pendingFiles.length < 2) e.photos = 'Upload at least 2 photos before publishing';
     }
@@ -365,6 +448,9 @@ export default function ListPropertyPage() {
         highlights: formData.highlights,
         amenities: formData.amenities,
         description: formData.description.trim(),
+        floor_count: formData.floor_count || 0,
+        total_units: formData.total_units || 0,
+        extra_details: Object.keys(formData.extra_details).length ? formData.extra_details : undefined,
         listed_days_ago: 0,
         contact_name: partner.fullName,
         contact_phone: '',
@@ -439,6 +525,78 @@ export default function ListPropertyPage() {
   };
 
   const isCommercialType = formData.type === 'Commercial Properties';
+  const isPgType = formData.type === 'PG Buildings';
+  const isResidentialType = formData.type === 'Residential Rental Income';
+
+  /** extra_details helper: single defined key set, always string values so
+   * it round-trips cleanly through the JSONB column. */
+  const updateExtra = (key: string, value: string) => {
+    setFormData((prev) => {
+      const nextExtra = { ...prev.extra_details };
+      if (value === '') delete nextExtra[key];
+      else nextExtra[key] = value;
+      return { ...prev, extra_details: nextExtra };
+    });
+    setErrors((prev) => { if (!prev.extra) return prev; const n = { ...prev }; delete n.extra; return n; });
+  };
+  const toggleExtraMulti = (key: string, option: string) => {
+    setFormData((prev) => {
+      const current = (prev.extra_details[key] ?? '').split('|').filter(Boolean);
+      const next = current.includes(option) ? current.filter((o) => o !== option) : [...current, option];
+      const nextExtra = { ...prev.extra_details };
+      if (next.length) nextExtra[key] = next.join('|');
+      else delete nextExtra[key];
+      return { ...prev, extra_details: nextExtra };
+    });
+  };
+  const extraMulti = (key: string): string[] => (formData.extra_details[key] ?? '').split('|').filter(Boolean);
+
+  /* Furnishings & society amenities (Residential). Stored in extra_details:
+     - Flat furnishings → "Flat Furnishings" value = pipe-joined entries of
+       "name=yes" or "name=qty" (qty > 0 keeps both identity AND quantity).
+     - Society amenities → "Society Amenities" value = pipe-joined labels.
+     Structured on write so the detail page/filtering can parse it; no
+     display-string storage. Legacy rows with no keys simply appear empty. */
+  const FLAT_FURNISHINGS_KEY = 'Flat Furnishings';
+  const SOCIETY_AMENITIES_KEY = 'Society Amenities';
+
+  const parseFurnishingState = (extra: Record<string, string>): FurnishingSelection => {
+    const items: Record<string, number | 'yes'> = {};
+    for (const entry of (extra[FLAT_FURNISHINGS_KEY] ?? '').split('|').filter(Boolean)) {
+      const eq = entry.lastIndexOf('=');
+      if (eq < 1) continue;
+      const name = entry.slice(0, eq);
+      const raw = entry.slice(eq + 1);
+      if (raw === 'yes') items[name] = 'yes';
+      else {
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) items[name] = n;
+      }
+    }
+    return { items, societyAmenities: extraMulti(SOCIETY_AMENITIES_KEY) };
+  };
+
+  const furnishingsSummary = (): string => {
+    const state = parseFurnishingState(formData.extra_details);
+    const flatN = Object.keys(state.items).length;
+    const socN = state.societyAmenities.length;
+    return flatN + socN === 0 ? '+ Add Furnishings / Amenities' : `Furnishings & Amenities (${flatN + socN})`;
+  };
+
+  const handleFurnishingsSave = async (sel: FurnishingSelection) => {
+    const itemsEntries = Object.entries(sel.items).map(([name, v]) => `${name}=${v}`);
+    setFormData((prev) => ({
+      ...prev,
+      extra_details: {
+        ...prev.extra_details,
+        ...(itemsEntries.length ? { [FLAT_FURNISHINGS_KEY]: itemsEntries.join('|') } : { [FLAT_FURNISHINGS_KEY]: '' }),
+        ...(sel.societyAmenities.length ? { [SOCIETY_AMENITIES_KEY]: sel.societyAmenities.join('|') } : { [SOCIETY_AMENITIES_KEY]: '' }),
+      },
+    }));
+    setFurnishingModalOpen(false);
+    setFurnishingsSavedFlash(true);
+    setTimeout(() => setFurnishingsSavedFlash(false), 2500);
+  };
 
   /* ── Gate screens ──────────────────────────────────────────────────────── */
 
@@ -982,6 +1140,574 @@ export default function ListPropertyPage() {
                   </div>
                 </div>
 
+                {/* ── Category-driven sections — only fields relevant to the
+                    selected category appear (Housing.com-style funnel). ── */}
+                {isResidentialType && (
+                  <div className="admin-section">
+                    <h2 className="admin-section-title">Configuration — Residential</h2>
+                    <p className="-mt-3 mb-5 text-[11px] text-gray-500">BHK, bathrooms, balconies &amp; furnishing</p>
+                    {errors.extra && <p className="mb-4 text-xs text-red-600">{errors.extra}</p>}
+                    <div className="space-y-5">
+                      <div>
+                        <label className="admin-label">BHK Configuration *</label>
+                        <div className="flex flex-wrap gap-2">
+                          {BHK_OPTIONS.map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              aria-pressed={formData.extra_details['BHK Configuration'] === o}
+                              onClick={() => updateExtra('BHK Configuration', formData.extra_details['BHK Configuration'] === o ? '' : o)}
+                              className={`min-h-[40px] cursor-pointer rounded-lg border px-3 text-[12.5px] font-medium transition-colors ${
+                                formData.extra_details['BHK Configuration'] === o
+                                  ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729] shadow-[inset_0_0_0_1px_rgba(201,166,70,0.35)]'
+                                  : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                              }`}
+                            >{o}</button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                          <label className="admin-label">Bathrooms *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {BATHROOM_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Bathrooms'] === o}
+                                onClick={() => updateExtra('Bathrooms', formData.extra_details['Bathrooms'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Bathrooms'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="admin-label">Balconies *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {BALCONY_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Balconies'] === o}
+                                onClick={() => updateExtra('Balconies', formData.extra_details['Balconies'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Balconies'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="admin-label">Furnish Type *</label>
+                        <div className="flex flex-wrap gap-2">
+                          {FURNISH_OPTIONS.map((o) => (
+                            <button
+                              key={o}
+                              type="button"
+                              aria-pressed={formData.extra_details['Furnish Type'] === o}
+                              onClick={() => updateExtra('Furnish Type', formData.extra_details['Furnish Type'] === o ? '' : o)}
+                              className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                formData.extra_details['Furnish Type'] === o
+                                  ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                  : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                              }`}
+                            >{o}</button>
+                          ))}
+                        </div>
+                      </div>
+                      {/* Furnishings & society-amenities selector — Residential only.
+                          Distinct concept from Furnish Type (overall category); no
+                          automatic selections are made when Furnish Type changes. */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setFurnishingModalOpen(true)}
+                          className="group flex min-h-[48px] w-full max-w-[340px] cursor-pointer items-center gap-2 rounded-xl border border-[#c7d2fe] bg-[#eef2ff] px-4 py-2.5 text-left text-[13.5px] font-semibold text-[#3730a3] transition-colors duration-150 hover:bg-[#e0e7ff] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#4338ca]/60 sm:w-auto"
+                        >
+                          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#4338ca] text-white transition-transform group-hover:scale-105">
+                            <Plus size={13} weight="bold" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0">{furnishingsSummary()}</span>
+                        </button>
+                        <p className="mt-1.5 text-[11px] text-gray-400">Actual furniture, appliances &amp; fittings — plus shared society amenities. Separate from the Furnish Type above.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isPgType && (
+                  <>
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">PG Details</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Occupancy, meals &amp; tenancy terms</p>
+                      {errors.extra && <p className="mb-4 text-xs text-red-600">{errors.extra}</p>}
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Total Beds *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 24"
+                            value={formData.extra_details['Total Beds'] ?? ''}
+                            onChange={(e) => updateExtra('Total Beds', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Units / Rooms *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="Total rooms in the building"
+                            value={formData.total_units || ''}
+                            onChange={(e) => updateFormData('total_units', Number(e.target.value))}
+                            className="admin-input"
+                          />
+                          <p className="mt-1.5 text-[11px] text-gray-400">Whole-building count — no need to create one record per room. Beds ≠ rooms; keep both independent.</p>
+                        </div>
+                        <div>
+                          <label className="admin-label">PG Is For *</label>
+                          <div className="flex gap-2">
+                            {PG_GENDER_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['PG Is For'] === o}
+                                onClick={() => updateExtra('PG Is For', formData.extra_details['PG Is For'] === o ? '' : o)}
+                                className={`min-h-[40px] flex-1 max-w-[140px] cursor-pointer rounded-lg border px-3 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['PG Is For'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="admin-label">Best Suited For *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {PG_SUITED_FOR_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={extraMulti('Best Suited For').includes(o)}
+                                onClick={() => toggleExtraMulti('Best Suited For', o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  extraMulti('Best Suited For').includes(o)
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Notice Period (days) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 30"
+                            value={formData.extra_details['Notice Period (Days)'] ?? ''}
+                            onChange={(e) => updateExtra('Notice Period (Days)', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Lock-in Period (days) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 90"
+                            value={formData.extra_details['Lock-in Period (Days)'] ?? ''}
+                            onChange={(e) => updateExtra('Lock-in Period (Days)', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="admin-label">Meals Available *</label>
+                          <div className="flex gap-2">
+                            {['Yes', 'No'].map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Meals Available'] === o}
+                                onClick={() => updateExtra('Meals Available', formData.extra_details['Meals Available'] === o ? '' : o)}
+                                className={`min-h-[40px] w-24 cursor-pointer rounded-lg border text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Meals Available'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">Common Areas</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Shared spaces residents can use — multi-select</p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                        {PG_COMMON_AREAS.map((o) => (
+                          <label key={o} className="flex min-h-[44px] cursor-pointer items-center gap-3 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={extraMulti('Common Areas').includes(o)}
+                              onChange={() => toggleExtraMulti('Common Areas', o)}
+                              className="h-4 w-4"
+                            />
+                            {o}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">Owner / Caretaker Details</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Who manages the property day-to-day</p>
+                      <div className="space-y-5">
+                        <div>
+                          <label className="admin-label">Property Managed By *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {PG_MANAGED_BY_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Property Managed By'] === o}
+                                onClick={() => updateExtra('Property Managed By', formData.extra_details['Property Managed By'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Property Managed By'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="admin-label">Property Manager Stays at Property *</label>
+                          <div className="flex gap-2">
+                            {['Yes', 'No'].map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Manager Stays at Property'] === o}
+                                onClick={() => updateExtra('Manager Stays at Property', formData.extra_details['Manager Stays at Property'] === o ? '' : o)}
+                                className={`min-h-[40px] w-24 cursor-pointer rounded-lg border text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Manager Stays at Property'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">PG Rules</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Every rule needs an explicit Yes or No</p>
+                      <div className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+                        {PG_RULE_FIELDS.map((rule) => (
+                          <div key={rule}>
+                            <p className="mb-2 text-[12.5px] font-medium text-[#475467]">{rule} *</p>
+                            <div className="flex gap-2">
+                              {['Yes', 'No'].map((o) => (
+                                <button
+                                  key={o}
+                                  type="button"
+                                  aria-pressed={formData.extra_details[rule] === o}
+                                  onClick={() => updateExtra(rule, formData.extra_details[rule] === o ? '' : o)}
+                                  className={`min-h-[40px] w-20 cursor-pointer rounded-lg border text-[12.5px] font-medium transition-colors ${
+                                    formData.extra_details[rule] === o
+                                      ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                      : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                  }`}
+                                >{o}</button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {isCommercialType && (
+                  <>
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">Possession &amp; About the Property</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Availability, ownership &amp; commercial suitability</p>
+                      {errors.extra && <p className="mb-4 text-xs text-red-600">{errors.extra}</p>}
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                        <div>
+                          <label className="admin-label">Possession Status *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {COMMERCIAL_POSSESSION_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Possession Status'] === o}
+                                onClick={() => updateExtra('Possession Status', formData.extra_details['Possession Status'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Possession Status'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Available From *</label>
+                          <input
+                            type="date"
+                            value={formData.extra_details['Available From'] ?? ''}
+                            onChange={(e) => updateExtra('Available From', e.target.value)}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Age of Property (years)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 4"
+                            value={formData.extra_details['Property Age (Years)'] ?? ''}
+                            onChange={(e) => updateExtra('Property Age (Years)', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="admin-label">Ownership *</label>
+                          <select
+                            value={formData.extra_details['Ownership'] ?? ''}
+                            onChange={(e) => updateExtra('Ownership', e.target.value)}
+                            className="admin-select"
+                          >
+                            <option value="">Select ownership</option>
+                            {COMMERCIAL_OWNERSHIP_OPTIONS.map((o) => (
+                              <option key={o} value={o}>{o}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="admin-label">Suitable For *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {COMMERCIAL_SUITABLE_FOR.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={extraMulti('Suitable For').includes(o)}
+                                onClick={() => toggleExtraMulti('Suitable For', o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  extraMulti('Suitable For').includes(o)
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                          {extraMulti('Suitable For').includes('Others') && (
+                            <input
+                              type="text"
+                              placeholder="Describe the other business use"
+                              value={formData.extra_details['Suitable For — Others'] ?? ''}
+                              onChange={(e) => updateExtra('Suitable For — Others', e.target.value.slice(0, 120))}
+                              className="admin-input mt-2"
+                            />
+                          )}
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="admin-label">Location Hub *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {COMMERCIAL_LOCATION_HUBS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Location Hub'] === o}
+                                onClick={() => updateExtra('Location Hub', formData.extra_details['Location Hub'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Location Hub'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                          {formData.extra_details['Location Hub'] === 'Others' && (
+                            <input
+                              type="text"
+                              placeholder="Describe the hub type"
+                              value={formData.extra_details['Location Hub — Others'] ?? ''}
+                              onChange={(e) => updateExtra('Location Hub — Others', e.target.value.slice(0, 120))}
+                              className="admin-input mt-2"
+                            />
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">Area &amp; Physical Dimensions</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Numbers only — units are shown with the labels</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Built Up Area (sq.ft) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 2400"
+                            value={formData.built_up_area_sqft || ''}
+                            onChange={(e) => updateFormData('built_up_area_sqft', Number(e.target.value))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Carpet Area (sq.ft) *</label>
+                          <input
+                            type="number"
+                            min="1"
+                            placeholder="e.g. 2000"
+                            value={formData.extra_details['Carpet Area (sq.ft)'] ?? ''}
+                            onChange={(e) => updateExtra('Carpet Area (sq.ft)', e.target.value.replace(/[\D.]/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Entrance Width (feet) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 12"
+                            value={formData.extra_details['Entrance Width (ft)'] ?? ''}
+                            onChange={(e) => updateExtra('Entrance Width (ft)', e.target.value.replace(/[^\d.]/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Ceiling Height (feet) *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="e.g. 11"
+                            value={formData.extra_details['Ceiling Height (ft)'] ?? ''}
+                            onChange={(e) => updateExtra('Ceiling Height (ft)', e.target.value.replace(/[^\d.]/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-section">
+                      <h2 className="admin-section-title">Access, Floors, Parking &amp; Facilities</h2>
+                      <p className="-mt-3 mb-5 text-[11px] text-gray-500">Where it sits in the building, and daily-use facilities</p>
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
+                        <div className="sm:col-span-2">
+                          <label className="admin-label">Located Near *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {COMMERCIAL_LOCATED_NEAR.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={extraMulti('Located Near').includes(o)}
+                                onClick={() => toggleExtraMulti('Located Near', o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  extraMulti('Located Near').includes(o)
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Floors Available</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Ground + 2"
+                            value={formData.extra_details['Floors Available'] ?? ''}
+                            onChange={(e) => updateExtra('Floors Available', e.target.value.slice(0, 60))}
+                            className="admin-input"
+                          />
+                          <p className="mt-1.5 text-[11px] text-gray-400">Supports basements and ground-floor conventions — no forced numbering.</p>
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Total Floors *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 3"
+                            value={formData.floor_count || ''}
+                            onChange={(e) => updateFormData('floor_count', Number(e.target.value))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Your Floor *</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Ground / 1 / Basement"
+                            value={formData.extra_details['Your Floor'] ?? ''}
+                            onChange={(e) => updateExtra('Your Floor', e.target.value.slice(0, 40))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="admin-label">Parking *</label>
+                          <div className="flex flex-wrap gap-2">
+                            {COMMERCIAL_PARKING_OPTIONS.map((o) => (
+                              <button
+                                key={o}
+                                type="button"
+                                aria-pressed={formData.extra_details['Parking'] === o}
+                                onClick={() => updateExtra('Parking', formData.extra_details['Parking'] === o ? '' : o)}
+                                className={`min-h-[40px] cursor-pointer rounded-lg border px-3.5 text-[12.5px] font-medium transition-colors ${
+                                  formData.extra_details['Parking'] === o
+                                    ? 'border-[#C9A646] bg-[#FBF7EC] text-[#0B1729]'
+                                    : 'border-[#e7e4dc] bg-white text-[#475467] hover:border-[#C9A646]/60'
+                                }`}
+                              >{o}</button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Private Washrooms *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Count (0 allowed)"
+                            value={formData.extra_details['Private Washrooms'] ?? ''}
+                            onChange={(e) => updateExtra('Private Washrooms', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-sans text-xs text-gray-500 mb-2">Public Washrooms *</label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="Count (0 allowed)"
+                            value={formData.extra_details['Public Washrooms'] ?? ''}
+                            onChange={(e) => updateExtra('Public Washrooms', e.target.value.replace(/\D/g, ''))}
+                            className="admin-input"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
                 <div className="admin-section">
                   <h2 className="admin-section-title">Highlights</h2>
                   <p className="-mt-3 mb-5 text-[11px] text-gray-500">Tap to select — choose only what genuinely applies</p>
@@ -1222,6 +1948,50 @@ export default function ListPropertyPage() {
                   { label: 'Highlights & amenities', stepNo: 4, rows: [[(formData.highlights.length ? formData.highlights.join(', ') : 'None selected')], [(formData.amenities.length ? formData.amenities.join(', ') : 'None selected')]] },
                   { label: 'Description', stepNo: 4, rows: [[formData.description ? `${formData.description.slice(0, 160)}${formData.description.length > 160 ? '…' : ''}` : 'Not provided']] },
                   { label: 'Media', stepNo: 5, rows: [[`${pendingFiles.length} photo${pendingFiles.length === 1 ? '' : 's'} ready for upload`]] },
+                  // Category-specific review rows — only what applies to the
+                  // selected category is shown; absent cards imply N/A.
+                  ...(isResidentialType ? [{ label: 'Residential configuration', stepNo: 3, rows: [
+                    ['BHK Configuration', 'Bathrooms', 'Balconies'].map((k) => formData.extra_details[k] ? `${k}: ${formData.extra_details[k]}` : '').filter(Boolean),
+                    [`Furnish Type: ${formData.extra_details['Furnish Type'] ?? 'Not selected'}`],
+                  ] }] : []),
+                  ...(isPgType ? [{ label: 'PG details', stepNo: 3, rows: [
+                    [
+                      formData.total_units > 0 ? `Rooms / Units: ${formData.total_units}` : 'Rooms / Units: Not set',
+                      formData.extra_details['Total Beds'] ? `Total Beds: ${formData.extra_details['Total Beds']}` : 'Total Beds: Not set',
+                      formData.extra_details['PG Is For'] ? `PG Is For: ${formData.extra_details['PG Is For']}` : '',
+                      extraMulti('Best Suited For').length ? `Best Suited For: ${extraMulti('Best Suited For').join(', ')}` : '',
+                      formData.extra_details['Meals Available'] ? `Meals: ${formData.extra_details['Meals Available']}` : '',
+                      formData.extra_details['Notice Period (Days)'] !== undefined ? `Notice Period: ${formData.extra_details['Notice Period (Days)']} days` : '',
+                      formData.extra_details['Lock-in Period (Days)'] !== undefined ? `Lock-in: ${formData.extra_details['Lock-in Period (Days)']} days` : '',
+                    ].filter(Boolean),
+                    extraMulti('Common Areas').length ? `Common Areas: ${extraMulti('Common Areas').join(', ')}` : '',
+                    `Managed By: ${formData.extra_details['Property Managed By'] ?? '—'} · Manager stays: ${formData.extra_details['Manager Stays at Property'] ?? '—'}`,
+                    PG_RULE_FIELDS.map((k) => `${k}: ${formData.extra_details[k] ?? '—'}`).join(' · '),
+                  ] }] : []),
+                  ...(isCommercialType ? [{ label: 'Commercial details', stepNo: 3, rows: [
+                    [
+                      `Possession: ${formData.extra_details['Possession Status'] ?? '—'})`.replace(')', '') ,
+                      formData.extra_details['Available From'] ? `Available from: ${formData.extra_details['Available From']}` : '',
+                      `Ownership: ${formData.extra_details['Ownership'] ?? '—'}`,
+                      extraMulti('Suitable For').length ? `Suitable For: ${extraMulti('Suitable For').join(', ')}` : '',
+                      `Location Hub: ${formData.extra_details['Location Hub'] ?? '—'}`,
+                    ].filter(Boolean),
+                    [
+                      formData.extra_details['Carpet Area (sq.ft)'] ? `Carpet ${formData.extra_details['Carpet Area (sq.ft)']} sq.ft` : '',
+                      formData.extra_details['Entrance Width (ft)'] ? `Entrance width ${formData.extra_details['Entrance Width (ft)']} ft` : '',
+                      formData.extra_details['Ceiling Height (ft)'] ? `Ceiling ${formData.extra_details['Ceiling Height (ft)']} ft` : '',
+                    ].filter(Boolean),
+                    [
+                      extraMulti('Located Near').length ? `Near: ${extraMulti('Located Near').join(', ')}` : '',
+                      formData.floor_count > 0 ? `Total floors: ${formData.floor_count}` : '',
+                      `Your floor: ${formData.extra_details['Your Floor'] ?? '—'}`,
+                      `Parking: ${formData.extra_details['Parking'] ?? '—'}`,
+                    ].filter(Boolean),
+                    [
+                      formData.extra_details['Private Washrooms'] !== undefined ? `Private washrooms: ${formData.extra_details['Private Washrooms']}` : '',
+                      formData.extra_details['Public Washrooms'] !== undefined ? `Public washrooms: ${formData.extra_details['Public Washrooms']}` : '',
+                    ].filter(Boolean),
+                  ] }] : []),
                 ].map((card) => (
                   <div key={card.label} className="admin-section">
                     <div className="flex items-center justify-between">
@@ -1355,6 +2125,23 @@ export default function ListPropertyPage() {
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3.5 text-sm text-white shadow-xl">
           {publishError}
         </div>
+      )}
+
+      {/* Furnishings & amenities selector — Residential Building only. */}
+      {isResidentialType && (
+        <>
+          <FurnishingAmenitiesModal
+            open={furnishingModalOpen}
+            onOpenChange={setFurnishingModalOpen}
+            initial={parseFurnishingState(formData.extra_details)}
+            onSave={handleFurnishingsSave}
+          />
+          {furnishingsSavedFlash && (
+            <div role="status" className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-medium text-white shadow-xl">
+              Furnishings &amp; amenities saved
+            </div>
+          )}
+        </>
       )}
     </div>
   );

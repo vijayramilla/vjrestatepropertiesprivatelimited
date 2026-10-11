@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Buildings, HouseLine, Briefcase, CaretLeft, CaretRight, CheckCircle, Clock, ShieldCheck, ListPlus, ArrowRight, SquaresFour } from '@phosphor-icons/react';
 import { useAuth } from '@/context/AuthContext';
 import { callDataProxy } from '@/lib/supabaseData';
-import PartnerLocationCapture, { type CapturedLocation } from '@/components/partner/PartnerLocationCapture';
+import { captureRegistrationLocation, locationFailureMessage, type RegistrationLocation } from '@/lib/registrationLocation';
 
 type PartnerType = 'Owner' | 'Builder' | 'Agent';
 
@@ -22,7 +22,6 @@ const PARTNER_CARDS: {
   icon: typeof HouseLine;
   iconLabel: string;
   title: string;
-  blurb: string;
   commercial: string;
 }[] = [
   {
@@ -30,7 +29,6 @@ const PARTNER_CARDS: {
     icon: HouseLine,
     iconLabel: 'Property owner',
     title: 'Property Owner',
-    blurb: 'List property you own or are legally authorised to market.',
     commercial: 'Zero listing fee · 1% service charge on qualifying sale transactions',
   },
   {
@@ -38,7 +36,6 @@ const PARTNER_CARDS: {
     icon: Buildings,
     iconLabel: 'Builder / developer',
     title: 'Builder / Developer',
-    blurb: 'List eligible projects and available inventory.',
     commercial: 'Zero listing fee · 50:50 share of Net Partnership Revenue',
   },
   {
@@ -46,7 +43,6 @@ const PARTNER_CARDS: {
     icon: Briefcase,
     iconLabel: 'Agent / broker',
     title: 'Agent / Broker',
-    blurb: 'List properties backed by valid mandates or lawful marketing authority.',
     commercial: 'Zero listing fee · 50:50 share of Net Partnership Revenue',
   },
 ];
@@ -185,7 +181,12 @@ export default function PartnerRegisterPage() {
   // single banner is reserved for API failures only.
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState('');
-  const [capturedLocation, setCapturedLocation] = useState<CapturedLocation | null>(null);
+  // Device location is captured automatically inside the SUBMIT handler
+  // (user-initiated → the permission prompt fires from that interaction, not
+  // from page load). A failed capture never blocks registration.
+  const [locationNotice, setLocationNotice] = useState('');
+  const [savedLocationSummary, setSavedLocationSummary] = useState<RegistrationLocation | null>(null);
+  const capturedLocationRef = useRef<RegistrationLocation | null>(null);
   // Full backend response — the success screen must show exactly what the
   // API confirmed (status, partnerCode), never an assumed "active" state.
   const [done, setDone] = useState<null | { commissionPercent: number; status: string; partnerCode: string; fullName: string }>(null);
@@ -252,7 +253,6 @@ export default function PartnerRegisterPage() {
   const goBack = () => {
     setErrors({});
     setApiError('');
-    if (step === 3) setCapturedLocation(null); // stale wizard state must not overwrite a later capture
     setStep((s) => Math.max(s - 1, 0));
   };
 
@@ -265,6 +265,18 @@ export default function PartnerRegisterPage() {
     setApiError('');
     setSaving(true);
     try {
+      // Automatic, user-initiated location capture — part of the existing
+      // submission flow, no separate card or button. Failure is honest and
+      // non-blocking: registration proceeds without a location.
+      const capture = await captureRegistrationLocation();
+      if (capture.location) {
+        capturedLocationRef.current = capture.location;
+        setSavedLocationSummary(capture.location);
+        setLocationNotice('');
+      } else {
+        setLocationNotice(locationFailureMessage(capture.failure ?? 'UNAVAILABLE'));
+      }
+      const captured = capturedLocationRef.current;
       const result = await callDataProxy(
         'partner.register',
         {
@@ -279,14 +291,14 @@ export default function PartnerRegisterPage() {
           city: form.city.trim() || 'Bengaluru',
           termsAccepted: form.consentTerms && form.consentPrivacy && form.consentAccuracy,
           marketingConsent: form.consentMarketing,
-          location: capturedLocation
+          location: captured
             ? {
-                latitude: capturedLocation.latitude,
-                longitude: capturedLocation.longitude,
-                accuracyMeters: capturedLocation.accuracyMeters,
-                capturedAt: capturedLocation.capturedAt,
-                resolvedAddress: capturedLocation.resolvedAddress,
-                status: capturedLocation.status,
+                latitude: captured.latitude,
+                longitude: captured.longitude,
+                accuracyMeters: captured.accuracyMeters,
+                capturedAt: captured.capturedAt,
+                resolvedAddress: captured.resolvedAddress,
+                status: captured.status,
               }
             : null,
         },
@@ -421,7 +433,7 @@ export default function PartnerRegisterPage() {
                   <fieldset className="mt-5">
                     <legend className="sr-only">Partner type</legend>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                      {PARTNER_CARDS.map(({ value, icon: TypeIcon, title, blurb, commercial: cLine }) => {
+                      {PARTNER_CARDS.map(({ value, icon: TypeIcon, title, commercial: cLine }) => {
                         const active = form.partnerType === value;
                         return (
                           <button
@@ -446,7 +458,6 @@ export default function PartnerRegisterPage() {
                               {active && <span className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8a6d1f]">Selected</span>}
                             </span>
                             <span className="mt-3 block text-[14px] font-semibold text-[#101828]">{title}</span>
-                            <span className="mt-1 block text-[12px] leading-relaxed text-[#667085]">{blurb}</span>
                             <span className="mt-2 block text-[11px] font-semibold leading-snug text-[#475467]">{cLine}</span>
                           </button>
                         );
@@ -603,8 +614,6 @@ export default function PartnerRegisterPage() {
                     </p>
                   </section>
 
-                  <PartnerLocationCapture onChange={setCapturedLocation} disabled={saving} />
-
                   <section className="rounded-xl border border-[#E4E7EC] bg-white p-5 sm:p-6">
                     <h2 className="text-[15px] font-semibold text-[#101828]">Platform disclaimer</h2>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-[#667085]">
@@ -655,6 +664,17 @@ export default function PartnerRegisterPage() {
                     </div>
                   </section>
                 </>
+              )}
+
+              {savedLocationSummary && (
+                <div role="status" aria-live="polite" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-[12px] font-medium text-emerald-800">
+                  Location captured (±{Math.round(savedLocationSummary.accuracyMeters ?? 0)} m reported accuracy) and saved with your registration.
+                </div>
+              )}
+              {locationNotice && (
+                <div role="status" aria-live="polite" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-medium text-amber-800">
+                  {locationNotice}
+                </div>
               )}
 
               {apiError && (

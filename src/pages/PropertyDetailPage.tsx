@@ -15,7 +15,7 @@ import BookVisitCalendar from '../components/BookVisitCalendar';
 import VJRAIButton from '../components/ai/VJRAIButton';
 import { useIsDesktop } from '@/components/crm/CrmUi';
 import PropertyEnquiryContactModal from '@/components/PropertyEnquiryContactModal';
-import PropertyDetailsPanel, { PropertyAtAGlance } from '../components/PropertyDetailsPanel';
+import PropertyDetailsPanel, { PropertyAtAGlance, parseFlatFurnishings, parseSocietyAmenities, computeGrossAnnualYield } from '../components/PropertyDetailsPanel';
 
 import {
   Buildings,
@@ -298,6 +298,11 @@ export default function PropertyDetailPage() {
     property.area_guntas,
   );
   const galleryImages = property.images ?? [];
+  // Residential furnishings & amenities — parsed from the writer's structured
+  // extra_details storage; empty for legacy listings (sections simply don't render).
+  const flatFurnishings = parseFlatFurnishings(property.extraDetails);
+  const societyAmenities = parseSocietyAmenities(property.extraDetails);
+  const grossYield = computeGrossAnnualYield(property);
   const handleHeart = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -546,6 +551,87 @@ export default function PropertyDetailPage() {
                 ))}
               </div>
             </div>
+
+            {/* Flat Furnishings (Residential only) — actual saved selections;
+                quantity items render their saved count when > 0. */}
+            {!isLandOrPlot && property.type === 'Residential Rental Income' && flatFurnishings.length > 0 && (
+              <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+                <SectionHeader>Flat Furnishings</SectionHeader>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {flatFurnishings.map((f) => (
+                    <div
+                      key={f.name}
+                      className="flex items-center gap-3 rounded-xl border border-[#f0f1f3] bg-[#fafbfc] px-3.5 py-3"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#22C26E]/15">
+                        <CheckCircle size={12} weight="bold" className="text-[#22C26E]" />
+                      </span>
+                      <span className="min-w-0 text-[12.5px] font-medium text-[#333]" style={fontUI}>
+                        {f.name}
+                        {f.qty != null && <span className="ml-1 text-[#666]">({f.qty})</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Society Amenities (Residential only) — saved selection only;
+                unselected amenities are never shown as available. */}
+            {!isLandOrPlot && property.type === 'Residential Rental Income' && societyAmenities.length > 0 && (
+              <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+                <SectionHeader>Society Amenities</SectionHeader>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {societyAmenities.map((a) => (
+                    <div
+                      key={a}
+                      className="flex items-center gap-3 rounded-xl border border-[#f0f1f3] bg-[#fafbfc] px-3.5 py-3"
+                    >
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#22C26E]/15">
+                        <CheckCircle size={12} weight="bold" className="text-[#22C26E]" />
+                      </span>
+                      <span className="min-w-0 text-[12.5px] font-medium text-[#333]" style={fontUI}>
+                        {a}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rental Income & Investment Returns — shown only when the record
+                has real income data for this property-for-sale listing. */}
+            {showRental && (
+              <div className="mt-10 rounded-2xl border border-[#e8e8ea] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] sm:p-6">
+                <SectionHeader>Rental Income &amp; Investment Returns</SectionHeader>
+                <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {[
+                    property.monthly_rental ? { label: 'Monthly Rental Income', value: property.monthly_rental } : null,
+                    property.annual_income ? { label: 'Annual Rental Income', value: property.annual_income } : null,
+                    property.total_units > 0 ? { label: 'Number of Units', value: String(property.total_units) } : null,
+                    property.occupancy_percent > 0 ? { label: 'Current Occupancy', value: `${property.occupancy_percent}%` } : null,
+                    grossYield != null ? { label: 'Gross Annual Rental Yield', value: `${grossYield.toFixed(1)}% (calculated)` } : null,
+                  ]
+                    .filter(Boolean)
+                    .map((item) => (
+                      <div key={item!.label} className="rounded-xl border border-[#f0f1f3] bg-[#fafbfc] px-4 py-3.5">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8a8f98]" style={fontUI}>
+                          {item!.label}
+                        </p>
+                        <p className="mt-1 font-numeric text-[16px] font-bold tracking-tight text-[#111] sm:text-[17px]" style={fontUI}>
+                          {item!.value}
+                        </p>
+                      </div>
+                    ))}
+                </div>
+                {grossYield != null && (
+                  <p className="mt-3 text-[11px] leading-relaxed text-[#888]" style={fontUI}>
+                    Gross annual rental yield is calculated as annual rental income ÷ asking sale price × 100 from current figures. It is a
+                    calculation, not a guaranteed return, and existing income is subject to the property's tenancy and transaction terms.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Amenities */}
             {!isLandOrPlot && (property.amenities ?? []).length > 0 && (
