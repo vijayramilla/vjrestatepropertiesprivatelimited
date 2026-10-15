@@ -18,7 +18,7 @@ import {
 import { useShortlist } from '../context/ShortlistContext';
 import { useAuth } from '../context/AuthContext';
 import { isAuthorizedAdmin, getCrmGrantModules } from '@/lib/adminAuth';
-import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
+import { PG_MANAGEMENT_ENABLED, PARTNER_REGISTRATION_ENABLED, OPEN_LISTING_ENABLED } from '@/lib/featureFlags';
 import { usePropertyAccess } from '@/lib/propertyAccess';
 import { callDataProxy, isSupabaseDataEnabled } from '@/lib/supabaseData';
 import GoogleSignInButton from './GoogleSignInButton';
@@ -519,16 +519,20 @@ export default function Navbar() {
                   My Activity
                 </Link>
               )}
-              {user && !isPartner && !canAddProperty && (
-                <Link
-                  to="/partner"
-                  onClick={() => setProfileOpen(false)}
-                  className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
-                  style={{ fontFamily: DM_SANS }}
-                >
-                  <PlusCircle size={15} weight="regular" color="#8a8778" />
-                  Become a Partner
-                </Link>
+              {/* "Become a Partner" temporarily hidden — flip
+                  PARTNER_REGISTRATION_ENABLED in src/lib/featureFlags.ts to restore. */}
+              {!PARTNER_REGISTRATION_ENABLED ? null : (
+                user && !isPartner && !canAddProperty && (
+                  <Link
+                    to="/partner"
+                    onClick={() => setProfileOpen(false)}
+                    className="flex items-center gap-3 px-5 py-[10px] text-[13px] text-[#333333] hover:bg-[#f8f8f8] hover:text-black transition-colors cursor-pointer"
+                    style={{ fontFamily: DM_SANS }}
+                  >
+                    <PlusCircle size={15} weight="regular" color="#8a8778" />
+                    Become a Partner
+                  </Link>
+                )
               )}
 
               {/* Partner workspace entry — backend-confirmed partners only. */}
@@ -544,9 +548,10 @@ export default function Navbar() {
                 </Link>
               )}
 
-              {/* Invite-only entry point: visible only to accounts the admin
-                  has granted Add Property access. */}
-              {canAddProperty && (
+              {/* Listing entry point: with open listings every signed-in
+                  user can list (login is enforced on /list-property itself);
+                  with the flag off only invite-granted accounts see the entry. */}
+              {(OPEN_LISTING_ENABLED ? !!user : canAddProperty) && (
                 <Link
                   to="/list-property"
                   onClick={() => setProfileOpen(false)}

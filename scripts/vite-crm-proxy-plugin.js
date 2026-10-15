@@ -4,6 +4,12 @@ import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from '../api/_lib/ledger-remi
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+// OPEN LISTING (temporarily true): any signed-in user may list a property
+// without registering as a partner. Set false to restore the partners-only
+// gate on partner.property.create. Kept in sync with the flag in
+// api/data-proxy.ts (and the frontend flag in src/lib/featureFlags.ts).
+const OPEN_LISTING_ENABLED = true;
+
 function loadServerEnv() {
   // Vite only injects VITE_-prefixed vars into the browser bundle; it does NOT
   // put them on process.env for this Node plugin. The plugin's token check
@@ -4195,7 +4201,12 @@ async function executeAction(action, params) {
       if (!params._auth?.authorized) throw new Error('Forbidden');
       await ensurePartnersTable();
       const partner = await findPartner(params._auth.uid, params._auth.email);
-      if (!partner || partner.status !== 'active') {
+      // OPEN LISTING (temporarily): any signed-in user may list. Registered
+      // active partners are re-stamped from their partner record; everyone
+      // else lists with the requested listed_by role. Flip OPEN_LISTING_ENABLED
+      // back to false (and restore the throw) to make an active partnership
+      // mandatory again — kept in sync with api/data-proxy.ts.
+      if (!OPEN_LISTING_ENABLED && (!partner || partner.status !== 'active')) {
         throw new Error('Register as a VJR Estate partner before listing properties');
       }
       const { uid: _puid, _auth: _pa, _ip: _pip, _public: _ppub, property_code: _pc, agent_id: _paid, ...raw } = params;
@@ -4207,7 +4218,9 @@ async function executeAction(action, params) {
         property_code: finalCode,
         uid: params._auth.uid,
         user_email: params._auth.email,
-        listed_by: partner.partner_type, // Owner | Builder | Agent
+        listed_by: partner && partner.status === 'active'
+          ? partner.partner_type // Owner | Builder | Agent
+          : (['Owner', 'Builder', 'Agent'].includes(String(params.listed_by)) ? String(params.listed_by) : 'Owner'),
         featured: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

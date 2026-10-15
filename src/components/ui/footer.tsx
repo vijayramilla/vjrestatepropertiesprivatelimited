@@ -11,7 +11,7 @@ import {
   Youtube,
 } from 'lucide-react';
 import { siteContact } from '@/data/siteContact';
-import { PG_MANAGEMENT_ENABLED } from '@/lib/featureFlags';
+import { PG_MANAGEMENT_ENABLED, PARTNER_REGISTRATION_ENABLED } from '@/lib/featureFlags';
 
 const SERIF = "'Instrument Serif', Georgia, serif";
 
@@ -55,8 +55,14 @@ const columns = [
   {
     title: 'Partnership',
     links: [
-      { label: 'How Partnership Works', to: '/partner' },
-      { label: 'Register as Partner', to: '/partner-register' },
+      // Partner-registration funnel temporarily hidden — flip
+      // PARTNER_REGISTRATION_ENABLED in src/lib/featureFlags.ts to restore.
+      ...(PARTNER_REGISTRATION_ENABLED
+        ? [
+            { label: 'How Partnership Works', to: '/partner' },
+            { label: 'Register as Partner', to: '/partner-register' },
+          ]
+        : []),
       { label: 'List Your Property', to: '/list-property' },
       { label: 'Partner Terms', to: '/partner-terms' },
       { label: 'Partner Privacy', to: '/partner-privacy' },

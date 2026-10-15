@@ -133,9 +133,14 @@ ok(src.includes("if (auth.role === 'super_admin') return true;"), 'super admin b
 ok(src.includes("grant.status !== 'active'") && src.includes('expires_at'),
   'employee grants enforce active status + expiry');
 
-/* ── 5. Listing eligibility stays backend-enforced ── */
-ok(src.includes("if (!partner || partner.status !== 'active')"),
-  'partner.property.create blocks non-active partners (server-side)');
+/* ── 5. Listing eligibility stays backend-enforced ──
+ * OPEN LISTING (temporarily): non-partner signed-in users may list with their
+ * chosen Owner/Builder/Agent role. The partners-only throw must remain wired
+ * behind the flag so the gate returns with one flip. */
+ok(src.includes("if (!OPEN_LISTING_ENABLED && (!partner || partner.status !== 'active'))"),
+  'partner.property.create gate stays wired behind OPEN_LISTING_ENABLED (server-side)');
+ok(pluginSrc.includes("if (!OPEN_LISTING_ENABLED && (!partner || partner.status !== 'active'))"),
+  'dev proxy mirrors the flag-gated partner gate');
 ok(src.includes("'REMOVED'") || true, 'deletion policy unchanged (checked in dedicated tests)');
 
 /* ── 6. Resubmission policy ── */

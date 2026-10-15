@@ -23,6 +23,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { formatPrice, formatRental, formatYield, formatINR } from '@/lib/formatPrice';
 import { callDataProxy, isSupabaseDataEnabled, propertyDocToRow } from '@/lib/supabaseData';
+import { OPEN_LISTING_ENABLED } from '@/lib/featureFlags';
 import { uploadPropertyImages } from '@/lib/propertyImages';
 import AreaLocalityPicker from '@/components/admin/AreaLocalityPicker';
 import {
@@ -36,13 +37,14 @@ import { enhanceDescription } from '@/utils/aiDescription';
 import FurnishingAmenitiesModal, { type FurnishingSelection } from '@/components/partner/FurnishingAmenitiesModal';
 
 /**
- * Partner listing flow (Agents / Builders / Owners).
+ * Listing flow (Owners / Builders / Agents).
  *
  * Frontend mirrors the admin Add Property wizard one-to-one (same navy & gold
  * theme, same step structure) — but the backend is a separate pipeline:
- * `partner.property.create` (data-proxy), which requires an active partner
- * registration instead of the invite-only `can_add_property` grant the admin
- * flow uses. Admin add-property stays untouched at /admin/properties/new.
+ * `partner.property.create` (data-proxy). Registered partners are re-stamped
+ * from their verified partner record; with OPEN_LISTING_ENABLED any signed-in
+ * user can list without a partnership (they pick Owner / Builder / Agent).
+ * Admin add-property stays untouched at /admin/properties/new.
  */
 
 /** Housing.com-style guided flow: one decision per screen. */
@@ -210,6 +212,8 @@ export default function ListPropertyPage() {
   // Partner gate state
   const [checking, setChecking] = useState(true);
   const [partner, setPartner] = useState<PartnerInfo | null>(null);
+  // Self-listers without a partnership pick their category at publish time.
+  const [listingRole, setListingRole] = useState<'Owner' | 'Builder' | 'Agent'>('Owner');
 
   // Wizard state
   const [step, setStep] = useState(0);
@@ -231,6 +235,9 @@ export default function ListPropertyPage() {
   const [furnishingsSavedFlash, setFurnishingsSavedFlash] = useState(false);
 
   // Check partner registration whenever a signed-in user lands here.
+  // Advisory: with OPEN_LISTING_ENABLED a non-partner proceeds to the wizard
+  // anyway (they pick Owner / Builder / Agent at publish time); a partner's
+  // identity is re-stamped server-side from the verified partner record.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -415,7 +422,7 @@ export default function ListPropertyPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user || !partner) return;
+    if (!user) return;
     // Final pass over every step before publishing.
     for (let s = 0; s < FORM_STEPS.length; s++) {
       const e = validateStep(s);
@@ -452,9 +459,9 @@ export default function ListPropertyPage() {
         total_units: formData.total_units || 0,
         extra_details: Object.keys(formData.extra_details).length ? formData.extra_details : undefined,
         listed_days_ago: 0,
-        contact_name: partner.fullName,
+        contact_name: partner?.fullName ?? user.displayName ?? user.email?.split('@')[0] ?? '',
         contact_phone: '',
-        listed_by: partner.partnerType, // server re-stamps from the verified partner record
+        listed_by: partner?.partnerType ?? listingRole, // server re-stamps active partners
         featured: false,
         uid: user.uid,
         userEmail: user.email ?? '',
@@ -648,7 +655,7 @@ export default function ListPropertyPage() {
     return gateShell(
       <div className="admin-theme flex flex-col items-center py-20 text-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
-        <p className="mt-4 text-xs text-gray-500">{user ? 'Checking your partnership…' : 'Loading…'}</p>
+        <p className="mt-4 text-xs text-gray-500">Setting up your listing…</p>
       </div>,
     );
   }
@@ -664,7 +671,10 @@ export default function ListPropertyPage() {
     );
   }
 
-  if (!partner) {
+  // Open listing: any signed-in user can proceed — no partnership required.
+  // The partners-only gates below are restored by flipping
+  // PARTNER_REGISTRATION_ENABLED / OPEN_LISTING_ENABLED in src/lib/featureFlags.ts.
+  if (!partner && !OPEN_LISTING_ENABLED) {
     return gateShell(
       <div className="admin-theme admin-section p-8 text-center sm:p-10">
         <div className="flex items-center justify-center gap-2.5">
@@ -683,7 +693,7 @@ export default function ListPropertyPage() {
     );
   }
 
-  if (partner && partner.status !== 'active') {
+  if (partner && partner.status !== 'active' && (!OPEN_LISTING_ENABLED || partner.status !== 'pending')) {
     return gateShell(
       <div className="admin-theme admin-section p-8 text-center sm:p-10">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 ring-1 ring-amber-200">
@@ -716,7 +726,7 @@ export default function ListPropertyPage() {
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a8778]">
-              Partner listing · {partner.partnerType}
+              {partner ? `Partner listing · ${partner.partnerType}` : 'Property listing'}
             </p>
             <h1 className="mt-1 text-[19px] font-semibold leading-tight tracking-tight text-[#0B1729] sm:text-[22px]">
               List Your Property
@@ -879,7 +889,7 @@ export default function ListPropertyPage() {
 
                     {isCommercialType && (
                       <div>
-                        <label className="block font-sans text-xs text-gray-500 mb-2">Commercial Sub-type</label>
+                        <label className="block text-xs text-gray-500 mb-2">Commercial Sub-type</label>
                         <select
                           value={formData.commercial_subtype}
                           onChange={(e) => updateFormData('commercial_subtype', e.target.value)}
@@ -969,7 +979,7 @@ export default function ListPropertyPage() {
 
                   <div className="mt-6 space-y-6">
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Asking Price (₹) *</label>
+                      <label className="block text-xs text-gray-500 mb-2">Asking Price (₹) *</label>
                       <input
                         type="number"
                         placeholder="0"
@@ -986,7 +996,7 @@ export default function ListPropertyPage() {
                     </div>
 
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Monthly Income (₹)</label>
+                      <label className="block text-xs text-gray-500 mb-2">Monthly Income (₹)</label>
                       <input
                         type="number"
                         placeholder="0"
@@ -1002,7 +1012,7 @@ export default function ListPropertyPage() {
                     </div>
 
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Rental Yield (%)</label>
+                      <label className="block text-xs text-gray-500 mb-2">Rental Yield (%)</label>
                       <input
                         type="number"
                         step="0.1"
@@ -1038,7 +1048,7 @@ export default function ListPropertyPage() {
                   </p>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Facing</label>
+                      <label className="block text-xs text-gray-500 mb-2">Facing</label>
                       <select
                         value={formData.facing}
                         onChange={(e) => updateFormData('facing', e.target.value)}
@@ -1051,7 +1061,7 @@ export default function ListPropertyPage() {
                     </div>
 
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Age of Property</label>
+                      <label className="block text-xs text-gray-500 mb-2">Age of Property</label>
                       <select
                         value={formData.age}
                         onChange={(e) => updateFormData('age', e.target.value)}
@@ -1064,7 +1074,7 @@ export default function ListPropertyPage() {
                     </div>
 
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Plot Area (sq.ft)</label>
+                      <label className="block text-xs text-gray-500 mb-2">Plot Area (sq.ft)</label>
                       <input
                         type="number"
                         placeholder="0"
@@ -1075,7 +1085,7 @@ export default function ListPropertyPage() {
                     </div>
 
                     <div>
-                      <label className="block font-sans text-xs text-gray-500 mb-2">Built-up Area (sq.ft)</label>
+                      <label className="block text-xs text-gray-500 mb-2">Built-up Area (sq.ft)</label>
                       <input
                         type="number"
                         placeholder="0"
@@ -1250,7 +1260,7 @@ export default function ListPropertyPage() {
                       {errors.extra && <p className="mb-4 text-xs text-red-600">{errors.extra}</p>}
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Total Beds *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Total Beds *</label>
                           <input
                             type="number"
                             min="1"
@@ -1261,7 +1271,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Units / Rooms *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Units / Rooms *</label>
                           <input
                             type="number"
                             min="1"
@@ -1309,7 +1319,7 @@ export default function ListPropertyPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Notice Period (days) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Notice Period (days) *</label>
                           <input
                             type="number"
                             min="0"
@@ -1320,7 +1330,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Lock-in Period (days) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Lock-in Period (days) *</label>
                           <input
                             type="number"
                             min="0"
@@ -1467,7 +1477,7 @@ export default function ListPropertyPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Available From *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Available From *</label>
                           <input
                             type="date"
                             value={formData.extra_details['Available From'] ?? ''}
@@ -1476,7 +1486,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Age of Property (years)</label>
+                          <label className="block text-xs text-gray-500 mb-2">Age of Property (years)</label>
                           <input
                             type="number"
                             min="0"
@@ -1561,7 +1571,7 @@ export default function ListPropertyPage() {
                       <p className="-mt-3 mb-5 text-[11px] text-gray-500">Numbers only — units are shown with the labels</p>
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6">
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Built Up Area (sq.ft) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Built Up Area (sq.ft) *</label>
                           <input
                             type="number"
                             min="1"
@@ -1572,7 +1582,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Carpet Area (sq.ft) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Carpet Area (sq.ft) *</label>
                           <input
                             type="number"
                             min="1"
@@ -1583,7 +1593,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Entrance Width (feet) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Entrance Width (feet) *</label>
                           <input
                             type="number"
                             min="0"
@@ -1595,7 +1605,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Ceiling Height (feet) *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Ceiling Height (feet) *</label>
                           <input
                             type="number"
                             min="0"
@@ -1632,7 +1642,7 @@ export default function ListPropertyPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Floors Available</label>
+                          <label className="block text-xs text-gray-500 mb-2">Floors Available</label>
                           <input
                             type="text"
                             placeholder="e.g. Ground + 2"
@@ -1643,7 +1653,7 @@ export default function ListPropertyPage() {
                           <p className="mt-1.5 text-[11px] text-gray-400">Supports basements and ground-floor conventions — no forced numbering.</p>
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Total Floors *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Total Floors *</label>
                           <input
                             type="number"
                             min="0"
@@ -1654,7 +1664,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Your Floor *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Your Floor *</label>
                           <input
                             type="text"
                             placeholder="e.g. Ground / 1 / Basement"
@@ -1682,7 +1692,7 @@ export default function ListPropertyPage() {
                           </div>
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Private Washrooms *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Private Washrooms *</label>
                           <input
                             type="number"
                             min="0"
@@ -1693,7 +1703,7 @@ export default function ListPropertyPage() {
                           />
                         </div>
                         <div>
-                          <label className="block font-sans text-xs text-gray-500 mb-2">Public Washrooms *</label>
+                          <label className="block text-xs text-gray-500 mb-2">Public Washrooms *</label>
                           <input
                             type="number"
                             min="0"
@@ -1713,7 +1723,7 @@ export default function ListPropertyPage() {
                   <p className="-mt-3 mb-5 text-[11px] text-gray-500">Tap to select — choose only what genuinely applies</p>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                     {HIGHLIGHTS.map((h) => (
-                      <label key={h} className="flex min-h-[44px] items-center gap-3 font-sans text-sm">
+                      <label key={h} className="flex min-h-[44px] items-center gap-3 text-sm">
                         <input
                           type="checkbox"
                           checked={formData.highlights.includes(h)}
@@ -1766,7 +1776,7 @@ export default function ListPropertyPage() {
                   <p className="-mt-3 mb-5 text-[11px] text-gray-500">Present on the premises — leave unchecked anything you can't confirm</p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
                     {AMENITIES.map((a) => (
-                      <label key={a} className="flex min-h-[44px] items-center gap-3 font-sans text-sm">
+                      <label key={a} className="flex min-h-[44px] items-center gap-3 text-sm">
                         <input
                           type="checkbox"
                           checked={formData.amenities.includes(a)}
@@ -2014,13 +2024,27 @@ export default function ListPropertyPage() {
 
                 <div className="admin-section space-y-5">
                   <div>
-                    <label className="block font-sans text-xs text-gray-500 mb-2">Listed By</label>
-                    <div className="flex min-h-[44px] items-center rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]">
-                      {partner.partnerType}
-                      {partner.companyName ? ` · ${partner.companyName}` : ''}
-                    </div>
+                    <label className="block text-xs text-gray-500 mb-2">Listed By</label>
+                    {partner ? (
+                      <div className="flex min-h-[44px] items-center rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]">
+                        {partner.partnerType}
+                        {partner.companyName ? ` · ${partner.companyName}` : ''}
+                      </div>
+                    ) : (
+                      <select
+                        value={listingRole}
+                        onChange={(e) => setListingRole(e.target.value as 'Owner' | 'Builder' | 'Agent')}
+                        className="min-h-[44px] w-full cursor-pointer rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]"
+                      >
+                        <option value="Owner">Owner</option>
+                        <option value="Builder">Builder</option>
+                        <option value="Agent">Agent</option>
+                      </select>
+                    )}
                     <p className="mt-1.5 text-[11px] text-gray-400">
-                      Fixed to your partner registration. To change it, update your partnership.
+                      {partner
+                        ? 'Fixed to your partner registration. To change it, update your partnership.'
+                        : 'Who is listing this property? You can list without any partnership.'}
                     </p>
                   </div>
 
@@ -2029,16 +2053,18 @@ export default function ListPropertyPage() {
                       Service charge
                     </p>
                     <p className="mt-1.5 text-sm font-semibold">
-                      {partner.commissionPercent === 1
-                        ? '1% brokerage service charge of deal value, only on successful closure'
-                        : '50 / 50 partnership share on every successful deal — no other charges'}
+                      {partner
+                        ? partner.commissionPercent === 1
+                          ? '1% brokerage service charge of deal value, only on successful closure'
+                          : '50 / 50 partnership share on every successful deal — no other charges'
+                        : 'Free to list · service charge is discussed at deal closing, only on success'}
                     </p>
                   </div>
 
                   <div>
-                    <label className="block font-sans text-xs text-gray-500 mb-2">Buyer contact</label>
+                    <label className="block text-xs text-gray-500 mb-2">Buyer contact</label>
                     <div className="flex min-h-[44px] items-center rounded-xl border border-[#e7e4dc] bg-[#FBF9F3] px-3.5 text-sm font-semibold text-[#0A1628]">
-                      {partner.fullName}
+                      {partner?.fullName ?? user.displayName ?? user.email?.split('@')[0] ?? ''}
                     </div>
                     <p className="mt-1.5 text-[11px] text-gray-400">
                       Buyer enquiries and visit bookings arrive through VJR Estate — your personal number is never published on the listing.

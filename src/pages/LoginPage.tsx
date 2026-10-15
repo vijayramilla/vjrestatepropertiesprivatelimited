@@ -25,8 +25,9 @@ export default function LoginPage() {
 
   useEffect(() => { clearError(); }, [clearError]);
 
-  // If a session already exists (or appears), validate & route onward by
-  // partner status — the same logic the gated actions use.
+  // If a session already exists (or appears), route onward. Registered
+  // partners landing on the (currently hidden) partner pages still get
+  // sent to their dashboard; everyone else resumes their original destination.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
@@ -71,8 +72,8 @@ export default function LoginPage() {
           )}
 
           <ul className="mt-6 space-y-1.5" aria-label="What signing in is used for">
-            {['List your property as an Owner, Builder or Agent',
-              'Track enquiries, bookings and revenue on your partner dashboard',
+            {['List your property free — no partnership needed',
+              'See and manage all your property listings in one place',
               'Save properties and pick up where you left off'].map((line) => (
             <li key={line} className="flex items-start gap-2 text-[12px] leading-relaxed text-[#667085]">
               <CheckCircle size={13} weight="fill" className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />

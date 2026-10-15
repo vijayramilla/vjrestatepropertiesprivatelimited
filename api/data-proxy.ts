@@ -44,6 +44,12 @@ const MAX_RESUME_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_IMAGE_TYPES = /^image\/(jpeg|png|webp|gif|avif)$/;
 const ALLOWED_RESUME_TYPES = /^(application\/pdf|application\/msword|application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document|text\/plain)$/;
 
+// OPEN LISTING (temporarily true): any signed-in user may list a property
+// without registering as a partner. Set false to restore the partners-only
+// gate on partner.property.create. Kept in sync with the frontend flag in
+// src/lib/featureFlags.ts (OPEN_LISTING_ENABLED).
+const OPEN_LISTING_ENABLED = true;
+
 function normalizeEmail(email: string) {
   return (email ?? '').trim().toLowerCase();
 }
@@ -1408,7 +1414,12 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (!auth?.authorized) throw new Error('Forbidden');
       await ensurePartnersTable();
       const partner = await findPartner(auth.uid, auth.email);
-      if (!partner || partner.status !== 'active') {
+      // OPEN LISTING (temporarily): any signed-in user may list. Registered
+      // active partners are re-stamped from their partner record; everyone
+      // else lists with the requested listed_by role. Flip
+      // OPEN_LISTING_ENABLED back to false (and restore the throw) to make
+      // an active partnership mandatory again.
+      if (!OPEN_LISTING_ENABLED && (!partner || partner.status !== 'active')) {
         throw new Error('Register as a VJR Estate partner before listing properties');
       }
       // Identity always comes from the verified token, never the request body.
@@ -1419,7 +1430,7 @@ async function executeAction(action: string, params: any): Promise<any> {
       delete params.property_code;
       params.uid = auth.uid;
       params.user_email = auth.email;
-      params.listed_by = partner.partner_type; // Owner | Builder | Agent
+      if (partner && partner.status === 'active') params.listed_by = partner.partner_type; // Owner | Builder | Agent
       params.featured = false;
       return insertPropertyWithCode(params);
     }
