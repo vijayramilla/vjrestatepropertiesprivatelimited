@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from '../api/_lib/ledger-rules.mjs';
+import { generateComplianceCalendar, generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION, COMPLIANCE_PACKS } from '../api/_lib/ledger-rules.mjs';
 import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from '../api/_lib/ledger-reminders.mjs';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -126,6 +126,8 @@ CREATE TABLE IF NOT EXISTS public.ledger_company_profile (
   ca_name TEXT DEFAULT '',
   cs_name TEXT DEFAULT '',
   logo_url TEXT DEFAULT '',
+  agm_dates JSONB NOT NULL DEFAULT '{}'::jsonb,
+  first_auditor_appointment_date DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -159,6 +161,26 @@ CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
 CREATE INDEX IF NOT EXISTS idx_ledger_items_due ON public.ledger_compliance_items (due_date);
 CREATE INDEX IF NOT EXISTS idx_ledger_items_fy ON public.ledger_compliance_items (fy);
 ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS rule_version TEXT DEFAULT '';
+ALTER TABLE public.ledger_compliance_items
+  ADD COLUMN IF NOT EXISTS rule_id TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS legacy_status TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS evidence_status TEXT NOT NULL DEFAULT 'not_required',
+  ADD COLUMN IF NOT EXISTS source_verified_at DATE,
+  ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS archive_reason TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS pack_id TEXT NOT NULL DEFAULT 'core',
+  ADD COLUMN IF NOT EXISTS compliance_type TEXT NOT NULL DEFAULT 'statutory_filing';
+CREATE TABLE IF NOT EXISTS public.ledger_compliance_packs (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+  default_on BOOLEAN NOT NULL DEFAULT FALSE, enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  trigger_expr TEXT NOT NULL DEFAULT '', rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.ledger_applicability_answers (
+  question_key TEXT PRIMARY KEY, answer TEXT NOT NULL DEFAULT 'unknown', answer_value TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '', verified_at TIMESTAMPTZ, updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_no TEXT DEFAULT '',
@@ -2225,28 +2247,73 @@ async function executeAction(action, params) {
     }
 
     // ── LEDGERS: compliance calendar + legal cases ── mirrors api/data-proxy.ts ──
+    case 'ledger.packs.list': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const [stored, profile, employees, salaryEmployees, answers] = await Promise.all([
+        supabaseFetch('GET', 'ledger_compliance_packs?select=id,enabled').catch(() => ({ data: [] })),
+        supabaseFetch('GET', 'ledger_company_profile?select=employee_count,turnover_amount&id=eq.company').catch(() => ({ data: [] })),
+        supabaseFetch('GET', "employees?select=id&status=neq.Terminated").catch(() => ({ data: [] })),
+        supabaseFetch('GET', 'employees?select=id&status=neq.Terminated&salary=gte.25000').catch(() => ({ data: [] })),
+        supabaseFetch('GET', 'ledger_applicability_answers?select=question_key,answer').catch(() => ({ data: [] })),
+      ]);
+      const enabled = new Set((stored.data ?? []).filter((pack) => pack.enabled).map((pack) => pack.id));
+      const employeeCount = Math.max(Number(profile.data?.[0]?.employee_count) || 0, employees.data?.length ?? 0);
+      const turnover = Number(profile.data?.[0]?.turnover_amount) || 0;
+      const triggers = {};
+      if (employeeCount) triggers.employees = `${employeeCount} active employees${employeeCount >= 10 ? '; POSH and gratuity threshold reached' : '; review payroll thresholds'}`;
+      if (salaryEmployees.data?.length) triggers.employees += ` · ${salaryEmployees.data.length} paid at least ₹25,000`;
+      if (turnover >= 1_400_000) triggers.gst = `Rolling turnover is ${Math.round(turnover / 2_000_000 * 100)}% of ₹20 lakh threshold`;
+      if (turnover > 10_000_000) triggers.tax_audit = `Turnover ₹${turnover.toLocaleString('en-IN')} exceeds ₹1 crore`;
+      if ((answers.data ?? []).some((row) => row.question_key === 'krera_applicable' && row.answer === 'yes')) triggers.rera = 'K-RERA role answered Yes';
+      return { data: COMPLIANCE_PACKS.map((pack) => ({ ...pack, enabled: pack.id === 'core' || enabled.has(pack.id), suggested: pack.id !== 'core' && Boolean(triggers[pack.id]), suggestion_reason: triggers[pack.id] ?? '' })) };
+    }
+    case 'ledger.packs.set': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const id = String(params.id);
+      if (!COMPLIANCE_PACKS.some((pack) => pack.id === id) || ['core', 'conditional'].includes(id)) throw new Error('Invalid pack');
+      const enabled = Boolean(params.enabled);
+      await supabaseFetch('POST', 'ledger_compliance_packs?on_conflict=id', { id, enabled, updated_at: new Date().toISOString() }, null, null, { prefer: 'resolution=merge-duplicates' });
+      let archivePath = `ledger_compliance_items?pack_id=eq.${encodeURIComponent(id)}&archived=eq.${enabled}`;
+      if (enabled) archivePath += '&archive_reason=eq.Pack%20disabled%3B%20retained%20for%20history.';
+      await supabaseFetch('PATCH', archivePath, { archived: !enabled, archive_reason: enabled ? '' : 'Pack disabled; retained for history.' });
+      return { enabled };
+    }
     case 'ledger.items.list': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       const runQ = () => {
-        let path = 'ledger_compliance_items?order=due_date.asc&limit=500';
+        let path = 'ledger_compliance_items?order=due_date.asc';
         if (params.fy) path += `&fy=eq.${encodeURIComponent(params.fy)}`;
+        if (params.openOnly === true) path += '&status=not.in.(filed,na)';
         return supabaseFetch('GET', path);
       };
       try {
         const { data } = await runQ();
-        return { data: data ?? [] };
+        if (params.includeArchived === true) return { data: data ?? [] };
+        const packs = await supabaseFetch('GET', 'ledger_compliance_packs?select=id&enabled=eq.true').catch(() => ({ data: [] }));
+        const enabled = new Set(['core', 'conditional', ...(packs.data ?? []).map((pack) => pack.id)]);
+        return { data: (data ?? []).filter((item) => item.archived !== true && enabled.has(item.pack_id || 'core')) };
       } catch (e) {
         if (!/does not exist|Could not find the table|schema cache/i.test(e.message)) throw e;
         await ensureLedgerSchema();
-        try { const { data } = await runQ(); return { data: data ?? [] }; } catch { return { data: [] }; }
+        try {
+          const { data } = await runQ();
+          if (params.includeArchived === true) return { data: data ?? [] };
+          const packs = await supabaseFetch('GET', 'ledger_compliance_packs?select=id&enabled=eq.true').catch(() => ({ data: [] }));
+          const enabled = new Set(['core', 'conditional', ...(packs.data ?? []).map((pack) => pack.id)]);
+          return { data: (data ?? []).filter((item) => item.archived !== true && enabled.has(item.pack_id || 'core')) };
+        } catch { return { data: [] }; }
       }
     }
     case 'ledger.item.upsert': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       const { id, ...fields } = params;
-      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url', 'amount_paid'];
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url', 'amount_paid', 'rule_id', 'rule_version', 'evidence_status', 'source_verified_at'];
       const clean = {};
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (fields.status === 'filed' && (!fields.arn || !fields.filed_date || !fields.proof_url)) throw new Error('Filed requires an SRN/ARN, filing date and proof document.');
+      if (fields.status === 'filed' || fields.arn || fields.proof_url || fields.challan_url) clean.evidence_status = fields.arn && fields.filed_date && fields.proof_url ? 'verified' : 'awaiting_evidence';
+      else if (fields.status !== undefined) clean.evidence_status = 'not_required';
+      if (fields.evidence_status !== undefined) clean.evidence_status = fields.evidence_status;
       try {
         await supabaseFetch('POST', 'ledger_activity_log', {
           entity_type: 'item', entity_id: String(id ?? ''), action: id ? 'updated' : 'created',
@@ -2260,13 +2327,14 @@ async function executeAction(action, params) {
         return { id: String(id) };
       }
       const { data } = await supabaseFetch('POST', 'ledger_compliance_items', clean, null, null, { prefer: 'return=representation' });
-      return { id: data?.[0]?.id ?? null };
+      const createdId = data?.[0]?.id ?? null;
+      return { id: createdId };
     }
     case 'ledger.item.delete': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      await supabaseFetch('DELETE', `ledger_compliance_items?id=eq.${encodeURIComponent(params.id)}`);
+      await supabaseFetch('PATCH', `ledger_compliance_items?id=eq.${encodeURIComponent(params.id)}`, { archived: true, archive_reason: 'Archived by user; retained for history.', updated_at: new Date().toISOString() });
       try {
-        await supabaseFetch('POST', 'ledger_activity_log', { entity_type: 'item', entity_id: String(params.id), action: 'deleted', summary: 'Obligation removed', actor: params._auth?.email ?? '' });
+        await supabaseFetch('POST', 'ledger_activity_log', { entity_type: 'item', entity_id: String(params.id), action: 'archived', summary: 'Obligation archived from active register', actor: params._auth?.email ?? '' });
       } catch { /* best-effort */ }
       return { id: String(params.id) };
     }
@@ -2391,6 +2459,23 @@ async function executeAction(action, params) {
       return result;
     }
 
+    case 'ledger.applicability.get': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      try {
+        const { data } = await supabaseFetch('GET', 'ledger_applicability_answers?select=question_key,answer');
+        return { data: Object.fromEntries((data ?? []).map((row) => [row.question_key, row.answer])) };
+      } catch (e) {
+        if (/does not exist|Could not find the table|schema cache/i.test(e.message)) { await ensureLedgerSchema(); return { data: {} }; }
+        throw e;
+      }
+    }
+    case 'ledger.applicability.set': {
+      if (!isAdmin(params._auth)) throw new Error('Forbidden');
+      const allowedKeys = ['job_work_goods', 'dpt3_applicable', 'msme_dues_over_45_days', 'tds_applicable', 'advance_tax_payable_10000_or_more', 'pas3_applicable', 'inc22_applicable', 'shops_applicable', 'krera_applicable', 'posh_10_or_more_employees', 'tds_q1_applicable', 'tds_q2_applicable', 'tds_q3_applicable', 'tds_q4_applicable'];
+      const rows = Object.entries(params.answers ?? {}).filter(([key, answer]) => allowedKeys.includes(key) && ['yes', 'no', 'unknown'].includes(String(answer))).map(([question_key, answer]) => ({ question_key, answer, updated_by: params._auth?.email ?? '', updated_at: new Date().toISOString() }));
+      if (rows.length) await supabaseFetch('POST', 'ledger_applicability_answers?on_conflict=question_key', rows, null, null, { prefer: 'resolution=merge-duplicates' });
+      return { data: params.answers ?? {} };
+    }
     case 'ledger.profile.get': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
       try {
@@ -2404,7 +2489,7 @@ async function executeAction(action, params) {
     }
     case 'ledger.profile.set': {
       if (!isAdmin(params._auth)) throw new Error('Forbidden');
-      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url'];
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url', 'agm_dates', 'first_auditor_appointment_date', 'company_email', 'business_activity', 'operating_office', 'registered_office_lat', 'registered_office_lng', 'paid_up_capital', 'turnover_amount', 'small_company', 'small_company_thresholds', 'auditor_name', 'auditor_membership_no', 'auditor_firm_name', 'auditor_frn', 'data_quality_alerts'];
       const clean = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
       try {
@@ -2662,6 +2747,12 @@ async function executeAction(action, params) {
 
       // GST context from gst_profile + FY aggregate turnover (spec §66).
       const fyLabel = `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`;
+      const incorporatedYear = Number(String(p.incorporated_on ?? '').slice(0, 4));
+      if (incorporatedYear && fyStartYear > incorporatedYear) {
+        const priorFy = `FY ${fyStartYear - 1}-${String(fyStartYear).slice(2)}`;
+        const prior = await supabaseFetch('GET', `ledger_compliance_items?select=id&fy=eq.${encodeURIComponent(priorFy)}&archived=eq.false&status=not.in.(filed,na)`);
+        if ((prior.data ?? []).length) throw new Error(`Close ${priorFy} obligations before generating ${fyLabel}.`);
+      }
       let gstProfile = null;
       try { const g = await supabaseFetch('GET', 'gst_profile?select=*&id=eq.company'); gstProfile = g.data?.[0] ?? null; } catch { gstProfile = null; }
       if (!gstProfile) gstProfile = gstProfileFromLegacy(registrations, p.gst_scheme);
@@ -2670,6 +2761,16 @@ async function executeAction(action, params) {
       const annualRow = tRows.find((x) => x.period_type === 'annual');
       const aggregateTurnover = annualRow ? Number(annualRow.aggregate_turnover) || 0 : tRows.filter((x) => x.period_type === 'monthly').reduce((s2, x) => s2 + (Number(x.aggregate_turnover) || 0), 0);
 
+      let applicability = {};
+      try {
+        const answers = await supabaseFetch('GET', 'ledger_applicability_answers?select=question_key,answer');
+        applicability = Object.fromEntries((answers.data ?? []).map((row) => [row.question_key, row.answer]));
+      } catch { /* migration not yet applied */ }
+      let agmDates = {};
+      try {
+        const agms = await supabaseFetch('GET', 'ledger_compliance_items?select=fy,notes&form=eq.AGM%20actual%20date');
+        agmDates = Object.fromEntries((agms.data ?? []).map((row) => [row.fy, String(row.notes ?? '').match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0]]).filter(([, date]) => date));
+      } catch { /* no AGM dates recorded yet */ }
       const { items: generated, summary, gstEval } = generateComplianceCalendarWithSummary({
         fyStartYear,
         entityType,
@@ -2678,7 +2779,14 @@ async function executeAction(action, params) {
         gstScheme: p.gst_scheme === 'qrmp' ? 'qrmp' : 'monthly',
         gst: gstProfile,
         aggregateTurnover,
-        markPastFiled: params.markPastFiled !== false,
+        applicability,
+        agmDates: p.agm_dates ?? agmDates,
+        auditorAppointmentDate: p.first_auditor_appointment_date ?? null,
+        smallCompany: p.small_company === true,
+        enabledPacks: (await supabaseFetch('GET', 'ledger_compliance_packs?select=id&enabled=eq.true').catch(() => ({ data: [] }))).data?.map((row) => row.id) ?? [],
+        employeeCount: Math.max(Number(p.employee_count) || 0, (await supabaseFetch('GET', 'employees?select=id&status=neq.Terminated').catch(() => ({ data: [] }))).data?.length ?? 0),
+        employeeSalaryCount: (await supabaseFetch('GET', 'employees?select=id&status=neq.Terminated&salary=gte.25000').catch(() => ({ data: [] }))).data?.length ?? 0,
+        markPastFiled: false,
       });
       if (!generated.length) throw new Error(`Generated 0 obligations for a ${entityType} with those registrations — tick GST/TDS/PF etc. in Company Profile.`);
 
@@ -2716,12 +2824,12 @@ async function executeAction(action, params) {
       let existing = await supabaseFetch('GET', `ledger_compliance_items?select=form,period&fy=eq.${encodeURIComponent(fyLabel)}`);
       const have = new Set((existing.data ?? []).map((r2) => `${r2.form}|${r2.period}`));
       const fresh = generated.filter((g) => !have.has(`${g.form}|${g.period}`));
-      let { savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION })));
+      let { savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, archived: false, archive_reason: '', owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION })));
       // Self-heal: a live table missing columns added after its creation fails
       // every insert with a schema-cache error — re-run the DDL once and retry.
       if (saved === 0 && failures.length && /does not exist|Could not find the table|schema cache|relation .* does not exist/i.test(failures[0])) {
         await ensureLedgerSchema();
-        ({ savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION }))));
+        ({ savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, archived: false, archive_reason: '', owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION }))));
       }
       try {
         await supabaseFetch('POST', 'ledger_activity_log', { entity_type: 'item', entity_id: '', action: 'generated', summary: `Rules evaluated ${summary.rulesEvaluated} · applicable ${summary.applicable} · created ${saved} for ${fyLabel} (v${RULES_VERSION})`, actor: params._auth?.email ?? '' });

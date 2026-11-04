@@ -1,4 +1,3 @@
-import type { ReactNode } from 'react';
 import { motion, useScroll, useSpring, useReducedMotion } from 'framer-motion';
 import HomeListingsSection from '../components/home/HomeListingsSection';
 import HomePgCoverflow from '../components/home/HomePgCoverflow';
@@ -15,12 +14,6 @@ import HomeInsights from '../components/home/HomeInsights';
 import VJRAIButton from '../components/ai/VJRAIButton';
 import HomeContactCta from '../components/home/HomeContactCta';
 
-/**
- * Editorial display font (loaded in index.html) — used for the refined
- * italic accent lines throughout the page.
- */
-const SERIF = "'Instrument Serif', Georgia, serif";
-
 // Hero photo — also preloaded from index.html on the home route so the LCP
 // fetch starts while the JS bundle is still downloading. Keep the URLs in
 // sync with the preload script there.
@@ -35,17 +28,6 @@ const HERO_SRCSET = [
 
 const easeOut: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-function Kicker({ children, light = false }: { children: ReactNode; light?: boolean }) {
-  return (      <p
-        className={`text-[10px] font-semibold uppercase tracking-[0.28em] sm:text-[11px] ${
-          light ? 'text-[#E4C877]' : 'text-[#8a7438]'
-        }`}
-      >
-        {children}
-      </p>
-  );
-}
-
 export default function HomePage() {
   const reduceMotion = useReducedMotion();
   // Scroll-linked gold progress hairline — transform-only, compositor-safe.
@@ -53,7 +35,7 @@ export default function HomePage() {
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, restDelta: 0.001 });
 
   return (
-    <div className="bg-white">
+    <div className="bg-[#F8F7F3]">
       {/* Gold reading-progress bar pinned to the very top */}
       <motion.div
         aria-hidden
@@ -61,7 +43,7 @@ export default function HomePage() {
         style={{ scaleX: progress }}
       />
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative flex min-h-[100svh] w-full flex-col overflow-hidden bg-[#0A1628]">
+      <section className="relative flex min-h-[min(900px,100svh)] w-full flex-col overflow-hidden bg-[#0A1628]">
         <div className="absolute inset-0 overflow-hidden">
           {/* Slow cinematic settle on load (Ken Burns) — skipped for
               reduced-motion users. */}
@@ -81,32 +63,28 @@ export default function HomePage() {
         </div>
 
         {/* Cinematic grade: keeps the photograph rich while text stays legible */}
-        <div className="absolute inset-0 bg-[linear-gradient(96deg,rgba(6,13,24,0.97)_0%,rgba(10,22,40,0.86)_40%,rgba(10,22,40,0.38)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(6,13,24,0.94)_0%,rgba(10,22,40,0.78)_48%,rgba(10,22,40,0.25)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-[#0A1628] to-transparent" />
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-5 pb-10 pt-32 sm:px-8 md:px-12 lg:px-16 lg:pt-36">
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: easeOut }}
-          >
-            <Kicker light>Bangalore&rsquo;s Rental Income Specialists</Kicker>
-          </motion.div>
+        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-5 pb-16 pt-32 sm:px-8 md:pb-20 lg:px-8 lg:pt-40">
 
           <motion.h1
             initial={{ opacity: 0, y: 26 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease: easeOut }}
-            className="mt-6 max-w-4xl font-display text-[42px] font-bold leading-[1.04] tracking-[-0.02em] text-white sm:text-6xl md:text-7xl"
+            className="mt-7 max-w-4xl font-display text-[42px] font-medium leading-[1.05] tracking-[-0.035em] text-white sm:text-6xl md:text-[76px]"
           >
             Rental Income Properties
             <span
-              className="mt-2 block text-[#E4C877] italic"
-              style={{ fontFamily: SERIF, fontWeight: 400, letterSpacing: '-0.005em' }}
+              className="mt-2 block text-[#E4C877]"
             >
               Let the rent do the rest.
             </span>
           </motion.h1>
+
+          <p className="mt-6 max-w-xl text-sm leading-relaxed text-white/75 sm:text-base">
+            Discover carefully selected PG buildings, residential and commercial properties across Bangalore.
+          </p>
 
           <motion.div
             initial={{ opacity: 0, y: 24 }}

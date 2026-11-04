@@ -46,7 +46,7 @@ export default function TaxBenefits({ loan, tenureMonths }: Props) {
     <TiltCard intensity={4}>
       <div className="rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-sm backdrop-blur-xl md:p-7">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-violet-600">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A1628]">
             <Landmark size={14} className="text-white" />
           </div>
           <h3 className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">
@@ -161,7 +161,7 @@ export default function TaxBenefits({ loan, tenureMonths }: Props) {
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mt-4 space-y-2 rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 p-4"
+            className="mt-4 space-y-2 rounded-xl bg-[#F8F7F3] p-4"
           >
             <div className="flex items-center justify-between text-sm">
               <span className="flex items-center gap-1.5 text-violet-700">

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Crown, TrendUp, MapPin, Handshake, ArrowRight } from '@phosphor-icons/react';
+import { TrendUp, MapPin, Handshake, ArrowRight } from '@phosphor-icons/react';
 import { Link } from 'react-router-dom';
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -24,7 +24,7 @@ const POINTS = [
 
 export default function HomeAboutVjr() {
   return (
-    <section className="relative overflow-hidden bg-white py-14 md:py-20">
+    <section className="relative overflow-hidden bg-white py-20 md:py-28">
       <div className="pointer-events-none absolute -right-32 top-0 h-80 w-80 rounded-full bg-[#C9A84C]/[0.06] blur-3xl" />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -36,11 +36,7 @@ export default function HomeAboutVjr() {
             viewport={{ once: true, margin: '-40px' }}
             transition={{ duration: 0.6, ease: EASE }}
           >
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              <Crown size={13} weight="fill" />
-              About VJR Estate
-            </p>
-            <h2 className="font-display mt-4 text-2xl font-bold leading-snug tracking-tight text-[#0A1628] md:text-[34px] md:leading-[1.2]">
+            <h2 className="mt-5 font-display text-3xl font-semibold leading-tight tracking-tight text-[#0A1628] md:text-4xl">
               Bangalore&rsquo;s dedicated
               <span className="block text-[#A98C3B]">rental income specialists.</span>
             </h2>
@@ -82,13 +78,13 @@ export default function HomeAboutVjr() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
                 transition={{ duration: 0.55, delay: i * 0.09, ease: EASE }}
-                className="group flex gap-5 rounded-2xl border border-[#EBEBEB] bg-[#F8F9FA] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:bg-white hover:shadow-[0_16px_40px_rgba(10,22,40,0.08)] md:p-6"
+                className="group flex gap-5 border-b border-[#E8E6DF] py-6 first:border-t"
               >
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#0A1628] text-[#C9A84C] transition-colors duration-300 group-hover:bg-[#C9A84C] group-hover:text-[#0A1628]">
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center border border-[#E5DDC6] text-[#A98C3B]">
                   <point.icon size={22} weight="duotone" />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[15px] font-bold text-[#0A1628]">{point.title}</h3>
+                  <h3 className="font-display text-lg font-semibold text-[#0A1628]">{point.title}</h3>
                   <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500">
                     {point.desc}
                   </p>
@@ -101,7 +97,7 @@ export default function HomeAboutVjr() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.55, delay: 0.28, ease: EASE }}
-              className="flex items-center gap-5 rounded-2xl bg-[#0A1628] p-5 md:p-6"
+              className="flex items-center gap-5 bg-[#0A1628] p-6 md:p-8"
             >
               <p className="font-display text-3xl font-bold leading-none text-[#C9A84C]">
                 1<span className="text-lg">st</span>

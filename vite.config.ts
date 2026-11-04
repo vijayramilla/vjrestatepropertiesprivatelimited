@@ -5,9 +5,6 @@ import compression from 'vite-plugin-compression';
 import crmProxyPlugin from './scripts/vite-crm-proxy-plugin.js';
 
 export default defineConfig({
-  define: {
-    'process.env.FRAMER_MOTION_API_KEY': JSON.stringify('fr_4pr81nbwcb8p1baxsxxkwjw3gr'),
-  },
   plugins: [
     react(),
 

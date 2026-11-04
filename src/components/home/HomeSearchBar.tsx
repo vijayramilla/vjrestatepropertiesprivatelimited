@@ -74,7 +74,8 @@ export default function HomeSearchBar() {
               key={tab}
               type="button"
               onClick={() => handleTabClick(tab)}
-              className={`relative whitespace-nowrap rounded-t-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 sm:px-5 ${
+              aria-pressed={active}
+              className={`relative whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-[0.08em] transition-all duration-200 sm:px-5 ${
                 active
                   ? 'bg-white text-[#0A1628] shadow-[0_-4px_16px_rgba(0,0,0,0.15)]'
                   : 'bg-[#0A1628]/50 text-white/80 hover:bg-white/10 hover:text-white'
@@ -91,7 +92,7 @@ export default function HomeSearchBar() {
         initial={{ opacity: 0, y: 14 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, ease: EASE, delay: 0.15 }}
-        className="rounded-b-2xl rounded-tr-2xl border border-white/30 bg-white/20 p-3 shadow-[0_24px_64px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-4"
+        className="border border-white/20 bg-[#0A1628]/60 p-4 shadow-[0_24px_64px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:p-5"
       >
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1">
@@ -109,7 +110,7 @@ export default function HomeSearchBar() {
               }}
               onFocus={() => setShowLocations(true)}
               onBlur={() => setTimeout(() => setShowLocations(false), 200)}
-              className="min-h-[48px] w-full rounded-xl border border-white/40 bg-white pl-10 pr-9 text-sm text-[#0A1628] outline-none transition-all placeholder:text-[#0A1628]/40 focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30"
+              className="min-h-[52px] w-full rounded-sm border border-white/40 bg-white pl-10 pr-9 text-sm text-[#0A1628] outline-none transition-all placeholder:text-[#0A1628]/40 focus:border-[#C9A84C] focus:ring-2 focus:ring-[#C9A84C]/30"
             />
             {location && (
               <button
@@ -158,7 +159,7 @@ export default function HomeSearchBar() {
             onClick={handleSearch}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
-            className="flex min-h-[48px] shrink-0 items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-6 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/30 transition-colors hover:bg-[#1E3852]"
+            className="flex min-h-[52px] shrink-0 items-center justify-center gap-2 rounded-sm bg-[#C9A84C] px-8 text-sm font-semibold text-[#0A1628] transition-colors hover:bg-[#E4C877]"
           >
             <Search size={16} />
             Search
@@ -178,6 +179,7 @@ export default function HomeSearchBar() {
                 type="button"
                 whileTap={{ scale: 0.94 }}
                 onClick={() => setSelectedBudget(active ? '' : label)}
+                aria-pressed={active}
                 className={`flex min-h-[38px] shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-xs font-medium transition-all duration-200 ${
                   active
                     ? 'bg-white text-[#0A1628] shadow-md'

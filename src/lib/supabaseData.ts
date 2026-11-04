@@ -337,6 +337,14 @@ export interface LedgerComplianceItem {
   priority?: string;
   challan_url?: string;
   amount_paid?: number;
+  rule_id?: string;
+  rule_version?: string;
+  evidence_status?: 'not_required' | 'awaiting_evidence' | 'verified';
+  legacy_status?: string;
+  source_verified_at?: string | null;
+  archived?: boolean;
+  archive_reason?: string;
+  pack_id?: string;
 }
 
 export interface LedgerLegalCase {
@@ -356,13 +364,17 @@ export interface LedgerLegalCase {
   documents_url?: string;
 }
 
-export const fetchLedgerItems = (fy?: string) =>
-  callDataProxy('ledger.items.list', fy ? { fy } : {});
+export const fetchLedgerItems = (fy?: string, includeArchived = false) =>
+  callDataProxy('ledger.items.list', { ...(fy ? { fy } : {}), includeArchived });
 
 export const upsertLedgerItem = (item: Partial<LedgerComplianceItem> & { id?: string }) =>
   callDataProxy('ledger.item.upsert', item);
 
 export const deleteLedgerItem = (id: string) => callDataProxy('ledger.item.delete', { id });
+
+export interface LedgerPack { id: string; name: string; description: string; default_on: boolean; enabled: boolean; trigger_expr: string; suggested: boolean; suggestion_reason?: string }
+export const fetchLedgerPacks = () => callDataProxy('ledger.packs.list', {}) as Promise<{ data: LedgerPack[] }>;
+export const setLedgerPack = (id: string, enabled: boolean) => callDataProxy('ledger.packs.set', { id, enabled }) as Promise<{ enabled: boolean }>;
 
 export const fetchLedgerCases = () => callDataProxy('ledger.cases.list', {});
 
@@ -390,6 +402,23 @@ export interface LedgerCompanyProfile {
   ca_name?: string;
   cs_name?: string;
   logo_url?: string;
+  company_email?: string;
+  business_activity?: string;
+  operating_office?: string;
+  registered_office_lat?: number | null;
+  registered_office_lng?: number | null;
+  paid_up_capital?: number;
+  turnover_amount?: number | null;
+  small_company?: boolean;
+  small_company_thresholds?: { paid_up_capital?: number; turnover?: number };
+  auditor_name?: string;
+  auditor_membership_no?: string;
+  auditor_firm_name?: string;
+  auditor_frn?: string;
+  data_quality_alerts?: { id: string; severity: string; message: string }[];
+  applicability?: Record<string, 'yes' | 'no' | 'unknown'>;
+  agm_dates?: Record<string, string>;
+  first_auditor_appointment_date?: string | null;
 }
 
 /* ── LEDGERS: company master data (incorporation baseline) ────────────── */
@@ -481,6 +510,11 @@ export const fetchLedgerProfile = () => callDataProxy('ledger.profile.get', {});
 
 export const saveLedgerProfile = (p: Partial<LedgerCompanyProfile>) =>
   callDataProxy('ledger.profile.set', p);
+
+export const fetchLedgerApplicability = () => callDataProxy('ledger.applicability.get', {});
+
+export const saveLedgerApplicability = (answers: Record<string, 'yes' | 'no' | 'unknown'>) =>
+  callDataProxy('ledger.applicability.set', { answers });
 
 export const fetchLedgerActivity = () => callDataProxy('ledger.log.list', {});
 
@@ -655,6 +689,59 @@ export interface LedgerNotification {
 
 export const fetchLedgerNotifications = () =>
   callDataProxy('ledger.notifications.list', {}) as Promise<{ data: LedgerNotification[] }>;
+
+/* ── LEDGERS: accounting journal and core reports ───────────────────── */
+
+export interface LedgerAccount {
+  id: string;
+  code: string;
+  name: string;
+  account_type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
+  active: boolean;
+  balance: number;
+  debits: number;
+  credits: number;
+  income_fy: number;
+  expense_fy: number;
+}
+
+export interface LedgerJournalLine {
+  account_id: string;
+  account_code: string;
+  account_name: string;
+  account_type: LedgerAccount['account_type'];
+  debit: number;
+  credit: number;
+}
+
+export interface LedgerJournal {
+  id: string;
+  entry_date: string;
+  memo: string;
+  reference: string;
+  status: 'posted' | 'reversed';
+  reversal_of: string | null;
+  reversed_by: string | null;
+  posted_by: string;
+  created_at: string;
+  lines: LedgerJournalLine[];
+}
+
+export interface LedgerAccountingReport {
+  accounts: LedgerAccount[];
+  journals: LedgerJournal[];
+  audit: { id: string; journal_id: string | null; action: string; summary: string; actor: string; created_at: string }[];
+  totals: { assets: number; liabilities: number; equity: number; net_income_fy: number; income_fy: number; expense_fy: number; trial_debits: number; trial_credits: number; balance_check: number };
+}
+
+export const fetchLedgerAccountingReport = (asOfDate: string, fyStart: string) =>
+  callDataProxy('ledger.accounting.report', { asOfDate, fyStart }) as Promise<LedgerAccountingReport>;
+
+export const postLedgerJournal = (entry: { entryDate: string; memo: string; reference: string; lines: { account_id: string; debit: number; credit: number }[] }) =>
+  callDataProxy('ledger.accounting.post', entry) as Promise<{ id: string }>;
+
+export const reverseLedgerJournal = (id: string) =>
+  callDataProxy('ledger.accounting.reverse', { id }) as Promise<{ id: string }>;
 
 /* ── LEDGERS: GST engine (spec §22-26/§52/§66) ───────────────────────────
  *

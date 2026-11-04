@@ -79,6 +79,15 @@ export const CRM_MODULE_REGISTRY: CrmModuleDef[] = [
     actions: ['view', 'edit', 'delete'],
   },
   {
+    key: 'properties',
+    label: 'Properties',
+    description: 'Property listings portfolio — manage, feature, edit and publish listings.',
+    group: 'Pipeline',
+    route: '/crm/properties',
+    actions: ['view', 'create', 'edit', 'delete'],
+    sensitive: ['delete'],
+  },
+  {
     key: 'earnings',
     label: 'Earnings',
     description: 'Commission and earnings reports.',

@@ -117,7 +117,7 @@ export default function GrantedUserAdminLayout({ children, title = 'Add Property
           </button>
           <button
             type="button"
-            onClick={() => navigate('/admin/properties')}
+            onClick={() => navigate('/crm/properties')}
             className="admin-nav-item"
           >
             <List size={18} weight="regular" />

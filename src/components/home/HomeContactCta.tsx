@@ -5,10 +5,10 @@ import { Link } from 'react-router-dom';
 
 export default function HomeContactCta() {
   return (
-    <section className="relative overflow-hidden border-b border-[#ebebeb] bg-white">
+    <section className="relative overflow-hidden border-b border-[#e9e5da] bg-[#F1EEE6]">
       <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full bg-[#C9A84C]/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rounded-full bg-[#C9A84C]/10 blur-3xl" />
-      <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 md:py-20 lg:px-8">
+      <div className="relative mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -17,10 +17,7 @@ export default function HomeContactCta() {
           className="flex flex-col items-center gap-8 text-center md:flex-row md:justify-between md:text-left"
         >
           <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              Get Started Today
-            </p>
-            <h2 className="font-display mt-3 text-2xl font-bold leading-tight text-[#0A1628] md:text-4xl">
+            <h2 className="font-display text-3xl font-semibold leading-tight tracking-tight text-[#0A1628] md:text-4xl">
               Ready to Invest in
               <span className="text-[#C9A84C]"> Bangalore's Rental Income Properties?</span>
             </h2>
@@ -37,7 +34,7 @@ export default function HomeContactCta() {
               rel="noopener noreferrer"
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366] px-6 text-sm font-bold text-white shadow-lg shadow-[#25D366]/20 transition-shadow hover:shadow-xl hover:shadow-[#25D366]/30"
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 bg-[#0A1628] px-6 text-sm font-semibold text-white transition-colors hover:bg-[#1E3852]"
             >
               <WhatsappLogo size={18} weight="fill" />
               Chat on WhatsApp
@@ -46,7 +43,7 @@ export default function HomeContactCta() {
               href={`tel:${siteContact.phoneTel}`}
               whileHover={{ y: -2 }}
               whileTap={{ scale: 0.97 }}
-              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 rounded-xl bg-[#0A1628] px-6 text-sm font-bold text-white shadow-lg shadow-[#0A1628]/20 transition-shadow hover:bg-[#1E3852] hover:shadow-xl hover:shadow-[#0A1628]/30"
+              className="inline-flex min-h-[48px] flex-1 items-center justify-center gap-2 border border-[#0A1628]/25 px-6 text-sm font-semibold text-[#0A1628] transition-colors hover:border-[#0A1628]"
             >
               <Phone size={18} weight="fill" />
               Call {siteContact.phoneDisplay}
@@ -58,7 +55,7 @@ export default function HomeContactCta() {
             >
               <Link
                 to="/contact"
-                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-[#0A1628]/15 bg-white px-6 text-sm font-bold text-[#0A1628] transition-colors hover:border-[#C9A84C] hover:text-[#C9A84C]"
+                className="inline-flex min-h-[48px] w-full items-center justify-center gap-2 border border-[#0A1628]/25 px-6 text-sm font-semibold text-[#0A1628] transition-colors hover:border-[#0A1628]"
               >
                 Visit Office
                 <ArrowRight size={16} weight="bold" />

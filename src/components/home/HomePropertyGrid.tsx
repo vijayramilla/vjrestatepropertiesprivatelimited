@@ -58,9 +58,6 @@ export default function HomePropertyGrid() {
           className="mb-8 flex items-end justify-between gap-4"
         >
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              Curated For Investors
-            </p>
             <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
               Hot Selling PG Buildings
             </h2>

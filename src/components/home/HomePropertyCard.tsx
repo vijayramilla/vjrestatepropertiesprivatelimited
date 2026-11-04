@@ -168,7 +168,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
             <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
             {isFeatured && (
-              <span className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur-sm text-[9px] font-semibold text-[#4F46E5] px-2 py-0.5 rounded-full shadow-sm">
+              <span className="absolute top-2 left-2 z-10 bg-white/95 backdrop-blur-sm text-[11px] font-semibold text-[#4F46E5] px-2 py-0.5 rounded-full shadow-sm">
                 Featured
               </span>
             )}
@@ -194,7 +194,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
           </div>
 
           <div className="p-3 sm:p-3.5">
-            <div className="flex items-center gap-1 text-[10px] text-gray-500 mb-1">
+            <div className="flex items-center gap-1 text-[11px] text-gray-500 mb-1">
               <MapPin size={10} weight="regular" className="text-gray-400" />
               <span className="truncate">{cityName}</span>
             </div>
@@ -214,7 +214,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
               </p>
               {subline && (
                 <p
-                  className="mt-0.5 text-[10px] text-gray-500"
+                  className="mt-0.5 text-[11px] text-gray-500"
                   style={{ fontFamily: DM_SANS }}
                 >
                   {subline}
@@ -235,7 +235,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
             <button
               type="button"
               onClick={handleShare}
-              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 text-[9px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-50 active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 text-[11px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-50 active:scale-[0.98]"
             >
               <ShareNetwork size={11} weight="duotone" />
               {shareFeedback || 'Share'}
@@ -245,7 +245,7 @@ const HomePropertyCard = memo(function HomePropertyCard({ property: doc, index =
               type="button"
               onClick={(e) => { e.preventDefault(); e.stopPropagation(); setContactOpen(true) }}
               disabled={waLoading}
-              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg bg-gray-900 text-white text-[9px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-800 active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-1 flex-1 h-8 rounded-lg bg-gray-900 text-white text-[11px] font-medium uppercase tracking-wide transition-colors hover:bg-gray-800 active:scale-[0.98]"
             >
               <WhatsappLogo size={12} weight="fill" />
               {waLoading ? '...' : 'WhatsApp'}

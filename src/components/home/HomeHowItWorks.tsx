@@ -37,7 +37,7 @@ const STEPS = [
 
 export default function HomeHowItWorks() {
   return (
-    <section className="bg-[#F8F9FA] py-12 md:py-20">
+    <section className="bg-[#F8F7F3] py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -46,10 +46,7 @@ export default function HomeHowItWorks() {
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
           className="mb-10 text-center"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-            Simple & Transparent
-          </p>
-          <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-[#0A1628] md:text-4xl">
             How You Buy Your First Income Asset
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500">
@@ -66,16 +63,16 @@ export default function HomeHowItWorks() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-20px' }}
               transition={{ duration: 0.4, delay: i * 0.08, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="relative flex flex-col items-center rounded-2xl border border-[#EBEBEB] bg-white p-6 text-center shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:shadow-[0_16px_40px_rgba(10,22,40,0.08)]"
+              className="relative flex flex-col items-start border-t border-[#C9A84C]/60 px-1 pb-4 pt-8 text-left"
             >
-              <span className="absolute left-4 top-4 text-[11px] font-bold tracking-[0.2em] text-gray-300">
+              <span className="absolute right-0 top-8 font-display text-2xl font-semibold text-[#C9A84C]/50">
                 {step.step}
               </span>
-              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0A1628] text-[#C9A84C] shadow-[0_8px_24px_rgba(10,22,40,0.25)]">
+              <span className="mb-6 flex h-12 w-12 items-center justify-center border border-[#DCD5C4] text-[#A98C3B]">
                 <step.icon size={26} weight="duotone" />
               </span>
-              <h3 className="text-sm font-bold text-[#0A1628]">{step.title}</h3>
-              <p className="mt-2 text-xs leading-relaxed text-gray-500">{step.desc}</p>
+              <h3 className="font-display text-lg font-semibold text-[#0A1628]">{step.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-gray-500">{step.desc}</p>
             </motion.div>
           ))}
         </div>

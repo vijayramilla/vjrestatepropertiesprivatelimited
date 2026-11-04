@@ -43,7 +43,7 @@ interface NavItem {
 }
 
 const primaryNavItems: NavItem[] = [
-  { icon: House, label: 'Properties', short: 'Properties', path: '/admin/properties', match: '/admin/properties', exact: ['/admin/properties'] },
+  { icon: House, label: 'Properties', short: 'Properties', path: '/crm/properties', match: '/crm/properties', exact: ['/crm/properties'] },
   { icon: ChatCircle, label: 'Enquiries', short: 'Leads', path: '/admin/enquiries', match: '/admin/enquiries' },
   { icon: ClipboardText, label: 'Requirements', short: 'Reqs', path: '/admin/requirements', match: '/admin/requirements', exact: ['/admin/requirements'] },
   { icon: Users, label: 'Users', short: 'Users', path: '/admin/users', match: '/admin/users' },
@@ -90,9 +90,9 @@ export default function AdminLayout({ children, title = 'Admin' }: AdminLayoutPr
 
   const isNavActive = (item: { path: string; match: string; exact?: string[] }) => {
     if (item.exact?.includes(location.pathname)) return true;
-    if (item.path === '/admin/properties') {
+    if (item.path === '/crm/properties') {
       // /admin/properties/new and /admin/properties/:id/edit are their own destinations.
-      return location.pathname === '/admin/properties';
+      return location.pathname === '/crm/properties';
     }
     if (item.path === '/admin/users' || item.path === '/admin/requirements') {
       return location.pathname === item.path;

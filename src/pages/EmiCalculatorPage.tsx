@@ -145,7 +145,7 @@ export default function EmiCalculatorPage() {
           <h1 className={`font-serif text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl ${
             isDark ? 'text-white' : 'text-black'
           }`}>
-            <span className={`bg-gradient-to-r ${isDark ? 'from-white via-gray-300 to-white' : 'from-[#0A1628] via-[#1E3852] to-[#0A1628]'} bg-clip-text text-transparent`}>
+            <span className={isDark ? 'text-white' : 'text-[#0A1628]'}>
               EMI Calculator
             </span>
           </h1>

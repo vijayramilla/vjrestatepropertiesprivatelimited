@@ -5,7 +5,7 @@ import { getCrmClients, type SheetClient } from '@/data/crmClientsData';
 import { Spinner } from '@/components/ui/spinner';
 import { Users, IndianRupee, TrendingUp, ListChecks, Briefcase, HardDrive, ClipboardList, UserCog, Plus, ArrowUpRight } from 'lucide-react';
 import CrmSidebar from '@/components/crm/CrmSidebar';
-import { CrmPageBody, CrmPageHeader, CrmStatCard, CrmCard, MotionReveal } from '@/components/crm/CrmUi';
+import { CrmPageBody, CrmCard, MotionReveal } from '@/components/crm/CrmUi';
 
 function initials(name: string) {
   return name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -106,116 +106,129 @@ export default function AdminCrm() {
   }, [clients]);
 
   const recent = useMemo(() => [...clients].sort((a, b) => b.sno - a.sno).slice(0, 6), [clients]);
+  const metrics = [
+    { icon: Users, label: 'Total Clients', value: String(clients.length), detail: 'Client records', tone: 'navy', path: '/crm/leads' },
+    { icon: IndianRupee, label: 'Total Earnings', value: `₹${formatIndian(earningsMeta.total)}`, detail: formatLakhText(earningsMeta.total), tone: 'emerald', path: '/crm/earnings' },
+    { icon: IndianRupee, label: 'Commission Received', value: `₹${formatIndian(commissionSplit.received)}`, detail: `${commissionSplit.receivedCount} deal${commissionSplit.receivedCount === 1 ? '' : 's'} received`, tone: 'emerald', path: '/crm/earnings' },
+    { icon: TrendingUp, label: 'Commission Pending', value: `₹${formatIndian(commissionSplit.pending)}`, detail: `${commissionSplit.pendingCount} deal${commissionSplit.pendingCount === 1 ? '' : 's'} pending`, tone: 'amber', path: '/crm/earnings' },
+    { icon: TrendingUp, label: 'Commission Clients', value: String(earningsMeta.count), detail: `${earningsMeta.count > 0 && clients.length ? ((earningsMeta.count / clients.length) * 100).toFixed(0) : 0}% of all clients`, tone: 'gold', path: '/crm/earnings' },
+    { icon: Users, label: 'Sellers', value: String(clients.filter((c) => c.client_role === 'Seller').length), detail: 'Seller clients on file', tone: 'blue', path: '/crm/leads' },
+  ];
+  const metricTones: Record<string, { icon: string; accent: string }> = {
+    navy: { icon: 'bg-[#0A1628]/[0.06] text-[#0A1628]', accent: 'bg-[#0A1628]' },
+    emerald: { icon: 'bg-emerald-50 text-emerald-700', accent: 'bg-emerald-600' },
+    amber: { icon: 'bg-amber-50 text-amber-700', accent: 'bg-amber-500' },
+    gold: { icon: 'bg-[#C9A84C]/[0.13] text-[#96782A]', accent: 'bg-[#C9A84C]' },
+    blue: { icon: 'bg-blue-50 text-blue-700', accent: 'bg-blue-600' },
+  };
 
   return (
-    <div className="min-h-screen bg-[#f4f5f7] text-[#0A1628] font-['Inter',sans-serif] antialiased flex">
+    <div className="flex min-h-screen bg-[#F5F3EE] font-['Inter',sans-serif] text-[#0A1628] antialiased">
       <CrmSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-      <main className="flex-1 min-w-0 overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-y-auto">
         <CrmPageBody>
-          <CrmPageHeader
-            eyebrow="Command Center"
-            title="Dashboard"
-            description={`${clients.length} clients on file · VJR Estate CRM · all data in Supabase`}
-            actions={
-              <Link to="/crm/leads" className="no-underline">
-                <span className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] px-4 py-2.5 text-xs font-bold text-[#0A1628] shadow-[0_2px_8px_rgba(201,168,76,0.35)] transition-all hover:brightness-[1.05]">
-                  <Plus className="h-3.5 w-3.5" /> Manage Leads
-                </span>
-              </Link>
-            }
-          />
-
-          {/* Tools on top */}
-          <MotionReveal delay={0}>
-            <div className="mb-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-              {TOOLS.map((t) => (
-                <Link key={t.label} to={t.path} className="no-underline">
-                  <CrmCard className="group h-full p-4">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${t.tone}`}>
-                      <t.icon className="h-5 w-5" strokeWidth={1.6} />
-                    </div>
-                    <p className="mt-3 text-[13px] font-bold text-[#0A1628]">{t.label}</p>
-                    <p className="mt-0.5 text-[10.5px] text-[#9ca3af]">{t.desc}</p>
-                  </CrmCard>
+          <MotionReveal>
+            <section className="relative isolate mb-7 overflow-hidden rounded-[28px] bg-[#0A1628] px-6 py-7 text-white shadow-[0_20px_55px_rgba(10,22,40,0.13)] sm:px-9 sm:py-9 lg:mb-8 lg:flex lg:min-h-[236px] lg:items-center lg:justify-between lg:px-11">
+              <div className="pointer-events-none absolute -right-12 -top-32 -z-10 h-80 w-80 rounded-full border border-[#C9A84C]/20 sm:right-12 sm:top-[-190px] sm:h-[460px] sm:w-[460px]" />
+              <div className="pointer-events-none absolute -right-4 -top-24 -z-10 h-64 w-64 rounded-full border border-[#C9A84C]/10 sm:right-20 sm:top-[-145px] sm:h-[370px] sm:w-[370px]" />
+              <div className="relative max-w-2xl">
+                <p className="mb-4 flex items-center gap-2 text-[9px] font-bold uppercase tracking-[0.25em] text-[#D6B85D] sm:text-[10px]">
+                  <span className="h-px w-6 bg-[#C9A84C]" /> VJR Estate <span className="text-white/35">/</span> Client relations
+                </p>
+                <h1 className="m-0 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-white sm:text-[40px] lg:text-[46px]">Portfolio overview</h1>
+                <p className="mt-2 max-w-lg text-[12.5px] leading-relaxed text-white/60 sm:text-sm">A considered view of your clients, commissions, and active deal pipeline.</p>
+                <Link to="/crm/leads" className="mt-6 inline-flex min-h-[42px] items-center gap-2 rounded-xl bg-gradient-to-br from-[#E1C76F] to-[#C9A84C] px-4 text-xs font-bold text-[#0A1628] no-underline shadow-[0_4px_16px_rgba(201,168,76,0.2)] transition hover:brightness-105">
+                  <Plus className="h-3.5 w-3.5" /> Manage leads <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                 </Link>
-              ))}
-            </div>
+              </div>
+              <div className="relative mt-8 hidden items-center gap-4 border-l border-white/10 py-2 pl-6 pr-3 lg:flex">
+                <img src="/favicon.png" alt="VJR Estate" className="h-14 w-14 rounded-2xl object-contain ring-1 ring-[#C9A84C]/30" />
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/40">Private client</p>
+                  <p className="mt-1 text-[13px] font-medium tracking-wide text-[#F6EDD3]">Management office</p>
+                </div>
+              </div>
+            </section>
           </MotionReveal>
 
-          <div className="mb-7 grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
-            <MotionReveal delay={0}>
-              <Link to="/crm/leads" className="block h-full no-underline">
-                <CrmStatCard icon={<Users className="h-5 w-5" strokeWidth={1.6} />} label="Total Clients" value={String(clients.length)} subtext="Active on file" tone="navy" />
-              </Link>
-            </MotionReveal>
-            <MotionReveal delay={0.05}>
-              <Link to="/crm/earnings" className="block h-full no-underline">
-                <CrmStatCard icon={<IndianRupee className="h-5 w-5" strokeWidth={1.6} />} label="Total Earnings" value={`₹${formatIndian(earningsMeta.total)}`} subtext={formatLakhText(earningsMeta.total)} tone="emerald" />
-              </Link>
-            </MotionReveal>
-            <MotionReveal delay={0.1}>
-              <CrmStatCard icon={<IndianRupee className="h-5 w-5" strokeWidth={1.6} />} label="Commission Received" value={`₹${formatIndian(commissionSplit.received)}`} subtext={`${commissionSplit.receivedCount} deal${commissionSplit.receivedCount === 1 ? '' : 's'} received`} tone="emerald" />
-            </MotionReveal>
-            <MotionReveal delay={0.15}>
-              <CrmStatCard icon={<TrendingUp className="h-5 w-5" strokeWidth={1.6} />} label="Commission Pending" value={`₹${formatIndian(commissionSplit.pending)}`} subtext={`${commissionSplit.pendingCount} deal${commissionSplit.pendingCount === 1 ? '' : 's'} pending`} tone="amber" />
-            </MotionReveal>
-            <MotionReveal delay={0.2}>
-              <CrmStatCard icon={<TrendingUp className="h-5 w-5" strokeWidth={1.6} />} label="Commission Clients" value={String(earningsMeta.count)} subtext={`${earningsMeta.count > 0 ? ((earningsMeta.count / clients.length) * 100).toFixed(0) : 0}% of all clients`} tone="gold" />
-            </MotionReveal>
-            <MotionReveal delay={0.25}>
-              <CrmStatCard icon={<Users className="h-5 w-5" strokeWidth={1.6} />} label="Sellers" value={String(clients.filter(c => c.client_role === 'Seller').length)} subtext="Seller clients on file" tone="blue" />
-            </MotionReveal>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-            <MotionReveal delay={0.2} className="xl:col-span-3">
-              <CrmCard className="h-full p-4 sm:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Deal Pipeline</p>
-                  <span className="text-[11px] font-semibold text-[#6b7280]">{pipelineStats.total} clients</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5 sm:gap-3">
-                  {pipelineStats.rows.map((r) => (
-                    <div key={r.label} className="rounded-xl border border-black/[0.05] bg-[#fafafa] p-3">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 shrink-0 rounded-full ${r.color}`} />
-                        <span className="truncate text-[10.5px] font-semibold text-[#6b7280]">{r.label}</span>
+          <section aria-label="Key performance indicators" className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 xl:gap-4">
+            {metrics.map((metric, index) => {
+              const Icon = metric.icon;
+              const tone = metricTones[metric.tone];
+              return (
+                <MotionReveal key={metric.label} delay={index * 0.04}>
+                  <Link to={metric.path} className="block h-full no-underline">
+                    <CrmCard className="group relative h-full overflow-hidden p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(10,22,40,0.08)] sm:p-5">
+                      <span className={`absolute inset-x-0 top-0 h-[2px] ${tone.accent} opacity-0 transition-opacity group-hover:opacity-100`} />
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="min-h-8 text-[10px] font-bold uppercase leading-relaxed tracking-[0.13em] text-[#81858B]">{metric.label}</p>
+                        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone.icon}`}><Icon className="h-[17px] w-[17px]" strokeWidth={1.7} /></span>
                       </div>
-                      <p className="mt-1.5 font-['Inter',sans-serif] text-xl font-bold text-[#0A1628] tabular-nums">{r.count}</p>
+                      <p className="mt-3 truncate text-[20px] font-semibold leading-none tracking-[-0.035em] text-[#0A1628] tabular-nums sm:text-[23px]">{metric.value}</p>
+                      <p className="mt-2 truncate text-[10px] leading-relaxed text-[#92959A]">{metric.detail}</p>
+                    </CrmCard>
+                  </Link>
+                </MotionReveal>
+              );
+            })}
+          </section>
+
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-5 xl:gap-6">
+            <MotionReveal delay={0.16} className="xl:col-span-3">
+              <CrmCard className="h-full p-5 sm:p-6">
+                <div className="mb-6 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#A3842E]">At a glance</p>
+                    <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-[#0A1628]">Deal pipeline</h2>
+                  </div>
+                  <span className="rounded-full border border-[#E8E4DA] bg-[#FAF9F6] px-3 py-1.5 text-[10px] font-semibold text-[#73777D]">{pipelineStats.total} clients</span>
+                </div>
+                <div className="space-y-5">
+                  {pipelineStats.rows.map((r) => (
+                    <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_2fr_auto] items-center gap-3 sm:grid-cols-[minmax(0,1fr)_3fr_auto] sm:gap-5">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span className={`h-2 w-2 shrink-0 rounded-full ${r.color}`} />
+                        <span className="truncate text-[11px] font-medium text-[#555B63]">{r.label}</span>
+                      </div>
+                      <div className="h-1.5 overflow-hidden rounded-full bg-[#F0EEE9]">
+                        <div className={`h-full rounded-full ${r.color} transition-[width] duration-500`} style={{ width: `${pipelineStats.total ? (r.count / pipelineStats.total) * 100 : 0}%` }} />
+                      </div>
+                      <span className="w-7 text-right text-[12px] font-semibold tabular-nums text-[#0A1628]">{r.count}</span>
                     </div>
                   ))}
                 </div>
               </CrmCard>
             </MotionReveal>
 
-            <MotionReveal delay={0.25} className="xl:col-span-2">
-              <CrmCard className="h-full p-4 sm:p-5">
-                <div className="mb-3 flex items-center justify-between">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Recent Leads</p>
-                  <Link to="/crm/leads" className="flex items-center gap-1 text-[11px] font-bold text-[#96782A] no-underline hover:text-[#0A1628]">
+            <MotionReveal delay={0.2} className="xl:col-span-2">
+              <CrmCard className="h-full p-5 sm:p-6">
+                <div className="mb-4 flex items-end justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#A3842E]">Recently added</p>
+                    <h2 className="mt-1 text-[19px] font-semibold tracking-tight text-[#0A1628]">Latest leads</h2>
+                  </div>
+                  <Link to="/crm/leads" className="flex shrink-0 items-center gap-1 text-[10px] font-bold text-[#96782A] no-underline transition hover:text-[#0A1628]">
                     View all <ArrowUpRight className="h-3 w-3" strokeWidth={2} />
                   </Link>
                 </div>
                 {loading ? (
                   <div className="flex justify-center py-10"><Spinner /></div>
                 ) : recent.length === 0 ? (
-                  <p className="py-10 text-center text-xs text-[#9ca3af]">No clients yet.</p>
+                  <p className="py-10 text-center text-xs text-[#92959A]">No clients yet.</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="divide-y divide-[#F0EEE9]">
                     {recent.map((c) => (
-                      <Link key={c.sno} to="/crm/leads" className="block no-underline">
-                        <div className="flex items-center gap-3 rounded-xl border border-black/[0.05] bg-[#fafafa] p-2.5 transition-colors hover:bg-[#C9A84C]/[0.06]">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] text-[11px] font-extrabold text-[#0a0d12]">
-                            {initials(c.name)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-[12.5px] font-bold text-[#0A1628]">{c.name}</p>
-                            <p className="truncate text-[10.5px] text-[#9ca3af]">#{c.sno} · {c.location || c.type || '—'}</p>
-                          </div>
-                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9.5px] font-bold ${
-                            c.status === 'Closed' ? 'bg-emerald-50 text-emerald-700' : c.status === 'Lost' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-700'
-                          }`}>{c.status}</span>
+                      <Link key={c.sno} to="/crm/leads" className="group flex items-center gap-3 py-3 first:pt-1 last:pb-1 no-underline">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#E8E0CC] bg-[#F8F4E9] text-[10px] font-bold text-[#8A702D] transition-colors group-hover:bg-[#EFE5C8]">
+                          {initials(c.name)}
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[11.5px] font-semibold text-[#172438]">{c.name}</p>
+                          <p className="mt-0.5 truncate text-[9.5px] text-[#92959A]">#{c.sno} <span className="px-1 text-[#C9A84C]">·</span> {c.location || c.type || '—'}</p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold ${
+                          c.status === 'Closed' ? 'bg-emerald-50 text-emerald-700' : c.status === 'Lost' ? 'bg-red-50 text-red-600' : 'bg-[#F4F5F6] text-[#5F6874]'
+                        }`}>{c.status}</span>
                       </Link>
                     ))}
                   </div>
@@ -224,8 +237,32 @@ export default function AdminCrm() {
             </MotionReveal>
           </div>
 
-          <p className="text-center text-[#9ca3af] text-[11.5px] mt-8 tracking-[0.3px]">
-            VJR Estate Properties &mdash; Confidential &middot; Data synced from Supabase
+          <section aria-label="CRM shortcuts" className="mt-8">
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#A3842E]">Workspace</p>
+                <h2 className="mt-1 text-[17px] font-semibold tracking-tight text-[#0A1628]">Quick access</h2>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
+              {TOOLS.map((t) => (
+                <Link key={t.label} to={t.path} className="no-underline">
+                  <CrmCard className="group flex h-full items-center gap-3 p-3.5 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_24px_rgba(10,22,40,0.07)] sm:p-4">
+                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${t.tone}`}>
+                      <t.icon className="h-[17px] w-[17px]" strokeWidth={1.7} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-[11px] font-semibold text-[#172438]">{t.label}</p>
+                      <p className="mt-0.5 truncate text-[9px] text-[#92959A]">{t.desc}</p>
+                    </div>
+                  </CrmCard>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <p className="mt-8 text-center text-[10px] tracking-[0.08em] text-[#A0A19F]">
+            VJR Estate Properties <span className="px-1.5 text-[#C9A84C]">·</span> Confidential
           </p>
         </CrmPageBody>
       </main>

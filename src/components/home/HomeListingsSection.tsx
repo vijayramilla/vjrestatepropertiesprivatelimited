@@ -61,18 +61,12 @@ export default function HomeListingsSection() {
   if (!loading && latestProperties.length === 0) return null;
 
   return (
-    <section className="border-b border-[#ebebeb] bg-white py-8 md:py-10">
-      <div className="w-full px-4 sm:px-6 md:px-8 lg:px-12 xl:px-16">
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+    <section className="bg-[#F8F7F3] py-20 md:py-28">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between md:mb-14">
           <div>
-            <p
-              className="text-[10px] font-medium uppercase tracking-[0.22em] text-[#C9A84C]"
-              style={{ fontFamily: DM_SANS }}
-            >
-              Just Added
-            </p>
-              <h2 className="font-display mt-2 text-2xl text-[#0A1628] md:text-[28px]">Freshly Listed Opportunities</h2>
-              <p className="mt-1.5 max-w-xl text-[13px] text-gray-500">
+              <h2 className="font-display text-3xl font-semibold tracking-tight text-[#0A1628] md:text-4xl">Freshly Listed Opportunities</h2>
+              <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#687078] md:text-base">
                 New PG buildings and rental income assets as they come to market.
               </p>
           </div>
@@ -91,7 +85,7 @@ export default function HomeListingsSection() {
             </Link>
           </motion.div>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 xl:gap-4">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {loading
             ? [...Array(4)].map((_, i) => <SkeletonCard key={i} />)
             : latestProperties.map((property, index) => (

@@ -129,7 +129,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
         viewport={{ once: true, margin: '-30px' }}
         transition={{ duration: 0.35, delay: index * 0.07 }}
       >
-        <Card className="group overflow-hidden border-gray-100 shadow-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5">
+        <Card className="group overflow-hidden rounded-sm border-[#EAE7DE] shadow-none transition-all duration-300 hover:-translate-y-1 hover:shadow-lg">
           <div
             role="button"
             tabIndex={0}
@@ -142,7 +142,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
             }}
             className="w-full cursor-pointer text-left"
           >
-            <div className="relative aspect-[16/9] w-full overflow-hidden bg-gray-100">
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-gray-100">
               <div className="absolute inset-0 bg-gradient-to-r from-gray-100 via-gray-200 to-gray-100 animate-pulse" />
               {coverImage && !imgError ? (
                 <SupabaseImage src={coverImage} alt={saleTitle} priority={index === 0}
@@ -157,7 +157,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
 
               {doc.featured && (
                 <Badge variant="secondary"
-                  className="absolute left-2.5 top-2.5 z-10 bg-white/90 text-gray-800 text-[10px] font-medium px-2 py-0.5 rounded-full shadow-sm border-0 backdrop-blur-sm">
+                  className="absolute left-2.5 top-2.5 z-10 bg-white/90 text-gray-800 text-[11px] font-medium px-2 py-0.5 rounded-full shadow-sm border-0 backdrop-blur-sm">
                   Featured
                 </Badge>
               )}
@@ -171,21 +171,21 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
               </button>
             </div>
 
-            <CardContent className="p-3">
-              <div className="flex items-center gap-1 text-[10px] text-gray-400 mb-0.5">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-1 text-[11px] text-gray-400 mb-0.5">
                 <MapPin size={10} weight="fill" className="text-gray-300 shrink-0" />
                 <span className="truncate">{cityName}</span>
               </div>
 
-              <h3 className="text-[13px] font-semibold leading-snug text-gray-900 line-clamp-2 mb-1.5">
+              <h3 className="mb-3 font-display text-base font-semibold leading-snug text-[#0A1628] line-clamp-2">
                 {saleTitle}
               </h3>
 
-              <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-gray-400 mb-0.5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-400 mb-0.5">
                 Asking Price
               </p>
               <div className="flex items-baseline gap-1.5 mb-2">
-                <span className="text-base font-bold text-gray-900 tracking-tight">
+                <span className="text-lg font-semibold text-[#0A1628] tracking-tight">
                   {isPlotOrLand ? formatINRCompact(property.price) : property.price_label}
                 </span>
               </div>
@@ -194,7 +194,7 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
                 <div className="flex flex-wrap gap-1">
                   {detailChips.map((chip) => (
                     <span key={chip.label}
-                      className="inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200/80">
+                      className="inline-flex items-center rounded-md bg-gray-50 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 ring-1 ring-inset ring-gray-200/80">
                       {chip.value}
                     </span>
                   ))}
@@ -203,21 +203,21 @@ const PremiumPropertyCard = memo(function PremiumPropertyCard({
             </CardContent>
           </div>
 
-          <CardFooter className="border-t border-gray-100 p-3 pt-2.5">
+          <CardFooter className="border-t border-[#EAE7DE] p-4">
             <div className="flex items-center gap-1.5 w-full">
               <Button variant="outline" size="sm" onClick={handleShare}
-                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg px-2 sm:h-7">
+                className="flex-1 h-10 text-xs font-medium gap-1 rounded-sm px-2">
                 <ShareNetwork size={11} weight="duotone" />
                 {shareFeedback || 'Share'}
               </Button>
               <Button size="sm"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setContactOpen(true); }}
                 disabled={waLoading}
-                className="flex-1 h-8 text-[10px] font-medium gap-1 rounded-lg px-2 bg-gray-900 hover:bg-gray-800 text-white sm:h-7">
+                className="flex-1 h-10 text-xs font-medium gap-1 rounded-sm px-2 bg-[#0A1628] hover:bg-[#1E3852] text-white">
                 {waLoading ? '...' : 'WhatsApp'}
               </Button>
               <Button variant="outline" size="icon" onClick={goToDetail}
-                className="h-8 w-8 shrink-0 rounded-lg sm:h-7 sm:w-7">
+                className="h-10 w-10 shrink-0 rounded-sm">
                 <ArrowRight size={11} weight="bold" />
               </Button>
             </div>

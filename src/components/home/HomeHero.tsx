@@ -179,7 +179,7 @@ export default function HomeHero({
                   <div className="mb-1 flex items-center gap-1.5">
                     <MapPin size={12} weight="regular" color="#999" />
                     <span
-                      className="text-[9px] uppercase tracking-[0.14em] text-[#999]"
+                      className="text-[11px] uppercase tracking-[0.14em] text-[#666]"
                       style={{ fontFamily: DM_SANS }}
                     >
                       Locality {selectedLocalities.length > 0 && `· ${selectedLocalities.length}/${MAX_LOCALITY_SELECTIONS}`}

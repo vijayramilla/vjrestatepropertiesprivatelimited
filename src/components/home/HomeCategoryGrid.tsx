@@ -41,23 +41,20 @@ const CATEGORIES: Category[] = [
 
 export default function HomeCategoryGrid() {
   return (
-    <section className="bg-white py-12 md:py-16">
+    <section className="bg-[#F8F7F3] py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-40px' }}
           transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="mb-6 flex items-end justify-between gap-4"
+          className="mb-10 flex items-end justify-between gap-4 md:mb-14"
         >
           <div className="max-w-2xl">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              The Asset Classes We Curate
-            </p>
-            <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-[#0A1628] md:text-4xl">
               Three ways to own rental income
             </h2>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-4 max-w-xl text-sm leading-relaxed text-[#687078] md:text-base">
               Every listing is a working income asset — selected for its tenants, its
               location, and the yield it can carry.
             </p>
@@ -70,7 +67,7 @@ export default function HomeCategoryGrid() {
           </Link>
         </motion.div>
 
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:gap-5">
           {CATEGORIES.map((cat, i) => (
             <motion.div
               key={cat.label}
@@ -81,20 +78,20 @@ export default function HomeCategoryGrid() {
             >
               <Link
                 to={cat.to}
-                className={`group relative flex h-44 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br ${cat.gradient} p-4 text-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl lg:h-52`}
+                className={`group relative flex min-h-[230px] flex-col justify-between overflow-hidden rounded-sm bg-gradient-to-br ${cat.gradient} p-7 text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-xl lg:min-h-[260px]`}
               >
                 <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/5 transition-transform duration-300 group-hover:scale-150" />
-                <span className="relative z-10 flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 text-white backdrop-blur-sm transition-colors group-hover:bg-[#C9A84C] group-hover:text-[#0A1628]">
+                <span className="relative z-10 flex h-12 w-12 items-center justify-center border border-white/25 text-[#E4C877] transition-colors group-hover:border-[#C9A84C]">
                   <cat.icon size={22} weight="duotone" />
                 </span>
                 <div className="relative z-10">
-                  <strong className="block font-display text-[15px] font-bold leading-tight">
+                  <strong className="block font-display text-xl font-semibold leading-tight">
                     {cat.label}
                   </strong>
-                  <span className="mt-1 block text-[11px] font-medium text-white/60">
+                  <span className="mt-2 block text-sm leading-relaxed text-white/70">
                     {cat.desc}
                   </span>
-                  <span className="mt-2.5 inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-[0.12em] text-[#C9A84C] opacity-0 transition-all duration-300 group-hover:opacity-100">
+                  <span className="mt-5 inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#E4C877]">
                     Explore <ArrowRight size={11} weight="bold" />
                   </span>
                 </div>

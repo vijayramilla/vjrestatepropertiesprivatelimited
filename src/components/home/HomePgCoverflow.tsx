@@ -92,7 +92,7 @@ export default function HomePgCoverflow() {
   // while loading — an empty catalog still collapses to nothing.
   if (properties.length === 0) {
     return (
-      <section aria-hidden className="overflow-hidden bg-gradient-to-b from-[#0A1628] via-[#0d1c33] to-[#0A1628] py-14 md:py-20">
+      <section aria-hidden className="overflow-hidden bg-[#0A1628] py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="min-h-[660px] md:min-h-[800px]" />
         </div>
@@ -106,7 +106,7 @@ export default function HomePgCoverflow() {
   };
 
   return (
-    <section className="overflow-hidden bg-gradient-to-b from-[#0A1628] via-[#0d1c33] to-[#0A1628] py-14 md:py-20">
+    <section className="overflow-hidden bg-[#0A1628] py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -115,15 +115,11 @@ export default function HomePgCoverflow() {
           transition={{ duration: 0.5, ease: EASE }}
           className="mb-4 flex flex-col items-center text-center"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-            Curated For Investors
-          </p>
-          <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-white md:text-3xl">
-            Hot Selling PG Buildings
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
+            Discover income-generating properties
           </h2>
           <p className="mt-2 max-w-xl text-sm text-white/60">
-            The income-generating PG buildings buyers across Bangalore are asking
-            for right now — drag to explore, click to view.
+            Explore a selection of rental income opportunities across Bangalore.
           </p>
         </motion.div>
 
@@ -151,7 +147,7 @@ export default function HomePgCoverflow() {
           <button
             type="button"
             onClick={openSelected}
-            className="group inline-flex min-h-[46px] items-center gap-2 rounded-xl bg-[#C9A84C] px-7 text-[12px] font-bold uppercase tracking-[0.14em] text-[#0A1628] shadow-[0_8px_24px_rgba(201,168,76,0.35)] transition-all hover:-translate-y-0.5 hover:bg-[#D6B85D] active:scale-[0.98]"
+            className="group inline-flex min-h-[48px] items-center gap-2 bg-[#C9A84C] px-7 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0A1628] transition-colors hover:bg-[#E4C877]"
           >
             View This Property
             <ArrowRight

@@ -20,3 +20,5 @@ ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS ca_name TEXT 
 ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS cs_name TEXT DEFAULT '';
 ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS logo_url TEXT DEFAULT '';
 ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS gst_scheme TEXT NOT NULL DEFAULT 'monthly';
+ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS agm_dates JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE public.ledger_company_profile ADD COLUMN IF NOT EXISTS first_auditor_appointment_date DATE;

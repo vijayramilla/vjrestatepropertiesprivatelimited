@@ -467,35 +467,62 @@ export default function CrmLeads() {
                 </CrmStatGrid>
               </MotionReveal>
 
-              {/* ── Search ── */}
-              <div className="relative mb-6 w-full max-w-[720px]">
-                <Search className="pointer-events-none absolute left-[18px] top-1/2 h-5 w-5 -translate-y-1/2 text-[#9ca3af]" />
-                <input
-                  ref={searchRef}
-                  type="text"
-                  placeholder="Search by name, phone, email, source, budget, location, status…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="crm-search w-full rounded-2xl border border-black/10 bg-white py-4 pl-[52px] pr-[52px] font-['Inter',sans-serif] text-base text-[#111827] shadow-[0_1px_3px_rgba(10,22,40,0.06)] outline-none transition-[border-color,box-shadow] duration-200 box-border"
-                />
-                <span className="pointer-events-none absolute right-[14px] top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg border border-black/10 bg-[#f5f5f5] text-xs font-bold text-[#9ca3af]">
-                  /
-                </span>
+              {/* ── Search and list controls ── */}
+              <div className="mb-5 flex flex-col gap-2.5 rounded-2xl border border-[#e7e9ed] bg-white p-2.5 shadow-[0_2px_8px_rgba(10,22,40,0.035)] lg:flex-row lg:items-center">
+                <div className="relative min-w-0 flex-1">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8791a0]" />
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    placeholder="Search leads by name, phone, email, source, budget or location"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="crm-search h-11 w-full rounded-xl border border-transparent bg-[#f7f8fa] pl-10 pr-10 font-['Inter',sans-serif] text-[13px] text-[#111827] outline-none transition-[border-color,box-shadow,background] duration-200 box-border focus:bg-white"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-[#e5e7eb] bg-white text-[11px] font-semibold text-[#98a1ae]">/</span>
+                </div>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  {agents.length > 0 && (
+                    <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v)}>
+                      <SelectTrigger className="h-11 w-full rounded-xl border-[#e5e7eb] bg-white text-xs font-semibold text-[#475467] sm:w-[180px]">
+                        <SelectValue placeholder="All agents" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Agent: Everyone</SelectItem>
+                        {agents.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name} · {a.designation || a.department || 'Agent'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <Select value={sortKey} onValueChange={(v: SortKey) => setSortKey(v)}>
+                    <SelectTrigger className="h-11 w-full rounded-xl border-[#e5e7eb] bg-white text-xs font-semibold text-[#475467] sm:w-[190px]">
+                      <SelectValue placeholder="Sort: Default (S.No)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="default">Sort: Default (S.No)</SelectItem>
+                      <SelectItem value="budget-desc">Sort: Budget High Low</SelectItem>
+                      <SelectItem value="budget-asc">Sort: Budget Low High</SelectItem>
+                      <SelectItem value="name">Sort: Name A Z</SelectItem>
+                      <SelectItem value="date">Sort: Lead Date, Newest</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* ── Salesforce Path — the list is the pipeline ── */}
               <MotionReveal delay={0.02}>
-                <div className="mb-4 flex gap-0 overflow-x-auto rounded-2xl bg-white p-1.5 shadow-[0_1px_3px_rgba(10,22,40,0.06)] ring-1 ring-black/[0.05]">
-                  {stageCounts.map((s, i) => {
+                <div className="mb-4 flex gap-1 overflow-x-auto rounded-xl border border-[#e7e9ed] bg-white p-1 shadow-[0_2px_8px_rgba(10,22,40,0.035)]">
+                  {stageCounts.map((s) => {
                     const active = activeFilter === (s.key ?? 'all');
                     return (
                       <button key={s.label} type="button" onClick={() => setActiveFilter(s.key ?? 'all')}
                         aria-pressed={active}
-                        className={`relative flex min-w-[92px] flex-1 cursor-pointer flex-col items-center px-3 py-2.5 transition-all duration-200 first:rounded-l-xl last:rounded-r-xl sm:flex-row sm:justify-center sm:gap-2 ${active ? 'text-[#0A1628]' : 'text-[#6b7280] hover:text-[#0A1628]'}`}>
-                        <span className={`absolute inset-0 transition-colors duration-200 first:rounded-l-xl last:rounded-r-xl ${active ? 'bg-gradient-to-br from-[#D6B85D] to-[#C9A84C] shadow-[0_2px_10px_rgba(201,168,76,0.45)]' : 'bg-transparent'}`} />
-                        <span className="relative whitespace-nowrap text-[10.5px] font-extrabold uppercase tracking-wide">{s.label}</span>
-                        <span className={`relative rounded-full px-1.5 text-[10px] font-extrabold tabular-nums ${active ? 'bg-[#0A1628]/15 text-[#0A1628]' : 'bg-black/[0.05] text-[#6b7280]'}`}>{s.count}</span>
-                        {i < stageCounts.length - 1 && <span className="pointer-events-none absolute -right-[3px] top-1/2 z-10 hidden h-3 w-3 -translate-y-1/2 rotate-45 bg-white sm:block" style={{ boxShadow: '1px -1px 0 0 rgba(10,22,40,0.06)' }} />}
+                        className={`flex min-h-10 min-w-[92px] flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg px-3 text-center transition-colors ${active ? 'bg-[#0A1628] text-white shadow-sm' : 'text-[#667085] hover:bg-[#f5f6f8] hover:text-[#0A1628]'}`}>
+                        <span className="whitespace-nowrap text-[11px] font-semibold">{s.label}</span>
+                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums ${active ? 'bg-white/10 text-white' : 'bg-[#f1f3f5] text-[#667085]'}`}>{s.count}</span>
                       </button>
                     );
                   })}
@@ -503,7 +530,8 @@ export default function CrmLeads() {
               </MotionReveal>
 
               {/* ── Filters ── */}
-              <div className="mb-4 flex flex-wrap items-center gap-2">
+              <div className="mb-5 flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.12em] text-[#98a1ae]">Filter</span>
                 {(['buyer', 'seller', 'assigned', 'unassigned', 'notes'] as const).map((f) => {
                   const label = { buyer: 'Buyer', seller: 'Seller', assigned: 'Assigned', unassigned: 'Unassigned', notes: 'Has notes' }[f];
                   const count = filterCounts[f];
@@ -513,34 +541,7 @@ export default function CrmLeads() {
                     </CrmChip>
                   );
                 })}
-                <div className="flex-1" />
-                {agents.length > 0 && (
-                  <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v)}>
-                    <SelectTrigger className="h-9 w-[190px] rounded-full border-black/10 bg-white text-xs font-bold text-[#6b7280]">
-                      <SelectValue placeholder="Agent: Everyone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Agent: Everyone</SelectItem>
-                      {agents.map((a) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          {a.name} · {a.designation || a.department || 'Agent'}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                <Select value={sortKey} onValueChange={(v: SortKey) => setSortKey(v)}>
-                  <SelectTrigger className="h-9 w-[190px] rounded-full border-black/10 bg-white text-xs font-bold text-[#6b7280]">
-                    <SelectValue placeholder="Sort: Default (S.No)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="default">Sort: Default (S.No)</SelectItem>
-                    <SelectItem value="budget-desc">Sort: Budget High Low</SelectItem>
-                    <SelectItem value="budget-asc">Sort: Budget Low High</SelectItem>
-                    <SelectItem value="name">Sort: Name A Z</SelectItem>
-                    <SelectItem value="date">Sort: Lead Date, Newest</SelectItem>
-                  </SelectContent>
-                </Select>
+                <span className="ml-auto text-xs font-medium tabular-nums text-[#98a1ae]">{filtered.length} shown</span>
               </div>
 
               {/* ── Lead cards ── */}
@@ -551,11 +552,9 @@ export default function CrmLeads() {
                   ) : filtered.map((c) => {
                     const pi = pathIndex(c.status);
                     return (
-                      <CrmCard key={c.sno} onClick={() => openDrawer(c)} className="group relative overflow-hidden p-4 pl-[18px] transition-shadow duration-200 hover:shadow-[0_8px_24px_rgba(10,22,40,0.10)]">
-                        <span className={`absolute left-0 top-3 bottom-3 w-[3px] rounded-full ${STAGE_STRIPE[(c.status ?? '').trim().toLowerCase()] ?? 'bg-gray-300'}`} />
-                        <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-[#C9A84C] via-[#D6B85D] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                      <CrmCard key={c.sno} onClick={() => openDrawer(c)} className="group relative overflow-hidden p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#d5dae2] hover:shadow-[0_10px_28px_rgba(10,22,40,0.09)]">
                         <div className="flex items-start gap-3.5">
-                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e8d8ae] to-[#c9a962] text-[14px] font-extrabold text-[#0a0d12] shadow-[0_2px_8px_rgba(201,169,98,0.35)]">
+                          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#0A1628] text-[13px] font-bold text-[#D6B85D]">
                             {initials(c.name)}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -587,7 +586,7 @@ export default function CrmLeads() {
                         {/* Pipeline progress rail — position at a glance */}
                         <div className="mt-3 flex items-center gap-1">
                           {PATH_STEPS.map((_, i) => (
-                            <span key={i} className={`h-1 flex-1 rounded-full transition-colors ${i <= pi ? 'bg-gradient-to-r from-[#C9A84C] to-[#D6B85D]' : 'bg-black/[0.07]'}`} />
+                            <span key={i} className={`h-1 flex-1 rounded-full transition-colors ${i < pi ? 'bg-[#C9A84C]' : i === pi ? 'bg-[#0A1628]' : 'bg-[#e5e7eb]'}`} />
                           ))}
                         </div>
 
@@ -609,7 +608,7 @@ export default function CrmLeads() {
                           </div>
                           <div className="shrink-0 text-right">
                             <p className="text-[8.5px] font-extrabold uppercase tracking-[0.16em] text-[#9ca3af]">{c_role(c) === 'Seller' ? 'Price' : 'Budget'}</p>
-                            <span className="font-['Inter',sans-serif] text-[14px] font-extrabold text-emerald-600 tabular-nums">₹{c.budget}</span>
+                            <span className="font-['Inter',sans-serif] text-[14px] font-bold text-[#0A1628] tabular-nums">₹{c.budget}</span>
                             {c.total_comm && <div className="text-[10px] font-semibold text-[#9ca3af]">comm ₹{toLakhs(parseFloat(String(c.total_comm)) * 100000)}</div>}
                             {c.date && <div className="text-[10px] text-[#9ca3af]">{formatDate(c.date)}</div>}
                           </div>
@@ -1086,7 +1085,7 @@ export default function CrmLeads() {
       </Dialog>
 
       <style>{`
-        .crm-search:focus { border-color: #C9A84C !important; box-shadow: 0 0 0 4px rgba(201,168,76,0.14) !important; }
+        .crm-search:focus { border-color: #C9A84C !important; box-shadow: 0 0 0 3px rgba(201,168,76,0.12) !important; }
         @media (max-width: 640px) { .crm-search { font-size: 15px !important; } }
       `}</style>
     </div>
@@ -1096,17 +1095,6 @@ export default function CrmLeads() {
 /* ═══════════════ small shared pieces ═══════════════ */
 
 const c_role = (c: SheetClient) => c.client_role || 'Buyer';
-
-/** Left spine on every card — stage color at a glance (Zoho-style row highlight). */
-const STAGE_STRIPE: Record<string, string> = {
-  '': 'bg-[#C9A84C]',
-  'site visit': 'bg-amber-400',
-  'token done': 'bg-blue-500',
-  'visit done': 'bg-indigo-400',
-  closed: 'bg-emerald-500',
-};
-
-
 
 function SectionLabel({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (

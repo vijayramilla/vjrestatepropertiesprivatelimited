@@ -11,6 +11,7 @@ import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
 import AnyAdminRoute from './components/AnyAdminRoute';
 import CrmModuleRoute from './components/CrmModuleRoute';
+import CrmPropertiesRoute from './components/CrmPropertiesRoute';
 import EmployeeRoute from './components/EmployeeRoute';
 import PageLoader from './components/PageLoader';
 
@@ -38,7 +39,7 @@ const EmiCalculatorPage = lazy(() => import('./pages/EmiCalculatorPage'));
 const RentalYieldCalculatorPage = lazy(() => import('./pages/RentalYieldCalculatorPage'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const EmployeeLogin = lazy(() => import('./pages/crm/EmployeeLogin'));
-const AdminPropertiesList = lazy(() => import('./pages/admin/AdminPropertiesList'));
+// Properties list lives on the CRM Properties module page now (see CrmProperties).
 const AdminPropertyForm = lazy(() => import('./pages/admin/AdminPropertyForm'));
 const AdminLeadsList = lazy(() => import('./pages/admin/AdminLeadsList'));
 const AdminUsersList = lazy(() => import('./pages/admin/AdminUsersList'));
@@ -66,7 +67,7 @@ const CrmLeads = lazy(() => import('./pages/crm/CrmLeads'));
 const CrmAssignedClients = lazy(() => import('./pages/crm/CrmAssignedClients'));
 const CrmBookings = lazy(() => import('./pages/crm/CrmBookings'));
 const CrmLedgers = lazy(() => import('./pages/crm/CrmLedgers'));
-const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
+const CrmProperties = lazy(() => import('./pages/crm/CrmProperties'));const CrmEmployeeDashboard = lazy(() => import('./pages/crm/CrmEmployeeDashboard'));
 const CrmAttendance = lazy(() => import('./pages/crm/CrmAttendance'));
 const CrmGeofences = lazy(() => import('./pages/crm/CrmGeofences'));
 const CrmPayroll = lazy(() => import('./pages/crm/CrmPayroll'));
@@ -138,17 +139,11 @@ function AppRoutes() {
       <Route path="/map" element={<Navigate to="/properties" replace />} />
       <Route path="/admin/login" element={<LazyPage><AdminLogin /></LazyPage>} />
       <Route path="/employee-login" element={<LazyPage><EmployeeLogin /></LazyPage>} />
-      <Route path="/admin" element={<Navigate to="/admin/properties" replace />} />
-      {/* Granted users (can_add_property) share these two routes with full
-          admins — each page picks its own chrome based on access level. */}
-      <Route
-        path="/admin/properties"
-        element={
-          <AnyAdminRoute>
-            <LazyPage><AdminPropertiesList /></LazyPage>
-          </AnyAdminRoute>
-        }
-      />
+      <Route path="/admin" element={<Navigate to="/crm/properties" replace />} />
+      {/* Properties moved to the CRM module system at /crm/properties — the
+          legacy /admin/properties URL redirects there (same page, both admin
+          and granted-user views preserved). */}
+      <Route path="/admin/properties" element={<Navigate to="/crm/properties" replace />} />
       <Route
         path="/admin/enquiries"
         element={
@@ -335,6 +330,14 @@ function AppRoutes() {
           <CrmModuleRoute>
             <LazyPage><CrmBookings /></LazyPage>
           </CrmModuleRoute>
+        }
+      />
+      <Route
+        path="/crm/properties"
+        element={
+          <CrmPropertiesRoute>
+            <LazyPage><CrmProperties /></LazyPage>
+          </CrmPropertiesRoute>
         }
       />
       <Route

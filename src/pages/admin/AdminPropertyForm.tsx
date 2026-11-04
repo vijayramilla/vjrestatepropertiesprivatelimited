@@ -743,7 +743,7 @@ export default function AdminPropertyForm() {
       setRemovedImageUrls([]);
       setPostPhase('done');
       setToast(isEditMode ? 'Changes saved successfully' : 'Property posted successfully');
-      setTimeout(() => navigate('/admin/properties'), 1500);
+      setTimeout(() => navigate('/crm/properties'), 1500);
     } catch (error) {
       console.error('Save error:', error);
       setToast(`Error posting property: ${error instanceof Error ? error.message : String(error)}`);

@@ -30,7 +30,7 @@ const PILLARS = [
 
 export default function HomeWhyVjr() {
   return (
-    <section className="relative overflow-hidden bg-[#0A1628] py-12 md:py-20">
+    <section className="relative overflow-hidden bg-[#0A1628] py-20 md:py-28">
       {/* Gold radial glow, boardroom-premium */}
       <div className="pointer-events-none absolute -top-40 left-1/2 h-80 w-[720px] -translate-x-1/2 rounded-full bg-[#C9A84C]/10 blur-3xl" />
 
@@ -42,10 +42,7 @@ export default function HomeWhyVjr() {
           transition={{ duration: 0.5, ease: EASE }}
           className="mb-10 text-center"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-            The VJR Estate Standard
-          </p>
-          <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-white md:text-3xl">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-white md:text-4xl">
             Why Serious Investors Choose VJR Estate
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-white/55">
@@ -62,13 +59,13 @@ export default function HomeWhyVjr() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-20px' }}
               transition={{ duration: 0.45, delay: i * 0.08, ease: EASE }}
-              className="group rounded-2xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:bg-white/[0.07]"
+              className="group border-t border-[#C9A84C]/40 px-1 py-7"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#C9A84C]/15 text-[#C9A84C] transition-colors duration-300 group-hover:bg-[#C9A84C] group-hover:text-[#0A1628]">
+              <span className="flex h-12 w-12 items-center justify-center border border-white/20 text-[#C9A84C]">
                 <pillar.icon size={24} weight="duotone" />
               </span>
-              <h3 className="mt-4 text-sm font-bold text-white">{pillar.title}</h3>
-              <p className="mt-1.5 text-xs leading-relaxed text-white/55">{pillar.desc}</p>
+              <h3 className="mt-6 font-display text-lg font-semibold text-white">{pillar.title}</h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/65">{pillar.desc}</p>
             </motion.div>
           ))}
         </div>

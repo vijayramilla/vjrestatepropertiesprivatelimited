@@ -65,18 +65,21 @@ export function currentFyLabel(fyStartMonth = 4): string {
 
 /* ── Risk bands ─────────────────────────────────────────────────────────── */
 
-export function daysUntil(dueIso: string): number {
+export function daysUntil(dueIso: string, today = new Date()): number {
   const [y, m, d] = dueIso.split('-').map(Number);
-  const now = new Date();
-  const todayUtc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   return Math.round((Date.UTC(y, m - 1, d) - todayUtc) / 86_400_000);
 }
 
 export type RiskBand = 'overdue' | 'critical' | 'warning' | 'upcoming' | 'done';
 
-export function riskBand(item: { due_date: string; status: string }): RiskBand {
-  if (item.status === 'filed' || item.status === 'na') return 'done';
-  const d = daysUntil(item.due_date);
+export function hasComplianceEvidence(item: { evidence_status?: string; arn?: string; proof_url?: string; challan_url?: string }): boolean {
+  return item.evidence_status !== 'awaiting_evidence' && Boolean(item.evidence_status === 'verified' || item.arn || item.proof_url || item.challan_url);
+}
+
+export function riskBand(item: { due_date: string; status: string; evidence_status?: string; arn?: string; proof_url?: string; challan_url?: string }, today = new Date()): RiskBand {
+  if (item.status === 'na' || (item.status === 'filed' && hasComplianceEvidence(item))) return 'done';
+  const d = daysUntil(item.due_date, today);
   if (d < 0) return 'overdue';
   if (d <= 7) return 'critical';
   if (d <= 30) return 'warning';

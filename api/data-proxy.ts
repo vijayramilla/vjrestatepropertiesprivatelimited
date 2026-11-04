@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
-import { generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION } from './_lib/ledger-rules.mjs';
+import { generateComplianceCalendarWithSummary, evaluateGst, gstProfileFromLegacy, RULES_VERSION, COMPLIANCE_PACKS } from './_lib/ledger-rules.mjs';
 import { LEDGER_NOTIFICATIONS_DDL, scanAndNotify } from './_lib/ledger-reminders.mjs';
 
 /**
@@ -472,6 +472,8 @@ CREATE TABLE IF NOT EXISTS public.ledger_company_profile (
   ca_name TEXT DEFAULT '',
   cs_name TEXT DEFAULT '',
   logo_url TEXT DEFAULT '',
+  agm_dates JSONB NOT NULL DEFAULT '{}'::jsonb,
+  first_auditor_appointment_date DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -505,6 +507,44 @@ CREATE TABLE IF NOT EXISTS public.ledger_compliance_items (
 CREATE INDEX IF NOT EXISTS idx_ledger_items_due ON public.ledger_compliance_items (due_date);
 CREATE INDEX IF NOT EXISTS idx_ledger_items_fy ON public.ledger_compliance_items (fy);
 ALTER TABLE public.ledger_compliance_items ADD COLUMN IF NOT EXISTS rule_version TEXT DEFAULT '';
+ALTER TABLE public.ledger_compliance_items
+  ADD COLUMN IF NOT EXISTS rule_id TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS legacy_status TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS evidence_status TEXT NOT NULL DEFAULT 'not_required',
+  ADD COLUMN IF NOT EXISTS source_verified_at DATE,
+  ADD COLUMN IF NOT EXISTS archived BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS archive_reason TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS pack_id TEXT NOT NULL DEFAULT 'core',
+  ADD COLUMN IF NOT EXISTS compliance_type TEXT NOT NULL DEFAULT 'statutory_filing';
+CREATE TABLE IF NOT EXISTS public.ledger_compliance_packs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  default_on BOOLEAN NOT NULL DEFAULT FALSE,
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  trigger_expr TEXT NOT NULL DEFAULT '',
+  rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS public.ledger_applicability_answers (
+  question_key TEXT PRIMARY KEY,
+  answer TEXT NOT NULL DEFAULT 'unknown',
+  answer_value TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  verified_at TIMESTAMPTZ,
+  updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO public.ledger_compliance_packs (id,name,description,default_on,enabled,trigger_expr) VALUES
+  ('core','Core','Always-on company and annual-compliance essentials.',TRUE,TRUE,'Always enabled'),
+  ('conditional','Conditional obligations','Generate only obligations whose answer is Yes.',TRUE,TRUE,'Applicability answer is Yes'),
+  ('employees','Employees','Payroll, labour and workplace rules.',FALSE,FALSE,'Salary threshold, 10 or 20 employees'),
+  ('gst','GST','GST monitoring and filing rules.',FALSE,FALSE,'70% of turnover threshold, interstate supply, or e-commerce'),
+  ('tax_audit','Tax audit','Section 44AB tax-audit workflow.',FALSE,FALSE,'Turnover above ₹1 crore'),
+  ('rera','RERA','Agent/promoter registration and project reporting.',FALSE,FALSE,'KRERA agent or promoter role'),
+  ('business_hygiene','Business hygiene','Optional property, lease, insurance, privacy and register calendar.',FALSE,FALSE,'Manual opt-in')
+ON CONFLICT (id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS public.ledger_legal_cases (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   case_no TEXT DEFAULT '',
@@ -626,7 +666,7 @@ CREATE TABLE IF NOT EXISTS public.ledger_activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_log_created ON public.ledger_activity_log (created_at DESC);
 DO $$ DECLARE t text; BEGIN
-  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_legal_cases','ledger_company_profile','ledger_activity_log','ledger_payments','ledger_notices','ledger_directors','ledger_documents'] LOOP
+  FOREACH t IN ARRAY ARRAY['ledger_compliance_items','ledger_compliance_packs','ledger_applicability_answers','ledger_legal_cases','ledger_company_profile','ledger_activity_log','ledger_payments','ledger_notices','ledger_directors','ledger_documents'] LOOP
     EXECUTE format('REVOKE ALL ON TABLE public.%I FROM anon, authenticated;', t);
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY;', t);
   END LOOP;
@@ -2918,31 +2958,127 @@ async function executeAction(action: string, params: any): Promise<any> {
       };
     }
 
+    // ── LEDGERS: double-entry accounting ────────────────────────────────
+    case 'ledger.accounting.report': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const asOfDate = String(params.asOfDate ?? '');
+      const fyStart = String(params.fyStart ?? '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(asOfDate) || !/^\d{4}-\d{2}-\d{2}$/.test(fyStart) || fyStart > asOfDate) throw new Error('Invalid reporting dates');
+      const { data, error } = await supabaseAdmin.rpc('ledger_accounting_report', { p_as_of_date: asOfDate, p_fy_start: fyStart });
+      if (error) throw new Error(error.message);
+      return data ?? { accounts: [], journals: [], audit: [], totals: {} };
+    }
+
+    case 'ledger.accounting.post': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const entryDate = String(params.entryDate ?? '');
+      const memo = String(params.memo ?? '').trim();
+      const reference = String(params.reference ?? '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate) || !memo || memo.length > 500 || reference.length > 100) throw new Error('Enter a valid date, memo (max 500 characters), and reference (max 100 characters)');
+      if (!Array.isArray(params.lines) || params.lines.length < 2 || params.lines.length > 50) throw new Error('A journal must contain between 2 and 50 lines');
+      for (const line of params.lines) {
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(line?.account_id ?? ''))) throw new Error('Choose a valid account for every journal line');
+        for (const key of ['debit', 'credit']) {
+          const value = line?.[key] === '' || line?.[key] == null ? 0 : Number(line[key]);
+          if (!Number.isFinite(value) || value < 0 || Math.round(value * 100) !== value * 100) throw new Error('Journal amounts must be non-negative with at most two decimal places');
+        }
+      }
+      const { data, error } = await supabaseAdmin.rpc('ledger_post_journal', {
+        p_entry_date: entryDate, p_memo: memo, p_reference: reference,
+        p_lines: params.lines, p_actor: auth?.email ?? '',
+      });
+      if (error) throw new Error(error.message);
+      return { id: data };
+    }
+
+    case 'ledger.accounting.reverse': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const id = String(params.id ?? '');
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) throw new Error('Invalid journal id');
+      const { data, error } = await supabaseAdmin.rpc('ledger_reverse_journal', { p_journal_id: id, p_actor: auth?.email ?? '' });
+      if (error) throw new Error(error.message);
+      return { id: data };
+    }
+
     // ── LEDGERS: compliance calendar + legal cases ──────────────────────
+    case 'ledger.packs.list': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const [stored, profile, employees, salaryEmployees, applicability] = await Promise.all([
+        supabaseAdmin.from('ledger_compliance_packs').select('id,enabled'),
+        supabaseAdmin.from('ledger_company_profile').select('employee_count,turnover_amount').eq('id', 'company').maybeSingle(),
+        supabaseAdmin.from('employees').select('id', { count: 'exact', head: true }).neq('status', 'Terminated'),
+        supabaseAdmin.from('employees').select('id', { count: 'exact', head: true }).neq('status', 'Terminated').gte('salary', 25000),
+        supabaseAdmin.from('ledger_applicability_answers').select('question_key,answer'),
+      ]);
+      const enabled = new Set((stored.data ?? []).filter((p: any) => p.enabled).map((p: any) => p.id));
+      const employeeCount = Math.max(Number(profile.data?.employee_count) || 0, employees.count ?? 0);
+      const turnover = Number(profile.data?.turnover_amount) || 0;
+      const triggers: Record<string, string> = {};
+      if (employeeCount >= 10) triggers.employees = `${employeeCount} active employees; POSH and gratuity threshold reached`;
+      else if (employeeCount >= 1) triggers.employees = `${employeeCount} active employee${employeeCount === 1 ? '' : 's'}; review payroll and statutory thresholds`;
+      if (salaryEmployees.count) triggers.employees += `${triggers.employees ? ' · ' : ''}${salaryEmployees.count} employee${salaryEmployees.count === 1 ? '' : 's'} paid at least ₹25,000`;
+      if (turnover >= 1_400_000) triggers.gst = `Rolling turnover is ${Math.round(turnover / 2_000_000 * 100)}% of ₹20 lakh threshold`;
+      if (turnover > 10_000_000) triggers.tax_audit = `Turnover ₹${turnover.toLocaleString('en-IN')} exceeds ₹1 crore`;
+      const answerMap = Object.fromEntries((applicability.data ?? []).map((row: any) => [row.question_key, row.answer]));
+      if (answerMap.krera_applicable === 'yes') triggers.rera = 'K-RERA role answered Yes';
+      return { data: COMPLIANCE_PACKS.map((pack: any) => ({ ...pack, enabled: pack.id === 'core' || enabled.has(pack.id), suggested: !['core', 'conditional'].includes(pack.id) && Boolean(triggers[pack.id]), suggestion_reason: triggers[pack.id] ?? '' })) };
+    }
+    case 'ledger.packs.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const id = String(params.id);
+      if (!COMPLIANCE_PACKS.some((p: any) => p.id === id) || ['core', 'conditional'].includes(id)) throw new Error('Invalid pack');
+      const enabled = Boolean(params.enabled);
+      const { error } = await supabaseAdmin.from('ledger_compliance_packs').upsert({ id, enabled, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      if (error) throw new Error(error.message);
+      let archiveQuery = supabaseAdmin.from('ledger_compliance_items').update({ archived: !enabled, archive_reason: enabled ? '' : 'Pack disabled; retained for history.' }).eq('pack_id', id).eq('archived', enabled);
+      if (enabled) archiveQuery = archiveQuery.eq('archive_reason', 'Pack disabled; retained for history.');
+      const archived = await archiveQuery;
+      if (archived.error) throw new Error(archived.error.message);
+      return { enabled };
+    }
+
     case 'ledger.items.list': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const fy = params.fy ? String(params.fy) : null;
-      const runQ = () => {
-        let q = supabaseAdmin
-          .from('ledger_compliance_items')
-          .select('*')
-          .order('due_date', { ascending: true })
-          .limit(500);
-        if (fy) q = q.eq('fy', fy);
-        return q;
+      const openOnly = params.openOnly === true;
+      const runQ = async () => {
+        const data: any[] = [];
+        for (let start = 0; ; start += 500) {
+          let q = supabaseAdmin
+            .from('ledger_compliance_items')
+            .select('*')
+            .order('due_date', { ascending: true })
+            .range(start, start + 499);
+          if (fy) q = q.eq('fy', fy);
+          if (openOnly) q = q.not('status', 'in', '(filed,na)');
+          const page = await q;
+          if (page.error) return page;
+          data.push(...(page.data ?? []));
+          if ((page.data ?? []).length < 500) return { data, error: null };
+        }
       };
       let r = await runQ();
       if (r.error && isMissingRelation(r.error.message)) { await ensureLedgerSchema(); r = await runQ(); }
       if (r.error && !isMissingRelation(r.error.message)) throw new Error(r.error.message);
-      return { data: r.data ?? [] };
+      const data = r.data ?? [];
+      if (params.includeArchived === true) return { data };
+      const packs = await supabaseAdmin.from('ledger_compliance_packs').select('id').eq('enabled', true);
+      const enabled = new Set(['core', 'conditional', ...(packs.data ?? []).map((p: any) => p.id)]);
+      return { data: data.filter((item: any) => item.archived !== true && enabled.has(item.pack_id || 'core')) };
     }
 
     case 'ledger.item.upsert': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const { id, ...fields } = params;
       const clean: Record<string, unknown> = {};
-      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url', 'amount_paid'];
+      const allowed = ['law', 'form', 'title', 'period', 'fy', 'due_date', 'status', 'owner', 'filed_date', 'arn', 'penalty_exposure', 'notes', 'proof_url', 'source_url', 'assignee', 'priority', 'challan_url', 'amount_paid', 'rule_id', 'rule_version', 'evidence_status', 'source_verified_at'];
       for (const k of allowed) if (fields[k] !== undefined) clean[k] = fields[k];
+      if (fields.status === 'filed' && (!fields.arn || !fields.filed_date || !fields.proof_url)) throw new Error('Filed requires an SRN/ARN, filing date and proof document.');
+      if (fields.status === 'filed' || fields.arn || fields.proof_url || fields.challan_url) {
+        const hasEvidence = Boolean(fields.arn && fields.filed_date && fields.proof_url);
+        clean.evidence_status = hasEvidence ? 'verified' : 'awaiting_evidence';
+      } else if (fields.status !== undefined) clean.evidence_status = 'not_required';
+      if (fields.evidence_status !== undefined) clean.evidence_status = fields.evidence_status;
       const logIt = async () => {
         try {
           await supabaseAdmin.from('ledger_activity_log').insert({
@@ -2969,10 +3105,10 @@ async function executeAction(action: string, params: any): Promise<any> {
 
     case 'ledger.item.delete': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const { error } = await supabaseAdmin.from('ledger_compliance_items').delete().eq('id', String(params.id));
+      const { error } = await supabaseAdmin.from('ledger_compliance_items').update({ archived: true, archive_reason: 'Archived by user; retained for history.', updated_at: new Date().toISOString() }).eq('id', String(params.id));
       if (error) throw new Error(error.message);
       try {
-        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'item', entity_id: String(params.id), action: 'deleted', summary: 'Obligation removed', actor: auth?.email ?? '' });
+        await supabaseAdmin.from('ledger_activity_log').insert({ entity_type: 'item', entity_id: String(params.id), action: 'archived', summary: 'Obligation archived from active register', actor: auth?.email ?? '' });
       } catch { /* best-effort */ }
       return { id: String(params.id) };
     }
@@ -3121,6 +3257,26 @@ async function executeAction(action: string, params: any): Promise<any> {
       return result;
     }
 
+    case 'ledger.applicability.get': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const { data, error } = await supabaseAdmin.from('ledger_applicability_answers').select('*');
+      if (error && isMissingRelation(error.message)) { await ensureLedgerSchema(); return { data: {} }; }
+      if (error) throw new Error(error.message);
+      return { data: Object.fromEntries((data ?? []).map((r: any) => [r.question_key, r.answer])) };
+    }
+
+    case 'ledger.applicability.set': {
+      if (!isAdmin(auth)) throw new Error('Forbidden');
+      const answers = params.answers ?? {};
+      const allowedKeys = ['job_work_goods', 'dpt3_applicable', 'msme_dues_over_45_days', 'tds_applicable', 'advance_tax_payable_10000_or_more', 'pas3_applicable', 'inc22_applicable', 'shops_applicable', 'krera_applicable', 'posh_10_or_more_employees', 'tds_q1_applicable', 'tds_q2_applicable', 'tds_q3_applicable', 'tds_q4_applicable'];
+      const rows = Object.entries(answers).filter(([key, answer]) => allowedKeys.includes(key) && ['yes', 'no', 'unknown'].includes(String(answer))).map(([question_key, answer]) => ({ question_key, answer, updated_by: auth?.email ?? '', updated_at: new Date().toISOString() }));
+      if (rows.length) {
+        const { error } = await supabaseAdmin.from('ledger_applicability_answers').upsert(rows, { onConflict: 'question_key' });
+        if (error) throw new Error(error.message);
+      }
+      return { data: answers };
+    }
+
     case 'ledger.profile.get': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
       const runQ = () => supabaseAdmin
@@ -3257,7 +3413,7 @@ async function executeAction(action: string, params: any): Promise<any> {
 
     case 'ledger.profile.set': {
       if (!isAdmin(auth)) throw new Error('Forbidden');
-      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url'];
+      const allowed = ['name', 'entity_type', 'incorporated_on', 'fy_start_month', 'pan', 'tan', 'gstin', 'gst_scheme', 'registered_office', 'cin', 'registrations', 'turnover_band', 'employee_count', 'ca_name', 'cs_name', 'logo_url', 'agm_dates', 'first_auditor_appointment_date', 'company_email', 'business_activity', 'operating_office', 'registered_office_lat', 'registered_office_lng', 'paid_up_capital', 'small_company', 'small_company_thresholds', 'auditor_name', 'auditor_membership_no', 'auditor_firm_name', 'auditor_frn', 'data_quality_alerts', 'pt_number', 'shops_establishment_no', 'krera_no'];
       const clean: Record<string, unknown> = { id: 'company', updated_at: new Date().toISOString() };
       for (const k of allowed) if (params[k] !== undefined) clean[k] = params[k];
       let r = await supabaseAdmin
@@ -3382,6 +3538,11 @@ async function executeAction(action: string, params: any): Promise<any> {
       if (gRes.error && isMissingRelation(gRes.error.message)) { await ensureLedgerSchema(); gRes = await gQ(); }
       const gstProfile = gRes.data ?? gstProfileFromLegacy(registrations, p.gst_scheme);
       const fyLabel = `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`;
+      if (fyStartYear > Number(String(p.incorporated_on ?? '').slice(0, 4)) && fyStartYear > 0) {
+        const priorFy = `FY ${fyStartYear - 1}-${String(fyStartYear).slice(2)}`;
+        const priorOpen = await supabaseAdmin.from('ledger_compliance_items').select('id', { count: 'exact', head: true }).eq('fy', priorFy).not('status', 'in', '(filed,na)').eq('archived', false);
+        if ((priorOpen.count ?? 0) > 0) throw new Error(`Close ${priorFy} obligations before generating ${fyLabel}.`);
+      }
       const tQ = () => supabaseAdmin.from('gst_turnover_records').select('*').eq('fy', fyLabel).order('period', { ascending: false });
       let tRes = await tQ();
       if (tRes.error && isMissingRelation(tRes.error.message)) { await ensureLedgerSchema(); tRes = await tQ(); }
@@ -3389,6 +3550,18 @@ async function executeAction(action: string, params: any): Promise<any> {
       const annual = tRows.find((x: any) => x.period_type === 'annual');
       const aggregateTurnover = annual ? Number(annual.aggregate_turnover) || 0 : tRows.filter((x: any) => x.period_type === 'monthly').reduce((s2: number, x: any) => s2 + (Number(x.aggregate_turnover) || 0), 0);
 
+      const agmDates: Record<string, string> = {};
+      const agmResult = await supabaseAdmin.from('ledger_compliance_items').select('fy,notes').eq('form', 'AGM actual date');
+      for (const row of agmResult.data ?? []) {
+        const date = String(row.notes ?? '').match(/\b\d{4}-\d{2}-\d{2}\b/)?.[0];
+        if (date && row.fy) agmDates[row.fy] = date;
+      }
+      const applicabilityResult = await supabaseAdmin.from('ledger_applicability_answers').select('question_key,answer');
+      const applicability = Object.fromEntries((applicabilityResult.data ?? []).map((row: any) => [row.question_key, row.answer]));
+      const packsResult = await supabaseAdmin.from('ledger_compliance_packs').select('id').eq('enabled', true);
+      const enabledPacks = (packsResult.data ?? []).map((row: any) => row.id);
+      const employeeCount = Math.max(Number(p.employee_count) || 0, (await supabaseAdmin.from('employees').select('id', { count: 'exact', head: true }).neq('status', 'Terminated')).count ?? 0);
+      const employeeSalaryCount = (await supabaseAdmin.from('employees').select('id', { count: 'exact', head: true }).neq('status', 'Terminated').gte('salary', 25000)).count ?? 0;
       const { items: generated, summary, gstEval } = generateComplianceCalendarWithSummary({
         fyStartYear,
         entityType: entityType as any,
@@ -3397,7 +3570,14 @@ async function executeAction(action: string, params: any): Promise<any> {
         gstScheme: (p.gst_scheme as 'monthly' | 'qrmp') ?? 'monthly',
         gst: gstProfile,
         aggregateTurnover,
-        markPastFiled: params.markPastFiled !== false,
+        applicability,
+        agmDates: p.agm_dates ?? agmDates,
+        auditorAppointmentDate: p.first_auditor_appointment_date ?? null,
+        smallCompany: p.small_company === true,
+        enabledPacks,
+        employeeCount,
+        employeeSalaryCount,
+        markPastFiled: false,
       });
       if (!generated.length) throw new Error(`Generated 0 obligations for a ${entityType} with those registrations — tick GST/TDS/PF etc. in Company Profile.`);
 
@@ -3433,10 +3613,10 @@ async function executeAction(action: string, params: any): Promise<any> {
         return { savedCount, failures };
       };
 
-      const existing = await supabaseAdmin.from('ledger_compliance_items').select('form,period').eq('fy', `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`);
+      const existing = await supabaseAdmin.from('ledger_compliance_items').select('form,period').eq('fy', `FY ${fyStartYear}-${String(fyStartYear + 1).slice(2)}`).limit(2000);
       const have = new Set((existing.data ?? []).map((r: any) => `${r.form}|${r.period}`));
       const fresh = generated.filter((g) => !have.has(`${g.form}|${g.period}`));
-      let { savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION })));
+      let { savedCount: saved, failures } = await insertItems(fresh.map((g) => ({ ...g, archived: false, archive_reason: '', owner: '', assignee: '', priority: 'normal', authority: '', reminders_sent: [], rule_version: RULES_VERSION })));
       // Self-heal: a live table missing columns added after its creation fails
       // every insert with a schema-cache error — re-run the DDL once and retry.
       if (saved === 0 && failures.length && isMissingRelation(failures[0])) {

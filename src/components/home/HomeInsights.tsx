@@ -8,7 +8,7 @@ const POSTS = blogPosts.slice(0, 3);
 
 export default function HomeInsights() {
   return (
-    <section className="bg-white py-12 md:py-20">
+    <section className="bg-white py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
@@ -18,11 +18,7 @@ export default function HomeInsights() {
           className="mb-8 flex items-end justify-between gap-4"
         >
           <div>
-            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-              <span className="inline-block h-px w-8 bg-[#C9A84C]" />
-              Insights & Guides
-            </p>
-            <h2 className="font-display mt-2 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+            <h2 className="mt-4 font-display text-3xl font-semibold tracking-tight text-[#0A1628] md:text-4xl">
               Latest From Our Blog
             </h2>
           </div>
@@ -45,7 +41,7 @@ export default function HomeInsights() {
             >
               <Link
                 to={`/blog/${post.slug}`}
-                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[#EBEBEB] bg-white shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:shadow-[0_16px_40px_rgba(10,22,40,0.1)]"
+                className="group flex h-full flex-col overflow-hidden bg-white transition-transform duration-300 hover:-translate-y-1"
               >
                 <div className="relative aspect-[16/10] overflow-hidden bg-gray-100">
                   <SupabaseImage
@@ -57,11 +53,11 @@ export default function HomeInsights() {
                     {post.category}
                   </span>
                 </div>
-                <div className="flex flex-1 flex-col p-4">
-                  <h3 className="text-sm font-bold leading-snug text-[#0A1628] line-clamp-2 transition-colors group-hover:text-[#C9A84C]">
+                <div className="flex flex-1 flex-col py-6">
+                  <h3 className="font-display text-lg font-semibold leading-snug text-[#0A1628] line-clamp-2 transition-colors group-hover:text-[#A98C3B]">
                     {post.title}
                   </h3>
-                  <p className="mt-2 flex-1 text-xs leading-relaxed text-gray-500 line-clamp-2">
+                  <p className="mt-3 flex-1 text-sm leading-relaxed text-gray-500 line-clamp-2">
                     {post.excerpt}
                   </p>
                   <div className="mt-4 flex items-center justify-between">

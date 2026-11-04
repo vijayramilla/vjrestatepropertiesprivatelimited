@@ -35,7 +35,7 @@ const CHANNELS = [
     icon: Clock,
     title: 'Office Hours',
     content: siteContact.hoursLabel,
-    note: 'Walk-ins welcome at our HSR Layout office',
+    note: `Walk-ins welcome at our ${siteContact.addressShort} office`,
     href: '',
     external: false,
   },
@@ -175,7 +175,7 @@ export default function ContactPage() {
                 Sit with us over the numbers
               </h2>
               <p className="mt-4 text-[15px] leading-relaxed text-gray-500 md:text-base">
-                The best property decisions happen face to face. Walk into our HSR Layout
+                The best property decisions happen face to face. Walk into our AECS Layout
                 office and review rent rolls, occupancy and pricing with a specialist — no
                 obligation, no pressure.
               </p>

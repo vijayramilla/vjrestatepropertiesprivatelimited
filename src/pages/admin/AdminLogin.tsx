@@ -25,7 +25,7 @@ export default function AdminLogin() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (isAuthorizedAdmin(user)) navigate('/admin/properties', { replace: true });
+      if (isAuthorizedAdmin(user)) navigate('/crm/properties', { replace: true });
       else if (await checkCrmAccess(user)) navigate('/crm', { replace: true });
     });
     return unsub;
@@ -37,7 +37,7 @@ export default function AdminLogin() {
     try {
       const result = await signInWithPopup(auth, googleProvider);
       if (isAuthorizedAdmin(result.user)) {
-        navigate('/admin/properties');
+        navigate('/crm/properties');
       } else if (await checkCrmAccess(result.user)) {
         navigate('/crm');
       } else if (await hasPropertyAccess()) {

@@ -9,24 +9,27 @@ import {
 import CrmSidebar from '@/components/crm/CrmSidebar';
 import { CrmPageBody, CrmPageHeader, CrmBtn, CrmCard, CRM_INPUT } from '@/components/crm/CrmUi';
 import {
-  fetchLedgerItems, upsertLedgerItem, deleteLedgerItem,
+  fetchLedgerItems, upsertLedgerItem, deleteLedgerItem, fetchLedgerPacks, setLedgerPack,
   fetchLedgerCases, upsertLedgerCase, deleteLedgerCase,
   fetchLedgerProfile, saveLedgerProfile, fetchLedgerActivity, uploadLedgerLogo,
+  fetchLedgerApplicability, saveLedgerApplicability,
   fetchLedgerPayments, fetchLedgerNotices, fetchLedgerDirectors, fetchLedgerDocuments,
   generateLedgerCalendar, fetchLedgerNotifications, runLedgerReminders,
   markLedgerNotificationRead, markAllLedgerNotificationsRead,
   fetchGstProfile, saveGstProfile, saveGstTurnover, evaluateGstThreshold,
   fetchCompanyMaster, upsertLedgerRow,
+  fetchLedgerAccountingReport, postLedgerJournal, reverseLedgerJournal,
+  type LedgerAccountingReport,
   type GstProfile, type GstEvaluation, type GstThresholdEvent, type GstStatus,
   type CompanyMasterData,
   type LedgerNotification,
-  type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile,
+  type LedgerComplianceItem, type LedgerLegalCase, type LedgerCompanyProfile, type LedgerPack,
   type LedgerPayment, type LedgerNotice, type LedgerDirector, type LedgerDocument,
 } from '@/lib/supabaseData';
 import { kycState, deriveKyc } from '@/data/directorKyc';
 import { PaymentsRegister, NoticesRegister, DirectorsRegister, DocumentsRegister, type DocLink } from '@/pages/crm/LedgerRegisters';
 import {
-  riskBand, daysUntil, complianceToIcs,
+  riskBand, daysUntil, complianceToIcs, hasComplianceEvidence,
   ENTITY_TYPES, REGISTRATION_OPTIONS, currentFyLabel, availableFyLabels,
   type RiskBand,
 } from '@/data/ledgerComplianceRules';
@@ -53,17 +56,16 @@ const RISK_STYLES: Record<RiskBand, { chip: string; ring: string }> = {
 };
 
 const fmtINR = (n: number) => (n >= 10000000 ? `₹${(n / 10000000).toFixed(2)} Cr` : n >= 100000 ? `₹${(n / 100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`);
+const CompanyIdentityChip = ({ label, value }: { label: string; value: string }) => (
+  <span className="inline-flex min-w-0 items-baseline gap-2 rounded-lg border border-black/[0.06] bg-[#fafaf9] px-2.5 py-1.5">
+    <span className="shrink-0 text-[8px] font-extrabold uppercase tracking-[0.13em] text-[#A3842E]">{label}</span>
+    <span className="truncate font-mono text-[10px] font-semibold text-[#25364A]">{value}</span>
+  </span>
+);
 const fmtDate = (iso: string) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 const entityLabel = (v: string) => ENTITY_TYPES.find((e) => e.value === v)?.label ?? v;
 
-const HeaderChip = ({ k, v }: { k: string; v: string }) => (
-  <span className="rounded-lg bg-white/70 px-2 py-1 ring-1 ring-black/[0.06]">
-    <span className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-[#9ca3af]">{k} </span>
-    <span className="text-[11px] font-bold text-[#0A1628]">{v}</span>
-  </span>
-);
-
-type Tab = 'compliances' | 'dashboard' | 'calendar' | 'gst' | 'payments' | 'notices' | 'documents' | 'directors' | 'cases' | 'audit' | 'profile';
+type Tab = 'compliances' | 'dashboard' | 'calendar' | 'accounting' | 'gst' | 'payments' | 'notices' | 'documents' | 'directors' | 'cases' | 'audit' | 'profile';
 
 export default function CrmLedgers() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -71,6 +73,9 @@ export default function CrmLedgers() {
   const [profile, setProfile] = useState<LedgerCompanyProfile | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [items, setItems] = useState<LedgerComplianceItem[]>([]);
+  const [applicability, setApplicability] = useState<Record<string, 'yes' | 'no' | 'unknown'>>({});
+  const [agmDates, setAgmDates] = useState<Record<string, string>>({});
+  const [auditorAppointmentDate, setAuditorAppointmentDate] = useState('');
   const [cases, setCases] = useState<LedgerLegalCase[]>([]);
   const [notices, setNotices] = useState<LedgerNotice[]>([]);
   const [payments, setPayments] = useState<LedgerPayment[]>([]);
@@ -94,9 +99,17 @@ export default function CrmLedgers() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetchLedgerProfile();
-        if (res.data) setProfile(res.data as LedgerCompanyProfile);
-      } catch { /* first run — profile simply doesn't exist yet */ }
+        const [res, answerRes] = await Promise.all([fetchLedgerProfile(), fetchLedgerApplicability()]);
+        if (res.data) {
+          setProfile(res.data as LedgerCompanyProfile);
+          setAgmDates((res.data as LedgerCompanyProfile).agm_dates ?? {});
+          setAuditorAppointmentDate((res.data as LedgerCompanyProfile).first_auditor_appointment_date ?? '');
+        }
+        setApplicability(answerRes.data ?? {});
+      } catch {
+        try { const answers = await fetchLedgerApplicability(); setApplicability(answers.data ?? {}); } catch { /* first run — tables may not exist yet */ }
+      }
+      try { const res = await fetchLedgerProfile(); if (res.data) { setProfile(res.data as LedgerCompanyProfile); setAgmDates((res.data as LedgerCompanyProfile).agm_dates ?? {}); setAuditorAppointmentDate((res.data as LedgerCompanyProfile).first_auditor_appointment_date ?? ''); } } catch { /* first run — profile simply doesn't exist yet */ }
       setProfileLoaded(true);
     })();
   }, []);
@@ -122,15 +135,21 @@ export default function CrmLedgers() {
         return (Array.isArray(r) ? r : (r?.data ?? [])) as T[];
       } catch { return []; }
     };
-    const [i, c, n, p, dr, dc] = await Promise.all([
-      safe<LedgerComplianceItem>(fetchLedgerItems(selectedFy || undefined)),
+    const [i, c, n, p, dr, dc, profileResult] = await Promise.all([
+      safe<LedgerComplianceItem>(fetchLedgerItems()),
       safe<LedgerLegalCase>(fetchLedgerCases()),
       safe<LedgerNotice>(fetchLedgerNotices()),
       safe<LedgerPayment>(fetchLedgerPayments(selectedFy || undefined)),
       safe<LedgerDirector>(fetchLedgerDirectors()),
       safe<LedgerDocument>(fetchLedgerDocuments()),
+      fetchLedgerProfile().catch(() => ({ data: null })),
     ]);
     setItems(i);
+    if (profileResult.data) {
+      setProfile(profileResult.data as LedgerCompanyProfile);
+      setAgmDates((profileResult.data as LedgerCompanyProfile).agm_dates ?? {});
+      setAuditorAppointmentDate((profileResult.data as LedgerCompanyProfile).first_auditor_appointment_date ?? '');
+    }
     setCases(c);
     setNotices(n);
     setPayments(p);
@@ -138,12 +157,13 @@ export default function CrmLedgers() {
     setDocuments(dc);
     setLoading(false);
   };
-  useEffect(() => { if (selectedFy) void loadItems(); }, [selectedFy]);
+  useEffect(() => { if (profileKey === 'loaded') void loadItems(); }, [profileKey, selectedFy]);
 
   const saveProfile = async (p: Partial<LedgerCompanyProfile>) => {
     const merged = { ...profile, ...p } as LedgerCompanyProfile;
     setProfile(merged); // optimistic
-    await saveLedgerProfile(merged);
+    try { await saveLedgerProfile(merged); }
+    catch (error) { setProfile(profile); throw error; }
   };
 
   /* ── Generate calendar — the rule engine runs SERVER-side in the data proxy,
@@ -236,7 +256,7 @@ export default function CrmLedgers() {
   /* ── Derived ── */
   const buckets = useMemo(() => {
     const b: Record<RiskBand, LedgerComplianceItem[]> = { overdue: [], critical: [], warning: [], upcoming: [], done: [] };
-    for (const it of items) b[riskBand(it)].push(it);
+    for (const it of items) if (it.status !== 'na') b[riskBand(it)].push(it);
     for (const k of Object.keys(b) as RiskBand[]) b[k].sort((a, z) => a.due_date.localeCompare(z.due_date));
     return b;
   }, [items]);
@@ -245,8 +265,16 @@ export default function CrmLedgers() {
     () => [...buckets.overdue, ...buckets.critical, ...buckets.warning].reduce((s, i) => s + (i.penalty_exposure ?? 0), 0),
     [buckets],
   );
-  const complianceScore = items.length === 0 ? 100 : Math.round(((items.length - buckets.overdue.length) / items.length) * 100);
+  const obligationRows = items.filter((i) => i.status !== 'na');
+  const unverifiedFiled = obligationRows.filter((i) => i.status === 'filed' && !hasComplianceEvidence(i)).length;
+  const overdueItems = obligationRows.filter((i) => riskBand(i) === 'overdue').length;
+  const atRiskItems = obligationRows.filter((i) => riskBand(i) === 'overdue' || (i.status === 'filed' && !hasComplianceEvidence(i))).length;
+  const complianceScore = obligationRows.length === 0 ? 0 : Math.round(((obligationRows.length - atRiskItems) / obligationRows.length) * 100);
   const openCases = cases.filter((c) => c.status !== 'closed').length;
+  const missingCompanyFacts = [profile?.incorporated_on, profile?.cin, profile?.pan, profile?.tan, profile?.registered_office, profile?.registrations?.length ? 'yes' : '', profile?.turnover_band, profile?.employee_count != null ? 'yes' : '', profile?.ca_name, profile?.cs_name].filter((value) => !value).length;
+  const incompleteApplicability = ['job_work_goods', 'dpt3_applicable', 'msme_dues_over_45_days', 'tds_applicable', 'advance_tax_payable_10000_or_more', 'pas3_applicable', 'inc22_applicable', 'shops_applicable', 'krera_applicable', 'posh_10_or_more_employees', 'tds_q1_applicable', 'tds_q2_applicable', 'tds_q3_applicable', 'tds_q4_applicable'].filter((key) => !applicability[key] || applicability[key] === 'unknown').length;
+  const completenessTotal = 10 + 14;
+  const completenessScore = Math.round(Math.max(0, (completenessTotal - missingCompanyFacts - incompleteApplicability) / completenessTotal) * 100);
 
   // Everything a document can be attached to — feeds the Documents vault picker.
   const docLinks: DocLink[] = useMemo(() => [
@@ -269,8 +297,8 @@ export default function CrmLedgers() {
 
   const exportCsv = () => {
     const rows = [
-      ['Law', 'Form', 'Title', 'Period', 'FY', 'Due date', 'Status', 'Filed on', 'ARN/SRN', 'Assignee', 'Priority', 'Penalty exposure', 'Rule / source'],
-      ...items.map((i) => [i.law, i.form, i.title, i.period, i.fy, i.due_date, i.status, i.filed_date ?? '', i.arn ?? '', i.assignee ?? '', i.priority ?? 'normal', String(i.penalty_exposure ?? 0), i.source_url ?? '']),
+      ['Law', 'Form', 'Title', 'Period', 'FY', 'Due date', 'Status', 'Evidence status', 'Filed on', 'ARN/SRN', 'Assignee', 'Priority', 'Penalty exposure', 'Rule version', 'Rule / source'],
+      ...items.map((i) => [i.law, i.form, i.title, i.period, i.fy, i.due_date, i.status, i.evidence_status ?? (i.status === 'filed' && !i.arn && !i.proof_url && !i.challan_url ? 'awaiting_evidence' : 'not_required'), i.filed_date ?? '', i.arn ?? '', i.assignee ?? '', i.priority ?? 'normal', String(i.penalty_exposure ?? 0), i.rule_version ?? '', i.source_url ?? '']),
     ];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
@@ -280,6 +308,29 @@ export default function CrmLedgers() {
     a.download = `compliance-${selectedFy.replace(/\s/g, '')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const saveApplicability = async (answers: Record<string, 'yes' | 'no' | 'unknown'>) => {
+    const previous = applicability;
+    setApplicability(answers);
+    try { await saveLedgerApplicability(answers); }
+    catch (e) { setApplicability(previous); setGenError(e instanceof Error ? e.message : 'Could not save applicability answers'); }
+  };
+
+  const saveAgmDate = async (fy: string, date: string) => {
+    const previous = agmDates;
+    const next = { ...agmDates };
+    if (date) next[fy] = date; else delete next[fy];
+    setAgmDates(next);
+    try { await saveProfile({ agm_dates: next }); }
+    catch (e) { setAgmDates(previous); setGenError(e instanceof Error ? e.message : 'Could not save AGM date'); }
+  };
+
+  const saveAuditorDate = async (date: string) => {
+    const previous = auditorAppointmentDate;
+    setAuditorAppointmentDate(date);
+    try { await saveProfile({ first_auditor_appointment_date: date || null }); }
+    catch (e) { setAuditorAppointmentDate(previous); setGenError(e instanceof Error ? e.message : 'Could not save auditor appointment date'); }
   };
 
   const showOnboarding = profileLoaded && !profile?.name;
@@ -292,29 +343,7 @@ export default function CrmLedgers() {
           <CrmPageHeader
             eyebrow="Finance & Legal"
             title="Ledgers"
-            description={
-              profile?.name
-                ? `${entityLabel(profile.entity_type)}${profile.incorporated_on ? ` · incorporated ${fmtDate(profile.incorporated_on)}` : ''} · ${selectedFy}`
-                : 'Company compliance calendar, legal register and penalty exposure.'
-            }
-            titleExtra={
-              profile?.name ? (
-                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-[#C9A84C]/25 bg-gradient-to-r from-[#C9A84C]/[0.08] to-transparent px-4 py-2.5">
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0A1628] shadow-[0_2px_8px_rgba(10,22,40,0.25)]">
-                      <Building2 className="h-4 w-4 text-[#D6B85D]" strokeWidth={1.6} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-['Instrument_Serif',Georgia,serif] text-[17px] leading-tight text-[#0A1628]">{profile.name}</span>
-                      {profile.cin && <span className="block truncate text-[10px] font-semibold tracking-wide text-[#9ca3af]">CIN {profile.cin}</span>}
-                    </span>
-                  </span>
-                  {profile.pan && <HeaderChip k="PAN" v={profile.pan} />}
-                  {profile.gstin && <HeaderChip k="GSTIN" v={profile.gstin} />}
-                  {profile.tan && <HeaderChip k="TAN" v={profile.tan} />}
-                </div>
-              ) : undefined
-            }
+            description="A clear view of your company’s compliance calendar, statutory records and accounting."
             actions={
               !showOnboarding && (
                 <div className="flex flex-wrap gap-2">
@@ -392,35 +421,69 @@ export default function CrmLedgers() {
             }
           />
 
+          {!showOnboarding && profile?.name && (
+            <section aria-label="Company workspace" className="mb-6 overflow-hidden rounded-[26px] border border-[#0A1628]/10 bg-white shadow-[0_12px_36px_rgba(10,22,40,0.08)]">
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#0A1628] via-[#10243D] to-[#17324C] px-5 py-6 sm:px-7 sm:py-7">
+                <div className="pointer-events-none absolute -right-14 -top-28 h-72 w-72 rounded-full bg-[#C9A84C]/15 blur-3xl" />
+                <div className="pointer-events-none absolute bottom-0 right-[24%] h-px w-1/2 bg-gradient-to-r from-transparent via-[#D6B85D]/50 to-transparent" />
+                <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+                    {profile.logo_url ? (
+                      <img src={profile.logo_url} alt={`${profile.name} logo`} className="h-16 w-16 shrink-0 rounded-2xl border border-white/20 bg-white object-contain p-1.5 shadow-lg sm:h-[76px] sm:w-[76px]" />
+                    ) : (
+                      <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-[#E8C76A]/40 bg-gradient-to-br from-[#E8C76A] via-[#D6B85D] to-[#B99236] font-['Instrument_Serif',Georgia,serif] text-[29px] text-[#0A1628] shadow-[0_8px_24px_rgba(201,168,76,0.22)] sm:h-[76px] sm:w-[76px] sm:text-[34px]">
+                        {profile.name.slice(0, 1).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="mb-1.5 flex items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.24em] text-[#E8C76A]">
+                        <span className="h-px w-5 bg-[#D6B85D]/80" /> Corporate compliance workspace
+                      </p>
+                      <h2 className="truncate font-['Inter',sans-serif] text-[24px] font-semibold leading-tight tracking-[-0.035em] text-white sm:text-[30px]">{profile.name}</h2>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[10.5px] font-medium text-white/65 sm:text-[11px]">
+                        <span className="rounded-full border border-white/15 bg-white/[0.07] px-2.5 py-1 text-white/90">{entityLabel(profile.entity_type)}</span>
+                        {profile.incorporated_on && <span>Incorporated {fmtDate(profile.incorporated_on)}</span>}
+                        {profile.registered_office && <span className="max-w-full truncate">{profile.registered_office}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center justify-between gap-4 rounded-2xl border border-white/15 bg-white/[0.08] px-4 py-3 backdrop-blur-sm lg:min-w-[218px]">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#D6B85D]/15 text-[#E8C76A]"><CalendarDays className="h-4 w-4" /></span>
+                    <label className="min-w-0 flex-1">
+                      <span className="block text-[8.5px] font-extrabold uppercase tracking-[0.18em] text-white/50">Financial year</span>
+                      <select value={selectedFy} onChange={(e) => setSelectedFy(e.target.value)} aria-label="Financial year" className="mt-0.5 w-full cursor-pointer bg-transparent text-[13px] font-bold text-white outline-none [&>option]:text-[#0A1628]">
+                        {availableFyLabels(profile.incorporated_on, profile.fy_start_month ?? 4).map((label) => <option key={label}>{label}</option>)}
+                      </select>
+                    </label>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-white/50" />
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-4 px-5 py-4 sm:px-7 lg:grid-cols-[1fr_auto] lg:items-center">
+                <div className="flex flex-wrap gap-2">
+                  {profile.cin && <CompanyIdentityChip label="CIN" value={profile.cin} />}
+                  {profile.pan && <CompanyIdentityChip label="PAN" value={profile.pan} />}
+                  {profile.gstin && <CompanyIdentityChip label="GSTIN" value={profile.gstin} />}
+                  {profile.tan && <CompanyIdentityChip label="TAN" value={profile.tan} />}
+                  {!profile.cin && !profile.pan && !profile.gstin && !profile.tan && <span className="text-[11px] text-[#9ca3af]">Add company identifiers in Company Profile to keep records together.</span>}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-black/[0.06] pt-3 text-[10.5px] text-[#6b7280] sm:gap-x-5 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+                  <span><strong className="text-[#0A1628]">{obligationRows.length}</strong> obligations across all years</span>
+                  <span><strong className="text-[#0A1628]">{openCases}</strong> open matters</span>
+                  <span className={overdueItems ? 'font-semibold text-red-700' : ''}><strong>{overdueItems}</strong> overdue</span>
+                  <span><strong className="text-[#0A1628]">{completenessScore}%</strong> company facts complete</span>
+                </div>
+              </div>
+            </section>
+          )}
+
           <AnimatePresence mode="wait">
             {showOnboarding ? (
               <OnboardingWizard key="onboard" onDone={(p) => { setProfile(p); setSelectedFy(currentFyLabel(p.fy_start_month)); setTab('compliances'); }} />
             ) : (
               <motion.div key="main" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-                {/* FY selector + summary */}
-                <div className="mb-5 flex flex-wrap items-center gap-3">
-                  {profile?.logo_url ? (
-                    <img src={profile.logo_url} alt="Company logo" className="h-11 w-11 rounded-xl border border-black/[0.08] bg-white object-contain p-1 shadow-sm" />
-                  ) : (
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0A1628] text-[14px] font-extrabold text-[#D6B85D] shadow-sm">
-                      {(profile?.name || 'V').slice(0, 1).toUpperCase()}
-                    </span>
-                  )}
-                  <div className="flex items-center gap-1.5 rounded-xl border border-black/[0.08] bg-white px-3 py-1.5">
-                    <CalendarDays className="h-3.5 w-3.5 text-[#96782A]" />
-                    <select
-                      value={selectedFy}
-                      onChange={(e) => setSelectedFy(e.target.value)}
-                      className="cursor-pointer bg-transparent text-[12px] font-bold text-[#0A1628] outline-none"
-                    >
-                      {availableFyLabels(profile?.incorporated_on, profile?.fy_start_month ?? 4).map((l) => <option key={l}>{l}</option>)}
-                    </select>
-                  </div>
-                  <span className="text-[11px] text-[#9ca3af]">{items.length} obligations tracked · {openCases} open legal matters</span>
-                </div>
-
                 <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-                  <StatCard icon={AlertTriangle} tone="red" label="Overdue" value={String(buckets.overdue.length)} sub="act immediately" delay={0} />
+                  <StatCard icon={AlertTriangle} tone="red" label="Overdue (all years)" value={String(overdueItems)} sub="act immediately" delay={0} />
                   <StatCard icon={Clock} tone="orange" label="Due in 7 days" value={String(buckets.critical.length)} sub="this week" delay={0.05} />
                   <StatCard icon={BellRing} tone="amber" label="Due in 30 days" value={String(buckets.warning.length)} sub="plan ahead" delay={0.1} />
                   <StatCard icon={Scale} tone="navy" label="Penalty exposure" value={fmtINR(penaltyExposure)} sub="if pending items slip" delay={0.15} />
@@ -430,7 +493,7 @@ export default function CrmLedgers() {
                 <CrmCard className="mb-6 p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      {items.length === 0 ? (
+                      {obligationRows.length === 0 ? (
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gray-100 text-[10px] font-extrabold text-gray-500">N/A</div>
                       ) : (
                         <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-[15px] font-extrabold ${complianceScore >= 90 ? 'bg-emerald-50 text-emerald-600' : complianceScore >= 70 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-600'}`}>
@@ -438,11 +501,11 @@ export default function CrmLedgers() {
                         </div>
                       )}
                       <div>
-                        <p className="text-[13px] font-bold">{items.length === 0 ? 'Compliance health — Not assessed' : 'Compliance health score'}</p>
+                        <p className="text-[13px] font-bold">{obligationRows.length === 0 ? 'Compliance health — Not assessed' : 'Evidence-aware compliance health'}</p>
                         <p className="text-[11px] text-[#6b7280]">
-                          {items.length === 0
-                            ? 'No compliance obligations have been generated for this financial year yet.'
-                            : `${items.length} tracked obligations · ${buckets.overdue.length} overdue · ${openCases} legal matters`}
+                          {obligationRows.length === 0
+                            ? 'No compliance obligations have been generated yet.'
+                            : `${obligationRows.length} obligations across all years · ${overdueItems} overdue · ${unverifiedFiled} completed without evidence · ${openCases} legal matters`}
                         </p>
                       </div>
                     </div>
@@ -458,18 +521,20 @@ export default function CrmLedgers() {
                     )}
                     {genSummary && (
                       <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} role="status" className="inline-flex flex-wrap items-center gap-1.5 rounded-full bg-[#0A1628]/[0.06] px-3 py-1.5 text-[10.5px] font-bold text-[#0A1628]">
-                        {`${genSummary.saved} filed · ${genSummary.applicable} applicable · ${genSummary.notApplicable} not applicable · ${genSummary.skippedDuplicates} duplicates skipped`}
+                        {`${genSummary.saved} added · ${genSummary.applicable} applicable · ${genSummary.notApplicable} not applicable · ${genSummary.skippedDuplicates} duplicates skipped`}
                       </motion.span>
                     )}
                   </div>
                   <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-black/[0.06]">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: items.length === 0 ? '0%' : `${complianceScore}%` }}
+                      animate={{ width: obligationRows.length === 0 ? '0%' : `${complianceScore}%` }}
                       transition={{ duration: 0.8, ease: [0.25, 0.1, 0.25, 1] }}
                       className={`h-full rounded-full ${complianceScore >= 90 ? 'bg-emerald-500' : complianceScore >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
                     />
                   </div>
+                  {unverifiedFiled > 0 && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium text-amber-800">{unverifiedFiled} completion{unverifiedFiled === 1 ? ' is' : 's are'} missing acknowledgement, proof or challan evidence.</p>}
+                  {missingCompanyFacts + incompleteApplicability > 0 && <p className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-medium text-blue-800">Company completeness: {completenessScore}% · {missingCompanyFacts} missing company fact{missingCompanyFacts === 1 ? '' : 's'} · {incompleteApplicability} unanswered applicability question{incompleteApplicability === 1 ? '' : 's'}. Complete Company Profile to improve coverage.</p>}
                 </CrmCard>
 
                 {/* GST status card (spec §18/§61) — three independent concepts */}
@@ -477,7 +542,7 @@ export default function CrmLedgers() {
 
                 {/* Tabs — sticky on mobile for one-hand reach, 44px targets */}
                 <div className="mb-4 sticky top-[64px] z-20 -mx-4 overflow-x-auto rounded-xl border border-black/[0.06] bg-white/95 px-4 py-1 backdrop-blur [scrollbar-width:none] sm:mx-0 sm:px-1">
-                  {([['compliances', 'Legal Compliances'], ['dashboard', 'Priority Queue'], ['calendar', 'Calendar'], ['gst', 'GST Monitor'], ['payments', 'Payments'], ['notices', 'Notices'], ['documents', 'Documents'], ['directors', 'Directors'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
+                  {([['compliances', 'Legal Compliances'], ['dashboard', 'Priority Queue'], ['calendar', 'Calendar'], ['accounting', 'Accounting'], ['gst', 'GST Monitor'], ['payments', 'Payments'], ['notices', 'Notices'], ['documents', 'Documents'], ['directors', 'Directors'], ['cases', 'Legal Cases'], ['audit', 'Audit Trail'], ['profile', 'Company Profile']] as [Tab, string][]).map(([key, label]) => (
                     <button
                       key={key}
                       onClick={() => setTab(key)}
@@ -494,15 +559,17 @@ export default function CrmLedgers() {
                   <motion.div key={tab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
                     {tab === 'compliances' && <LegalCompliancesTable items={items} loading={loading} />}
                     {tab === 'dashboard' && <PriorityQueue buckets={buckets} cases={cases} notices={notices} payments={payments} directors={directors} loading={loading} onChanged={loadItems} />}
-                    {tab === 'calendar' && <FullCalendar items={items} loading={loading} onChanged={loadItems} />}
+                    {tab === 'calendar' && <FullCalendar items={items.filter((i) => i.fy === selectedFy)} loading={loading} onChanged={loadItems} />}
+                    {tab === 'accounting' && <LedgerAccounting fyStartMonth={profile?.fy_start_month ?? 4} />}
                     {tab === 'gst' && <GstMonitor gst={gstProfile} evalResult={gstEval} event={gstEvent} fy={selectedFy} onChanged={() => { void loadGst(); void loadItems(); }} />}
-                    {tab === 'payments' && <PaymentsRegister payments={payments} items={items} fy={selectedFy} loading={loading} onChanged={loadItems} />}
+                    {tab === 'payments' && <PaymentsRegister payments={payments.filter((p) => p.fy === selectedFy)} items={items.filter((i) => i.fy === selectedFy)} fy={selectedFy} loading={loading} onChanged={loadItems} />}
                     {tab === 'notices' && <NoticesRegister notices={notices} loading={loading} onChanged={loadItems} />}
-                    {tab === 'documents' && <DocumentsRegister documents={documents} fy={selectedFy} links={docLinks} loading={loading} onChanged={loadItems} />}
-                    {tab === 'directors' && <DirectorsRegister directors={directors} fy={selectedFy} incorporatedOn={profile?.incorporated_on} items={items} loading={loading} onChanged={loadItems} />}
+                    {tab === 'documents' && <DocumentsRegister documents={documents.filter((d) => d.fy === selectedFy)} fy={selectedFy} links={docLinks} loading={loading} onChanged={loadItems} />}
+                    {tab === 'directors' && <DirectorsRegister directors={directors} fy={selectedFy} incorporatedOn={profile?.incorporated_on} items={items.filter((i) => i.fy === selectedFy)} loading={loading} onChanged={loadItems} />}
                     {tab === 'cases' && <LegalCases cases={cases} loading={loading} onChanged={loadItems} />}
                     {tab === 'audit' && <AuditTrail />}
                     {tab === 'profile' && <CompanyMaster profile={profile!} onSave={saveProfile} onChanged={loadItems} />}
+                    {tab === 'profile' && <ApplicabilitySettings answers={applicability} onSave={saveApplicability} onPacksChanged={loadItems} selectedFy={selectedFy} agmDate={agmDates[selectedFy] ?? ''} onAgmDateChange={(date) => void saveAgmDate(selectedFy, date)} auditorAppointmentDate={auditorAppointmentDate} onAuditorAppointmentDateChange={(date) => void saveAuditorDate(date)} />}
                   </motion.div>
                 </AnimatePresence>
 
@@ -551,6 +618,99 @@ const GST_TONE: Partial<Record<GstStatus, string>> = {
   requires_review: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200',
   not_registered: 'bg-gray-100 text-gray-600 ring-1 ring-gray-200',
 };
+
+function LedgerAccounting({ fyStartMonth }: { fyStartMonth: number }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const startYear = new Date().getMonth() + 1 >= fyStartMonth ? new Date().getFullYear() : new Date().getFullYear() - 1;
+  const fyStart = `${startYear}-${String(fyStartMonth).padStart(2, '0')}-01`;
+  const [report, setReport] = useState<LedgerAccountingReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [entryDate, setEntryDate] = useState(today);
+  const [memo, setMemo] = useState('');
+  const [reference, setReference] = useState('');
+  const [lines, setLines] = useState([{ account_id: '', debit: '', credit: '' }, { account_id: '', debit: '', credit: '' }]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try { setReport(await fetchLedgerAccountingReport(today, fyStart)); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Accounting data could not be loaded'); }
+    finally { setLoading(false); }
+  }, [today, fyStart]);
+  useEffect(() => { void load(); }, [load]);
+
+  const amount = (v: string) => v === '' ? 0 : Number(v);
+  const debitTotal = lines.reduce((n, l) => n + amount(l.debit), 0);
+  const creditTotal = lines.reduce((n, l) => n + amount(l.credit), 0);
+  const addLine = () => setLines((prev) => [...prev, { account_id: '', debit: '', credit: '' }]);
+  const updateLine = (index: number, patch: Partial<(typeof lines)[number]>) => setLines((prev) => prev.map((line, i) => i === index ? { ...line, ...patch } : line));
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!memo.trim() || lines.some((l) => !l.account_id || (amount(l.debit) > 0) === (amount(l.credit) > 0)) || debitTotal <= 0 || debitTotal !== creditTotal) {
+      setError('Enter a memo and account for each line, with exactly one debit or credit per line and equal totals.');
+      return;
+    }
+    setBusy(true); setError('');
+    try {
+      await postLedgerJournal({ entryDate, memo: memo.trim(), reference: reference.trim(), lines: lines.map((l) => ({ account_id: l.account_id, debit: amount(l.debit), credit: amount(l.credit) })) });
+      setMemo(''); setReference(''); setLines([{ account_id: '', debit: '', credit: '' }, { account_id: '', debit: '', credit: '' }]);
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : 'Journal could not be posted'); }
+    finally { setBusy(false); }
+  };
+
+  const reverse = async (journal: LedgerAccountingReport['journals'][number]) => {
+    if (!window.confirm(`Create a reversal for “${journal.memo}”? A new journal will be posted; the original will remain in the audit history.`)) return;
+    setBusy(true); setError('');
+    try { await reverseLedgerJournal(journal.id); await load(); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Journal could not be reversed'); }
+    finally { setBusy(false); }
+  };
+  const inr = (n: number) => `₹${Number(n ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const totals = report?.totals;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">Double-entry books · INR</p><p className="mt-1 text-[12px] text-[#6b7280]">Entries are immutable after posting; corrections are recorded as reversals.</p></div>
+        <CrmBtn variant="ghost" onClick={() => void load()} disabled={loading}><RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh</CrmBtn>
+      </div>
+      {error && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[12px] font-semibold text-red-700">{error}</p>}
+      {loading && !report ? <div className="h-32 animate-pulse rounded-2xl bg-white" /> : totals && (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {([['Assets', totals.assets], ['Liabilities', totals.liabilities], ['Equity', totals.equity], ['FY net income', totals.net_income_fy]] as [string, number][]).map(([label, value]) => <CrmCard key={label} className="p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-[#9ca3af]">{label}</p><p className="mt-2 text-[19px] font-bold tabular-nums">{inr(value)}</p></CrmCard>)}
+          </div>
+          <CrmCard className="overflow-hidden p-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/[0.06] px-4 py-3"><p className="text-[12px] font-bold">Trial balance · {fmtDate(today)}</p><span className={`text-[11px] font-bold ${Math.abs(totals.trial_debits - totals.trial_credits) < 0.005 && Math.abs(totals.balance_check) < 0.005 ? 'text-emerald-700' : 'text-red-700'}`}>{Math.abs(totals.trial_debits - totals.trial_credits) < 0.005 && Math.abs(totals.balance_check) < 0.005 ? 'Balanced' : 'Review imbalance'} · Dr {inr(totals.trial_debits)} / Cr {inr(totals.trial_credits)}</span></div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[500px] text-left text-[11.5px]"><thead className="bg-[#fafafa] text-[9px] uppercase tracking-wide text-[#6b7280]"><tr><th className="px-4 py-2">Account</th><th className="px-4 py-2 text-right">Debit total</th><th className="px-4 py-2 text-right">Credit total</th><th className="px-4 py-2 text-right">Balance</th></tr></thead><tbody className="divide-y divide-black/[0.04]">{report?.accounts.map((a) => <tr key={a.id}><td className="px-4 py-2.5 font-semibold">{a.code} · {a.name}<span className="ml-2 text-[9px] font-medium uppercase text-[#9ca3af]">{a.account_type}</span></td><td className="px-4 py-2.5 text-right tabular-nums">{inr(a.debits)}</td><td className="px-4 py-2.5 text-right tabular-nums">{inr(a.credits)}</td><td className="px-4 py-2.5 text-right font-semibold tabular-nums">{inr(a.balance)}</td></tr>)}</tbody></table></div>
+          </CrmCard>
+          <CrmCard className="p-4 sm:p-5">
+            <form onSubmit={(e) => void submit(e)} className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2"><div><h3 className="text-[14px] font-bold">New journal entry</h3><p className="text-[10.5px] text-[#9ca3af]">Posts only when total debits equal total credits.</p></div><CrmBtn variant="gold" disabled={busy || !memo.trim() || debitTotal <= 0 || debitTotal !== creditTotal}>{busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Post journal</CrmBtn></div>
+              <div className="grid gap-2 sm:grid-cols-[160px_1fr_180px]"><input aria-label="Entry date" type="date" required value={entryDate} onChange={(e) => setEntryDate(e.target.value)} className={CRM_INPUT} /><input aria-label="Memo" required maxLength={500} value={memo} onChange={(e) => setMemo(e.target.value)} className={CRM_INPUT} placeholder="Description / memo" /><input aria-label="Reference" maxLength={100} value={reference} onChange={(e) => setReference(e.target.value)} className={CRM_INPUT} placeholder="Reference (optional)" /></div>
+              <div className="space-y-2">{lines.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_150px_150px]">
+                <select aria-label={`Account line ${index + 1}`} required value={line.account_id} onChange={(e) => updateLine(index, { account_id: e.target.value })} className={CRM_INPUT}><option value="">Select account</option>{report?.accounts.filter((a) => a.active).map((a) => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}</select>
+                <input aria-label={`Debit line ${index + 1}`} type="number" min="0" step="0.01" value={line.debit} onChange={(e) => updateLine(index, { debit: e.target.value, credit: '' })} className={CRM_INPUT} placeholder="Debit ₹" />
+                <input aria-label={`Credit line ${index + 1}`} type="number" min="0" step="0.01" value={line.credit} onChange={(e) => updateLine(index, { credit: e.target.value, debit: '' })} className={CRM_INPUT} placeholder="Credit ₹" />
+              </div>)}</div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={addLine} disabled={lines.length >= 50} className="text-[11px] font-bold text-[#96782A] disabled:opacity-50">+ Add line</button><span className={`text-[11px] font-bold ${debitTotal === creditTotal && debitTotal > 0 ? 'text-emerald-700' : 'text-[#6b7280]'}`}>Dr {inr(debitTotal)} · Cr {inr(creditTotal)}</span></div>
+            </form>
+          </CrmCard>
+          <CrmCard className="overflow-hidden p-0">
+            <div className="border-b border-black/[0.06] px-4 py-3"><p className="text-[12px] font-bold">Journal register</p><p className="text-[10px] text-[#9ca3af]">Latest 100 entries · all changes and reversals remain traceable.</p></div>
+            {!report?.journals.length ? <p className="px-4 py-8 text-center text-[12px] text-[#9ca3af]">No journal entries recorded yet.</p> : <div className="divide-y divide-black/[0.04]">{report.journals.map((j) => <details key={j.id} className="group px-4 py-3"><summary className="flex cursor-pointer list-none flex-wrap items-center gap-2"><span className="w-24 shrink-0 text-[10.5px] text-[#6b7280]">{fmtDate(j.entry_date)}</span><span className="min-w-0 flex-1 text-[12px] font-semibold">{j.memo}<span className="ml-2 text-[10px] font-medium text-[#9ca3af]">{j.reference}</span></span><span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${j.status === 'posted' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>{j.status}</span>{j.status === 'posted' && <button type="button" disabled={busy} onClick={(e) => { e.preventDefault(); e.stopPropagation(); void reverse(j); }} className="rounded-lg border border-red-200 px-2 py-1 text-[9.5px] font-bold text-red-600 disabled:opacity-50">Reverse</button>}</summary><div className="mt-3 overflow-x-auto rounded-xl bg-[#fafafa] p-3"><table className="w-full text-[10.5px]"><tbody>{j.lines.map((l, i) => <tr key={i}><td className="py-1 font-medium">{l.account_code} · {l.account_name}</td><td className="py-1 text-right tabular-nums">{l.debit ? `Dr ${inr(l.debit)}` : ''}</td><td className="py-1 text-right tabular-nums">{l.credit ? `Cr ${inr(l.credit)}` : ''}</td></tr>)}</tbody></table><p className="mt-2 text-[9px] text-[#9ca3af]">Posted by {j.posted_by || '—'} · {new Date(j.created_at).toLocaleString('en-IN')}</p>{j.reversal_of && <p className="text-[9px] text-[#9ca3af]">Reversal of {j.reversal_of}</p>}</div></details>)}</div>}
+          </CrmCard>
+          <CrmCard className="overflow-hidden p-0"><div className="border-b border-black/[0.06] px-4 py-3"><p className="text-[12px] font-bold">Accounting audit history</p><p className="text-[10px] text-[#9ca3af]">Posted and reversed journals · newest first</p></div>{!report?.audit.length ? <p className="px-4 py-6 text-center text-[11px] text-[#9ca3af]">No accounting changes yet.</p> : <div className="max-h-64 divide-y divide-black/[0.04] overflow-y-auto">{report.audit.map((a) => <div key={a.id} className="flex flex-wrap gap-2 px-4 py-2.5 text-[10.5px]"><span className="font-bold uppercase text-[#96782A]">{a.action}</span><span className="min-w-0 flex-1">{a.summary}</span><span className="text-[#9ca3af]">{a.actor || '—'} · {new Date(a.created_at).toLocaleString('en-IN')}</span></div>)}</div>}</CrmCard>
+          <p className="text-[10.5px] leading-relaxed text-[#6b7280]">This is an initial manual double-entry ledger, not a substitute for CA review. Chart of accounts is a starter template; opening balances, GST posting, bank feeds/reconciliation, invoice automation, period locks and statutory statements need verified source data and accountant configuration before operational reliance.</p>
+        </>
+      )}
+    </div>
+  );
+}
 
 function GstStatusCard({ gst, event, onOpen }: { gst: GstEvaluation; event: GstThresholdEvent | null; onOpen: () => void }) {
   const crossed = gst.crossed || gst.status === 'registration_required';
@@ -1125,6 +1285,73 @@ function SectionHead({ icon: Icon, title, note }: { icon: typeof Building2; titl
   );
 }
 
+function ApplicabilitySettings({ answers, onSave, onPacksChanged, selectedFy, agmDate, onAgmDateChange, auditorAppointmentDate, onAuditorAppointmentDateChange }: { answers: Record<string, 'yes' | 'no' | 'unknown'>; onSave: (answers: Record<string, 'yes' | 'no' | 'unknown'>) => Promise<void>; onPacksChanged: () => void; selectedFy: string; agmDate: string; onAgmDateChange: (date: string) => void; auditorAppointmentDate: string; onAuditorAppointmentDateChange: (date: string) => void }) {
+  const fyStart = Number(selectedFy.match(/\d{4}/)?.[0]);
+  const yearLabel = Number.isFinite(fyStart) ? `${fyStart}-${String(fyStart + 1).slice(2)}` : selectedFy;
+  const questions = [
+    ['job_work_goods', 'Does the company send goods to job workers?'],
+    ['dpt3_applicable', 'Were loans, deposits or reportable advances outstanding?'],
+    ['msme_dues_over_45_days', 'Were qualifying MSME dues unpaid for over 45 days?'],
+    ['tds_applicable', 'Did payments require TDS/TAN deduction this FY?'],
+    ['advance_tax_payable_10000_or_more', 'Is estimated advance tax payable ₹10,000 or more?'],
+    ['pas3_applicable', 'Were shares allotted during this FY?'],
+    ['inc22_applicable', 'Did the registered office change during this FY?'],
+    ['shops_applicable', 'Does the company need Shops & Establishment registration/returns?'],
+    ['krera_applicable', 'Does the company act as a RERA agent or promoter?'],
+    ['posh_10_or_more_employees', 'Does a covered workplace have 10 or more employees?'],
+    ['tds_q1_applicable', `Was TDS deducted during Apr–Jun ${fyStart}?`],
+    ['tds_q2_applicable', `Was TDS deducted during Jul–Sep ${fyStart}?`],
+    ['tds_q3_applicable', `Was TDS deducted during Oct–Dec ${fyStart}?`],
+    ['tds_q4_applicable', `Was TDS deducted during Jan–Mar ${fyStart + 1}?`],
+  ] as const;
+  return (
+    <>
+    <CrmCard className="mt-4 p-4 sm:p-6">
+      <SectionHead icon={ShieldCheck} title={`Applicability facts · FY ${yearLabel}`} note="Unknown is excluded from automatic obligation generation" />
+      <div className="space-y-3">
+        {questions.map(([key, label]) => <TriStateRow key={key} label={label} value={answers[key] === 'yes' ? true : answers[key] === 'no' ? false : null} onChange={(value) => void onSave({ ...answers, [key]: value === true ? 'yes' : value === false ? 'no' : 'unknown' })} />)}
+        <div className="grid gap-3 border-t border-black/[0.06] pt-4 sm:grid-cols-2">
+          <label className="text-[11px] font-semibold text-[#374151]">Actual AGM date · {selectedFy}<input aria-label={`Actual AGM date ${selectedFy}`} type="date" value={agmDate} onChange={(e) => onAgmDateChange(e.target.value)} className={`${CRM_INPUT} mt-1`} /></label>
+          <label className="text-[11px] font-semibold text-[#374151]">First auditor appointment date<input aria-label="First auditor appointment date" type="date" value={auditorAppointmentDate} onChange={(e) => onAuditorAppointmentDateChange(e.target.value)} className={`${CRM_INPUT} mt-1`} /></label>
+        </div>
+      </div>
+    </CrmCard>
+    <CompliancePacks onChanged={onPacksChanged} />
+    </>
+  );
+}
+
+function CompliancePacks({ onChanged }: { onChanged: () => void }) {
+  const [packs, setPacks] = useState<LedgerPack[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  const load = useCallback(async () => {
+    try { setPacks((await fetchLedgerPacks()).data ?? []); setError(''); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Compliance packs could not be loaded'); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void load(); }, [load]);
+  const toggle = async (pack: LedgerPack) => {
+    setBusy(pack.id); setError('');
+    try { await setLedgerPack(pack.id, !pack.enabled); await load(); onChanged(); }
+    catch (e) { setError(e instanceof Error ? e.message : 'Pack setting could not be saved'); }
+    finally { setBusy(''); }
+  };
+  return (
+    <CrmCard className="mt-4 p-4 sm:p-6">
+      <SectionHead icon={ClipboardList} title="Compliance packs" note="Suggested packs need your confirmation" />
+      {loading ? <p className="text-[12px] text-[#9ca3af]">Loading packs…</p> : <div className="divide-y divide-black/[0.05]">
+        {packs.map((pack) => <div key={pack.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-0 last:pb-0">
+          <div className="min-w-[180px] flex-1"><p className="text-[12px] font-bold">{pack.name}{pack.suggested && <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-[9px] font-bold text-amber-800">Suggested</span>}</p><p className="mt-0.5 text-[10.5px] text-[#6b7280]">{pack.suggestion_reason || pack.description}</p></div>
+          <button type="button" aria-pressed={pack.enabled} disabled={pack.id === 'core' || Boolean(busy)} onClick={() => void toggle(pack)} className={`rounded-lg px-3 py-2 text-[10px] font-bold ${pack.enabled ? 'bg-[#0A1628] text-white' : 'bg-black/[0.05] text-[#6b7280]'} disabled:cursor-not-allowed disabled:opacity-50`}>{busy === pack.id ? 'Saving…' : pack.id === 'core' ? 'Always on' : pack.enabled ? 'Enabled' : 'Enable'}</button>
+        </div>)}
+      </div>}
+      {error && <p role="alert" className="mt-3 text-[11px] font-semibold text-red-700">{error}</p>}
+    </CrmCard>
+  );
+}
+
 function CompanyMaster({ profile, onSave, onChanged }: { profile: LedgerCompanyProfile; onSave: (p: Partial<LedgerCompanyProfile>) => Promise<void>; onChanged: () => void }) {
   const [f, setF] = useState<Partial<LedgerCompanyProfile>>(profile);
   const [saving, setSaving] = useState(false);
@@ -1195,7 +1422,7 @@ function CompanyMaster({ profile, onSave, onChanged }: { profile: LedgerCompanyP
               </label>
               <div className="min-w-0">
                 <p className="text-[9.5px] font-bold uppercase tracking-[0.24em] text-[#C9A84C]">Company Master</p>
-                <h2 className="mt-1 font-['Instrument_Serif',Georgia,serif] text-[24px] leading-tight text-white sm:text-[28px]">{profile.name}</h2>
+                <h2 className="mt-1 font-['Inter',sans-serif] text-[22px] font-semibold leading-tight tracking-[-0.03em] text-white sm:text-[26px]">{profile.name}</h2>
                 <p className="mt-1 font-mono text-[11px] tracking-wide text-white/50">{profile.cin || 'CIN —'}</p>
               </div>
             </div>
@@ -1466,7 +1693,7 @@ function PriorityQueue({ buckets, cases, notices, payments, directors, loading, 
 function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [edit, setEdit] = useState({ arn: item.arn ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '', amount_paid: item.amount_paid != null ? String(item.amount_paid) : '', proof_url: item.proof_url ?? '' });
+  const [edit, setEdit] = useState({ arn: item.arn ?? '', filed_date: item.filed_date ?? '', assignee: item.assignee ?? '', challan_url: item.challan_url ?? '', notes: item.notes ?? '', amount_paid: item.amount_paid != null ? String(item.amount_paid) : '', proof_url: item.proof_url ?? '' });
   const [dirty, setDirty] = useState(false);
   const band = riskBand(item);
   const law = LAW_STYLES[item.law] ?? LAW_STYLES.Other;
@@ -1474,14 +1701,14 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
   const setStatus = async (status: string) => {
     setSaving(true);
     try {
-      await upsertLedgerItem({ id: item.id, status, filed_date: status === 'filed' ? new Date().toISOString().slice(0, 10) : item.filed_date ?? null } as Partial<LedgerComplianceItem>);
+      await upsertLedgerItem({ id: item.id, status, filed_date: edit.filed_date || null, arn: edit.arn, proof_url: edit.proof_url, challan_url: edit.challan_url } as Partial<LedgerComplianceItem>);
       onChanged();
     } finally { setSaving(false); setOpen(false); }
   };
   const saveDetails = async () => {
     setSaving(true);
     try {
-      await upsertLedgerItem({ id: item.id, ...edit, amount_paid: edit.amount_paid ? Number(edit.amount_paid) : undefined } as unknown as Partial<LedgerComplianceItem>);
+      await upsertLedgerItem({ id: item.id, ...edit, status: item.status, evidence_status: item.evidence_status, amount_paid: edit.amount_paid ? Number(edit.amount_paid) : undefined } as unknown as Partial<LedgerComplianceItem>);
       setDirty(false);
       onChanged();
     } finally { setSaving(false); }
@@ -1513,6 +1740,11 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
         </span>
         {saving && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#96782A]" />}
       </button>
+      {item.form.toLowerCase().includes('ptec') && Number(item.amount_paid) > 0 && Number(item.amount_paid) < 2500 && (
+        <p role="alert" className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-semibold text-amber-800">
+          PTEC payment shortfall: ₹{(2500 - Number(item.amount_paid)).toLocaleString('en-IN')} remains against ₹2,500. Verify the challan.
+        </p>
+      )}
       <AnimatePresence>
         {open && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
@@ -1526,6 +1758,7 @@ function ItemRow({ item, onChanged }: { item: LedgerComplianceItem; onChanged: (
               {/* Filing details — ARN, assignee, challan, notes */}
               <div className="col-span-2 grid grid-cols-1 gap-3 sm:col-span-4 sm:grid-cols-2">
                 <div><Label>ARN / SRN / acknowledgement</Label><input value={edit.arn} onChange={(e) => { setEdit((x) => ({ ...x, arn: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="e.g. AAABCS1234567890" /></div>
+                <div><Label>Filing date</Label><input type="date" value={edit.filed_date} onChange={(e) => { setEdit((x) => ({ ...x, filed_date: e.target.value })); setDirty(true); }} className={CRM_INPUT} /></div>
                 <div><Label>Assignee</Label><input value={edit.assignee} onChange={(e) => { setEdit((x) => ({ ...x, assignee: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Who owns this filing?" /></div>
                 <div><Label>Challan link</Label><input value={edit.challan_url} onChange={(e) => { setEdit((x) => ({ ...x, challan_url: e.target.value })); setDirty(true); }} className={CRM_INPUT} placeholder="Challan / receipt URL" /></div>
                 <div><Label>Amount paid (₹)</Label><input inputMode="decimal" value={edit.amount_paid} onChange={(e) => { setEdit((x) => ({ ...x, amount_paid: e.target.value.replace(/[^0-9.]/g, '') })); setDirty(true); }} className={CRM_INPUT} placeholder="e.g. 2500" /></div>
@@ -1580,8 +1813,8 @@ function FullCalendar({ items, loading, onChanged }: { items: LedgerComplianceIt
     const map = new Map<string, LedgerComplianceItem[]>();
     for (const it of items) {
       if (lawFilter !== 'All' && it.law !== lawFilter) continue;
-      if (statusFilter === 'pending' && (it.status === 'filed' || it.status === 'na')) continue;
-      if (statusFilter === 'filed' && it.status !== 'filed' && it.status !== 'na') continue;
+      if (statusFilter === 'pending' && (it.status === 'na' || (it.status === 'filed' && hasComplianceEvidence(it)))) continue;
+      if (statusFilter === 'filed' && (it.status !== 'filed' || !hasComplianceEvidence(it)) && it.status !== 'na') continue;
       if (search && !`${it.form} ${it.title}`.toLowerCase().includes(search.toLowerCase())) continue;
       const key = it.due_date.slice(0, 7);
       if (!map.has(key)) map.set(key, []);
@@ -1797,21 +2030,31 @@ const STATUS_LABEL: Record<string, string> = {
 
 function LegalCompliancesTable({ items, loading }: { items: LedgerComplianceItem[]; loading: boolean }) {
   const [statusFilter, setStatusFilter] = useState<'upcoming' | 'filed' | 'all'>('upcoming');
+  const [periodFilter, setPeriodFilter] = useState('all');
   const [search, setSearch] = useState('');
 
   const rows = useMemo(() => {
     return items
       .filter((i) => {
-        if (statusFilter === 'upcoming' && (i.status === 'filed' || i.status === 'na')) return false;
-        if (statusFilter === 'filed' && i.status !== 'filed' && i.status !== 'na') return false;
+        if (statusFilter === 'upcoming' && (i.status === 'na' || completedWithEvidence(i))) return false;
+        if (statusFilter === 'filed' && i.status !== 'na' && (i.status !== 'filed' || !completedWithEvidence(i))) return false;
+        if (periodFilter !== 'all' && i.fy !== periodFilter) return false;
         if (search && !`${i.form} ${i.title} ${i.period}`.toLowerCase().includes(search.toLowerCase())) return false;
         return true;
       })
       .sort((a, b) => a.due_date.localeCompare(b.due_date));
-  }, [items, statusFilter, search]);
+  }, [items, statusFilter, search, periodFilter]);
 
-  const upcoming = items.filter((i) => i.status !== 'filed' && i.status !== 'na');
+  const upcoming = items.filter((i) => i.status !== 'na' && !completedWithEvidence(i)).sort((a, b) => a.due_date.localeCompare(b.due_date));
   const next = upcoming[0];
+
+  function pendingEvidence(item: LedgerComplianceItem) {
+    return item.status === 'filed' && !hasComplianceEvidence(item);
+  }
+  function completedWithEvidence(item: LedgerComplianceItem) {
+    return item.status === 'filed' && hasComplianceEvidence(item);
+  }
+  const filedCount = items.filter((i) => i.status === 'na' || (i.status === 'filed' && completedWithEvidence(i))).length;
 
   return (
     <div>
@@ -1835,6 +2078,10 @@ function LegalCompliancesTable({ items, loading }: { items: LedgerComplianceItem
 
       {/* Controls */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <select aria-label="Obligation financial year" value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value)} className="h-9 rounded-xl border border-black/10 bg-white px-3 text-[12px] font-semibold text-[#0A1628]">
+          <option value="all">All financial years</option>
+          {[...new Set(items.map((i) => i.fy))].sort().reverse().map((year) => <option key={year}>{year}</option>)}
+        </select>
         <div className="relative min-w-[160px] flex-1 sm:max-w-xs">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ca3af]" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 w-full rounded-xl border border-black/10 bg-white pl-8 pr-3 text-[12px] outline-none focus:border-[#C9A84C]/60" placeholder="Search form, title or period…" />
@@ -1842,7 +2089,7 @@ function LegalCompliancesTable({ items, loading }: { items: LedgerComplianceItem
         <div className="flex gap-1.5">
           {(['upcoming', 'filed', 'all'] as const).map((s) => (
             <button key={s} onClick={() => setStatusFilter(s)} className={`cursor-pointer rounded-full px-3.5 py-1.5 text-[11px] font-bold capitalize transition-colors ${statusFilter === s ? 'bg-[#0A1628] text-[#D6B85D]' : 'bg-white text-[#6b7280] hover:bg-black/[0.04]'}`}>
-              {s === 'upcoming' ? `Upcoming (${upcoming.length})` : s === 'filed' ? `Filed (${items.length - upcoming.length})` : `All (${items.length})`}
+              {s === 'upcoming' ? `Upcoming (${upcoming.length})` : s === 'filed' ? `Filed (${filedCount})` : `All (${items.length})`}
             </button>
           ))}
         </div>
@@ -1894,10 +2141,10 @@ function LegalCompliancesTable({ items, loading }: { items: LedgerComplianceItem
                       </td>
                       <td className="px-3 py-3 sm:px-4">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                          it.status === 'filed' ? 'bg-emerald-50 text-emerald-700' : it.status === 'in_progress' ? 'bg-blue-50 text-blue-700' : it.status === 'na' ? 'bg-gray-100 text-gray-500' : band === 'overdue' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
+                          completedWithEvidence(it) ? 'bg-emerald-50 text-emerald-700' : it.status === 'filed' ? 'bg-amber-50 text-amber-800' : it.status === 'in_progress' ? 'bg-blue-50 text-blue-700' : it.status === 'na' ? 'bg-gray-100 text-gray-500' : band === 'overdue' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'
                         }`}>
-                          {it.status === 'filed' && <CheckCircle2 className="h-2.5 w-2.5" />}
-                          {STATUS_LABEL[it.status] ?? it.status}
+                          {completedWithEvidence(it) && <CheckCircle2 className="h-2.5 w-2.5" />}
+                          {pendingEvidence(it) ? 'Awaiting evidence' : STATUS_LABEL[it.status] ?? it.status}
                         </span>
                       </td>
                     </tr>

@@ -30,7 +30,7 @@ const EASE: [number, number, number, number] = [0.25, 0.46, 0.45, 0.94];
 
 export default function HomeTestimonials() {
   return (
-    <section className="relative overflow-hidden bg-[#F8F9FA] py-12 md:py-20">
+    <section className="relative overflow-hidden bg-[#F8F7F3] py-20 md:py-28">
       <div className="pointer-events-none absolute -left-32 top-0 h-96 w-96 rounded-full bg-[#C9A84C]/[0.06] blur-3xl" />
       <div className="pointer-events-none absolute -right-32 bottom-0 h-96 w-96 rounded-full bg-[#C9A84C]/[0.06] blur-3xl" />
 
@@ -42,10 +42,7 @@ export default function HomeTestimonials() {
           transition={{ duration: 0.5, ease: EASE }}
           className="mb-10 text-center"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#C9A84C]">
-            Investor Stories
-          </p>
-          <h2 className="font-display mt-3 text-2xl font-bold tracking-tight text-[#0A1628] md:text-3xl">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-[#0A1628] md:text-4xl">
             Trusted by Bangalore&rsquo;s Income Investors
           </h2>
           <p className="mx-auto mt-2 max-w-2xl text-sm text-gray-500">
@@ -62,7 +59,7 @@ export default function HomeTestimonials() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-20px' }}
               transition={{ duration: 0.45, delay: i * 0.09, ease: EASE }}
-              className="relative flex h-full flex-col rounded-2xl border border-[#EBEBEB] bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#C9A84C]/50 hover:shadow-[0_16px_40px_rgba(10,22,40,0.08)]"
+              className="relative flex h-full flex-col border border-[#EAE7DE] bg-white p-7 md:p-8"
             >
               <Quotes size={28} weight="fill" className="text-[#C9A84C]/25" />
 
@@ -72,7 +69,7 @@ export default function HomeTestimonials() {
                 ))}
               </div>
 
-              <blockquote className="mt-3 flex-1 text-[13px] leading-relaxed text-gray-600">
+              <blockquote className="mt-5 flex-1 font-sans text-base leading-relaxed text-[#263344]">
                 &ldquo;{t.quote}&rdquo;
               </blockquote>
 
