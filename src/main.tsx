@@ -6,6 +6,14 @@ import App from './App.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 
+// Vercel preview and branch deployments must never be indexed — production is
+// the only surface Google should keep. The static shell ships index/follow, so
+// flip that tag instead of adding a second, conflicting robots meta.
+if (/\.vercel\.app$/i.test(window.location.hostname)) {
+  const robots = document.querySelector('meta[name="robots"]');
+  if (robots) robots.setAttribute('content', 'noindex, nofollow');
+}
+
 window.onerror = (msg, _url, line, col, err) => {
   const div = document.createElement('div');
   div.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#991b1b;color:#fff;padding:0.75rem 1rem;font:12px/1.4 monospace';

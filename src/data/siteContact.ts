@@ -1,6 +1,6 @@
 /** Official VJR Estate contact & links — single source of truth */
 export const siteContact = {
-  siteUrl: 'https://vjrestate.com',
+  siteUrl: 'https://www.vjrestate.com',
   phone: '8088905957',
   phoneDisplay: '+91 8088905957',
   phoneTel: '+918088905957',
@@ -11,8 +11,8 @@ export const siteContact = {
   mapsUrl: 'https://www.google.com/maps/search/?api=1&query=AECS+Layout%2C+Bangalore',
   hours: '9:30 AM – 7:30 PM',
   hoursLabel: 'Mon – Sat, 9:30 AM – 7:30 PM',
-  privacyUrl: 'https://vjrestate.com/legal/privacy-policy',
-  termsUrl: 'https://vjrestate.com/legal/terms-conditions',
+  privacyUrl: 'https://www.vjrestate.com/legal/privacy-policy',
+  termsUrl: 'https://www.vjrestate.com/legal/terms-conditions',
   social: {
     instagram: 'https://www.instagram.com/vjrestate',
     linkedin: 'https://www.linkedin.com/company/vjrestate/',

@@ -36,6 +36,7 @@ const columns = [
         ? [{ label: 'PG & Building Management', to: '/pg-management' }]
         : []),
       { label: 'About VJR Estate', to: '/about' },
+      { label: 'Our Team', to: '/team' },
       { label: 'Submit Requirement', to: '/submit-requirement' },
       { label: 'Active Requirements', to: '/requirements' },
       { label: 'Contact Us', to: '/contact' },

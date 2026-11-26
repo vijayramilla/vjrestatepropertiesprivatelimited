@@ -5,6 +5,14 @@
       "schedule": "30 22 * * *"
     }
   ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "vjrestate.com" }],
+      "destination": "https://www.vjrestate.com/:path*",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

@@ -74,7 +74,7 @@ function rfc822(dateStr: string): string {
 
 export default async function handler(req: any, res: any) {
   const proto = req.headers?.['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-  const host = req.headers?.['x-forwarded-host'] ?? req.headers?.host ?? 'vjrestate.com';
+  const host = req.headers?.['x-forwarded-host'] ?? req.headers?.host ?? 'www.vjrestate.com';
   const origin = `${proto}://${host}`;
 
   const posts = await getPosts();

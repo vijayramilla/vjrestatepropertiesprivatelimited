@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Users, Briefcase } from '@phosphor-icons/react';
 import { subscribeToTeamPageVisible, TEAM_PAGE_DEFAULT_VISIBLE } from '@/lib/teamVisibility';
-import { setPageMeta } from '@/lib/siteMeta';
+import { setPageMeta, setStructuredData } from '@/lib/siteMeta';
+import { getSiteOrigin } from '@/lib/siteUrl';
 
 const EASE = [0.22, 1, 0.36, 1] as const;
 
@@ -35,9 +36,39 @@ export default function TeamPage() {
   const [visible, setVisible] = useState(TEAM_PAGE_DEFAULT_VISIBLE);
 
   useEffect(() => {
+    const origin = getSiteOrigin();
+    const url = `${origin}/team`;
     setPageMeta(
-      'Our Team | VJR Estate — Meet the People Behind Bangalore\'s Rental Income Specialists',
-      'Meet the VJR Estate team — the sales, technology and operations people behind Bangalore\'s only dedicated rental income property platform.',
+      'VJR Estate Team | Leadership & Professionals in Bangalore',
+      'Meet the team behind VJR Estate Properties Pvt. Ltd., working together to deliver real estate opportunities and investment properties across Bangalore.',
+      url,
+    );
+    setStructuredData(
+      [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: 'VJR Estate Properties Private Limited',
+          alternateName: 'VJR Estate',
+          url: origin,
+          logo: `${origin}/og-image-v2.png`,
+          employee: LEADERSHIP.map(({ name, title, photoUrl }) => ({
+            '@type': 'Person',
+            name,
+            jobTitle: title,
+            ...(photoUrl ? { image: `${origin}${photoUrl}` } : {}),
+          })),
+        },
+        {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: [
+            { '@type': 'ListItem', position: 1, name: 'Home', item: `${origin}/` },
+            { '@type': 'ListItem', position: 2, name: 'Our Team', item: url },
+          ],
+        },
+      ],
+      'jsonld-team',
     );
   }, []);
 

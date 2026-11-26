@@ -6,4 +6,4 @@ Disallow: /employee-login
 Disallow: /shortlist
 Disallow: /verify
 
-Sitemap: https://vjrestate.com/sitemap.xml
+Sitemap: https://www.vjrestate.com/sitemap.xml

@@ -37,14 +37,15 @@ export function setDefaultSiteMeta() {
 const OG_IMAGE_VERSION = 'v3';
 
 /** Set a fixed page title + description (non-shareable pages). */
-export function setPageMeta(title: string, description: string) {
+export function setPageMeta(title: string, description: string, url?: string) {
   document.title = title;
   setMeta('description', description);
   setMeta('og:title', title, true);
   setMeta('og:description', description, true);
   setMeta('og:site_name', SITE_NAME, true);
   setMeta('og:type', 'website', true);
-  setMeta('og:url', `${getSiteOrigin()}/`, true);
+  setMeta('og:url', url ?? `${getSiteOrigin()}/`, true);
+  if (url) setCanonical(url);
   setMeta('og:image', `${getSiteOrigin()}/og-image-v2.png`, true);
   setMeta('twitter:title', title);
   setMeta('twitter:description', description);
@@ -144,8 +145,7 @@ function setCanonical(url: string) {
   el.setAttribute('href', url);
 }
 
-function setJsonLd(data: Record<string, unknown> | Array<Record<string, unknown>>) {
-  const id = 'jsonld-blog';
+function setJsonLd(data: Record<string, unknown> | Array<Record<string, unknown>>, id = 'jsonld-blog') {
   document.getElementById(id)?.remove();
   const el = document.createElement('script');
   el.id = id;
@@ -187,6 +187,11 @@ export function setBlogPostJsonLd(post: { slug: string; title: string; excerpt?:
       ],
     },
   ]);
+}
+
+/** Generic page structured data, injected on pages that are not blog posts. */
+export function setStructuredData(data: Record<string, unknown> | Array<Record<string, unknown>>, id = 'jsonld-page') {
+  setJsonLd(data, id);
 }
 
 /** Blog index structured data, injected on /blog. */

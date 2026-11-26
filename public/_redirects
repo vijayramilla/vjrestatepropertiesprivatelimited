@@ -1,3 +1,6 @@
+# One canonical host: the bare domain permanently redirects to www.
+https://vjrestate.com/*  https://www.vjrestate.com/:splat  301!
+
 # Static assets must NEVER be served as the SPA shell.
 # Without these rules, a request for a missing hashed asset (e.g. /js/old-hash.js
 # after a redeploy) would hit the catch-all and return index.html, causing the
