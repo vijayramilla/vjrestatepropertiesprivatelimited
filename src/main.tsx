@@ -32,14 +32,46 @@ function deferAnalytics() {
   }
 }
 
-deferAnalytics();
+const requiredFirebaseConfig = {
+  VITE_FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY,
+  VITE_FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  VITE_FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  VITE_FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  VITE_FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  VITE_FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+const missingFirebaseConfig = Object.entries(requiredFirebaseConfig)
+  .filter(([, value]) => !value?.trim())
+  .map(([key]) => key);
+const root = createRoot(document.getElementById('root')!);
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <ErrorBoundary>
-      <App />
-      <Analytics />
-      <SpeedInsights />
-    </ErrorBoundary>
-  </StrictMode>,
-);
+if (missingFirebaseConfig.length > 0) {
+  root.render(
+    <main className="flex min-h-screen items-center justify-center bg-[#f3f2ee] px-4 py-10 text-[#0A1628]">
+      <section role="alert" className="w-full max-w-xl rounded-2xl border border-[#e4e0d6] bg-white p-6 sm:p-8">
+        <div className="mb-5 h-1 w-12 rounded-full bg-[#C9A84C]" />
+        <h1 className="text-xl font-semibold tracking-[-0.02em] sm:text-2xl">CRM setup is incomplete</h1>
+        <p className="mt-2 text-sm leading-relaxed text-[#55575d]">
+          Firebase authentication is required before the CRM and Calling Centre can start. The following settings are missing:
+        </p>
+        <ul className="mt-4 space-y-2 rounded-xl bg-[#f7f6f2] p-4 font-mono text-xs text-[#333943]">
+          {missingFirebaseConfig.map((detail) => <li key={detail}>{detail}</li>)}
+        </ul>
+        <p className="mt-4 text-xs leading-relaxed text-[#68645e]">
+          Add the missing Firebase web app settings to your local <code>.env</code>, then restart the development server.
+        </p>
+      </section>
+    </main>,
+  );
+} else {
+  root.render(
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+        <Analytics />
+        <SpeedInsights />
+      </ErrorBoundary>
+    </StrictMode>,
+  );
+  deferAnalytics();
+}
